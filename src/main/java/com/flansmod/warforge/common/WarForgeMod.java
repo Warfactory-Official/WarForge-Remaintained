@@ -632,8 +632,7 @@ public class WarForgeMod implements ILateMixinLoader {
 			VeinConfigHandler.writeStubIfEmpty();
 			VeinConfigHandler.loadVeins();
 		} catch (Exception e) {
-			e.printStackTrace();
-			System.exit(1);
+			throw new RuntimeException(e);
 		}
 
         try {

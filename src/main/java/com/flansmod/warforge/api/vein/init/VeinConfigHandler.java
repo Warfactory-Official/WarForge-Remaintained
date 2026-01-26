@@ -31,6 +31,12 @@ import static com.flansmod.warforge.api.vein.init.VeinUtils.NULL_VEIN_ID;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 
 public class VeinConfigHandler {
+    static Yaml yaml;
+
+    static {
+        yaml = new Yaml();
+    }
+
     public final static Path CONFIG_PATH = Paths.get("config/" + WarForgeMod.MODID + "/veins.cfg");
     public static final List<String> EXAMPLE_YAML = Collections.unmodifiableList(Arrays.asList(
             "# It should be said that it is RECOMMENDED to BACKUP ANY vein config files with significant time invested into them; ",
@@ -114,7 +120,6 @@ public class VeinConfigHandler {
     // called after writeStub
     public static void loadVeins() throws ConfigurationException {
         // try to get the raw veins and write no veins on failure
-        Yaml yaml = new Yaml();
         var veinData = parseGlobalVeinData();
         // we need to keep the global data to write to a file later
         if (veinData == null) {
@@ -199,7 +204,7 @@ public class VeinConfigHandler {
         List<LinkedHashMap<String, Object>> rawVeins;
         try {
             InputStream inputStream = new FileInputStream(CONFIG_PATH.toFile());  // will throw if no file exists
-            globalVeinData = new Yaml().load(inputStream);  // get a mapping of keys to objects
+            globalVeinData = yaml.load(inputStream);  // get a mapping of keys to objects
             short iterationId = ((Number) globalVeinData.get("iteration")).shortValue();
 
             short megachunkLength = ((Number) globalVeinData.get("megachunk_length")).shortValue();
