@@ -51,5 +51,5 @@ dependencies {
     runtimeOnly rfg.deobf("curse.maven:gregtech-ce-unofficial-557242:5519022")
     runtimeOnly rfg.deobf("curse.maven:codechicken-lib-1-8-242818:2779848")
 
-    implementation ("com.cleanroommc:modularui:3.0.8"){transitive = false}
+    implementation ("com.cleanroommc:modularui:3.1.0"){transitive = false}
 }

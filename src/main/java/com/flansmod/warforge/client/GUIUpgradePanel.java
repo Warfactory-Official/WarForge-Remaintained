@@ -192,7 +192,7 @@ public class GUIUpgradePanel {
         UITexture ARROW = UITexture.builder()
                 .location(ModularUI.ID, "gui/widgets/progress_bar_arrow")
                 .imageSize(20, 40)
-                .uv(0, 20, 20, 20)
+                .subAreaXYWH(0, 20, 20, 20)
                 .build();
 
         Widget newLevel = IKey.str("Lvl " + (level + 1)).asWidget()
@@ -326,7 +326,7 @@ public class GUIUpgradePanel {
         UITexture CHECK = UITexture.builder()
                 .location(ModularUI.ID, "gui/widgets/toggle_config")
                 .imageSize(14, 28)
-                .uv(2, 16, 10, 10)
+                .subAreaXYWH(2, 16, 10, 10)
                 .build();
         return (Row) new Row()
                 .child(new IDrawable.DrawableWidget(new IngredientDrawable(ingredient))
