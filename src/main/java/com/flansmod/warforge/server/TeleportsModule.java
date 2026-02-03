@@ -6,6 +6,7 @@ import java.util.List;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;

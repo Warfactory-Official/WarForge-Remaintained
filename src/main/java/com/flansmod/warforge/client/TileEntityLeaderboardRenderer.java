@@ -1,6 +1,7 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.TileEntityLeaderboard;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;

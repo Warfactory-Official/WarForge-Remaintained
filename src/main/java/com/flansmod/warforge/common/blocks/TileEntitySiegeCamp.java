@@ -7,6 +7,7 @@ import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.TimeHelper;

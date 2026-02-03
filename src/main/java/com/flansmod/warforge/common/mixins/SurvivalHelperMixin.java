@@ -4,6 +4,7 @@ import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemStack;

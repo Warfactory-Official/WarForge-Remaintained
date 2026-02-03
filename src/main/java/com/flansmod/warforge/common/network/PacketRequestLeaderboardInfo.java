@@ -1,6 +1,7 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

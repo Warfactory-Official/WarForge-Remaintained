@@ -1,6 +1,7 @@
 package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import net.minecraftforge.fml.relauncher.Side;

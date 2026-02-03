@@ -1,6 +1,6 @@
 package com.flansmod.warforge.api;
 
-import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import lombok.RequiredArgsConstructor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -74,18 +74,18 @@ public class ChunkDynamicTextureThread extends Thread {
                 // Compute normal vector
                 double dx = hR - hL;
                 double dz = hD - hU;
-                float  exaggeration = 1.5f;
+                float exaggeration = 1.5f;
 
-                Vec3d normal = new Vec3d(-dx, exaggeration , -dz).normalize(); // 2.0 exaggerates vertical steepness
+                Vec3d normal = new Vec3d(-dx, exaggeration, -dz).normalize(); // 2.0 exaggerates vertical steepness
 
                 // Lambertian reflectance
                 float shade = (float) normal.dotProduct(lightDir);
                 shade = Math.max(0.0f, Math.min(1.0f, shade));
 
-                float brightness = 0.5f + (float)Math.pow(shade,exaggeration) * 0.5f;
+                float brightness = 0.5f + (float) Math.pow(shade, exaggeration) * 0.5f;
 
                 shaded[idx] = new Color4i(baseColor)
-                        .withGammaBrightness(brightness,false)
+                        .withGammaBrightness(brightness, false)
                         .toRGB();
             }
         }
@@ -121,15 +121,15 @@ public class ChunkDynamicTextureThread extends Thread {
 
 
     public void applyHeightMap(int[] colorBuffer, int[] heightMap) {
-            for (int i = 0; i < colorBuffer.length; i++) {
-                float normalized = (float) Math.log(heightMap[i] - minHeight + 1) / (float) Math.log(maxHeight - minHeight + 1);
-                float brightness = 0.6f + normalized * 0.4f;
+        for (int i = 0; i < colorBuffer.length; i++) {
+            float normalized = (float) Math.log(heightMap[i] - minHeight + 1) / (float) Math.log(maxHeight - minHeight + 1);
+            float brightness = 0.6f + normalized * 0.4f;
 
-                Color4i color = Color4i.fromRGB(colorBuffer[i])
-                        .withHSVBrightness(brightness);
-                colorBuffer[i] = color.toRGB();
-            }
+            Color4i color = Color4i.fromRGB(colorBuffer[i])
+                    .withHSVBrightness(brightness);
+            colorBuffer[i] = color.toRGB();
         }
+    }
 
     @RequiredArgsConstructor
     public static class RegisterTextureAction {
@@ -138,7 +138,7 @@ public class ChunkDynamicTextureThread extends Thread {
 
         public void register() {
             Minecraft.getMinecraft().getTextureManager().loadTexture(
-                    new ResourceLocation(WarForgeMod.MODID, name),
+                    new ResourceLocation(Tags.MODID, name),
                     new DynamicTexture(mapTexture)
             );
         }

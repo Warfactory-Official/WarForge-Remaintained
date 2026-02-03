@@ -12,6 +12,7 @@ import com.flansmod.warforge.api.Time;
 import com.flansmod.warforge.api.modularui.MapDrawable;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketStartSiege;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;

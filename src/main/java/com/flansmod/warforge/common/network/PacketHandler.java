@@ -12,6 +12,7 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;

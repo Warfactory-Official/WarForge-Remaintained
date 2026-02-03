@@ -1,6 +1,7 @@
 package com.flansmod.warforge.common.blocks.models;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import net.minecraft.util.ResourceLocation;
 
 import java.net.URI;
@@ -15,7 +16,7 @@ import java.util.List;
 public class DataRetrivalUtil {
     public static List<ResourceLocation> getResourcesFromPath(String dir) {
         var list = new ArrayList<ResourceLocation>();
-        String modid = WarForgeMod.MODID;
+        String modid = Tags.MODID;
         URI uri = null;
         try {
             uri = WarForgeMod.class.getProtectionDomain().getCodeSource().getLocation().toURI();

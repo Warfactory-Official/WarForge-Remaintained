@@ -6,6 +6,7 @@ import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Siege;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

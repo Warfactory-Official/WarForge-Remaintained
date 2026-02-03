@@ -3,6 +3,7 @@ package com.flansmod.warforge.api.vein.init;
 import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketBase;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -37,7 +38,7 @@ public class VeinConfigHandler {
         yaml = new Yaml();
     }
 
-    public final static Path CONFIG_PATH = Paths.get("config/" + WarForgeMod.MODID + "/veins.cfg");
+    public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.cfg");
     public static final List<String> EXAMPLE_YAML = Collections.unmodifiableList(Arrays.asList(
             "# It should be said that it is RECOMMENDED to BACKUP ANY vein config files with significant time invested into them; ",
             "# trying to update the file when auto-generated vein ids are present may cause data loss if a poorly timed error occurs.",

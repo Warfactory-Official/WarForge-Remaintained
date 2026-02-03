@@ -6,6 +6,7 @@ import com.cleanroommc.modularui.screen.viewport.GuiContext;
 import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
@@ -36,9 +37,9 @@ public class MapDrawable implements IDrawable, Interactable {
 
     private final String mapData;
     private final SiegeCampAttackInfoRender chunkState;
-    private final ResourceLocation attackIcon = new ResourceLocation(WarForgeMod.MODID, "gui/icon_siege_attack.png");
-    private final ResourceLocation selfIcon = new ResourceLocation(WarForgeMod.MODID, "gui/icon_siege_self.png");
-    private final ResourceLocation selfIconBase = new ResourceLocation(WarForgeMod.MODID, "gui/icon_siege_self_base.png");
+    private final ResourceLocation attackIcon = new ResourceLocation(Tags.MODID, "gui/icon_siege_attack.png");
+    private final ResourceLocation selfIcon = new ResourceLocation(Tags.MODID, "gui/icon_siege_self.png");
+    private final ResourceLocation selfIconBase = new ResourceLocation(Tags.MODID, "gui/icon_siege_self_base.png");
     private final boolean[] adjacency;
     private final boolean campChunk;
 
@@ -75,7 +76,7 @@ public class MapDrawable implements IDrawable, Interactable {
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableLighting();
         GlStateManager.enableAlpha();
-        Minecraft.getMinecraft().getTextureManager().bindTexture(new ResourceLocation(WarForgeMod.MODID, mapData));
+        Minecraft.getMinecraft().getTextureManager().bindTexture(new ResourceLocation(Tags.MODID, mapData));
         Gui.drawModalRectWithCustomSizedTexture(x, y, 0, 0, width, height, 16 * 4, 16 * 4);
         if (DEBUG) {
             FontRenderer fontRenderer = Minecraft.getMinecraft().fontRenderer;

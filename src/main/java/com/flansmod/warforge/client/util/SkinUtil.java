@@ -1,6 +1,7 @@
 package com.flansmod.warforge.client.util;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.minecraft.MinecraftProfileTexture;
 import net.minecraft.client.Minecraft;
@@ -24,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class SkinUtil {
     private static final Map<UUID, ResourceLocation> parsedSkinCache = new ConcurrentHashMap<>();
-    private static final ResourceLocation DEFAULT_FACE = new ResourceLocation(WarForgeMod.MODID, "textures/gui/default_face.png");
+    private static final ResourceLocation DEFAULT_FACE = new ResourceLocation(Tags.MODID, "textures/gui/default_face.png");
     static Minecraft mc = Minecraft.getMinecraft();
     static SkinManager mcSkinManager = mc.getSkinManager();
 
@@ -50,7 +51,7 @@ public class SkinUtil {
                 var face = skinImage.getSubimage(8, 8, 8, 8); // front face
                 var faceOverlay = skinImage.getSubimage(40, 8, 8, 8); // hat layer
                 BufferedImage combined = overlayImages(face, faceOverlay);
-                var loc = new ResourceLocation(WarForgeMod.MODID, "player_face_" + uuid);
+                var loc = new ResourceLocation(Tags.MODID, "player_face_" + uuid);
                 mc.addScheduledTask(() -> {
                     mc.getTextureManager().loadTexture(loc, new DynamicTexture(combined));
                     parsedSkinCache.put(uuid, loc);

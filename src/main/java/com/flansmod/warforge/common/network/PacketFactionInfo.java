@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction.Role;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;

@@ -1,6 +1,7 @@
 package com.flansmod.warforge.common.potions;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
@@ -11,7 +12,7 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 
 public class PotionTpRequest extends Potion 
 {
-	public static final ResourceLocation EXTRA_EFFECTS = new ResourceLocation(WarForgeMod.MODID, "textures/potions.png");
+	public static final ResourceLocation EXTRA_EFFECTS = new ResourceLocation(Tags.MODID, "textures/potions.png");
 	
 	
 	protected PotionTpRequest() 

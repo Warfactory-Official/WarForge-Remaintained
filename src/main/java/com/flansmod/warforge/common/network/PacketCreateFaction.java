@@ -2,6 +2,7 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 
 import io.netty.buffer.ByteBuf;

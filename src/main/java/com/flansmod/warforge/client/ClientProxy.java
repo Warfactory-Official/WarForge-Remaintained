@@ -6,6 +6,7 @@ import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.blocks.models.ClaimModels;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.*;
 import com.flansmod.warforge.common.effect.AnimatedEffectHandler;
 import com.flansmod.warforge.common.network.PacketRequestFactionInfo;

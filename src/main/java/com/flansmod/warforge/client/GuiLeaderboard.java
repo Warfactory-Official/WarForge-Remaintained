@@ -1,6 +1,7 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.LeaderboardInfo;
 import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
@@ -13,7 +14,7 @@ import net.minecraft.util.ResourceLocation;
 
 public class GuiLeaderboard extends GuiScreen
 {
-	private static final ResourceLocation texture = new ResourceLocation(WarForgeMod.MODID, "gui/leaderboard.png");
+	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/leaderboard.png");
 
 	private FactionStat currentStat = FactionStat.TOTAL;
 	private int lookingAtIndex = 0;

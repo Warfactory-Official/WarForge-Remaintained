@@ -5,6 +5,7 @@ import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.Sounds;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.IClaim;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;

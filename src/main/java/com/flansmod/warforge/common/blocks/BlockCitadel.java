@@ -2,6 +2,7 @@ package com.flansmod.warforge.common.blocks;
 
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.models.RotatableStateMapper;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -211,9 +212,9 @@ public class BlockCitadel extends MultiBlockColumn implements ITileEntityProvide
     @SneakyThrows
     public void bakeModel(ModelBakeEvent event) {
         IModel medieval = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/citadelblock"));
+                new ResourceLocation(Tags.MODID, "block/citadelblock"));
         IModel modern = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/statues/modern/flag_pole"));
+                new ResourceLocation(Tags.MODID, "block/statues/modern/flag_pole"));
         registerFacingModels(medieval, modern, event.getModelRegistry(), getRegistryName());
     }
 

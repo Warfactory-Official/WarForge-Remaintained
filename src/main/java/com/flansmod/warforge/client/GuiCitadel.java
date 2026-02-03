@@ -5,6 +5,7 @@ import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.ContainerCitadel;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketDisbandFaction;
 import com.flansmod.warforge.common.network.PacketPlaceFlag;
 import com.flansmod.warforge.common.network.PacketRequestUpgradeUI;
@@ -19,7 +20,7 @@ import net.minecraft.util.ResourceLocation;
 
 public class GuiCitadel extends GuiContainer
 {	
-	private static final ResourceLocation texture = new ResourceLocation(WarForgeMod.MODID, "gui/citadelmenu.png");
+	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/citadelmenu.png");
 
 	private static final int BUTTON_INFO = 0;
 	private static final int BUTTON_DISBAND = 1;

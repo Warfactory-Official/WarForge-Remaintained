@@ -4,6 +4,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.models.RotatableStateMapper;
 import com.flansmod.warforge.common.network.PacketRemoveClaim;
 import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
@@ -291,9 +292,9 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
     @SneakyThrows
     public void bakeModel(ModelBakeEvent event) {
         IModel medieval = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/warstump"));
+                new ResourceLocation(Tags.MODID, "block/warstump"));
         IModel modern = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/statues/modern/flag_pole"));
+                new ResourceLocation(Tags.MODID, "block/statues/modern/flag_pole"));
         registerFacingModels(medieval, modern, event.getModelRegistry(), getRegistryName());
     }
 

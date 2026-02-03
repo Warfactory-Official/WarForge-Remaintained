@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.network.PlayerDisplayInfo;
@@ -26,7 +27,7 @@ import net.minecraft.util.ResourceLocation;
 
 public class GuiFactionInfo extends GuiScreen
 {
-	private static final ResourceLocation texture = new ResourceLocation(WarForgeMod.MODID, "gui/factioninfo.png");
+	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/factioninfo.png");
 	public static HashMap<String, ResourceLocation> skinCache = new HashMap<String, ResourceLocation>();
 
 	private enum EnumTab

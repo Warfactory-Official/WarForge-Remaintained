@@ -3,6 +3,7 @@ package com.flansmod.warforge.client;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.api.WarforgeCache;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketRequestNamePlate;
 import lombok.RequiredArgsConstructor;
 import net.minecraftforge.fml.relauncher.Side;

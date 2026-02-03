@@ -2,6 +2,7 @@ package com.flansmod.warforge.common.blocks.models;
 
 import com.flansmod.warforge.client.models.ThemableBakedModel;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.util.IDynamicModels;
 import com.google.common.collect.ImmutableMap;
 import lombok.SneakyThrows;
@@ -25,7 +26,7 @@ public class ClaimModels implements IDynamicModels {
 
     public static final String texturePath = "textures/blocks/statues/";
     public static final Map<ModelType, IBakedModel[]> MODEL_MAP = new EnumMap<>(ModelType.class);
-    public static ResourceLocation BASE_STATUE = new ResourceLocation(WarForgeMod.MODID, "block/dummy/statue_base");
+    public static ResourceLocation BASE_STATUE = new ResourceLocation(Tags.MODID, "block/dummy/statue_base");
 
     public ClaimModels() {
         INSTANCES.add(this);
@@ -71,9 +72,9 @@ public class ClaimModels implements IDynamicModels {
 
         Map<THEME, IModel> citadelModels = ImmutableMap.of(
                 THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(WarForgeMod.MODID, classicTexturePath + "/statue_king").toString())
+                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_king").toString())
                 ),
-                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(WarForgeMod.MODID, modernModelPath + "/flag_pole"))
+                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(Tags.MODID, modernModelPath + "/flag_pole"))
         );
 
         // Use your themable baking for CITADEL
@@ -81,19 +82,19 @@ public class ClaimModels implements IDynamicModels {
 
         Map<THEME, IModel> basicClaimModels = ImmutableMap.of(
                 THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(WarForgeMod.MODID, classicTexturePath + "/statue_knight").toString())
+                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_knight").toString())
                 ),
-                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(WarForgeMod.MODID, modernModelPath + "/radio"))
+                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(Tags.MODID, modernModelPath + "/radio"))
         );
         MODEL_MAP.put(ModelType.BASIC_CLAIM, bakeTheamableModels(basicClaimModels));
 
         // SIEGE using same placeholder models
         Map<THEME, IModel> siegeModels = ImmutableMap.of(
                 THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(WarForgeMod.MODID, classicTexturePath + "/statue_berserker").toString())
+                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_berserker").toString())
                 ),
                 THEME.MODERN, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(WarForgeMod.MODID, classicTexturePath + "/statue_berserker").toString())
+                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_berserker").toString())
                 )
         );
         MODEL_MAP.put(ModelType.SIEGE, bakeTheamableModels(siegeModels));

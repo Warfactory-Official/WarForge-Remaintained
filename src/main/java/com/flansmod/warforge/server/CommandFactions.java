@@ -2,6 +2,7 @@ package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.LeaderboardInfo;
 import com.flansmod.warforge.common.network.PacketFactionInfo;

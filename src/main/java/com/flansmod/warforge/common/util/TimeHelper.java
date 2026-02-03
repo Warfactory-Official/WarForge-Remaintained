@@ -2,6 +2,7 @@ package com.flansmod.warforge.common.util;
 
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 
 public class TimeHelper {
     public TimeHelper() {

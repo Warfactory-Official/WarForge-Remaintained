@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common;
 
+import com.flansmod.warforge.Tags;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundEvent;
 import net.minecraftforge.registries.IForgeRegistry;
@@ -13,7 +14,7 @@ public class Sounds {
     public static final SoundEvent sfxUpgrade = createSoundEvent("sfx.upgrade");
 
     private static SoundEvent createSoundEvent(String name) {
-        ResourceLocation loc = new ResourceLocation(WarForgeMod.MODID, name);
+        ResourceLocation loc = new ResourceLocation(Tags.MODID, name);
         SoundEvent event = new SoundEvent(loc).setRegistryName(loc);
         SOUNDS.add(event);
         return event;

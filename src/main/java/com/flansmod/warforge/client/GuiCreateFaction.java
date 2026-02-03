@@ -7,6 +7,7 @@ import org.lwjgl.input.Mouse;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.network.PacketCreateFaction;
 import com.flansmod.warforge.common.network.PacketSetFactionColour;
@@ -19,7 +20,7 @@ import net.minecraft.util.ResourceLocation;
 
 public class GuiCreateFaction extends GuiScreen
 {
-	private static final ResourceLocation texture = new ResourceLocation(WarForgeMod.MODID, "gui/citadelmenu.png");
+	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/citadelmenu.png");
 
 	private static final int BUTTON_CREATE = 0;
 	private static final int BUTTON_CANCEL = 1;

@@ -6,6 +6,7 @@ import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.GuiSiegeCamp;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.entity.player.EntityPlayer;

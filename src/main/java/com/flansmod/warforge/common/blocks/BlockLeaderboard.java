@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.blocks;
 import java.util.UUID;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 

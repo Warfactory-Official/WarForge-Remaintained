@@ -5,6 +5,7 @@ import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.util.IDynamicModels;
 import com.flansmod.warforge.server.Faction;
@@ -215,9 +216,9 @@ public class BlockBasicClaim extends MultiBlockColumn implements ITileEntityProv
     @SneakyThrows
     public void bakeModel(ModelBakeEvent event) {
         IModel medieval = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/basicclaimblock"));
+                new ResourceLocation(Tags.MODID, "block/basicclaimblock"));
         IModel modern = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(WarForgeMod.MODID, "block/statues/modern/onlytable"));
+                new ResourceLocation(Tags.MODID, "block/statues/modern/onlytable"));
         registerFacingModels(medieval, modern, event.getModelRegistry(), getRegistryName());
     }
 

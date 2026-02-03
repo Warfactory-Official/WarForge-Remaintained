@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.mixins.vanilla;
 import com.flansmod.warforge.client.PlayerNametagCache;
 import com.flansmod.warforge.client.util.FullColorNameplate;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.EntityRenderer;
 import net.minecraft.client.renderer.entity.Render;

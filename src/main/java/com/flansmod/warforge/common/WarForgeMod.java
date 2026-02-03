@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common;
 
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.ObjectIntPair;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinConfigHandler;
@@ -68,14 +69,11 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
-@Mod(modid = WarForgeMod.MODID, name = WarForgeMod.NAME, version = WarForgeMod.VERSION,
-        dependencies = "after:modularui@[2.5.0-rc5,)"
+@Mod(modid = Tags.MODID, name = Tags.MODNAME, version = Tags.VERSION,
+        dependencies = "after:modularui"
 )
-@Mod.EventBusSubscriber(modid = WarForgeMod.MODID)
+@Mod.EventBusSubscriber(modid = Tags.MODID)
 public class WarForgeMod implements ILateMixinLoader {
-    public static final String MODID = "warforge";
-    public static final String NAME = "WarForge Factions";
-    public static final String VERSION = "1.2.0";
     public static final PacketHandler NETWORK = new PacketHandler();
     public static final Leaderboard LEADERBOARD = new Leaderboard();
     public static final FactionStorage FACTIONS = new FactionStorage();
@@ -93,7 +91,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @SideOnly(Side.CLIENT)
     public static PlayerNametagCache NAMETAG_CACHE;
-    @Instance(MODID)
+    @Instance(Tags.MODID)
 
     public static WarForgeMod INSTANCE;
     @SidedProxy(clientSide = "com.flansmod.warforge.client.ClientProxy", serverSide = "com.flansmod.warforge.common.CommonProxy")
@@ -234,7 +232,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
         IMultiBlockInit.registerMaps();
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-            Path configFile = Paths.get("config/" + WarForgeMod.MODID + "/upgrade_levels.cfg");
+            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
             try {
                 UpgradeHandler.writeStubIfEmpty(configFile);
                 UpgradeHandler.parseConfig(configFile);

@@ -2,6 +2,7 @@ package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.ContainerBasicClaim;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketMoveCitadel;
 import com.flansmod.warforge.common.network.PacketPlaceFlag;
 import com.flansmod.warforge.common.network.PacketRemoveClaim;
@@ -15,7 +16,7 @@ import net.minecraft.util.ResourceLocation;
 
 public class GuiBasicClaim extends GuiContainer
 {
-	private static final ResourceLocation texture = new ResourceLocation(WarForgeMod.MODID, "gui/citadelmenu.png");
+	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/citadelmenu.png");
 
 	private static final int BUTTON_INFO = 0;
 	private static final int BUTTON_REMOVE_CLAIM = 1;

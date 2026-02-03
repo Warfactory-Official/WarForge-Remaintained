@@ -1,6 +1,7 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.entity.player.EntityPlayerMP;
 

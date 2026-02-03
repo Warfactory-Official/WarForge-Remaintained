@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.blocks;
 import java.util.ArrayList;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
 
 import net.minecraft.nbt.NBTTagCompound;
