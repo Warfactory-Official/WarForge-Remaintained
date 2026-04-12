@@ -1,10 +1,12 @@
 package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.api.Time;
+import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.IClaim;
+import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
 import com.flansmod.warforge.common.blocks.TileEntityYieldCollector;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.PlayerDisplayInfo;
@@ -36,6 +38,7 @@ import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -54,6 +57,8 @@ public class Faction {
     public String name;
     public DimBlockPos citadelPos;
     public HashMap<DimBlockPos, Integer> claims;
+    public HashSet<DimChunkPos> forcedChunks;
+    public HashSet<DimBlockPos> islandCollectors;
     public HashMap<UUID, PlayerData> members;
     public HashMap<UUID, Float> pendingInvites;
     public HashMap<UUID, Integer> killCounter;
@@ -75,6 +80,8 @@ public class Faction {
         members = new HashMap<UUID, PlayerData>();
         pendingInvites = new HashMap<UUID, Float>();
         claims = new HashMap<DimBlockPos, Integer>();
+        forcedChunks = new HashSet<DimChunkPos>();
+        islandCollectors = new HashSet<DimBlockPos>();
         killCounter = new HashMap<UUID, Integer>();
     }
 
@@ -276,12 +283,20 @@ public class Faction {
         World world = WarForgeMod.MC_SERVER.getWorld(citadelPos.dim);
         this.citadelLevel = 0;
         world.setBlockToAir(citadelPos.toRegularPos());
+        for (DimBlockPos collectorPos : islandCollectors) {
+            World collectorWorld = WarForgeMod.MC_SERVER.getWorld(collectorPos.dim);
+            if (collectorWorld != null) {
+                collectorWorld.setBlockToAir(collectorPos.toRegularPos());
+            }
+        }
 
 
         String message = getMemberCount() > 0 ? name + " was disbanded." : name + " was abandoned and disbanded";
         messageAll(new TextComponentString(message));
         members.clear();
         claims.clear();
+        forcedChunks.clear();
+        islandCollectors.clear();
         pendingInvites.clear();
     }
 
@@ -295,6 +310,15 @@ public class Faction {
             return true;
         else
             return claimLimitForLevel > claims.size();
+    }
+
+    public int getMaxForceLoadedChunks() {
+        int levelBonus = citadelLevel * WarForgeConfig.FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL;
+        return Math.max(0, WarForgeConfig.FORCE_LOADED_CHUNKS_BASE + levelBonus);
+    }
+
+    public boolean canForceLoadMore() {
+        return forcedChunks.size() < getMaxForceLoadedChunks();
     }
 
     public boolean isPlayerRoleInFaction(UUID playerID, Role role) {
@@ -327,14 +351,23 @@ public class Faction {
     // avoids duplication of claim block on siege capture, as the way capture is done is
     // by losing the claim (this method) and then creating another in its place
     public void onClaimLost(DimBlockPos claimBlockPos, boolean captureAttempted) {
-        // Destroy our claim block
+        boolean removedForceLoad = forcedChunks.remove(claimBlockPos.toChunkPos());
+        // Destroy our claim block if this claim has a physical block.
         World world = WarForgeMod.MC_SERVER.getWorld(claimBlockPos.dim);
         IBlockState claimBlock = world.getBlockState(claimBlockPos.toRegularPos());
-        ItemStack drop = new ItemStack(Item.getItemFromBlock(claimBlock.getBlock()));
-        world.setBlockToAir(claimBlockPos);
-        if (!captureAttempted || !WarForgeConfig.SIEGE_CAPTURE) world.spawnEntity(new EntityItem(world,
-                claimBlockPos.getX() + 0.5d, claimBlockPos.getY() + 0.5d,
-                claimBlockPos.getZ() + 0.5d, drop));
+        if (WarForgeMod.isClaim(claimBlock.getBlock(), Content.statue, Content.dummyTranslusent)) {
+            ItemStack drop = new ItemStack(Item.getItemFromBlock(claimBlock.getBlock()));
+            world.setBlockToAir(claimBlockPos);
+            if (!captureAttempted || !WarForgeConfig.SIEGE_CAPTURE) {
+                world.spawnEntity(new EntityItem(
+                        world,
+                        claimBlockPos.getX() + 0.5d,
+                        claimBlockPos.getY() + 0.5d,
+                        claimBlockPos.getZ() + 0.5d,
+                        drop
+                ));
+            }
+        }
 
         // Uh oh
         if (claimBlockPos.equals(citadelPos)) {
@@ -344,12 +377,32 @@ public class Faction {
             messageAll(new TextComponentString("Our faction lost a claim at " + claimBlockPos.toFancyString()));
 
             claims.remove(claimBlockPos);
+            ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
+            for (DimBlockPos collectorPos : islandCollectors) {
+                if (collectorPos.toChunkPos().equals(claimBlockPos.toChunkPos())) {
+                    removedCollectors.add(collectorPos);
+                    World collectorWorld = WarForgeMod.MC_SERVER.getWorld(collectorPos.dim);
+                    if (collectorWorld != null) {
+                        collectorWorld.setBlockToAir(collectorPos.toRegularPos());
+                    }
+                }
+            }
+            if (!removedCollectors.isEmpty()) {
+                islandCollectors.removeAll(removedCollectors);
+                WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
+            } else if (removedForceLoad) {
+                WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
+            }
         }
 
     }
 
     public void claimNoTileEntity(DimChunkPos pos) {//Intetesting
-        claims.put(new DimBlockPos(pos.dim, pos.getXStart(), 0, pos.getZStart()), 0);
+        claimNoTileEntity(pos, 0);
+    }
+
+    public void claimNoTileEntity(DimChunkPos pos, int y) {
+        claims.put(new DimBlockPos(pos.dim, pos.getXStart(), y, pos.getZStart()), 0);
     }
 
 
@@ -422,6 +475,34 @@ public class Faction {
                 }
             }
         }
+
+        // Hidden claims do not have local inventories. Island collectors gather pending yields.
+        if (islandCollectors.isEmpty()) {
+            return;
+        }
+
+        ArrayList<DimBlockPos> staleCollectors = null;
+        for (DimBlockPos collectorPos : islandCollectors) {
+            World world = WarForgeMod.MC_SERVER.getWorld(collectorPos.dim);
+            if (world == null || !world.isBlockLoaded(collectorPos.toRegularPos())) {
+                continue;
+            }
+
+            TileEntity te = world.getTileEntity(collectorPos.toRegularPos());
+            if (te instanceof TileEntityIslandCollector collector) {
+                collector.processIslandYields(this);
+            } else {
+                if (staleCollectors == null) {
+                    staleCollectors = new ArrayList<DimBlockPos>();
+                }
+                staleCollectors.add(collectorPos);
+            }
+        }
+
+        if (staleCollectors != null) {
+            islandCollectors.removeAll(staleCollectors);
+            WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
+        }
     }
 
     public void promote(UUID playerID) {
@@ -456,6 +537,8 @@ public class Faction {
 
     public void readFromNBT(NBTTagCompound tags) {
         claims.clear();
+        forcedChunks.clear();
+        islandCollectors.clear();
         members.clear();
 
         // Get citadel pos and defining params
@@ -487,6 +570,22 @@ public class Faction {
             int kills = killInfo.getInteger("count");
 
             killCounter.put(uuid, kills);
+        }
+
+        NBTTagList forceLoadList = tags.getTagList("forcedChunks", 11);
+        for (NBTBase base : forceLoadList) {
+            int[] data = ((NBTTagIntArray) base).getIntArray();
+            if (data.length == 3) {
+                forcedChunks.add(new DimChunkPos(data[0], data[1], data[2]));
+            }
+        }
+
+        NBTTagList collectorList = tags.getTagList("collectors", 11);
+        for (NBTBase base : collectorList) {
+            DimBlockPos collectorPos = DimBlockPos.readFromNBT((NBTTagIntArray) base);
+            if (!collectorPos.equals(DimBlockPos.ZERO)) {
+                islandCollectors.add(collectorPos);
+            }
         }
 
 
@@ -547,6 +646,18 @@ public class Faction {
             killsList.appendTag(killTags);
         }
         tags.setTag("kills", killsList);
+
+        NBTTagList forceLoadList = new NBTTagList();
+        for (DimChunkPos chunkPos : forcedChunks) {
+            forceLoadList.appendTag(new NBTTagIntArray(new int[]{chunkPos.dim, chunkPos.x, chunkPos.z}));
+        }
+        tags.setTag("forcedChunks", forceLoadList);
+
+        NBTTagList collectorsList = new NBTTagList();
+        for (DimBlockPos collectorPos : islandCollectors) {
+            collectorsList.appendTag(collectorPos.writeToNBT());
+        }
+        tags.setTag("collectors", collectorsList);
 
         // Set gameplay params
         tags.setInteger("notoriety", notoriety);

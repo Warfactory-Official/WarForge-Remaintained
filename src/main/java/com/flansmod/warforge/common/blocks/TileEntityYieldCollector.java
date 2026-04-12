@@ -38,15 +38,21 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 	}
 
 	public void processYield(HashMap<DimBlockPos, Integer> claims) {
+		processYieldForClaim(claims, getClaimPos());
+	}
+
+	protected void processYieldForClaim(HashMap<DimBlockPos, Integer> claims, DimBlockPos claimPos) {
 		if(world.isRemote) { return; }  // we don't process on the client
 		if (VEIN_HANDLER == null || !VEIN_HANDLER.hasFinishedInit) { return; }
 
 		// check the number of yields to award and handle appropriately
-		int numYields = claims.get(getClaimPos());
+		Integer pending = claims.get(claimPos);
+		if (pending == null) { return; }
+		int numYields = pending;
 		if (numYields == 0) { return; }
-		claims.replace(this.getClaimPos(), 0);
+		claims.replace(claimPos, 0);
 
-		DimChunkPos currPos = new DimChunkPos(world.provider.getDimension(), getPos());
+		DimChunkPos currPos = claimPos.toChunkPos();
 		if (!VEIN_HANDLER.dimHasVeins(currPos.dim)) { return; }
 
 		// get vein data
@@ -151,7 +157,12 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 	// ----------------------------------------------------------
 	// The GIGANTIC amount of IInventory methods...
 	@Override
-	public String getName() { return factionName; }
+	public String getName() {
+		if (factionName == null || factionName.isEmpty()) {
+			return "WarForge Storage";
+		}
+		return factionName;
+	}
 
 	@Override
 	public boolean hasCustomName() { return false; }

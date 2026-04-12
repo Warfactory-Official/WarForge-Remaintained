@@ -10,8 +10,9 @@ import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.blocks.IClaim;
+import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.PacketChunkPosVeinID;
+import com.flansmod.warforge.common.network.PacketRequestClaimChunks;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -32,7 +33,6 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
@@ -45,24 +45,16 @@ import net.minecraftforge.client.event.RenderGameOverlayEvent.ElementType;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
-import net.minecraftforge.fml.common.network.FMLNetworkEvent;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-
-import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.lwjgl.input.Keyboard;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
 import static com.flansmod.warforge.client.util.RenderUtil.*;
@@ -85,6 +77,7 @@ public class ClientTickHandler {
     private final HashMap<ItemStack, ResourceLocation> bannerTextures = new HashMap<ItemStack, ResourceLocation>();
     private final int renderList = GLAllocation.generateDisplayLists(1);
     private DimChunkPos playerChunkPos = new DimChunkPos(0, 0, 0);
+    private DimChunkPos lastClaimSyncChunk = new DimChunkPos(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
     private float newAreaToastTime = 0;
     private String areaMessage = "";
     private int areaMessageColour = 0xFF_FF_FF_FF;
@@ -101,9 +94,12 @@ public class ClientTickHandler {
         tess = Tessellator.getInstance();
     toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
 		ClientRegistry.registerKeyBinding(toggleBordersKey);
+        claimManagerKey = new KeyBinding("key.warforge.claimmanager", Keyboard.KEY_M, "key.warforge.cathegory");
+        ClientRegistry.registerKeyBinding(claimManagerKey);
 
 	}
 	public static KeyBinding toggleBordersKey;
+    public static KeyBinding claimManagerKey;
 
     @SubscribeEvent
     public void onPlayerLogin(FMLNetworkEvent.ClientConnectedToServerEvent event) {
@@ -119,6 +115,8 @@ public class ClientTickHandler {
         CHUNK_VEIN_CACHE.purge();
         ClientProxy.VEIN_ENTRIES.clear();
         WarForgeMod.NAMETAG_CACHE.purge(); //Purge to remove possible stale data
+        ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
+        CLAIMS_DIRTY = true;
     }
 
     @SubscribeEvent
@@ -167,47 +165,45 @@ public class ClientTickHandler {
 				lastRenderStartTimeMs = -1;
             }
 
+            if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
+                requestClaimChunkData(standing, false);
+                lastClaimSyncChunk = standing;
+            }
+
+            if (claimManagerKey.isPressed()) {
+                requestClaimChunkData(standing, true);
+            }
+
             // Show new area timer if configured
             if (WarForgeConfig.SHOW_NEW_AREA_TIMER > 0.0f) {
 
                 // Only perform claim checks if the player has moved to a new chunk
                 if (!standing.equals(playerChunkPos)) {
-                    IClaim preClaim = null;
-                    IClaim postClaim = null;
-
-                    // Iterate only through the necessary tile entities (avoid loading all entities unnecessarily)
-                    for (TileEntity te : player.world.loadedTileEntityList) {
-                        if (te instanceof IClaim && !((IClaim) te).getFaction().equals(Faction.nullUuid)) {
-                            DimChunkPos tePos = ((IClaim) te).getClaimPos().toChunkPos();
-                            if (tePos.equals(playerChunkPos)) {
-                                preClaim = (IClaim) te;
-                            }
-                            if (tePos.equals(standing)) {
-                                postClaim = (IClaim) te;
-                            }
-                        }
-                    }
+                    ClaimChunkInfo preClaim = ClientClaimChunkCache.get(playerChunkPos);
+                    ClaimChunkInfo postClaim = ClientClaimChunkCache.get(standing);
+                    boolean hadPreClaim = preClaim != null && !preClaim.factionId.equals(Faction.nullUuid);
+                    boolean hasPostClaim = postClaim != null && !postClaim.factionId.equals(Faction.nullUuid);
 
                     // Generate area message only if needed (reduce redundant logic)
-                    if (preClaim == null) {
-                        if (postClaim != null) {
+                    if (!hadPreClaim) {
+                        if (hasPostClaim) {
                             // Entered a new claim
-                            areaMessage = "Entering " + postClaim.getClaimDisplayName();
-                            areaMessageColour = postClaim.getColour();
+                            areaMessage = "Entering " + postClaim.factionName;
+                            areaMessageColour = postClaim.colour;
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         }
                     } else // Left a claim
                     {
-                        if (postClaim == null) {
+                        if (!hasPostClaim) {
                             // Gone nowhere
-                            areaMessage = "Leaving " + preClaim.getClaimDisplayName();
-                            areaMessageColour = preClaim.getColour();
+                            areaMessage = "Leaving " + preClaim.factionName;
+                            areaMessageColour = preClaim.colour;
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         } else {
                             // Entered another claim, possibly different faction
-                            if (!preClaim.getFaction().equals(postClaim.getFaction())) {
-                                areaMessage = "Leaving " + preClaim.getClaimDisplayName() + ", Entering " + postClaim.getClaimDisplayName();
-                                areaMessageColour = postClaim.getColour();
+                            if (!preClaim.factionId.equals(postClaim.factionId)) {
+                                areaMessage = "Leaving " + preClaim.factionName + ", Entering " + postClaim.factionName;
+                                areaMessageColour = postClaim.colour;
                                 newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                             }
                         }
@@ -219,6 +215,14 @@ public class ClientTickHandler {
         }
 
 
+    }
+
+    private void requestClaimChunkData(DimChunkPos center, boolean openUi) {
+        PacketRequestClaimChunks packet = new PacketRequestClaimChunks();
+        packet.center = center;
+        packet.radius = WarForgeConfig.CLAIM_MANAGER_RADIUS;
+        packet.openUi = openUi;
+        WarForgeMod.NETWORK.sendToServer(packet);
     }
 
     @SubscribeEvent
@@ -617,20 +621,34 @@ public class ClientTickHandler {
         // Update our list from the old one
         HashMap<DimChunkPos, BorderRenderData> tempData = new HashMap<DimChunkPos, BorderRenderData>();
 
-        // Find all our data entries first
-        for (TileEntity te : world.loadedTileEntityList) {
-            if (te instanceof IClaim) {
-                if (((IClaim) te).getFaction().equals(Faction.nullUuid)) continue;
-                DimBlockPos blockPos = ((IClaim) te).getClaimPos();
-                DimChunkPos chunkPos = blockPos.toChunkPos();
+        // Find all synced claim chunks in our current dimension.
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+            DimChunkPos chunkPos = kvp.getKey();
+            if (chunkPos.dim != world.provider.getDimension()) {
+                continue;
+            }
 
-                if (renderData.containsKey(chunkPos)) {
-                    tempData.put(chunkPos, renderData.get(chunkPos));
-                } else {
-                    BorderRenderData data = new BorderRenderData();
-                    data.claim = (IClaim) te;
-                    tempData.put(chunkPos, data);
-                }
+            ClaimChunkInfo info = kvp.getValue();
+            if (info == null || info.factionId.equals(Faction.nullUuid)) {
+                continue;
+            }
+
+            if (renderData.containsKey(chunkPos)) {
+                BorderRenderData existing = renderData.get(chunkPos);
+                existing.factionId = info.factionId;
+                existing.colour = info.colour;
+                tempData.put(chunkPos, existing);
+            } else {
+                BorderRenderData data = new BorderRenderData();
+                data.factionId = info.factionId;
+                data.colour = info.colour;
+                tempData.put(chunkPos, data);
+            }
+        }
+
+        for (HashMap.Entry<DimChunkPos, BorderRenderData> oldEntry : renderData.entrySet()) {
+            if (!tempData.containsKey(oldEntry.getKey()) && oldEntry.getValue().renderList > 0) {
+                GlStateManager.glDeleteLists(oldEntry.getValue().renderList, 1);
             }
         }
 
@@ -662,23 +680,23 @@ public class ClientTickHandler {
 
             boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
             if (renderData.containsKey(pos.north()))
-                renderNorth = !renderData.get(pos.north()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorth = !renderData.get(pos.north()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.east()))
-                renderEast = !renderData.get(pos.east()).claim.getFaction().equals(data.claim.getFaction());
+                renderEast = !renderData.get(pos.east()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.south()))
-                renderSouth = !renderData.get(pos.south()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouth = !renderData.get(pos.south()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.west()))
-                renderWest = !renderData.get(pos.west()).claim.getFaction().equals(data.claim.getFaction());
+                renderWest = !renderData.get(pos.west()).factionId.equals(data.factionId);
 
             //for super spesific edge cases
             if (renderData.containsKey(pos.north().west()))
-                renderNorthWest = !renderData.get(pos.north().west()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorthWest = !renderData.get(pos.north().west()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.north().east()))
-                renderNorthEast = !renderData.get(pos.north().east()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorthEast = !renderData.get(pos.north().east()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.south().west()))
-                renderSouthWest = !renderData.get(pos.south().west()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouthWest = !renderData.get(pos.south().west()).factionId.equals(data.factionId);
             if (renderData.containsKey(pos.south().east()))
-                renderSouthEast = !renderData.get(pos.south().east()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouthEast = !renderData.get(pos.south().east()).factionId.equals(data.factionId);
 
             // North edge, [0,0] -> [16,0] wall
             if (renderNorth) {
@@ -975,7 +993,7 @@ public class ClientTickHandler {
             if (data.renderList >= 0) {
                 GlStateManager.pushMatrix();
 
-                int colour = data.claim.getColour();
+                int colour = data.colour;
                 float r = (float) (colour >> 16 & 255) / 255.0F;
                 float g = (float) (colour >> 8 & 255) / 255.0F;
                 float b = (float) (colour & 255) / 255.0F;
@@ -1035,18 +1053,16 @@ public class ClientTickHandler {
         boolean canPlace = true;
         List<DimChunkPos> siegeablePositions = new ArrayList<>();
 
-        for (TileEntity te : Minecraft.getMinecraft().world.loadedTileEntityList) {
-            if (te instanceof IClaim) {
-                DimBlockPos blockPos = ((IClaim) te).getClaimPos();
-                DimChunkPos chunkPos = blockPos.toChunkPos();
-
-                if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z) {
-                    canPlace = false;
-                }
-                if (((IClaim) te).canBeSieged()) {
-                    siegeablePositions.add(chunkPos);
-                }
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+            DimChunkPos chunkPos = kvp.getKey();
+            ClaimChunkInfo info = kvp.getValue();
+            if (info == null || info.factionId.equals(Faction.nullUuid)) {
+                continue;
             }
+            if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z && playerPos.dim == chunkPos.dim) {
+                canPlace = false;
+            }
+            siegeablePositions.add(chunkPos);
         }
 
         // If holding siege camp block, allow placement if adjacent to siegable positions
@@ -1059,7 +1075,8 @@ public class ClientTickHandler {
 
 
     private static class BorderRenderData {
-        public IClaim claim;
+        public UUID factionId = Faction.nullUuid;
+        public int colour = 0xFFFFFF;
         public int renderList = -1;
     }
 }

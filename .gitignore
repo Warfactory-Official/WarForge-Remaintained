@@ -63,6 +63,9 @@ local.properties
 # TeXlipse plugin
 .texlipse
 
+AGENTS.md
+.codex
+
 ### Intellij IDEA ###
 
 *.iml

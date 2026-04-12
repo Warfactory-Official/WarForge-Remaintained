@@ -57,6 +57,9 @@ public class WarForgeConfig {
 
     public static int SUPPORT_STRENGTH_REINFORCED = 2;
     public static int SUPPORT_STRENGTH_BASIC = 1;
+    public static int FORCE_LOADED_CHUNKS_BASE = 4;
+    public static int FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = 1;
+    public static int CLAIM_MANAGER_RADIUS = 4;
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
@@ -215,6 +218,9 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_CITADEL = configFile.getInt("Citadel Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_CITADEL, 1, 1024, "The support strength a citadel gives to adjacent claims");
         SUPPORT_STRENGTH_REINFORCED = configFile.getInt("Reinforced Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_REINFORCED, 1, 1024, "The support strength a reinforced claim gives to adjacent claims");
         SUPPORT_STRENGTH_BASIC = configFile.getInt("Basic Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_BASIC, 1, 1024, "The support strength a basic claim gives to adjacent claims");
+        FORCE_LOADED_CHUNKS_BASE = configFile.getInt("Force-loaded Chunks Base Limit", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_BASE, 0, 1024, "How many claim chunks each faction can force-load by default.");
+        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = configFile.getInt("Force-loaded Chunks Per Citadel Level", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128, "Extra force-load chunk capacity granted per citadel level.");
+        CLAIM_MANAGER_RADIUS = configFile.getInt("Claim Manager Radius", CATEGORY_CLAIMS, CLAIM_MANAGER_RADIUS, 1, 12, "Square radius in chunks shown in the claim manager UI.");
         CITADEL_MOVE_NUM_DAYS = configFile.getInt("Days Between Citadel Moves", CATEGORY_CLAIMS, CITADEL_MOVE_NUM_DAYS, 0, 1024, "How many days a faction has to wait to move their citadel again");
         ENABLE_CITADEL_UPGRADES = configFile.getBoolean("Enable Citadel Upgrade System", CATEGORY_CLAIMS, false, "Applies claim limits that require upgrading to extend your faction's claim limit");
         ENABLE_ISOLATED_CLAIMS = configFile.getBoolean("Enabled Isolated Claims", CATEGORY_CLAIMS, ENABLE_ISOLATED_CLAIMS, "If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.");

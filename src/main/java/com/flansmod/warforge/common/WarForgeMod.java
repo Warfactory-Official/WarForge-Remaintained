@@ -82,6 +82,7 @@ public class WarForgeMod implements ILateMixinLoader {
     public static final TeleportsModule TELEPORTS = new TeleportsModule();
     public static final PotionsModule POTIONS = new PotionsModule();
     public static final UpgradeHandler UPGRADE_HANDLER = new UpgradeHandler();
+    public static final FactionChunkLoadingManager CHUNK_LOADING_MANAGER = new FactionChunkLoadingManager();
 	  public static VeinUtils VEIN_HANDLER = null;
 	  public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
 
@@ -203,6 +204,7 @@ public class WarForgeMod implements ILateMixinLoader {
         MinecraftForge.EVENT_BUS.register(MODEL_EVENT_HANDLER);
         proxy.preInit(event);
         EffectRegistry.init();
+        CHUNK_LOADING_MANAGER.initialize();
     }
 
     @EventHandler
@@ -407,31 +409,25 @@ public class WarForgeMod implements ILateMixinLoader {
         // All block placements are cancelled if there is already a block from this mod in that chunk
         DimChunkPos pos = new DimBlockPos(event.getWorld().provider.getDimension(), placementPos).toChunkPos();
         if (!FACTIONS.getClaim(pos).equals(Faction.nullUuid)) {
-            // check if claim chunk has actual claim pos, and if not then remove it
+            // validate stored claim record and reject placement if the claim exists.
             Faction claimingFaction = FACTIONS.getFaction(FACTIONS.getClaim(pos));
-            DimBlockPos claimPos = claimingFaction.getSpecificPosForClaim(pos);
-            if (claimPos == null) {
+            if (claimingFaction == null || claimingFaction.getSpecificPosForClaim(pos) == null) {
                 FACTIONS.getClaims().remove(pos);
             } else {
-                // check if block is not claim, and if it is marked as claim, but no claim block can be found, then remove phantom claim
-                if (!isClaim(event.getWorld().getBlockState(claimPos.toRegularPos()).getBlock())) {
-                    FACTIONS.getClaims().remove(claimingFaction.uuid);
-                    claimingFaction.onClaimLost(claimPos);
-                } else {
-                    player.sendMessage(new TextComponentString("This chunk already has a claim"));
-                    event.setCanceled(true);
-                    return;
-                }
+                player.sendMessage(new TextComponentString("This chunk already has a claim"));
+                event.setCanceled(true);
+                return;
             }
         }
 
         ObjectIntPair<UUID> conqueredChunkInfo = FACTIONS.conqueredChunks.get(pos);
         if (conqueredChunkInfo != null) {
+            UUID playerFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
             // remove invalid entries if necessary, and if not then do actual comparison
             if (conqueredChunkInfo.getObj() == null || conqueredChunkInfo.getObj().equals(Faction.nullUuid) || FACTIONS.getFaction(conqueredChunkInfo.getObj()) == null) {
                 WarForgeMod.LOGGER.atError().log("Found invalid conquered chunk at " + pos + "; removing and permitting placement.");
                 FACTIONS.conqueredChunks.remove(pos);
-            } else if (!conqueredChunkInfo.getObj().equals(playerFaction.uuid)) {
+            } else if (!conqueredChunkInfo.getObj().equals(playerFactionId)) {
                 player.sendMessage(new TextComponentTranslation("warforge.info.chunk_is_conquered",
                         WarForgeMod.FACTIONS.getFaction(FACTIONS.conqueredChunks.get(pos).getObj()).name,
                         TimeHelper.formatTime(FACTIONS.conqueredChunks.get(pos).getInteger())));
@@ -546,6 +542,7 @@ public class WarForgeMod implements ILateMixinLoader {
             packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
 
             NETWORK.sendTo(packet, (EntityPlayerMP) event.player);
+            FACTIONS.sendClaimChunks((EntityPlayerMP) event.player, new DimChunkPos(event.player.dimension, event.player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS, false);
 
             // sends packet to client which clears all previously remembered sieges; identical attacking and def names = clear packet
 
@@ -653,6 +650,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
             NBTTagCompound tags = CompressedStreamTools.readCompressed(new FileInputStream(dataFile));
             readFromNBT(tags);
+            CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.getAllFactions());
             LOGGER.info("Successfully loaded " + dataFile.getName());
         } catch (Exception e) {
             LOGGER.error("Failed to load data from warforgefactions.dat and backup; restart strongly recommended");
@@ -708,6 +706,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @EventHandler
     public void serverStopped(FMLServerStoppingEvent event) {
         save("Server Stop");
+        CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;
     }
 

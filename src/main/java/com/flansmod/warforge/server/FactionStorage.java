@@ -9,9 +9,15 @@ import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.IClaim;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;
+import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
 import com.flansmod.warforge.common.blocks.TileEntitySiegeCamp;
+import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
+import com.flansmod.warforge.common.blocks.TileEntityReinforcedClaim;
+import com.flansmod.warforge.common.blocks.BlockBasicClaim;
 import com.flansmod.warforge.common.effect.EffectDisband;
 import com.flansmod.warforge.common.effect.EffectUpgrade;
+import com.flansmod.warforge.common.network.ClaimChunkInfo;
+import com.flansmod.warforge.common.network.PacketClaimChunksData;
 import com.flansmod.warforge.common.network.PacketNamePlateChange;
 import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
@@ -146,6 +152,10 @@ public class FactionStorage {
         return mClaims;
     }
 
+    public Collection<Faction> getAllFactions() {
+        return mFactions.values();
+    }
+
     public boolean IsPlayerRoleInFaction(UUID playerID, UUID factionID, Faction.Role role) {
         if (mFactions.containsKey(factionID))
             return mFactions.get(factionID).isPlayerRoleInFaction(playerID, role);
@@ -199,14 +209,112 @@ public class FactionStorage {
     public void onNonCitadelClaimPlaced(IClaim claim, Faction faction) {
         if (faction != null) {
             TileEntity tileEntity = claim.getAsTileEntity();
+            boolean dataOnlyClaim = tileEntity instanceof TileEntityBasicClaim || tileEntity instanceof TileEntityReinforcedClaim;
             mClaims.put(claim.getClaimPos().toChunkPos(), faction.uuid);
 
             faction.messageAll(new TextComponentString("Claimed the chunk [" + claim.getClaimPos().toChunkPos().x + ", " + claim.getClaimPos().toChunkPos().z + "] around " + claim.getClaimPos().toFancyString()));
 
-            claim.onServerSetFaction(faction);
+            if (!dataOnlyClaim) {
+                claim.onServerSetFaction(faction);
+            }
             faction.onClaimPlaced(claim);
+
+            // Basic / reinforced claim blocks become data-only claims after placement.
+            if (dataOnlyClaim) {
+                World world = tileEntity.getWorld();
+                DimBlockPos claimPos = claim.getClaimPos();
+                world.setBlockToAir(claimPos.toRegularPos());
+                world.setBlockToAir(claimPos.toRegularPos().up());
+                world.setBlockToAir(claimPos.toRegularPos().up(2));
+            }
         } else
             LOGGER.error("Invalid placer placed a claim at " + claim.getClaimPos());
+    }
+
+    public boolean requestClaimChunkNoTile(EntityPlayerMP player, DimChunkPos chunkPos) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("You aren't in a faction"));
+            return false;
+        }
+        if (!canClaimChunkNoTile(player, faction, chunkPos, true)) {
+            return false;
+        }
+
+        mClaims.put(chunkPos, faction.uuid);
+        faction.claimNoTileEntity(chunkPos, player.getPosition().getY());
+        faction.messageAll(new TextComponentString("Claimed the chunk [" + chunkPos.x + ", " + chunkPos.z + "]"));
+        return true;
+    }
+
+    private boolean canClaimChunkNoTile(EntityPlayerMP player, Faction faction, DimChunkPos chunkPos, boolean notify) {
+        if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER)) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("You are not an officer of your faction"));
+            }
+            return false;
+        }
+        if (!getClaim(chunkPos).equals(Faction.nullUuid)) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("This chunk already has a claim"));
+            }
+            return false;
+        }
+        if (!containsInt(WarForgeConfig.CLAIM_DIM_WHITELIST, chunkPos.dim)) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("You cannot claim chunks in this dimension"));
+            }
+            return false;
+        }
+        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES && !faction.canPlaceClaim()) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("Your faction reached it's level's claim limit, upgrade the level to incrase the limit"));
+            }
+            return false;
+        }
+        if (!WarForgeConfig.ENABLE_ISOLATED_CLAIMS && BlockBasicClaim.hasAdjacent(chunkPos, faction) == null) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("Isolated claims are disabled; you cannot put a claim here with no adjacent claims"));
+            }
+            return false;
+        }
+
+        // Prevent joining two collector-bearing islands into one.
+        int collectorsInConnectedIslands = 0;
+        HashSet<DimChunkPos> seen = new HashSet<DimChunkPos>();
+        for (EnumFacing facing : EnumFacing.HORIZONTALS) {
+            DimChunkPos neighbor = chunkPos.Offset(facing, 1);
+            if (!faction.uuid.equals(getClaim(neighbor)) || seen.contains(neighbor)) {
+                continue;
+            }
+
+            Set<DimChunkPos> island = collectFactionIsland(faction.uuid, neighbor);
+            seen.addAll(island);
+            for (DimBlockPos collectorPos : faction.islandCollectors) {
+                if (island.contains(collectorPos.toChunkPos())) {
+                    collectorsInConnectedIslands++;
+                    break;
+                }
+            }
+        }
+        if (collectorsInConnectedIslands > 1) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("This claim would merge multiple islands that each already have a collector"));
+            }
+            return false;
+        }
+
+        ObjectIntPair<UUID> conqueredChunkInfo = conqueredChunks.get(chunkPos);
+        if (conqueredChunkInfo != null && !Objects.equals(conqueredChunkInfo.getObj(), faction.uuid)) {
+            if (notify) {
+                Faction owner = getFaction(conqueredChunkInfo.getObj());
+                String ownerName = owner == null ? "Unknown" : owner.name;
+                player.sendMessage(new TextComponentTranslation("warforge.info.chunk_is_conquered", ownerName, TimeHelper.formatTime(conqueredChunkInfo.getInteger())));
+            }
+            return false;
+        }
+
+        return true;
     }
 
     public UUID getClaim(DimBlockPos pos) {
@@ -619,7 +727,8 @@ public class FactionStorage {
         faction.messageAll(new TextComponentString(
                 officer.getName() + " has upgraded your facition to level " +
                         faction.citadelLevel + "! You can now claim " +
-                        UPGRADE_HANDLER.getClaimLimitForLevel(faction.citadelLevel)));
+                        UPGRADE_HANDLER.getClaimLimitForLevel(faction.citadelLevel) +
+                        " chunks and force-load up to " + faction.getMaxForceLoadedChunks() + " chunks."));
 
 
         faction.soundEffectAll(Sounds.sfxUpgrade);
@@ -822,6 +931,7 @@ public class FactionStorage {
         });
         faction.disband();
         mFactions.remove(faction.uuid);
+        WarForgeMod.CHUNK_LOADING_MANAGER.releaseFaction(faction.uuid);
         LEADERBOARD.UnregisterFaction(faction);
     }
 
@@ -1043,13 +1153,207 @@ public class FactionStorage {
         return factionID != null && !factionID.equals(excludingFaction) && !factionID.equals(Faction.nullUuid);
     }
 
+    public Set<DimChunkPos> collectFactionIsland(UUID factionID, DimChunkPos start) {
+        HashSet<DimChunkPos> visited = new HashSet<DimChunkPos>();
+        if (!factionID.equals(getClaim(start))) {
+            return visited;
+        }
+
+        ArrayDeque<DimChunkPos> queue = new ArrayDeque<DimChunkPos>();
+        queue.add(start);
+        visited.add(start);
+
+        while (!queue.isEmpty()) {
+            DimChunkPos current = queue.poll();
+            for (EnumFacing facing : EnumFacing.HORIZONTALS) {
+                DimChunkPos neighbor = current.Offset(facing, 1);
+                if (!visited.contains(neighbor) && factionID.equals(getClaim(neighbor))) {
+                    visited.add(neighbor);
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        return visited;
+    }
+
+    public boolean registerCollector(EntityPlayerMP player, DimBlockPos collectorPos) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("You are not in a faction"));
+            return false;
+        }
+        if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER)) {
+            player.sendMessage(new TextComponentString("You are not an officer of your faction"));
+            return false;
+        }
+
+        DimChunkPos collectorChunk = collectorPos.toChunkPos();
+        if (!faction.uuid.equals(getClaim(collectorChunk))) {
+            player.sendMessage(new TextComponentString("Collector can only be placed in your faction land"));
+            return false;
+        }
+
+        Set<DimChunkPos> island = collectFactionIsland(faction.uuid, collectorChunk);
+        ArrayList<DimBlockPos> staleCollectors = new ArrayList<DimBlockPos>();
+        for (DimBlockPos existingCollector : faction.islandCollectors) {
+            World collectorWorld = MC_SERVER.getWorld(existingCollector.dim);
+            if (collectorWorld == null || !(collectorWorld.getTileEntity(existingCollector.toRegularPos()) instanceof TileEntityIslandCollector)) {
+                staleCollectors.add(existingCollector);
+                continue;
+            }
+            if (island.contains(existingCollector.toChunkPos())) {
+                player.sendMessage(new TextComponentString("There is already a collector on this faction island"));
+                return false;
+            }
+        }
+        if (!staleCollectors.isEmpty()) {
+            faction.islandCollectors.removeAll(staleCollectors);
+            WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+        }
+
+        TileEntity te = player.world.getTileEntity(collectorPos.toRegularPos());
+        if (!(te instanceof TileEntityIslandCollector collector)) {
+            return false;
+        }
+
+        collector.onServerSetFaction(faction);
+        faction.islandCollectors.add(collectorPos);
+        WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+        return true;
+    }
+
+    public void unregisterCollector(DimBlockPos collectorPos) {
+        for (Faction faction : mFactions.values()) {
+            if (faction.islandCollectors.remove(collectorPos)) {
+                WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+                return;
+            }
+        }
+    }
+
+    public boolean requestToggleForceLoad(EntityPlayerMP player, DimChunkPos chunkPos) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("You are not in a faction"));
+            return false;
+        }
+        if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER)) {
+            player.sendMessage(new TextComponentString("You are not an officer of your faction"));
+            return false;
+        }
+        if (!faction.uuid.equals(getClaim(chunkPos))) {
+            player.sendMessage(new TextComponentString("You can only force-load your faction chunks"));
+            return false;
+        }
+
+        if (faction.forcedChunks.contains(chunkPos)) {
+            faction.forcedChunks.remove(chunkPos);
+            player.sendMessage(new TextComponentString("Removed force-load from chunk [" + chunkPos.x + ", " + chunkPos.z + "]"));
+        } else {
+            if (!faction.canForceLoadMore()) {
+                player.sendMessage(new TextComponentString("Force-load chunk limit reached (" + faction.getMaxForceLoadedChunks() + ")"));
+                return false;
+            }
+            faction.forcedChunks.add(chunkPos);
+            player.sendMessage(new TextComponentString("Force-loaded chunk [" + chunkPos.x + ", " + chunkPos.z + "]"));
+        }
+
+        WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+        return true;
+    }
+
+    public void sendClaimChunks(EntityPlayerMP player, DimChunkPos center, int radius, boolean openUi) {
+        int clampedRadius = Math.max(1, Math.min(radius, WarForgeConfig.CLAIM_MANAGER_RADIUS));
+        if (center.dim != player.dimension) {
+            center = new DimChunkPos(player.dimension, player.getPosition());
+        }
+
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        boolean canManage = faction != null && (isOp(player) || faction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER));
+
+        PacketClaimChunksData packet = new PacketClaimChunksData();
+        packet.dim = center.dim;
+        packet.centerX = center.x;
+        packet.centerZ = center.z;
+        packet.radius = clampedRadius;
+        packet.openUi = openUi;
+        packet.playerFactionId = faction == null ? Faction.nullUuid : faction.uuid;
+        packet.forceLoadedCount = faction == null ? 0 : faction.forcedChunks.size();
+        packet.forceLoadedMax = faction == null ? 0 : faction.getMaxForceLoadedChunks();
+        packet.claimCount = faction == null ? 0 : faction.claims.size();
+        packet.claimMax = faction == null ? 0 : WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(faction.citadelLevel);
+        if (packet.claimMax < 0) {
+            packet.claimMax = Short.MAX_VALUE;
+        }
+
+        for (int x = center.x - clampedRadius; x <= center.x + clampedRadius; x++) {
+            for (int z = center.z - clampedRadius; z <= center.z + clampedRadius; z++) {
+                DimChunkPos chunk = new DimChunkPos(center.dim, x, z);
+                UUID ownerId = getClaim(chunk);
+                Faction ownerFaction = getFaction(ownerId);
+                if (ownerFaction != null && ownerFaction.getSpecificPosForClaim(chunk) == null) {
+                    mClaims.remove(chunk);
+                    ownerFaction = null;
+                    ownerId = Faction.nullUuid;
+                }
+
+                ClaimChunkInfo info = new ClaimChunkInfo();
+                info.x = x;
+                info.z = z;
+                if (ownerFaction != null) {
+                    info.factionId = ownerFaction.uuid;
+                    info.factionName = ownerFaction.name;
+                    info.colour = ownerFaction.colour;
+                }
+
+                if (faction != null && ownerFaction != null && ownerFaction.uuid.equals(faction.uuid)) {
+                    info.flags |= ClaimChunkInfo.FLAG_OWNED_BY_PLAYER;
+                    if (faction.forcedChunks.contains(chunk)) {
+                        info.flags |= ClaimChunkInfo.FLAG_FORCE_LOADED;
+                    }
+                    for (DimBlockPos collectorPos : faction.islandCollectors) {
+                        if (collectorPos.toChunkPos().equals(chunk)) {
+                            info.flags |= ClaimChunkInfo.FLAG_HAS_COLLECTOR;
+                            break;
+                        }
+                    }
+                }
+
+                if (canManage) {
+                    if (ownerFaction == null) {
+                        if (canClaimChunkNoTile(player, faction, chunk, false)) {
+                            info.flags |= ClaimChunkInfo.FLAG_CAN_CLAIM;
+                        }
+                    } else if (ownerFaction.uuid.equals(faction.uuid)) {
+                        DimBlockPos claimPos = faction.getSpecificPosForClaim(chunk);
+                        if (claimPos != null && !claimPos.equals(faction.citadelPos) && !IsSiegeInProgress(chunk)) {
+                            info.flags |= ClaimChunkInfo.FLAG_CAN_UNCLAIM;
+                        }
+                        info.flags |= ClaimChunkInfo.FLAG_CAN_TOGGLE_FORCELOAD;
+                    }
+                }
+
+                packet.chunks.add(info);
+            }
+        }
+
+        WarForgeMod.NETWORK.sendTo(packet, player);
+    }
+
 
     public boolean requestRemoveClaim(EntityPlayerMP player, DimBlockPos pos) {
-        UUID factionID = getClaim(pos);
+        DimChunkPos targetChunk = pos.toChunkPos();
+        UUID factionID = getClaim(targetChunk);
         Faction faction = getFaction(factionID);
         if (factionID.equals(Faction.nullUuid) || faction == null) {
             player.sendMessage(new TextComponentString("Could not find a claim in that location"));
             return false;
+        }
+
+        DimBlockPos claimPos = faction.getSpecificPosForClaim(targetChunk);
+        if (claimPos != null) {
+            pos = claimPos;
         }
 
         if (pos.equals(faction.citadelPos)) {
@@ -1063,7 +1367,7 @@ public class FactionStorage {
         }
 
         for (HashMap.Entry<DimChunkPos, Siege> siege : sieges.entrySet()) {
-            if (siege.getKey().equals(pos.toChunkPos())) {
+            if (siege.getKey().equals(targetChunk)) {
                 player.sendMessage(new TextComponentString("This claim is currently under siege"));
                 return false;
             }
@@ -1075,17 +1379,52 @@ public class FactionStorage {
         }
 
         faction.onClaimLost(pos);
-        mClaims.remove(pos.toChunkPos());
+        mClaims.remove(targetChunk);
+        faction.forcedChunks.remove(targetChunk);
+        ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
+        for (DimBlockPos collectorPos : faction.islandCollectors) {
+            if (collectorPos.toChunkPos().equals(targetChunk)) {
+                removedCollectors.add(collectorPos);
+                World world = MC_SERVER.getWorld(collectorPos.dim);
+                if (world != null) {
+                    world.setBlockToAir(collectorPos.toRegularPos());
+                }
+            }
+        }
+        faction.islandCollectors.removeAll(removedCollectors);
+        WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
         faction.messageAll(new TextComponentString(player.getName() + " unclaimed " + pos.toFancyString()));
 
         return true;
     }
 
+    public boolean requestRemoveClaimByChunk(EntityPlayerMP player, DimChunkPos chunkPos) {
+        Faction faction = getFaction(getClaim(chunkPos));
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("Could not find a claim in that location"));
+            return false;
+        }
+
+        DimBlockPos claimPos = faction.getSpecificPosForClaim(chunkPos);
+        if (claimPos == null) {
+            player.sendMessage(new TextComponentString("Could not find a claim in that location"));
+            return false;
+        }
+
+        return requestRemoveClaim(player, claimPos);
+    }
+
     public boolean requestRemoveClaimServer(DimBlockPos pos) {
-        UUID factionID = getClaim(pos);
+        DimChunkPos targetChunk = pos.toChunkPos();
+        UUID factionID = getClaim(targetChunk);
         Faction faction = getFaction(factionID);
         if (factionID.equals(Faction.nullUuid) || faction == null) {
             return false;
+        }
+
+        DimBlockPos claimPos = faction.getSpecificPosForClaim(targetChunk);
+        if (claimPos != null) {
+            pos = claimPos;
         }
 
         if (pos.equals(faction.citadelPos)) {
@@ -1093,7 +1432,7 @@ public class FactionStorage {
         }
 
         for (HashMap.Entry<DimChunkPos, Siege> siege : sieges.entrySet()) {
-            if (siege.getKey().equals(pos.toChunkPos())) {
+            if (siege.getKey().equals(targetChunk)) {
                 return false;
             }
 
@@ -1103,7 +1442,20 @@ public class FactionStorage {
         }
 
         faction.onClaimLost(pos);
-        mClaims.remove(pos.toChunkPos());
+        mClaims.remove(targetChunk);
+        faction.forcedChunks.remove(targetChunk);
+        ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
+        for (DimBlockPos collectorPos : faction.islandCollectors) {
+            if (collectorPos.toChunkPos().equals(targetChunk)) {
+                removedCollectors.add(collectorPos);
+                World world = MC_SERVER.getWorld(collectorPos.dim);
+                if (world != null) {
+                    world.setBlockToAir(collectorPos.toRegularPos());
+                }
+            }
+        }
+        faction.islandCollectors.removeAll(removedCollectors);
+        WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
         return true;
     }
 
@@ -1179,14 +1531,15 @@ public class FactionStorage {
         MC_SERVER.getWorld(pos.dim).setBlockState(pos.toRegularPos(), Content.citadelBlock.getDefaultState());
         TileEntityCitadel newCitadel = (TileEntityCitadel) MC_SERVER.getWorld(pos.dim).getTileEntity(pos.toRegularPos());
 
-        // Convert old citadel to basic claim
-        MC_SERVER.getWorld(faction.citadelPos.dim).setBlockState(faction.citadelPos.toRegularPos(), Content.basicClaimBlock.getDefaultState());
-        TileEntityClaim newClaim = (TileEntityClaim) MC_SERVER.getWorld(faction.citadelPos.dim).getTileEntity(faction.citadelPos.toRegularPos());
+        // Old citadel remains a normal claimed chunk but no longer has a physical claim block.
+        World oldCitadelWorld = MC_SERVER.getWorld(faction.citadelPos.dim);
+        oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos());
+        oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos().up());
+        oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos().up(2));
 
         // Update pos
         faction.citadelPos = pos;
         newCitadel.onServerSetFaction(faction);
-        newClaim.onServerSetFaction(faction);
 
         INSTANCE.messageAll(new TextComponentString(faction.name + " moved their citadel"), true);
 

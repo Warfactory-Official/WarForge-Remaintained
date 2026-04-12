@@ -2,6 +2,7 @@ tile.citadelblock.name=Citadel Block
 tile.basicclaimblock.name=Basic Claim Block
 tile.reinforcedclaimblock.name=Reinforced Claim Block
 tile.siegecampblock.name=Siege Camp Block
+tile.islandcollector.name=Faction Yield Storage
 tile.adminclaimblock.name=Admin Claim Block
 tile.topleaderboard.name=Top Leaderboard Block
 tile.wealthleaderboard.name=Wealth Leaderboard Block
@@ -43,3 +44,9 @@ warforge.info.chunk_is_conquered=This chunk was conquered by %s and may not be s
 warforge.notification.siege_abandon_current=No members of your faction have been in the siege chunk square radius [%d] for %d seconds. Your siege will be considered abandoned in %d seconds and may not currently complete; one member must return to decrease the abandon timer.
 warforge.notification.siege_abandon_opposing=No members of your faction have been in the siege chunk square radius [%d] for %d seconds. Your siege will be considered abandoned in %d seconds, unless at least one member returns.
 warforge.notification.siege_death=%s's death has shifted the siege progress by %d; ATK: %d/%d, DEF: %d/5.
+
+key.warforge.showborders=Toggle Borders
+key.warforge.claimmanager=Claim Manager
+key.warforge.cathegory=WarForge
+key.factionchat.desc=Faction Chat
+gui.warforge.claims=Claims

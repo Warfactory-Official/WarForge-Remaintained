@@ -127,10 +127,9 @@ public class BlockBasicClaim extends MultiBlockColumn implements ITileEntityProv
 
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityBasicClaim claim) {
-
-                FACTIONS.onNonCitadelClaimPlaced(claim, placer);
-                super.onBlockPlacedBy(world, pos, state, placer, stack);
                 claim.onPlacedBy(placer);
+                FACTIONS.onNonCitadelClaimPlaced(claim, placer);
+                world.setBlockToAir(pos);
             }
 
         }

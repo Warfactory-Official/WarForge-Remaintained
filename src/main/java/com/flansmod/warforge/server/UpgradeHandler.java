@@ -200,7 +200,7 @@ public class UpgradeHandler {
     }
 
     public int getClaimLimitForLevel(int level) {
-        if (level > LIMITS.length || level < 0)
+        if (level >= LIMITS.length || level < 0)
             return -1;
         else
             return LIMITS[level];

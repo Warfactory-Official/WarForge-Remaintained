@@ -70,6 +70,7 @@ public class Siege {
         defendingClaim = defending;
         this.timeRemainingMillis = time;
 
+        mBaseDifficulty = WarForgeConfig.CLAIM_STRENGTH_BASIC;
         TileEntity te = WarForgeMod.MC_SERVER.getWorld(defending.dim).getTileEntity(defending.toRegularPos());
         if (te instanceof IClaim) {
             mBaseDifficulty = ((IClaim) te).getDefenceStrength();
@@ -316,6 +317,8 @@ public class Siege {
                     TileEntity te = WarForgeMod.MC_SERVER.getWorld(claimBlockPos.dim).getTileEntity(claimBlockPos.toRegularPos());
                     if (te instanceof IClaim) {
                         mExtraDifficulty -= ((IClaim) te).getSupportStrength();
+                    } else {
+                        mExtraDifficulty -= WarForgeConfig.SUPPORT_STRENGTH_BASIC;
                     }
                 }
             }

@@ -119,6 +119,7 @@ public class ClientProxy extends CommonProxy
 		RegisterModel(Content.reinforcedClaimBlockItem);
 		RegisterModel(Content.siegeCampBlockItem);
 		RegisterModel(Content.adminClaimBlockItem);
+        RegisterModel(Content.islandCollectorItem);
 
 		RegisterModel(Content.topLeaderboardItem);
 		RegisterModel(Content.legacyLeaderboardItem);
