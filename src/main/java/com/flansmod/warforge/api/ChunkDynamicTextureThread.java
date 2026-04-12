@@ -137,6 +137,9 @@ public class ChunkDynamicTextureThread extends Thread {
         final String name;
 
         public void register() {
+            Minecraft.getMinecraft().getTextureManager().deleteTexture(
+                    new ResourceLocation(Tags.MODID, name)
+            );
             Minecraft.getMinecraft().getTextureManager().loadTexture(
                     new ResourceLocation(Tags.MODID, name),
                     new DynamicTexture(mapTexture)

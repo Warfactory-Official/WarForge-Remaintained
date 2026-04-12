@@ -9,6 +9,7 @@
   "server": [],
   "client": [
     "vanilla.RenderMixin",
-    "vanilla.GuiInventoryMixin"
+    "vanilla.GuiInventoryMixin",
+    "vanilla.GuiContainerCreativeMixin"
   ]
 }

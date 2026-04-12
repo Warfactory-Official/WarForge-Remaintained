@@ -133,30 +133,30 @@ public class MapDrawable implements IDrawable, Interactable {
                 Gui.drawRect(x + width - HL_THICKNESS, y, x + width, y + height, HL_COLOR);
             }
         }
-        if (campChunk) {
-            int xOffset = x + (width - 48) / 2;
-            int yOffset = y + (height - 48) / 2;
+        switch (chunkState.getCenterMarkType()) {
+            case SIEGE_CAMP -> {
+                int xOffset = x + (width - 48) / 2;
+                int yOffset = y + (height - 48) / 2;
 
-            setGLColor();
-            Minecraft.getMinecraft().getTextureManager().bindTexture(selfIconBase);
-            Gui.drawModalRectWithCustomSizedTexture(
+                setGLColor();
+                Minecraft.getMinecraft().getTextureManager().bindTexture(selfIconBase);
+                Gui.drawModalRectWithCustomSizedTexture(xOffset, yOffset, 0, 0, 48, 48, 48, 48);
 
-                    xOffset, yOffset,
-                    0, 0,             // UV coords
-                    48, 48, // draw size
-                    48, 48            // full texture size
-            );
-
-            Minecraft.getMinecraft().getTextureManager().bindTexture(selfIcon);
-            setGLColor(rgb);
-            Gui.drawModalRectWithCustomSizedTexture(
-
-                    xOffset, yOffset,
-                    0, 0,             // UV coords
-                    48, 48, // draw size
-                    48, 48            // full texture size
-            );
-            setGLColor();
+                Minecraft.getMinecraft().getTextureManager().bindTexture(selfIcon);
+                setGLColor(rgb);
+                Gui.drawModalRectWithCustomSizedTexture(xOffset, yOffset, 0, 0, 48, 48, 48, 48);
+                setGLColor();
+            }
+            case PLAYER_FACE, CUSTOM_TEXTURE -> {
+                if (chunkState.getCenterIcon() == null) break;
+                int xOffset = x + (width - 24) / 2;
+                int yOffset = y + (height - 24) / 2;
+                Minecraft.getMinecraft().getTextureManager().bindTexture(chunkState.getCenterIcon());
+                GlStateManager.color(1f, 1f, 1f, 1f);
+                Gui.drawScaledCustomSizeModalRect(xOffset, yOffset, 0, 0, 8, 8, 24, 24, 8, 8);
+            }
+            case NONE -> {
+            }
         }
 
         if (chunkState.veinSprite != null) {
@@ -181,7 +181,10 @@ public class MapDrawable implements IDrawable, Interactable {
         if (chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.claimType != Faction.ClaimType.NONE) {
             String label = claimInfo.claimType.shortLabel;
             if (!label.isEmpty()) {
-                Minecraft.getMinecraft().fontRenderer.drawStringWithShadow(label, x + width - 8, y + height - 10, 0xFFFFFF);
+                Minecraft.getMinecraft().fontRenderer.drawStringWithShadow(label, x + 2, y + height - 10, 0xFFFFFF);
+            }
+            if (claimInfo.forceLoaded) {
+                Minecraft.getMinecraft().fontRenderer.drawStringWithShadow("[F]", x + width - 20, y + height - 10, 0xFFFFFF);
             }
         }
 
@@ -216,5 +219,3 @@ public class MapDrawable implements IDrawable, Interactable {
     }
 
 }
-
-

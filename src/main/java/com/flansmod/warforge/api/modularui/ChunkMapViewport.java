@@ -1,5 +1,7 @@
 package com.flansmod.warforge.api.modularui;
 
+import net.minecraft.client.gui.ScaledResolution;
+
 public class ChunkMapViewport {
     public final int totalSize;
     public final int visibleSize;
@@ -56,5 +58,14 @@ public class ChunkMapViewport {
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));
+    }
+
+    public static int recommendedCellSize(ScaledResolution scaled) {
+        int minDim = Math.min(scaled.getScaledWidth(), scaled.getScaledHeight());
+        if (minDim <= 260) return 28;
+        if (minDim <= 340) return 36;
+        if (minDim <= 430) return 44;
+        if (minDim <= 560) return 52;
+        return 64;
     }
 }

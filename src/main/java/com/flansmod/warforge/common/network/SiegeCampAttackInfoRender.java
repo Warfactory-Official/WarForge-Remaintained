@@ -21,10 +21,24 @@ import java.util.List;
 
 @AllArgsConstructor
 public class SiegeCampAttackInfoRender extends SiegeCampAttackInfo {
+    public enum CenterMarkType {
+        NONE,
+        SIEGE_CAMP,
+        PLAYER_FACE,
+        CUSTOM_TEXTURE
+    }
+
     @Getter
     @Setter
     @Nullable
     public TextureAtlasSprite veinSprite = null;
+    @Getter
+    @Setter
+    public CenterMarkType centerMarkType = CenterMarkType.NONE;
+    @Getter
+    @Setter
+    @Nullable
+    public ResourceLocation centerIcon = null;
 
     public SiegeCampAttackInfoRender(SiegeCampAttackInfo info) {
         super(info);

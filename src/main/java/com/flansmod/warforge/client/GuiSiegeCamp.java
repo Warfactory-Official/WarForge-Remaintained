@@ -41,12 +41,6 @@ public class GuiSiegeCamp {
 
     @SideOnly(Side.CLIENT)
     public static ModularScreen makeGUI(DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int pageX, int pageZ) {
-        // do janky reverse sorting to match modularUI's weird bottom right starting position
-        EntityPlayer player = Minecraft.getMinecraft().player;
-        possibleAttacks.sort(Comparator
-                .comparingInt((SiegeCampAttackInfo s) -> s.mOffset.getX())
-                .thenComparingInt(s -> s.mOffset.getZ()));
-
         ChunkPos centerChunk = siegeCampPos.toChunkPos();
 
         int radius = 2;  // 2 chunks in each direction → 5x5 total area
@@ -55,8 +49,8 @@ public class GuiSiegeCamp {
         int offset = 6;
         int VERT_OFFSET = 13;
         int totalSize = 2 * radius + 1;
-        int cell = 16 * 4;
         ScaledResolution scaled = new ScaledResolution(Minecraft.getMinecraft());
+        int cell = ChunkMapViewport.recommendedCellSize(scaled);
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 totalSize,
                 3,
@@ -76,17 +70,28 @@ public class GuiSiegeCamp {
                 .height(HEIGHT)
                 .topRel(0.40f);
 
-        HashMap<Long, Integer> tintByChunk = new HashMap<Long, Integer>();
+        HashMap<Long, SiegeCampAttackInfo> byOffset = new HashMap<Long, SiegeCampAttackInfo>();
         for (SiegeCampAttackInfo info : possibleAttacks) {
+            byOffset.put(ChunkMapUtil.key(info.mOffset.getX(), info.mOffset.getZ()), info);
+        }
+        List<SiegeCampAttackInfo> orderedAttacks = new ArrayList<SiegeCampAttackInfo>(totalSize * totalSize);
+        for (int z = -radius; z <= radius; z++) {
+            for (int x = -radius; x <= radius; x++) {
+                orderedAttacks.add(byOffset.get(ChunkMapUtil.key(x, z)));
+            }
+        }
+
+        HashMap<Long, Integer> tintByChunk = new HashMap<Long, Integer>();
+        for (SiegeCampAttackInfo info : orderedAttacks) {
             if (!info.mFactionUUID.equals(com.flansmod.warforge.server.Faction.nullUuid)) {
                 tintByChunk.put(ChunkMapUtil.key(centerX + info.mOffset.getX(), centerZ + info.mOffset.getZ()), info.mFactionColour);
             }
         }
-        String textureNamespace = "siegemap/" + siegeCampPos.dim + "_" + centerX + "_" + centerZ;
+        String textureNamespace = "siegemap";
         ChunkMapTextureDaemon.requestMapUpdate(textureNamespace, siegeCampPos.dim, centerX, centerZ, radius, tintByChunk);
 
-        boolean[][] adjacencyArray = new boolean[possibleAttacks.size()][4];
-        ChunkMapUtil.computeAdjacency(possibleAttacks, radius, adjacencyArray);
+        boolean[][] adjacencyArray = new boolean[orderedAttacks.size()][4];
+        ChunkMapUtil.computeAdjacency(orderedAttacks, radius, adjacencyArray);
 
         panel.child(new ButtonWidget<>()
                 .background(GuiTextures.BUTTON_CLEAN)
@@ -121,16 +126,19 @@ public class GuiSiegeCamp {
                 })
         );
 
-        addPanButtons(panel, siegeCampPos, possibleAttacks, momentum, viewport, WIDTH, offset);
+        addPanButtons(panel, siegeCampPos, orderedAttacks, momentum, viewport, WIDTH, offset, VERT_OFFSET, cell);
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
-                int index = i * totalSize + j;
+                int index = j * totalSize + i;
                 int localX = i - viewport.startX;
                 int localZ = j - viewport.startZ;
-                SiegeCampAttackInfoRender chunkInfo = new SiegeCampAttackInfoRender(possibleAttacks.get(index));
+                SiegeCampAttackInfoRender chunkInfo = new SiegeCampAttackInfoRender(orderedAttacks.get(index));
+                if (chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) {
+                    chunkInfo.setCenterMarkType(SiegeCampAttackInfoRender.CenterMarkType.SIEGE_CAMP);
+                }
                 panel.child(new ButtonWidget<>()
-                        .overlay(new MapDrawable(
+                .overlay(new MapDrawable(
                                 ChunkMapTextureDaemon.getTextureName(textureNamespace, siegeCampPos.dim, centerX + chunkInfo.mOffset.getX(), centerZ + chunkInfo.mOffset.getZ()),
                                 chunkInfo,
                                 adjacencyArray[index]
@@ -175,15 +183,15 @@ public class GuiSiegeCamp {
                                 richTooltip.addLine(IKey.str("Click to attack now!").style(IKey.BOLD, IKey.RED));
                             }
                         })
-                        .size(16 * 4)
-                        .pos((localX * (16 * 4) + offset), (localZ * (16 * 4) + offset) + VERT_OFFSET));
+                        .size(cell)
+                        .pos((localX * cell + offset), (localZ * cell + offset) + VERT_OFFSET));
             }
         }
 
         return new ModularScreen(panel);
     }
 
-    private static void addPanButtons(ModularPanel panel, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, ChunkMapViewport viewport, int width, int offset) {
+    private static void addPanButtons(ModularPanel panel, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, ChunkMapViewport viewport, int width, int offset, int topOffset, int cell) {
         if (!viewport.canPanNorth() && !viewport.canPanSouth() && !viewport.canPanWest() && !viewport.canPanEast()) {
             return;
         }
@@ -192,13 +200,13 @@ public class GuiSiegeCamp {
             panel.child(panButton("^", width / 2 - 6, 2, siegeCampPos, possibleAttacks, momentum, viewport.startX, viewport.panNorth()));
         }
         if (viewport.canPanSouth()) {
-            panel.child(panButton("v", width / 2 - 6, offset + 13 + viewport.visibleSize * 16 * 4, siegeCampPos, possibleAttacks, momentum, viewport.startX, viewport.panSouth()));
+            panel.child(panButton("v", width / 2 - 6, offset + topOffset + viewport.visibleSize * cell, siegeCampPos, possibleAttacks, momentum, viewport.startX, viewport.panSouth()));
         }
         if (viewport.canPanWest()) {
-            panel.child(panButton("<", 2, offset + 8 + (viewport.visibleSize * 16 * 4) / 2, siegeCampPos, possibleAttacks, momentum, viewport.panWest(), viewport.startZ));
+            panel.child(panButton("<", 2, offset + topOffset + (viewport.visibleSize * cell) / 2 - 6, siegeCampPos, possibleAttacks, momentum, viewport.panWest(), viewport.startZ));
         }
         if (viewport.canPanEast()) {
-            panel.child(panButton(">", width - 14, offset + 8 + (viewport.visibleSize * 16 * 4) / 2, siegeCampPos, possibleAttacks, momentum, viewport.panEast(), viewport.startZ));
+            panel.child(panButton(">", width - 14, offset + topOffset + (viewport.visibleSize * cell) / 2 - 6, siegeCampPos, possibleAttacks, momentum, viewport.panEast(), viewport.startZ));
         }
     }
 

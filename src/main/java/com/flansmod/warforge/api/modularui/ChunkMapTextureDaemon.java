@@ -6,12 +6,16 @@ import net.minecraft.block.material.MapColor;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.world.chunk.Chunk;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -20,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChunkMapTextureDaemon {
     private static final ConcurrentHashMap<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<String, AtomicInteger>();
+    private static final ConcurrentHashMap<String, Set<String>> ACTIVE_TEXTURES = new ConcurrentHashMap<String, Set<String>>();
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
         @Override
         public Thread newThread(Runnable r) {
@@ -32,6 +37,13 @@ public class ChunkMapTextureDaemon {
     public static void requestMapUpdate(String namespace, int dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
         final int generation = GENERATIONS.computeIfAbsent(namespace, ignored -> new AtomicInteger(0)).incrementAndGet();
         final HashMap<Long, Integer> tintCopy = new HashMap<Long, Integer>(tintByChunk);
+        HashSet<String> desired = new HashSet<String>();
+        for (int x = centerX - radius; x <= centerX + radius; x++) {
+            for (int z = centerZ - radius; z <= centerZ + radius; z++) {
+                desired.add(getTextureName(namespace, dim, x, z));
+            }
+        }
+        replaceActiveTextures(namespace, desired);
         EXECUTOR.submit(() -> buildTextures(namespace, generation, dim, centerX, centerZ, radius, tintCopy));
     }
 
@@ -46,6 +58,36 @@ public class ChunkMapTextureDaemon {
 
     public static String getTextureName(String namespace, int dim, int x, int z) {
         return namespace + "/" + dim + "_" + x + "_" + z;
+    }
+
+    public static void releaseNamespace(String namespace) {
+        Set<String> active = ACTIVE_TEXTURES.remove(namespace);
+        if (active == null) {
+            return;
+        }
+        Minecraft mc = Minecraft.getMinecraft();
+        for (String name : active) {
+            mc.getTextureManager().deleteTexture(new ResourceLocation(com.flansmod.warforge.Tags.MODID, name));
+        }
+    }
+
+    public static void releaseAll() {
+        HashSet<String> namespaces = new HashSet<String>(ACTIVE_TEXTURES.keySet());
+        for (String namespace : namespaces) {
+            releaseNamespace(namespace);
+        }
+        GENERATIONS.clear();
+    }
+
+    private static void replaceActiveTextures(String namespace, Set<String> desired) {
+        Set<String> current = ACTIVE_TEXTURES.getOrDefault(namespace, Collections.<String>emptySet());
+        Minecraft mc = Minecraft.getMinecraft();
+        for (String old : current) {
+            if (!desired.contains(old)) {
+                mc.getTextureManager().deleteTexture(new ResourceLocation(com.flansmod.warforge.Tags.MODID, old));
+            }
+        }
+        ACTIVE_TEXTURES.put(namespace, desired);
     }
 
     private static void buildTextures(String namespace, int generation, int dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {

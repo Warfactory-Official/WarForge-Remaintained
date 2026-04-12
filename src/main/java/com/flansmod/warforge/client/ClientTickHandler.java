@@ -99,8 +99,17 @@ public class ClientTickHandler {
         ClientRegistry.registerKeyBinding(claimManagerKey);
 
 	}
-	public static KeyBinding toggleBordersKey;
+    public static KeyBinding toggleBordersKey;
     public static KeyBinding claimManagerKey;
+
+    private void cleanupBorderRenderData() {
+        for (BorderRenderData data : renderData.values()) {
+            if (data.renderList > 0) {
+                GlStateManager.glDeleteLists(data.renderList, 1);
+            }
+        }
+        renderData.clear();
+    }
 
     @SubscribeEvent
     public void onPlayerLogin(FMLNetworkEvent.ClientConnectedToServerEvent event) {
@@ -111,13 +120,21 @@ public class ClientTickHandler {
 		compIt = null;
 		currComp = null;
 		cachedCompStrings = null;
+        cleanupBorderRenderData();
 
         // clear stale data
         CHUNK_VEIN_CACHE.purge();
         ClientProxy.VEIN_ENTRIES.clear();
         WarForgeMod.NAMETAG_CACHE.purge(); //Purge to remove possible stale data
+        ChunkMapTextureDaemon.releaseAll();
         ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
         CLAIMS_DIRTY = true;
+    }
+
+    @SubscribeEvent
+    public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        cleanupBorderRenderData();
+        ChunkMapTextureDaemon.releaseAll();
     }
 
     @SubscribeEvent

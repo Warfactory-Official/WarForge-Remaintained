@@ -11,6 +11,7 @@ import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.api.modularui.MapDrawable;
+import com.flansmod.warforge.client.util.SkinUtil;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
@@ -24,6 +25,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.Vec3i;
 
 import java.util.ArrayList;
@@ -39,10 +41,10 @@ public class GuiClaimManager {
 
     public static ModularScreen makeGUI(PacketClaimChunksData data, int pageX, int pageZ) {
         int size = data.radius * 2 + 1;
-        int cell = 16 * 4;
         int padding = 6;
         int header = 22;
         ScaledResolution scaled = new ScaledResolution(Minecraft.getMinecraft());
+        int cell = ChunkMapViewport.recommendedCellSize(scaled);
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 size,
                 3,
@@ -83,7 +85,7 @@ public class GuiClaimManager {
                     .pos(padding, padding + 10));
         }
 
-        addPanButtons(panel, data, viewport, width, padding);
+        addPanButtons(panel, data, viewport, width, padding, header, cell);
 
         Map<Long, ClaimChunkInfo> byChunk = new HashMap<Long, ClaimChunkInfo>();
         for (ClaimChunkInfo chunk : data.chunks) {
@@ -93,8 +95,8 @@ public class GuiClaimManager {
         List<ClaimChunkInfo> orderedClaims = new ArrayList<ClaimChunkInfo>(size * size);
         List<SiegeCampAttackInfo> mapState = new ArrayList<SiegeCampAttackInfo>(size * size);
 
-        for (int x = data.centerX - data.radius; x <= data.centerX + data.radius; x++) {
-            for (int z = data.centerZ - data.radius; z <= data.centerZ + data.radius; z++) {
+        for (int z = data.centerZ - data.radius; z <= data.centerZ + data.radius; z++) {
+            for (int x = data.centerX - data.radius; x <= data.centerX + data.radius; x++) {
                 ClaimChunkInfo info = byChunk.getOrDefault(ChunkMapUtil.key(x, z), new ClaimChunkInfo());
                 info.x = x;
                 info.z = z;
@@ -105,12 +107,19 @@ public class GuiClaimManager {
 
         boolean[][] adjacency = new boolean[mapState.size()][4];
         ChunkMapUtil.computeAdjacency(mapState, data.radius, adjacency);
+        ResourceLocation face = Minecraft.getMinecraft().player == null ? null : SkinUtil.getPlayerFace(Minecraft.getMinecraft().player.getUniqueID());
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
-                int fullIndex = i * size + j;
+                int fullIndex = j * size + i;
                 ClaimChunkInfo info = orderedClaims.get(fullIndex);
-                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(mapState.get(fullIndex), info.claimType);
+                ResourceLocation tileIcon = (info.x == data.centerX && info.z == data.centerZ) ? face : null;
+                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(
+                        mapState.get(fullIndex),
+                        info.claimType,
+                        info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
+                        tileIcon
+                );
                 String textureName = ChunkMapTextureDaemon.getTextureName("claimmap", data.dim, info.x, info.z);
                 final int finalIndex = fullIndex;
                 int localX = i - viewport.startX;
@@ -222,7 +231,7 @@ public class GuiClaimManager {
         };
     }
 
-    private static void addPanButtons(ModularPanel panel, PacketClaimChunksData data, ChunkMapViewport viewport, int width, int padding) {
+    private static void addPanButtons(ModularPanel panel, PacketClaimChunksData data, ChunkMapViewport viewport, int width, int padding, int header, int cell) {
         if (!viewport.canPanNorth() && !viewport.canPanSouth() && !viewport.canPanWest() && !viewport.canPanEast()) {
             return;
         }
@@ -231,13 +240,13 @@ public class GuiClaimManager {
             panel.child(panButton("^", width / 2 - 6, 2, data, viewport.startX, viewport.panNorth()));
         }
         if (viewport.canPanSouth()) {
-            panel.child(panButton("v", width / 2 - 6, padding + 20 + viewport.visibleSize * 16 * 4, data, viewport.startX, viewport.panSouth()));
+            panel.child(panButton("v", width / 2 - 6, padding + header + viewport.visibleSize * cell, data, viewport.startX, viewport.panSouth()));
         }
         if (viewport.canPanWest()) {
-            panel.child(panButton("<", 2, padding + 10 + (viewport.visibleSize * 16 * 4) / 2, data, viewport.panWest(), viewport.startZ));
+            panel.child(panButton("<", 2, padding + header + (viewport.visibleSize * cell) / 2 - 6, data, viewport.panWest(), viewport.startZ));
         }
         if (viewport.canPanEast()) {
-            panel.child(panButton(">", width - 14, padding + 10 + (viewport.visibleSize * 16 * 4) / 2, data, viewport.panEast(), viewport.startZ));
+            panel.child(panButton(">", width - 14, padding + header + (viewport.visibleSize * cell) / 2 - 6, data, viewport.panEast(), viewport.startZ));
         }
     }
 
