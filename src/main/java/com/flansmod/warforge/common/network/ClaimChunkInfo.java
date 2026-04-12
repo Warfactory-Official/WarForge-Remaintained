@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.api.vein.Quality;
+import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.server.Faction;
 
 import java.util.UUID;
@@ -17,6 +19,9 @@ public class ClaimChunkInfo {
     public UUID factionId = Faction.nullUuid;
     public String factionName = "";
     public int colour = 0xFFFFFF;
+    public Faction.ClaimType claimType = Faction.ClaimType.NONE;
+    public Vein vein;
+    public Quality oreQuality;
     public byte flags;
 
     public boolean hasFlag(byte flag) {

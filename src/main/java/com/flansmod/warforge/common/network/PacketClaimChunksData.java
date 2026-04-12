@@ -1,7 +1,11 @@
 package com.flansmod.warforge.common.network;
 
 import com.cleanroommc.modularui.factory.ClientGUI;
+import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
+import com.flansmod.warforge.api.modularui.ChunkMapUtil;
+import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
+import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.ClientTickHandler;
 import com.flansmod.warforge.client.GuiClaimManager;
 import com.flansmod.warforge.server.Faction;
@@ -47,6 +51,9 @@ public class PacketClaimChunksData extends PacketBase {
             writeUUID(data, chunk.factionId);
             writeUTF(data, chunk.factionName);
             data.writeInt(chunk.colour);
+            writeUTF(data, chunk.claimType.serializedName);
+            data.writeShort(chunk.vein != null ? chunk.vein.getId() : -1);
+            data.writeByte(chunk.oreQuality != null ? chunk.oreQuality.ordinal() : -1);
             data.writeByte(chunk.flags);
         }
     }
@@ -73,6 +80,11 @@ public class PacketClaimChunksData extends PacketBase {
             info.factionId = readUUID(data);
             info.factionName = readUTF(data);
             info.colour = data.readInt();
+            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data));
+            short veinId = data.readShort();
+            info.vein = veinId < 0 ? null : ClientProxy.VEIN_ENTRIES.get(veinId);
+            int qualityOrdinal = data.readByte();
+            info.oreQuality = qualityOrdinal < 0 ? null : Quality.values()[qualityOrdinal];
             info.flags = data.readByte();
             chunks.add(info);
         }
@@ -86,6 +98,13 @@ public class PacketClaimChunksData extends PacketBase {
     @Override
     public void handleClientSide(EntityPlayer clientPlayer) {
         ClientClaimChunkCache.replaceAll(dim, centerX, centerZ, radius, playerFactionId, forceLoadedCount, forceLoadedMax, claimCount, claimMax, chunks);
+        java.util.HashMap<Long, Integer> tintByChunk = new java.util.HashMap<Long, Integer>();
+        for (ClaimChunkInfo info : chunks) {
+            if (!info.factionId.equals(Faction.nullUuid)) {
+                tintByChunk.put(ChunkMapUtil.key(info.x, info.z), info.colour);
+            }
+        }
+        ChunkMapTextureDaemon.requestMapUpdate("claimmap", dim, centerX, centerZ, radius, tintByChunk);
         ClientTickHandler.CLAIMS_DIRTY = true;
         if (openUi) {
             ClientGUI.open(GuiClaimManager.makeGUI(this));

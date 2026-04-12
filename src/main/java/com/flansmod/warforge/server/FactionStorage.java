@@ -5,34 +5,22 @@ import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.Sounds;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.blocks.IClaim;
-import com.flansmod.warforge.common.blocks.TileEntityCitadel;
-import com.flansmod.warforge.common.blocks.TileEntityClaim;
-import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
-import com.flansmod.warforge.common.blocks.TileEntitySiegeCamp;
-import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
-import com.flansmod.warforge.common.blocks.TileEntityReinforcedClaim;
-import com.flansmod.warforge.common.blocks.BlockBasicClaim;
+import com.flansmod.warforge.common.blocks.*;
 import com.flansmod.warforge.common.effect.EffectDisband;
 import com.flansmod.warforge.common.effect.EffectUpgrade;
-import com.flansmod.warforge.common.network.ClaimChunkInfo;
-import com.flansmod.warforge.common.network.PacketClaimChunksData;
-import com.flansmod.warforge.common.network.PacketNamePlateChange;
-import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
-import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
+import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.server.Faction.PlayerData;
 import com.flansmod.warforge.server.Faction.Role;
 import com.mojang.authlib.GameProfile;
-import com.sun.jna.platform.win32.Winioctl;
 import lombok.Getter;
 import net.minecraft.command.ICommandSender;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
@@ -49,6 +37,7 @@ import net.minecraft.world.World;
 import java.awt.*;
 import java.util.*;
 import java.util.List;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
 import static com.flansmod.warforge.common.WarForgeMod.*;
@@ -163,7 +152,9 @@ public class FactionStorage {
     }
 
     public Faction getFaction(UUID factionID) {
-        if (factionID == null) { return null; }  // fixes NPE when clicking on random chunk to begin siege
+        if (factionID == null) {
+            return null;
+        }  // fixes NPE when clicking on random chunk to begin siege
 
         if (factionID.equals(Faction.nullUuid))
             return null;
@@ -241,8 +232,15 @@ public class FactionStorage {
             return false;
         }
 
+        ClaimedBlockSelection claimBlock = findFirstClaimBlock(player.inventory);
+        if (claimBlock == null) {
+            player.sendMessage(new TextComponentString("You need a basic or reinforced claim block in your inventory"));
+            return false;
+        }
+
         mClaims.put(chunkPos, faction.uuid);
-        faction.claimNoTileEntity(chunkPos, player.getPosition().getY());
+        faction.claimNoTileEntity(chunkPos, player.getPosition().getY(), claimBlock.claimType);
+        claimBlock.consume(player.inventory);
         faction.messageAll(new TextComponentString("Claimed the chunk [" + chunkPos.x + ", " + chunkPos.z + "]"));
         return true;
     }
@@ -361,7 +359,7 @@ public class FactionStorage {
     public void advanceSiegeDay() {
         for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
             kvp.getValue().AdvanceDay();
-            if(kvp.getValue().isCompleted())
+            if (kvp.getValue().isCompleted())
                 finishedSiegeQueue.add(kvp.getKey());
         }
 
@@ -377,7 +375,7 @@ public class FactionStorage {
     public void updateSiegeTimers() {
         for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
             kvp.getValue().updateSiegeTimer();
-            if(kvp.getValue().isCompleted())
+            if (kvp.getValue().isCompleted())
                 finishedSiegeQueue.add(kvp.getKey());
         }
         processCompleteSieges();
@@ -403,7 +401,7 @@ public class FactionStorage {
             if (killedFac != null && killerFac != null) {
                 for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
                     kvp.getValue().onPVPKill(killer, playerWhoDied);
-                    if(kvp.getValue().isCompleted())
+                    if (kvp.getValue().isCompleted())
                         finishedSiegeQueue.add(kvp.getKey());
                 }
 
@@ -445,10 +443,10 @@ public class FactionStorage {
     }
 
     public synchronized void processCompleteSieges() {
-        while (!finishedSiegeQueue.isEmpty()){
-            var siege  = finishedSiegeQueue.poll();
+        while (!finishedSiegeQueue.isEmpty()) {
+            var siege = finishedSiegeQueue.poll();
             sieges.get(siege).finished = true;
-           handleCompletedSiege(siege);
+            handleCompletedSiege(siege);
         }
     }
 
@@ -498,7 +496,7 @@ public class FactionStorage {
                     onNonCitadelClaimPlaced((IClaim) te, attackers);
                 }
 
-                    attackers.increaseSiegeMomentum(true);
+                attackers.increaseSiegeMomentum(true);
                 siege.onCompleted(true);
             }
 
@@ -583,8 +581,8 @@ public class FactionStorage {
         sieges.remove(chunkPos);
 
         //Remove defending status from the faction
-        for(Siege activeSiege : sieges.values()){
-            if(activeSiege.defendingFaction.equals(defenders.uuid))
+        for (Siege activeSiege : sieges.values()) {
+            if (activeSiege.defendingFaction.equals(defenders.uuid))
                 return;
         }
         defenders.isCurrentlyDefending = false;
@@ -642,6 +640,7 @@ public class FactionStorage {
         faction.name = factionName;
         faction.citadelPos = new DimBlockPos(citadel);
         faction.claims.put(faction.citadelPos, 0);
+        faction.claimTypes.put(faction.citadelPos, Faction.ClaimType.CITADEL);
         faction.colour = colour;
         faction.notoriety = 0;
         faction.legacy = 0;
@@ -961,11 +960,11 @@ public class FactionStorage {
         long currentTimeStamp = System.currentTimeMillis();
 
         // for some reason, server tick is in number of ticks and last siege timestamp is in ms, while siege cooldown is in mins (according to description), though through calculations looks like hours? it should be in ms
-        if (attacking.getSiegeMomentum() == 0 && attacking.lastSiegeTimestamp+WarForgeConfig.SIEGE_COOLDOWN_FAIL > currentTimeStamp) {
+        if (attacking.getSiegeMomentum() == 0 && attacking.lastSiegeTimestamp + WarForgeConfig.SIEGE_COOLDOWN_FAIL > currentTimeStamp) {
             factionOfficer.sendMessage(new TextComponentString("Your faction is on cooldown on starting a new siege"));
 
 
-            factionOfficer.sendMessage(new TextComponentString("Cooldown remaining:" + TimeHelper.formatTime(attacking.lastSiegeTimestamp+WarForgeConfig.SIEGE_COOLDOWN_FAIL - currentTimeStamp)));
+            factionOfficer.sendMessage(new TextComponentString("Cooldown remaining:" + TimeHelper.formatTime(attacking.lastSiegeTimestamp + WarForgeConfig.SIEGE_COOLDOWN_FAIL - currentTimeStamp)));
             return;
         }
 
@@ -1305,6 +1304,13 @@ public class FactionStorage {
                     info.factionId = ownerFaction.uuid;
                     info.factionName = ownerFaction.name;
                     info.colour = ownerFaction.colour;
+                    info.claimType = ownerFaction.getClaimType(chunk);
+                }
+
+                var veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, MC_SERVER.worlds[0].getSeed());
+                if (veinInfo != null) {
+                    info.vein = veinInfo.getLeft();
+                    info.oreQuality = veinInfo.getRight();
                 }
 
                 if (faction != null && ownerFaction != null && ownerFaction.uuid.equals(faction.uuid)) {
@@ -1341,6 +1347,29 @@ public class FactionStorage {
         WarForgeMod.NETWORK.sendTo(packet, player);
     }
 
+    private ClaimedBlockSelection findFirstClaimBlock(InventoryPlayer inventory) {
+        for (int slot = 0; slot < inventory.mainInventory.size(); slot++) {
+            ItemStack stack = inventory.mainInventory.get(slot);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            if (stack.getItem() == Content.basicClaimBlockItem) {
+                return new ClaimedBlockSelection(slot, Faction.ClaimType.BASIC);
+            }
+            if (stack.getItem() == Content.reinforcedClaimBlockItem) {
+                return new ClaimedBlockSelection(slot, Faction.ClaimType.REINFORCED);
+            }
+        }
+        return null;
+    }
+
+    private ItemStack claimTypeToStack(Faction.ClaimType claimType) {
+        return switch (claimType) {
+            case BASIC -> new ItemStack(Content.basicClaimBlockItem);
+            case REINFORCED -> new ItemStack(Content.reinforcedClaimBlockItem);
+            default -> ItemStack.EMPTY;
+        };
+    }
 
     public boolean requestRemoveClaim(EntityPlayerMP player, DimBlockPos pos) {
         DimChunkPos targetChunk = pos.toChunkPos();
@@ -1378,6 +1407,14 @@ public class FactionStorage {
             }
         }
 
+        Faction.ClaimType claimType = faction.getClaimType(targetChunk);
+        World claimWorld = MC_SERVER.getWorld(pos.dim);
+        boolean dataOnlyClaim = claimWorld != null && !WarForgeMod.isClaim(
+                claimWorld.getBlockState(pos.toRegularPos()).getBlock(),
+                Content.statue,
+                Content.dummyTranslusent
+        );
+
         faction.onClaimLost(pos);
         mClaims.remove(targetChunk);
         faction.forcedChunks.remove(targetChunk);
@@ -1393,6 +1430,17 @@ public class FactionStorage {
         }
         faction.islandCollectors.removeAll(removedCollectors);
         WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+        if (dataOnlyClaim) {
+            ItemStack refund = claimTypeToStack(claimType);
+            if (!refund.isEmpty()) {
+                boolean inserted = player.inventory.addItemStackToInventory(refund);
+                if (!inserted && !refund.isEmpty()) {
+                    player.dropItem(refund, false);
+                } else {
+                    player.inventoryContainer.detectAndSendChanges();
+                }
+            }
+        }
         faction.messageAll(new TextComponentString(player.getName() + " unclaimed " + pos.toFancyString()));
 
         return true;
@@ -1532,13 +1580,16 @@ public class FactionStorage {
         TileEntityCitadel newCitadel = (TileEntityCitadel) MC_SERVER.getWorld(pos.dim).getTileEntity(pos.toRegularPos());
 
         // Old citadel remains a normal claimed chunk but no longer has a physical claim block.
+        DimBlockPos oldCitadelPos = faction.citadelPos;
         World oldCitadelWorld = MC_SERVER.getWorld(faction.citadelPos.dim);
         oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos());
         oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos().up());
         oldCitadelWorld.setBlockToAir(faction.citadelPos.toRegularPos().up(2));
+        faction.claimTypes.put(oldCitadelPos, Faction.ClaimType.BASIC);
 
         // Update pos
         faction.citadelPos = pos;
+        faction.claimTypes.put(pos, Faction.ClaimType.CITADEL);
         newCitadel.onServerSetFaction(faction);
 
         INSTANCE.messageAll(new TextComponentString(faction.name + " moved their citadel"), true);
@@ -1710,5 +1761,23 @@ public class FactionStorage {
 
     public static enum siegeTermination {
         WIN, LOSE, NEUTRAL
+    }
+
+    private static class ClaimedBlockSelection {
+        private final int slot;
+        private final Faction.ClaimType claimType;
+
+        private ClaimedBlockSelection(int slot, Faction.ClaimType claimType) {
+            this.slot = slot;
+            this.claimType = claimType;
+        }
+
+        private void consume(InventoryPlayer inventory) {
+            ItemStack stack = inventory.mainInventory.get(slot);
+            stack.shrink(1);
+            if (stack.isEmpty()) {
+                inventory.mainInventory.set(slot, ItemStack.EMPTY);
+            }
+        }
     }
 }

@@ -57,6 +57,7 @@ public class Faction {
     public String name;
     public DimBlockPos citadelPos;
     public HashMap<DimBlockPos, Integer> claims;
+    public HashMap<DimBlockPos, ClaimType> claimTypes;
     public HashSet<DimChunkPos> forcedChunks;
     public HashSet<DimBlockPos> islandCollectors;
     public HashMap<UUID, PlayerData> members;
@@ -80,6 +81,7 @@ public class Faction {
         members = new HashMap<UUID, PlayerData>();
         pendingInvites = new HashMap<UUID, Float>();
         claims = new HashMap<DimBlockPos, Integer>();
+        claimTypes = new HashMap<DimBlockPos, ClaimType>();
         forcedChunks = new HashSet<DimChunkPos>();
         islandCollectors = new HashSet<DimBlockPos>();
         killCounter = new HashMap<UUID, Integer>();
@@ -295,6 +297,7 @@ public class Faction {
         messageAll(new TextComponentString(message));
         members.clear();
         claims.clear();
+        claimTypes.clear();
         forcedChunks.clear();
         islandCollectors.clear();
         pendingInvites.clear();
@@ -341,6 +344,7 @@ public class Faction {
 
     public void onClaimPlaced(IClaim claim) {
         claims.put(claim.getClaimPos(), 0);
+        claimTypes.put(claim.getClaimPos(), ClaimType.fromClaim(claim));
     }
 
     // for methods where claim block is actually being removed
@@ -377,6 +381,7 @@ public class Faction {
             messageAll(new TextComponentString("Our faction lost a claim at " + claimBlockPos.toFancyString()));
 
             claims.remove(claimBlockPos);
+            claimTypes.remove(claimBlockPos);
             ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
             for (DimBlockPos collectorPos : islandCollectors) {
                 if (collectorPos.toChunkPos().equals(claimBlockPos.toChunkPos())) {
@@ -398,11 +403,25 @@ public class Faction {
     }
 
     public void claimNoTileEntity(DimChunkPos pos) {//Intetesting
-        claimNoTileEntity(pos, 0);
+        claimNoTileEntity(pos, 0, ClaimType.BASIC);
     }
 
     public void claimNoTileEntity(DimChunkPos pos, int y) {
-        claims.put(new DimBlockPos(pos.dim, pos.getXStart(), y, pos.getZStart()), 0);
+        claimNoTileEntity(pos, y, ClaimType.BASIC);
+    }
+
+    public void claimNoTileEntity(DimChunkPos pos, int y, ClaimType claimType) {
+        DimBlockPos blockPos = new DimBlockPos(pos.dim, pos.getXStart(), y, pos.getZStart());
+        claims.put(blockPos, 0);
+        claimTypes.put(blockPos, claimType);
+    }
+
+    public ClaimType getClaimType(DimChunkPos pos) {
+        DimBlockPos claimPos = getSpecificPosForClaim(pos);
+        if (claimPos == null) {
+            return ClaimType.NONE;
+        }
+        return claimTypes.getOrDefault(claimPos, claimPos.equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC);
     }
 
 
@@ -537,6 +556,7 @@ public class Faction {
 
     public void readFromNBT(NBTTagCompound tags) {
         claims.clear();
+        claimTypes.clear();
         forcedChunks.clear();
         islandCollectors.clear();
         members.clear();
@@ -557,10 +577,16 @@ public class Faction {
             DimBlockPos pos = DimBlockPos.readFromNBT((NBTTagIntArray) claimInfo.getTag("pos"));
             int pendingYields = claimInfo.getInteger("pendingYields");
             claims.put(pos, pendingYields);
+            ClaimType claimType = ClaimType.fromSerialized(claimInfo.getString("type"));
+            if (claimType == ClaimType.NONE && pos.equals(citadelPos)) {
+                claimType = ClaimType.CITADEL;
+            }
+            claimTypes.put(pos, claimType);
         }
         if (!claims.containsKey(citadelPos)) {
             WarForgeMod.LOGGER.error("Citadel was not claimed by the faction. Forcing claim");
             claims.put(citadelPos, 0);
+            claimTypes.put(citadelPos, ClaimType.CITADEL);
         }
 
         NBTTagList killList = tags.getTagList("kills", 10); // CompoundTag (see NBTBase.class)
@@ -631,6 +657,7 @@ public class Faction {
             NBTTagCompound claimTags = new NBTTagCompound();
             claimTags.setTag("pos", kvp.getKey().writeToNBT());
             claimTags.setInteger("pendingYields", kvp.getValue());
+            claimTags.setString("type", claimTypes.getOrDefault(kvp.getKey(), kvp.getKey().equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC).serializedName);
 
             claimsList.appendTag(claimTags);
         }
@@ -696,6 +723,45 @@ public class Faction {
         MEMBER,
         OFFICER,
         LEADER,
+    }
+
+    public enum ClaimType {
+        NONE("none", "", 0, 0),
+        BASIC("basic", "B", WarForgeConfig.CLAIM_STRENGTH_BASIC, WarForgeConfig.SUPPORT_STRENGTH_BASIC),
+        REINFORCED("reinforced", "R", WarForgeConfig.CLAIM_STRENGTH_REINFORCED, WarForgeConfig.SUPPORT_STRENGTH_REINFORCED),
+        CITADEL("citadel", "C", WarForgeConfig.CLAIM_STRENGTH_CITADEL, WarForgeConfig.SUPPORT_STRENGTH_CITADEL),
+        ADMIN("admin", "A", 0, 0),
+        SIEGE("siege", "S", 0, 0);
+
+        public final String serializedName;
+        public final String shortLabel;
+        public final int defenceStrength;
+        public final int supportStrength;
+
+        ClaimType(String serializedName, String shortLabel, int defenceStrength, int supportStrength) {
+            this.serializedName = serializedName;
+            this.shortLabel = shortLabel;
+            this.defenceStrength = defenceStrength;
+            this.supportStrength = supportStrength;
+        }
+
+        public static ClaimType fromClaim(IClaim claim) {
+            if (claim instanceof com.flansmod.warforge.common.blocks.TileEntityCitadel) return CITADEL;
+            if (claim instanceof com.flansmod.warforge.common.blocks.TileEntityReinforcedClaim) return REINFORCED;
+            if (claim instanceof com.flansmod.warforge.common.blocks.TileEntityBasicClaim) return BASIC;
+            if (claim instanceof com.flansmod.warforge.common.blocks.TileEntityAdminClaim) return ADMIN;
+            if (claim instanceof com.flansmod.warforge.common.blocks.TileEntitySiegeCamp) return SIEGE;
+            return NONE;
+        }
+
+        public static ClaimType fromSerialized(String value) {
+            for (ClaimType type : values()) {
+                if (type.serializedName.equals(value)) {
+                    return type;
+                }
+            }
+            return NONE;
+        }
     }
 
     public static class PlayerData {

@@ -4,6 +4,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
+import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.client.util.RenderUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.Content;
@@ -124,6 +125,7 @@ public class ClientTickHandler {
 
         // Handle client packets and perform the client-side tick
         WarForgeMod.NETWORK.handleClientPackets();
+        ChunkMapTextureDaemon.flushTextureQueue();
         WarForgeMod.proxy.TickClient();
 
         // Use a more efficient approach for expired siege info removal

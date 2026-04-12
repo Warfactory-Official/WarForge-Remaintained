@@ -74,6 +74,11 @@ public class Siege {
         TileEntity te = WarForgeMod.MC_SERVER.getWorld(defending.dim).getTileEntity(defending.toRegularPos());
         if (te instanceof IClaim) {
             mBaseDifficulty = ((IClaim) te).getDefenceStrength();
+        } else {
+            Faction defenders = WarForgeMod.FACTIONS.getFaction(defender);
+            if (defenders != null) {
+                mBaseDifficulty = defenders.getClaimType(defending.toChunkPos()).defenceStrength;
+            }
         }
     }
 
@@ -318,7 +323,7 @@ public class Siege {
                     if (te instanceof IClaim) {
                         mExtraDifficulty -= ((IClaim) te).getSupportStrength();
                     } else {
-                        mExtraDifficulty -= WarForgeConfig.SUPPORT_STRENGTH_BASIC;
+                        mExtraDifficulty -= defenders.getClaimType(checkChunk).supportStrength;
                     }
                 }
             }

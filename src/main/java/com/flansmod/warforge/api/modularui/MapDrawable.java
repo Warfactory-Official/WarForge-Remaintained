@@ -8,6 +8,7 @@ import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
@@ -177,6 +178,13 @@ public class MapDrawable implements IDrawable, Interactable {
             tess.draw();
         }
 
+        if (chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.claimType != Faction.ClaimType.NONE) {
+            String label = claimInfo.claimType.shortLabel;
+            if (!label.isEmpty()) {
+                Minecraft.getMinecraft().fontRenderer.drawStringWithShadow(label, x + width - 8, y + height - 10, 0xFFFFFF);
+            }
+        }
+
 
         GlStateManager.disableBlend();
         GlStateManager.disableAlpha();
@@ -208,6 +216,5 @@ public class MapDrawable implements IDrawable, Interactable {
     }
 
 }
-
 
 
