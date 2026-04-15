@@ -43,17 +43,33 @@ public final class GuiFactionMemberManager {
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, WIDTH, 40, 0xFF171B1F, 0xFF0D1013)).size(WIDTH, 40));
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, TAB_Y, WIDTH - CONTENT_LEFT * 2, 24, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 24).pos(CONTENT_LEFT, TAB_Y));
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, LIST_Y, WIDTH - CONTENT_LEFT * 2, HEIGHT - LIST_Y - 12, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, HEIGHT - LIST_Y - 12).pos(CONTENT_LEFT, LIST_Y));
-        panel.child(new IDrawable.DrawableWidget(colorStripe(data.hasFaction ? 0xFF000000 | (0x00FFFFFF & 0x4E8E87) : 0xFF4A4A4A, 0, 0, 6, HEIGHT)).size(6, HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8));
+        panel.child(new IDrawable.DrawableWidget(colorStripe(data.hasFaction ? (0xFF000000 | (data.factionColor & 0x00FFFFFF)) : 0xFF4A4A4A, 0, 0, 6, HEIGHT)).size(6, HEIGHT));
+        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8).size(10));
 
-        panel.child(IKey.str(data.hasFaction ? "Faction Members" : "Faction Members").asWidget()
+        panel.child(IKey.str("Faction Members").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .style(TextFormatting.BOLD)
+                .color(0xFFFFFF)
                 .shadow(true)
                 .scale(1.15f));
-        panel.child(IKey.str(data.hasFaction ? data.factionName + " | Role: " + formatRole(data.viewerRole) : "You are not currently in a faction").asWidget()
-                .pos(CONTENT_LEFT, HEADER_Y + 15)
-                .color(0xC7CCD1));
+        if (data.hasFaction) {
+            int viewerRoleColor = switch (data.viewerRole) {
+                case LEADER -> 0xFFD54A;
+                case OFFICER -> 0x55E3FF;
+                default -> 0xFFFFFF;
+            };
+            Row headerRow = new Row();
+            headerRow.pos(CONTENT_LEFT, HEADER_Y + 15);
+            headerRow.height(12);
+            headerRow.child(IKey.str(data.factionName).asWidget().style(TextFormatting.BOLD).color(data.factionColor));
+            headerRow.child(IKey.str(" | ").asWidget().color(0xC7CCD1));
+            headerRow.child(IKey.str("Role: " + formatRole(data.viewerRole)).asWidget().color(viewerRoleColor));
+            panel.child(headerRow);
+        } else {
+            panel.child(IKey.str("You are not currently in a faction").asWidget()
+                    .pos(CONTENT_LEFT, HEADER_Y + 15)
+                    .color(0xC7CCD1));
+        }
 
         if (data.hasFaction) {
             panel.child(new ButtonWidget<>()
@@ -79,7 +95,7 @@ public final class GuiFactionMemberManager {
             return panel;
         }
 
-        panel.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "Roster" : "Invite Console").asWidget()
+        panel.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "Roster" : "Invite Console").color(0xB8BDC3).asWidget()
                 .pos(CONTENT_LEFT + 10, LIST_Y + 8)
                 .style(TextFormatting.BOLD));
         panel.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS
@@ -92,9 +108,9 @@ public final class GuiFactionMemberManager {
         ListWidget list = new ListWidget<>()
                 .scrollDirection(GuiAxis.Y)
                 .background(GuiTextures.SLOT_ITEM)
-                .width(WIDTH - 26)
-                .height(HEIGHT - LIST_Y - 46)
-                .pos(CONTENT_LEFT + 7, LIST_Y + 38);
+                .width(WIDTH - 24)
+                .height(HEIGHT - LIST_Y - 41)
+                .pos(CONTENT_LEFT, LIST_Y + 30);
 
         if (data.page == FactionMemberManagerGuiData.Page.MEMBERS) {
             if (data.members.isEmpty()) {
@@ -127,13 +143,21 @@ public final class GuiFactionMemberManager {
         row.width(WIDTH - 44);
         row.height(24);
         row.mainAxisAlignment(Alignment.MainAxis.START);
+        row.padding(1, 1);
 
         String status = member.online ? "Online" : "Offline";
+        int rankColor = switch (member.role) {
+            case LEADER -> 0xFFD54A;
+            case OFFICER -> 0x55E3FF;
+            default -> 0xFFFFFF;
+        };
         row.child(new IDrawable.DrawableWidget(new PlayerFaceDrawable(member.playerId)).size(18, 18));
         row.child(new ScrollingTextWidget(IKey.str(member.username))
+                .margin(5, 0)
                 .width(96)
+                .color(rankColor)
                 .tooltip(tooltip -> tooltip.addLine(member.username)));
-        row.child(IKey.str(formatRole(member.role)).asWidget().width(52));
+        row.child(IKey.str(formatRole(member.role)).asWidget().width(52).color(rankColor));
         row.child(IKey.str(status).color(member.online ? 0x55FF55 : 0xAAAAAA).asWidget().width(44));
 
         if (member.canTransferLeadership) {

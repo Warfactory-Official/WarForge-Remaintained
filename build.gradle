@@ -771,6 +771,9 @@ runClient2Task.configure {
     setGroup("Modded Minecraft")
     setDescription("Runs a second modded client for local multiplayer testing")
     setup(project)
+    def baseClient = tasks.named("runClient", RunMinecraftTask).get()
+    classpath(baseClient.getClasspath())
+    getMainClass().set(baseClient.getMainClass())
     workingDir = file('run/client2')
     def baseName = project.findProperty("developmentEnvironmentUserName") ?: "Developer"
     getUsername().set(baseName + "2")

@@ -42,11 +42,12 @@ public final class GuiFactionStats {
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, BODY_Y, WIDTH - CONTENT_LEFT * 2, 118, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 118).pos(CONTENT_LEFT, BODY_Y));
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, ACTIONS_Y, WIDTH - CONTENT_LEFT * 2, 34, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 34).pos(CONTENT_LEFT, ACTIONS_Y));
         panel.child(new IDrawable.DrawableWidget(colorStripe(data.hasFaction ? (0xFF000000 | (data.factionColor & 0x00FFFFFF)) : 0xFF4A4A4A, 0, 0, 6, HEIGHT)).size(6, HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8));
+        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8).size(10));
 
         if (!data.hasFaction) {
             panel.child(IKey.str("Faction Stats").asWidget()
                     .pos(CONTENT_LEFT, HEADER_Y)
+                    .color(0xFFFFFF)
                     .style(TextFormatting.BOLD)
                     .shadow(true)
                     .scale(1.15f));
@@ -57,6 +58,7 @@ public final class GuiFactionStats {
         panel.child(IKey.str("Faction Stats").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .style(TextFormatting.BOLD)
+                .color(0xFFFFFF)
                 .shadow(true)
                 .scale(1.15f));
         panel.child(IKey.str(data.factionName).asWidget()
@@ -64,12 +66,15 @@ public final class GuiFactionStats {
                 .color(data.factionColor)
                 .style(TextFormatting.BOLD));
 
-        panel.child(new IDrawable.DrawableWidget(new PlayerFaceDrawable(data.leaderId)).size(20, 20).pos(WIDTH - 74, 10));
-        panel.child(IKey.str("Leader: " + data.leaderName).asWidget()
-                .pos(WIDTH - 50, 15)
-                .color(0xC7CCD1));
+        var leaderRow = new Row()
+                .padding(2)
+                .child(new IDrawable.DrawableWidget(new PlayerFaceDrawable(data.leaderId)).size(20, 20).margin(2,0))
+                .child(IKey.str("Leader: " + data.leaderName).asWidget().color(0xC7CCD1));
+
+        panel.child(leaderRow.height(20).coverChildrenWidth().top(10).right(35));
 
         panel.child(IKey.str("Faction Overview").asWidget()
+                        .color(0xFFFFFF)
                 .pos(CONTENT_LEFT + 10, BODY_Y + 8)
                 .style(TextFormatting.BOLD));
         panel.child(IKey.str("Standing, territory, membership, and citadel progression.").asWidget()
@@ -83,13 +88,13 @@ public final class GuiFactionStats {
         panel.child(statRow(CONTENT_LEFT + 10, rowY + 54, "Total", String.valueOf(data.total), "#" + data.totalRank));
         panel.child(statRow(CONTENT_LEFT + 158, rowY, "Claims", String.valueOf(data.claimCount), data.claimLimit < 0 ? "INF" : String.valueOf(data.claimLimit)));
         panel.child(statRow(CONTENT_LEFT + 158, rowY + 18, "Members", String.valueOf(data.memberCount), ""));
-        panel.child(statRow(CONTENT_LEFT + 158, rowY + 54, "Insurance", String.valueOf(WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(data.level)), "slots"));
+        panel.child(statRow(CONTENT_LEFT + 158, rowY + 54, "Stash", String.valueOf(WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(data.level)), "slots"));
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
             panel.child(statRow(CONTENT_LEFT + 158, rowY + 36, "Citadel", "Lvl " + data.level, data.claimLimit < 0 ? "INF claims" : data.claimLimit + " claims"));
         }
 
         if (data.isOwnFaction) {
-            panel.child(actionButton("Insurance", CONTENT_LEFT + 10, ACTIONS_Y + 8, 66, () -> FactionInsuranceGuiFactory.INSTANCE.openClient(data.factionId)));
+            panel.child(actionButton("Stash", CONTENT_LEFT + 10, ACTIONS_Y + 8, 66, () -> FactionInsuranceGuiFactory.INSTANCE.openClient(data.factionId)));
             panel.child(actionButton("Members", CONTENT_LEFT + 80, ACTIONS_Y + 8, 62, () -> FactionMemberManagerGuiFactory.INSTANCE.openClient(FactionMemberManagerGuiData.Page.MEMBERS)));
         }
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
@@ -118,8 +123,8 @@ public final class GuiFactionStats {
         row.pos(x, y);
         row.width(136);
         row.height(16);
-        row.child(IKey.str(label).asWidget().width(52));
-        row.child(IKey.str(value).asWidget().width(42).style(TextFormatting.BOLD));
+        row.child(IKey.str(label).asWidget().width(52).color(0xFFFFFF));
+        row.child(IKey.str(value).asWidget().width(42).color(0xFFFFFF).style(TextFormatting.BOLD));
         row.child(IKey.str(extra).asWidget().width(42).color(0xBBBBBB));
         return row;
     }

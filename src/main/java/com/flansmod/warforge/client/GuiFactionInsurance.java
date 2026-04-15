@@ -2,10 +2,8 @@ package com.flansmod.warforge.client;
 
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.theme.WidgetTheme;
+import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widget.scroll.VerticalScrollData;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.layout.Grid;
@@ -16,7 +14,6 @@ import com.flansmod.warforge.common.factories.FactionInsuranceGuiData;
 import com.flansmod.warforge.common.network.PacketFactionInsuranceAction;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.util.text.TextFormatting;
-import com.cleanroommc.modularui.widget.ParentWidget;
 
 public final class GuiFactionInsurance {
     private static final int WIDTH = 356;
@@ -45,6 +42,7 @@ public final class GuiFactionInsurance {
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .style(TextFormatting.BOLD)
                 .shadow(true)
+                .color(0xFFFFFF)
                 .scale(1.15f));
         panel.child(IKey.str(data.hasFaction ? data.factionName : "No faction selected").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y + 15)
@@ -58,7 +56,7 @@ public final class GuiFactionInsurance {
 
         panel.child(IKey.str("Protected Reserve").asWidget()
                 .pos(CONTENT_LEFT + 10, BODY_Y + 8)
-                .style(TextFormatting.BOLD));
+                .style(TextFormatting.BOLD).color(0XFFFFFF));
         panel.child(IKey.str(data.canDeposit ? "Officers and leaders may deposit. Withdrawal is disabled." : "Only officers and leaders may deposit into the stash.").asWidget()
                 .pos(CONTENT_LEFT + 10, BODY_Y + 20)
                 .color(0xB8BDC3));
@@ -108,24 +106,16 @@ public final class GuiFactionInsurance {
     }
 
     private static IDrawable sectionBackdrop(int x, int y, int width, int height, int fillColor, int borderColor) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
-                Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
-                Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
-                Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
-            }
+        return (context, drawX, drawY, drawWidth, drawHeight, theme) -> {
+            Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
+            Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
+            Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
+            Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
+            Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
         };
     }
 
     private static IDrawable colorStripe(int color, int x, int y, int width, int height) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, color);
-            }
-        };
+        return (context, drawX, drawY, drawWidth, drawHeight, theme) -> Gui.drawRect(drawX, drawY, drawX + width, drawY + height, color);
     }
 }

@@ -37,6 +37,7 @@ public class FactionMemberManagerGuiData extends GuiData {
     public boolean hasFaction;
     public UUID factionId = Faction.nullUuid;
     public String factionName = "";
+    public int factionColor = 0x4E8E87;
     public Faction.Role viewerRole = Faction.Role.MEMBER;
     public boolean canManageMembers;
     public boolean canInvitePlayers;

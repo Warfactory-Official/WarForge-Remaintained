@@ -79,6 +79,7 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         packetBuffer.writeLong(guiData.factionId.getMostSignificantBits());
         packetBuffer.writeLong(guiData.factionId.getLeastSignificantBits());
         packetBuffer.writeString(guiData.factionName);
+        packetBuffer.writeInt(guiData.factionColor);
         packetBuffer.writeByte(guiData.viewerRole.ordinal());
         packetBuffer.writeBoolean(guiData.canManageMembers);
         packetBuffer.writeBoolean(guiData.canInvitePlayers);
@@ -118,6 +119,7 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         data.hasFaction = packetBuffer.readBoolean();
         data.factionId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
         data.factionName = packetBuffer.readString(32767);
+        data.factionColor = packetBuffer.readInt();
         data.viewerRole = Faction.Role.values()[packetBuffer.readByte()];
         data.canManageMembers = packetBuffer.readBoolean();
         data.canInvitePlayers = packetBuffer.readBoolean();
@@ -159,6 +161,7 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         data.hasFaction = true;
         data.factionId = faction.uuid;
         data.factionName = faction.name;
+        data.factionColor = faction.colour;
         data.viewerRole = determineViewerRole(faction, player.getUniqueID());
         data.canManageMembers = WarForgeMod.isOp(player) || data.viewerRole.ordinal() >= Faction.Role.OFFICER.ordinal();
         data.canInvitePlayers = data.canManageMembers;
