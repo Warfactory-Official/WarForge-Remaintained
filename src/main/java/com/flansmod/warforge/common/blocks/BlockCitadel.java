@@ -1,9 +1,11 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.cleanroommc.modularui.factory.TileEntityGuiFactory;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.models.RotatableStateMapper;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -161,15 +163,13 @@ public class BlockCitadel extends MultiBlockColumn implements ITileEntityProvide
 
             // If the player has no faction and is the placer, they can open the UI
             if (playerFaction == null && player.getUniqueID().equals(citadel.placer)) {
-                player.openGui(WarForgeMod.INSTANCE, CommonProxy.GUI_TYPE_CITADEL, world, pos.getX(), pos.getY(), pos.getZ());
+                TileEntityGuiFactory.INSTANCE.open(player, pos);
             }
             // Any other factionless players, and players who aren't in this faction get an info panel
             else if (playerFaction == null || !playerFaction.uuid.equals(citadel.factionUUID)) {
                 Faction citadelFaction = WarForgeMod.FACTIONS.getFaction(citadel.factionUUID);
                 if (citadelFaction != null) {
-                    PacketFactionInfo packet = new PacketFactionInfo();
-                    packet.info = citadelFaction.createInfo();
-                    WarForgeMod.NETWORK.sendTo(packet, (EntityPlayerMP) player);
+                    FactionStatsGuiFactory.INSTANCE.open(player, citadelFaction.uuid);
                 } else {
                     DimBlockPos citadelPos = new DimBlockPos(world.provider.getDimension(), pos);
                     Faction chunkFaction = WarForgeMod.FACTIONS.getFaction(WarForgeMod.FACTIONS.getClaim(citadelPos.toChunkPos()));
@@ -184,7 +184,7 @@ public class BlockCitadel extends MultiBlockColumn implements ITileEntityProvide
             }
             // So anyone else will be from the target faction
             else {
-                player.openGui(WarForgeMod.INSTANCE, CommonProxy.GUI_TYPE_CITADEL, world, pos.getX(), pos.getY(), pos.getZ());
+                TileEntityGuiFactory.INSTANCE.open(player, pos);
             }
         }
         return true;

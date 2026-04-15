@@ -63,12 +63,15 @@ public class Faction {
     public HashMap<UUID, PlayerData> members;
     public HashMap<UUID, Float> pendingInvites;
     public HashMap<UUID, Integer> killCounter;
+    public ArrayList<ItemStack> insuranceStacks;
     public boolean loggedInToday;
     public int colour = 0xFF_FF_FF;
     public int notoriety = 0;
     public int wealth = 0;
     public int legacy = 0;
     public short citadelLevel = 0;
+    public long offlineRaidProtectionUntil = 0L;
+    public boolean offlineRaidProtectionDisabled = false;
     public int citadelMoveCooldown = 1;
     public boolean isCurrentlyDefending = false;
     //Only for new system
@@ -85,6 +88,7 @@ public class Faction {
         forcedChunks = new HashSet<DimChunkPos>();
         islandCollectors = new HashSet<DimBlockPos>();
         killCounter = new HashMap<UUID, Integer>();
+        insuranceStacks = new ArrayList<ItemStack>();
     }
 
     public static UUID createUUID(String factionName) {
@@ -271,6 +275,15 @@ public class Faction {
         return true;
     }
 
+    public UUID getLeaderId() {
+        for (HashMap.Entry<UUID, PlayerData> entry : members.entrySet()) {
+            if (entry.getValue().role == Role.LEADER) {
+                return entry.getKey();
+            }
+        }
+        return Faction.nullUuid;
+    }
+
     public void removePlayer(UUID playerID) {
         members.remove(playerID);
     }
@@ -301,6 +314,7 @@ public class Faction {
         forcedChunks.clear();
         islandCollectors.clear();
         pendingInvites.clear();
+        insuranceStacks.clear();
     }
 
     public boolean isPlayerInFaction(UUID playerID) {
@@ -318,6 +332,47 @@ public class Faction {
     public int getMaxForceLoadedChunks() {
         int levelBonus = citadelLevel * WarForgeConfig.FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL;
         return Math.max(0, WarForgeConfig.FORCE_LOADED_CHUNKS_BASE + levelBonus);
+    }
+
+    public int getInsuranceSlotCount() {
+        return Math.max(insuranceStacks.size(), WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(citadelLevel));
+    }
+
+    public ItemStack getInsuranceStack(int slot) {
+        ensureInsuranceSize(slot + 1);
+        return insuranceStacks.get(slot);
+    }
+
+    public void setInsuranceStack(int slot, ItemStack stack) {
+        ensureInsuranceSize(slot + 1);
+        insuranceStacks.set(slot, stack == null ? ItemStack.EMPTY : stack);
+    }
+
+    public boolean hasInsuranceContents() {
+        for (ItemStack stack : insuranceStacks) {
+            if (stack != null && !stack.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public ArrayList<ItemStack> drainInsuranceContents() {
+        ArrayList<ItemStack> contents = new ArrayList<ItemStack>();
+        for (int i = 0; i < insuranceStacks.size(); i++) {
+            ItemStack stack = insuranceStacks.get(i);
+            if (stack != null && !stack.isEmpty()) {
+                contents.add(stack.copy());
+                insuranceStacks.set(i, ItemStack.EMPTY);
+            }
+        }
+        return contents;
+    }
+
+    private void ensureInsuranceSize(int targetSize) {
+        while (insuranceStacks.size() < targetSize) {
+            insuranceStacks.add(ItemStack.EMPTY);
+        }
     }
 
     public boolean canForceLoadMore() {
@@ -620,6 +675,8 @@ public class Faction {
         wealth = tags.getInteger("wealth");
         legacy = tags.getInteger("legacy");
 
+        offlineRaidProtectionUntil = tags.getLong("offlineRaidProtectionUntil");
+        offlineRaidProtectionDisabled = tags.getBoolean("offlineRaidProtectionDisabled");
         citadelMoveCooldown = tags.getInteger("citadelMoveCooldown");
         citadelMoveTimeStamp = tags.getLong("citadelMoveTimestamp");
         lastSiegeTimestamp = tags.getLong("lastSiegeTimestamp");
@@ -641,6 +698,16 @@ public class Faction {
             if (data.flagPosition.equals(DimBlockPos.ZERO)) {
                 data.flagPosition = citadelPos;
             }
+        }
+
+        insuranceStacks.clear();
+        NBTTagList insuranceList = tags.getTagList("insurance", 10);
+        for (NBTBase base : insuranceList) {
+            NBTTagCompound insuranceTag = (NBTTagCompound) base;
+            int slot = insuranceTag.getInteger("slot");
+            ItemStack stack = new ItemStack(insuranceTag.getCompoundTag("stack"));
+            ensureInsuranceSize(slot + 1);
+            insuranceStacks.set(slot, stack);
         }
     }
 
@@ -691,6 +758,8 @@ public class Faction {
         tags.setInteger("wealth", wealth);
         tags.setInteger("legacy", legacy);
 
+        tags.setLong("offlineRaidProtectionUntil", offlineRaidProtectionUntil);
+        tags.setBoolean("offlineRaidProtectionDisabled", offlineRaidProtectionDisabled);
         tags.setInteger("citadelMoveCooldown", citadelMoveCooldown);
         tags.setLong("citadelMoveTimestamp", citadelMoveTimeStamp);
         tags.setLong("lastSiegeTimestamp", lastSiegeTimestamp);
@@ -707,6 +776,21 @@ public class Faction {
             memberList.appendTag(memberTags);
         }
         tags.setTag("members", memberList);
+
+        NBTTagList insuranceList = new NBTTagList();
+        for (int i = 0; i < insuranceStacks.size(); i++) {
+            ItemStack stack = insuranceStacks.get(i);
+            if (stack == null || stack.isEmpty()) {
+                continue;
+            }
+            NBTTagCompound insuranceTag = new NBTTagCompound();
+            insuranceTag.setInteger("slot", i);
+            NBTTagCompound stackTag = new NBTTagCompound();
+            stack.writeToNBT(stackTag);
+            insuranceTag.setTag("stack", stackTag);
+            insuranceList.appendTag(insuranceTag);
+        }
+        tags.setTag("insurance", insuranceList);
         tags.setBoolean("isDefending", isCurrentlyDefending);
     }
 

@@ -10,6 +10,7 @@ import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.*;
 import com.flansmod.warforge.common.effect.AnimatedEffectHandler;
 import com.flansmod.warforge.common.network.PacketRequestFactionInfo;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.server.Faction;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
@@ -175,8 +176,6 @@ public class ClientProxy extends CommonProxy
 	}
 
 	public static void requestFactionInfo(UUID factionID) {
-		PacketRequestFactionInfo request = new PacketRequestFactionInfo();
-		request.mFactionIDRequest = factionID;
-		WarForgeMod.NETWORK.sendToServer(request);
+		FactionStatsGuiFactory.INSTANCE.openClient(factionID);
 	}
 }

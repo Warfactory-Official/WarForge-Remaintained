@@ -6,6 +6,7 @@ import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinConfigHandler;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.client.PlayerNametagCache;
+import com.flansmod.warforge.common.factories.WarForgeGuiFactories;
 import com.flansmod.warforge.common.blocks.BlockBasicClaim;
 import com.flansmod.warforge.common.blocks.IMultiBlockInit;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;
@@ -211,6 +212,7 @@ public class WarForgeMod implements ILateMixinLoader {
     public void init(FMLInitializationEvent event) {
         NetworkRegistry.INSTANCE.registerGuiHandler(this, proxy);
         NETWORK.initialise();
+        WarForgeGuiFactories.init();
         proxy.Init(event);
     }
 
@@ -234,8 +236,10 @@ public class WarForgeMod implements ILateMixinLoader {
 
         IMultiBlockInit.registerMaps();
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
+            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.yml");
+            Path legacyConfigFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
             try {
+                UpgradeHandler.migrateLegacyConfigIfNeeded(legacyConfigFile, configFile);
                 UpgradeHandler.writeStubIfEmpty(configFile);
                 UpgradeHandler.parseConfig(configFile);
             } catch (IOException e) {
@@ -508,10 +512,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @SubscribeEvent
     public void playerLeftGame(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!event.player.world.isRemote) {
-            Faction playerFaction = FACTIONS.getFactionOfPlayer(event.player.getUniqueID());
-            if (FactionStorage.isValidFaction(playerFaction)) {
-                playerFaction.onlinePlayerCount -= 1;
-            }
+            FACTIONS.onFactionMemberLoggedOut(event.player.getUniqueID());
         }
     }
 
@@ -531,10 +532,7 @@ public class WarForgeMod implements ILateMixinLoader {
                 LOGGER.info("Player moved from the void to 0,256,0");
             }
 
-            Faction playerFaction = FACTIONS.getFactionOfPlayer(event.player.getUniqueID());
-            if (FactionStorage.isValidFaction(playerFaction)) {
-                playerFaction.onlinePlayerCount += 1;
-            }
+            FACTIONS.onFactionMemberLoggedIn(event.player.getUniqueID());
 
             PacketTimeUpdates packet = new PacketTimeUpdates();
 
@@ -542,7 +540,7 @@ public class WarForgeMod implements ILateMixinLoader {
             packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
 
             NETWORK.sendTo(packet, (EntityPlayerMP) event.player);
-            FACTIONS.sendClaimChunks((EntityPlayerMP) event.player, new DimChunkPos(event.player.dimension, event.player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS, false);
+            FACTIONS.sendClaimChunks((EntityPlayerMP) event.player, new DimChunkPos(event.player.dimension, event.player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
 
             // sends packet to client which clears all previously remembered sieges; identical attacking and def names = clear packet
 
@@ -557,9 +555,10 @@ public class WarForgeMod implements ILateMixinLoader {
                     final int level = i;
                     final HashMap<StackComparable, Integer> requirements = UPGRADE_HANDLER.getLEVELS()[i];
                     final int limit = UPGRADE_HANDLER.getLIMITS()[i];
+                    final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
 
                     SyncQueueHandler.enqueue(() ->
-                            NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit), (EntityPlayerMP) event.player)
+                            NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), (EntityPlayerMP) event.player)
                     );
                 }
             }

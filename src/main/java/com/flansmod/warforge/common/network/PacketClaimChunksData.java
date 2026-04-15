@@ -1,13 +1,11 @@
 package com.flansmod.warforge.common.network;
 
-import com.cleanroommc.modularui.factory.ClientGUI;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.ClientTickHandler;
-import com.flansmod.warforge.client.GuiClaimManager;
 import com.flansmod.warforge.server.Faction;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -23,7 +21,6 @@ public class PacketClaimChunksData extends PacketBase {
     public int centerX;
     public int centerZ;
     public int radius;
-    public boolean openUi;
     public UUID playerFactionId = Faction.nullUuid;
     public int forceLoadedCount;
     public int forceLoadedMax;
@@ -37,7 +34,6 @@ public class PacketClaimChunksData extends PacketBase {
         data.writeInt(centerX);
         data.writeInt(centerZ);
         data.writeByte(radius);
-        data.writeBoolean(openUi);
         writeUUID(data, playerFactionId);
         data.writeShort(forceLoadedCount);
         data.writeShort(forceLoadedMax);
@@ -64,7 +60,6 @@ public class PacketClaimChunksData extends PacketBase {
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
-        openUi = data.readBoolean();
         playerFactionId = readUUID(data);
         forceLoadedCount = data.readShort();
         forceLoadedMax = data.readShort();
@@ -106,8 +101,5 @@ public class PacketClaimChunksData extends PacketBase {
         }
         ChunkMapTextureDaemon.requestMapUpdate("claimmap", dim, centerX, centerZ, radius, tintByChunk);
         ClientTickHandler.CLAIMS_DIRTY = true;
-        if (openUi) {
-            ClientGUI.open(GuiClaimManager.makeGUI(this));
-        }
     }
 }

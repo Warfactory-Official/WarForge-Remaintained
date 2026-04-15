@@ -5,10 +5,11 @@ import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.ContainerCitadel;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
+import com.flansmod.warforge.common.factories.FactionUpgradeGuiFactory;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketDisbandFaction;
 import com.flansmod.warforge.common.network.PacketPlaceFlag;
-import com.flansmod.warforge.common.network.PacketRequestUpgradeUI;
 import com.flansmod.warforge.server.Faction;
 
 import net.minecraft.client.Minecraft;
@@ -98,7 +99,7 @@ public class GuiCitadel extends GuiContainer
 			}
 			case BUTTON_INFO:
 			{
-				ClientProxy.requestFactionInfo(citadelContainer.citadel.getFaction());
+				FactionStatsGuiFactory.INSTANCE.openClient(citadelContainer.citadel.getFaction());
 				break;
 			}
 			case BUTTON_DISBAND:
@@ -109,10 +110,7 @@ public class GuiCitadel extends GuiContainer
 			}
 			case BUTTON_UPGRADE:
 			{
-				PacketRequestUpgradeUI packet = new PacketRequestUpgradeUI();
-				packet.mFactionIDRequest = citadelContainer.citadel.getFaction();
-				packet.mFactionNameRequest = citadelContainer.citadel.factionName;
-				WarForgeMod.NETWORK.sendToServer(packet);
+				FactionUpgradeGuiFactory.INSTANCE.openClient(citadelContainer.citadel.getFaction());
 				break;
 			}
 			case BUTTON_CHANGE_COLOUR:

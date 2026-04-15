@@ -264,7 +264,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 					} else {
 						// if going to overshoot/ hit zero and not already 0
 						if (defenderAbandonTickTimer != 0) {
-							defenders.messageAll(new TextComponentString("Your faction's [" + getAttacking().name + "] siege abandon timer is now 0."));
+							defenders.messageAll(new TextComponentString("Your faction's [" + defenders.name + "] siege abandon timer is now 0."));
 							defenderAbandonTickTimer = 0;
 						}
 					}

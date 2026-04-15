@@ -4,10 +4,10 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.SiegeCampGuiFactory;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.models.RotatableStateMapper;
 import com.flansmod.warforge.common.network.PacketRemoveClaim;
-import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -186,6 +186,10 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
         if (!world.isRemote) {
             TileEntityClaim te = (TileEntityClaim) world.getTileEntity(pos);
             Faction faction = FACTIONS.getFaction(te.getFaction());
+            if (faction == null) {
+                player.sendMessage(new TextComponentString("This siege camp is not bound to a valid faction"));
+                return false;
+            }
 
             if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER)) {
                 player.sendMessage(new TextComponentString("You are not an officer of the faction"));
@@ -194,11 +198,12 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
 
             DimChunkPos chunkPos = new DimChunkPos(world.provider.getDimension(), pos);
             if (FACTIONS.IsSiegeInProgress(chunkPos)) FACTIONS.sendAllSiegeInfoToNearby();
-            PacketSiegeCampInfo info = new PacketSiegeCampInfo();
-            info.mPossibleAttacks = CalculatePossibleAttackDirections(world, pos, player);
-            info.mSiegeCampPos = new DimBlockPos(world.provider.getDimension(), pos);
-            info.momentum = faction.getSiegeMomentum();
-            WarForgeMod.NETWORK.sendTo(info, (EntityPlayerMP) player);
+            SiegeCampGuiFactory.INSTANCE.open(
+                    player,
+                    new DimBlockPos(world.provider.getDimension(), pos),
+                    CalculatePossibleAttackDirections(world, pos, player),
+                    faction.getSiegeMomentum()
+            );
         }
 
         return true;

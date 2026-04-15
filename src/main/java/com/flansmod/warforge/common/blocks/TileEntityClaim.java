@@ -123,6 +123,11 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
         updateTileEntity();
     }
 
+    public void updateFactionName(String newName) {
+        factionName = newName == null ? "" : newName;
+        updateTileEntity();
+    }
+
     private void updateTileEntity() {
         if(world.isRemote) return;
         world.markBlockRangeForRenderUpdate(pos, pos);

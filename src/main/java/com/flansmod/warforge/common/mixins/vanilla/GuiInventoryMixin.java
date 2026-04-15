@@ -2,8 +2,11 @@ package com.flansmod.warforge.common.mixins.vanilla;
 
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeConfig;
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.network.PacketRequestClaimChunks;
+import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
+import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
+import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
+import com.flansmod.warforge.common.network.PacketMoveCitadel;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
@@ -27,9 +30,21 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
 
     @Unique
     private static final int WARFORGE_CLAIMS_BUTTON_ID = 0x57A9;
+    @Unique
+    private static final int WARFORGE_MEMBERS_BUTTON_ID = 0x57AB;
+    @Unique
+    private static final int WARFORGE_STATS_BUTTON_ID = 0x57AD;
+    @Unique
+    private static final int WARFORGE_MOVE_CITADEL_BUTTON_ID = 0x57AF;
 
     @Unique
     private GuiButton warforge$claimsButton;
+    @Unique
+    private GuiButton warforge$membersButton;
+    @Unique
+    private GuiButton warforge$statsButton;
+    @Unique
+    private GuiButton warforge$moveCitadelButton;
 
     public GuiInventoryMixin(Container inventorySlotsIn) {
         super(inventorySlotsIn);
@@ -54,6 +69,15 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
         );
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$claimsButton);
+        warforge$membersButton = new GuiButton(WARFORGE_MEMBERS_BUTTON_ID, 60, 0, 18, 18, "M");
+        warforge$updateClaimsButtonPos();
+        buttonList.add(warforge$membersButton);
+        warforge$statsButton = new GuiButton(WARFORGE_STATS_BUTTON_ID, 60, 0, 18, 18, "F");
+        warforge$updateClaimsButtonPos();
+        buttonList.add(warforge$statsButton);
+        warforge$moveCitadelButton = new GuiButton(WARFORGE_MOVE_CITADEL_BUTTON_ID, 60, 0, 18, 18, "C");
+        warforge$updateClaimsButtonPos();
+        buttonList.add(warforge$moveCitadelButton);
     }
 
     @Inject(method = "drawScreen", at = @At("HEAD"))
@@ -63,7 +87,7 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
 
     @Inject(method = "actionPerformed", at = @At("HEAD"), cancellable = true)
     private void warforge$onActionPerformed(GuiButton button, CallbackInfo ci) throws IOException {
-        if (button == null || button.id != WARFORGE_CLAIMS_BUTTON_ID) {
+        if (button == null) {
             return;
         }
 
@@ -72,12 +96,19 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
             return;
         }
 
-        PacketRequestClaimChunks packet = new PacketRequestClaimChunks();
-        packet.center = new DimChunkPos(player.dimension, player.getPosition());
-        packet.radius = WarForgeConfig.CLAIM_MANAGER_RADIUS;
-        packet.openUi = true;
-        WarForgeMod.NETWORK.sendToServer(packet);
-        ci.cancel();
+        if (button.id == WARFORGE_CLAIMS_BUTTON_ID) {
+            ClaimManagerGuiFactory.INSTANCE.openClient(new DimChunkPos(player.dimension, player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
+            ci.cancel();
+        } else if (button.id == WARFORGE_MEMBERS_BUTTON_ID) {
+            FactionMemberManagerGuiFactory.INSTANCE.openClient(FactionMemberManagerGuiData.Page.MEMBERS);
+            ci.cancel();
+        } else if (button.id == WARFORGE_STATS_BUTTON_ID) {
+            FactionStatsGuiFactory.INSTANCE.openClient(com.flansmod.warforge.server.Faction.nullUuid);
+            ci.cancel();
+        } else if (button.id == WARFORGE_MOVE_CITADEL_BUTTON_ID) {
+            com.flansmod.warforge.common.WarForgeMod.NETWORK.sendToServer(new PacketMoveCitadel());
+            ci.cancel();
+        }
     }
 
     @Unique
@@ -88,6 +119,18 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
 
         warforge$claimsButton.x = guiLeft + xSize  + 4 ;
         warforge$claimsButton.y = guiTop + 4;
+        if (warforge$membersButton != null) {
+            warforge$membersButton.x = guiLeft + xSize + 4;
+            warforge$membersButton.y = guiTop + 26;
+        }
+        if (warforge$statsButton != null) {
+            warforge$statsButton.x = guiLeft + xSize + 4;
+            warforge$statsButton.y = guiTop + 48;
+        }
+        if (warforge$moveCitadelButton != null) {
+            warforge$moveCitadelButton.x = guiLeft + xSize + 4;
+            warforge$moveCitadelButton.y = guiTop + 70;
+        }
 
     }
 }

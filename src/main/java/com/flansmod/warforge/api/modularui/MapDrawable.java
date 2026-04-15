@@ -5,7 +5,6 @@ import com.cleanroommc.modularui.api.widget.Interactable;
 import com.cleanroommc.modularui.screen.viewport.GuiContext;
 import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.flansmod.warforge.api.Color4i;
-import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
@@ -13,11 +12,7 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.texture.TextureMap;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
@@ -159,23 +154,10 @@ public class MapDrawable implements IDrawable, Interactable {
             }
         }
 
-        if (chunkState.veinSprite != null) {
-            Minecraft.getMinecraft().getTextureManager().bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
+        if (chunkState.veinIcon != null) {
+            Minecraft.getMinecraft().getTextureManager().bindTexture(chunkState.veinIcon);
             GlStateManager.color(1f, 1f, 1f, 1f);
-            Tessellator tess = Tessellator.getInstance();
-            BufferBuilder buf = tess.getBuffer();
-
-            float u0 = chunkState.veinSprite.getMinU();
-            float v0 = chunkState.veinSprite.getMinV();
-            float u1 = chunkState.veinSprite.getMaxU();
-            float v1 = chunkState.veinSprite.getMaxV();
-
-            buf.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
-            buf.pos(x + OFFSET, y + OFFSET, 0).tex(u0, v0).endVertex();
-            buf.pos(x + OFFSET, y + SIZE + OFFSET, 0).tex(u0, v1).endVertex();
-            buf.pos(x + SIZE + OFFSET, y + SIZE + OFFSET, 0).tex(u1, v1).endVertex();
-            buf.pos(x + SIZE + OFFSET, y + OFFSET, 0).tex(u1, v0).endVertex();
-            tess.draw();
+            Gui.drawModalRectWithCustomSizedTexture(x + OFFSET, y + OFFSET, 0, 0, SIZE, SIZE, 16, 16);
         }
 
         if (chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.claimType != Faction.ClaimType.NONE) {

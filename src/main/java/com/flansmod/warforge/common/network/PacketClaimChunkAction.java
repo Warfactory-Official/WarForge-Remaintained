@@ -55,7 +55,7 @@ public class PacketClaimChunkAction extends PacketBase {
         }
 
         int clampedRadius = Math.max(1, Math.min(radius, WarForgeConfig.CLAIM_MANAGER_RADIUS));
-        WarForgeMod.FACTIONS.sendClaimChunks(playerEntity, center, clampedRadius, true);
+        WarForgeMod.FACTIONS.sendClaimChunks(playerEntity, center, clampedRadius);
     }
 
     @Override

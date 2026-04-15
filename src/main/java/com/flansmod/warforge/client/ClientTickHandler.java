@@ -10,6 +10,7 @@ import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.PacketChunkPosVeinID;
@@ -73,11 +74,8 @@ public class ClientTickHandler {
    	public static boolean CLAIMS_DIRTY = false;
     public static boolean UI_DEBUG = false;
     public static boolean TIMER_DEBUG = false;
-    public static boolean showVeinOverlay = false;
+    public static boolean showVeinOverlay = true;
     private final Tessellator tess;
-    private final ModelBanner bannerModel = new ModelBanner();
-    private final HashMap<ItemStack, ResourceLocation> bannerTextures = new HashMap<ItemStack, ResourceLocation>();
-    private final int renderList = GLAllocation.generateDisplayLists(1);
     private DimChunkPos playerChunkPos = new DimChunkPos(0, 0, 0);
     private DimChunkPos lastClaimSyncChunk = new DimChunkPos(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
     private float newAreaToastTime = 0;
@@ -190,12 +188,12 @@ public class ClientTickHandler {
             }
 
             if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
-                requestClaimChunkData(standing, false);
+                requestClaimChunkData(standing);
                 lastClaimSyncChunk = standing;
             }
 
             if (claimManagerKey.isPressed()) {
-                requestClaimChunkData(standing, true);
+                ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
             }
 
             if (toggleVeinOverlayKey.isPressed()) {
@@ -245,11 +243,10 @@ public class ClientTickHandler {
 
     }
 
-    private void requestClaimChunkData(DimChunkPos center, boolean openUi) {
+    private void requestClaimChunkData(DimChunkPos center) {
         PacketRequestClaimChunks packet = new PacketRequestClaimChunks();
         packet.center = center;
         packet.radius = WarForgeConfig.CLAIM_MANAGER_RADIUS;
-        packet.openUi = openUi;
         WarForgeMod.NETWORK.sendToServer(packet);
     }
 

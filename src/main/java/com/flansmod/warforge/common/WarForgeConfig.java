@@ -5,6 +5,7 @@ import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.common.network.PacketSyncConfig;
 import net.minecraft.block.Block;
 import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.common.config.Configuration;
@@ -12,6 +13,7 @@ import net.minecraftforge.fml.common.registry.ForgeRegistries;
 
 import java.io.File;
 import java.util.*;
+import java.util.regex.Pattern;
 
 import static com.flansmod.warforge.client.util.ScreenSpaceUtil.ScreenPos;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
@@ -60,9 +62,12 @@ public class WarForgeConfig {
     public static int FORCE_LOADED_CHUNKS_BASE = 4;
     public static int FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = 1;
     public static int CLAIM_MANAGER_RADIUS = 4;
+    public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
+    public static int OFFLINE_RAID_PROTECTION_HOURS = 24;
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
+    public static String[] INSURANCE_BLACKLIST_IDS = new String[]{"minecraft:*shulker_box", "appliedenergistics2:*cell*"};
 
     // Sieges
     public static boolean SIEGE_ENABLE_NEW_TIMER = true;
@@ -111,6 +116,7 @@ public class WarForgeConfig {
     public static int INVITE_DECAY_TIME = 5;
     public static int RANDOM_BORDER_REDRAW_DENOMINATOR = 5;
     public static int FACTION_NAME_LENGTH_MAX = 32;
+    public static String[] FACTION_NAME_BANLIST = new String[]{"admin", "mod", "staff"};
     public static boolean BLOCK_ENDER_CHEST = false;
     public static boolean SHOW_YIELD_TIMERS = true;
     public static int CITADEL_MOVE_NUM_DAYS = 7;
@@ -221,9 +227,12 @@ public class WarForgeConfig {
         FORCE_LOADED_CHUNKS_BASE = configFile.getInt("Force-loaded Chunks Base Limit", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_BASE, 0, 1024, "How many claim chunks each faction can force-load by default.");
         FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = configFile.getInt("Force-loaded Chunks Per Citadel Level", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128, "Extra force-load chunk capacity granted per citadel level.");
         CLAIM_MANAGER_RADIUS = configFile.getInt("Claim Manager Radius", CATEGORY_CLAIMS, CLAIM_MANAGER_RADIUS, 1, 12, "Square radius in chunks shown in the claim manager UI.");
+        ENABLE_OFFLINE_RAID_PROTECTION = configFile.getBoolean("Enable Offline Raid Protection", CATEGORY_CLAIMS, ENABLE_OFFLINE_RAID_PROTECTION, "If enabled, factions cannot be sieged for a limited period after all their members go offline.");
+        OFFLINE_RAID_PROTECTION_HOURS = configFile.getInt("Offline Raid Protection Hours", CATEGORY_CLAIMS, OFFLINE_RAID_PROTECTION_HOURS, 0, 168, "How many hours a faction remains protected from new sieges after the last member goes offline.");
         CITADEL_MOVE_NUM_DAYS = configFile.getInt("Days Between Citadel Moves", CATEGORY_CLAIMS, CITADEL_MOVE_NUM_DAYS, 0, 1024, "How many days a faction has to wait to move their citadel again");
         ENABLE_CITADEL_UPGRADES = configFile.getBoolean("Enable Citadel Upgrade System", CATEGORY_CLAIMS, false, "Applies claim limits that require upgrading to extend your faction's claim limit");
         ENABLE_ISOLATED_CLAIMS = configFile.getBoolean("Enabled Isolated Claims", CATEGORY_CLAIMS, ENABLE_ISOLATED_CLAIMS, "If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.");
+        INSURANCE_BLACKLIST_IDS = configFile.getStringList("Insurance Blacklist", CATEGORY_CLAIMS, INSURANCE_BLACKLIST_IDS, "Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.");
 
         // Siege Camp Settings
         ATTACK_STRENGTH_SIEGE_CAMP = configFile.getInt("Siege Camp Attack Strength", CATEGORY_SIEGES, ATTACK_STRENGTH_SIEGE_CAMP, 1, 1024, "How much attack pressure a siege camp exerts on adjacent enemy claims");
@@ -308,6 +317,7 @@ public class WarForgeConfig {
         // Visual
         SHOW_NEW_AREA_TIMER = configFile.getFloat("New Area Timer", CATEGORY_CLIENT, SHOW_NEW_AREA_TIMER, 0.0f, 1000f, "How many in-game ticks to show the 'You have entered {faction}' message for.");
         FACTION_NAME_LENGTH_MAX = configFile.getInt("Max Faction Name Length", Configuration.CATEGORY_GENERAL, FACTION_NAME_LENGTH_MAX, 3, 128, "How many characters long can a faction name be.");
+        FACTION_NAME_BANLIST = configFile.getStringList("Faction Name Banlist", Configuration.CATEGORY_GENERAL, FACTION_NAME_BANLIST, "Case-insensitive substrings that disallow faction names from being created or renamed.");
         SHOW_OPPONENT_BORDERS = configFile.getBoolean("Show Opponent Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_OPPONENT_BORDERS, "Turns the in-world border rendering on/off for opponent chunks");
         SHOW_ALLY_BORDERS = configFile.getBoolean("Show Ally Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_ALLY_BORDERS, "Turns the in-world border rendering on/off for ally chunks");
         SHOW_YIELD_TIMERS = configFile.getBoolean("Show yield timers", CATEGORY_CLIENT, SHOW_YIELD_TIMERS, "Whether to show a readout of the time until the next yield / siege in top left of your screen");
@@ -364,8 +374,35 @@ public class WarForgeConfig {
         compoundNBT.setShort("megachunkLength", VEIN_HANDLER.megachunkLength);
         compoundNBT.setInteger("atkSiegeRadius", SIEGE_ATTACKER_RADIUS);
         compoundNBT.setInteger("defSiegeRadius", SIEGE_DEFENDER_RADIUS);
+        compoundNBT.setBoolean("offlineRaidProtection", ENABLE_OFFLINE_RAID_PROTECTION);
+        compoundNBT.setInteger("offlineRaidProtectionHours", OFFLINE_RAID_PROTECTION_HOURS);
+        compoundNBT.setString("insuranceBlacklist", String.join("\n", INSURANCE_BLACKLIST_IDS));
         packet.configNBT = compoundNBT.toString();
         return packet;
+    }
+
+    public static boolean isInsuranceBlacklisted(ItemStack stack) {
+        if (stack == null || stack.isEmpty() || stack.getItem().getRegistryName() == null) {
+            return false;
+        }
+
+        String registryName = stack.getItem().getRegistryName().toString();
+        String fullName = registryName + ":" + stack.getMetadata();
+        for (String pattern : INSURANCE_BLACKLIST_IDS) {
+            if (pattern == null || pattern.trim().isEmpty()) {
+                continue;
+            }
+            String trimmed = pattern.trim();
+            if (globMatches(trimmed, registryName) || globMatches(trimmed, fullName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean globMatches(String pattern, String value) {
+        String regex = Pattern.quote(pattern).replace("\\*", "\\E.*\\Q");
+        return value.matches(regex);
     }
 
     public static class ProtectionConfig {

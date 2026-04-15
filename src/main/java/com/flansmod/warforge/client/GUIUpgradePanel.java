@@ -10,6 +10,8 @@ import com.cleanroommc.modularui.drawable.IngredientDrawable;
 import com.cleanroommc.modularui.drawable.UITexture;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
+import com.cleanroommc.modularui.screen.viewport.GuiContext;
+import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
@@ -17,10 +19,11 @@ import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.layout.Column;
 import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.common.factories.FactionUpgradeGuiData;
 import com.flansmod.warforge.common.network.PacketRequestUpgrade;
 import com.flansmod.warforge.server.StackComparable;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Items;
 import net.minecraft.item.Item;
@@ -42,12 +45,29 @@ import static com.flansmod.warforge.common.WarForgeMod.NETWORK;
 import static com.flansmod.warforge.common.WarForgeMod.UPGRADE_HANDLER;
 
 public class GUIUpgradePanel {
-    //Dude why the fuck the documentation is so ass
-    //Second attempt at using clientside UI, with static methods now
-    public static final int WIDTH = 300;
-
+    public static final int WIDTH = 332;
+    public static final int HEIGHT = 292;
+    private static final int CONTENT_LEFT = 12;
+    private static final int HEADER_Y = 12;
+    private static final int BODY_Y = 54;
+    private static final int ACTIONS_Y = 252;
 
     public static ModularScreen createGui(UUID factionID, String factionName, int level, int color, boolean outrankingOfficer) {
+        FactionUpgradeGuiData data = new FactionUpgradeGuiData(Minecraft.getMinecraft().player, factionID);
+        data.factionId = factionID;
+        data.factionName = factionName;
+        data.level = level;
+        data.color = color;
+        data.outrankingOfficer = outrankingOfficer;
+        return new ModularScreen(buildPanel(data));
+    }
+
+    public static ModularPanel buildPanel(FactionUpgradeGuiData data) {
+        UUID factionID = data.factionId;
+        String factionName = data.factionName;
+        int level = data.level;
+        int color = data.color;
+        boolean outrankingOfficer = data.outrankingOfficer;
         ListWidget list = new ListWidget<>()
                 .scrollDirection(GuiAxis.Y)
 //                .keepScrollBarInArea(true)
@@ -57,7 +77,7 @@ public class GUIUpgradePanel {
 
 
         if (UPGRADE_HANDLER.getRequirementsFor(level + 1) == null) {
-            return createNoMoreLevelsGui();
+            return createNoMoreLevelsPanel();
         }
 
         // Sorted by quantity
@@ -123,48 +143,51 @@ public class GUIUpgradePanel {
 
         ModularPanel panel = ModularPanel.defaultPanel("citadel_upgrade_panel")
                 .width(WIDTH)
-                .height(30 * 6 + 60 + 20);
+                .height(HEIGHT)
+                .topRel(0.40f);
 
-        // Title label
-        Widget prefix = IKey.str("Upgrade citadel for: ")
+        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, WIDTH, 40, 0xFF171B1F, 0xFF0D1013)).size(WIDTH, 40));
+        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, BODY_Y, WIDTH - CONTENT_LEFT * 2, 188, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 188).pos(CONTENT_LEFT, BODY_Y));
+        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, ACTIONS_Y, WIDTH - CONTENT_LEFT * 2, 28, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 28).pos(CONTENT_LEFT, ACTIONS_Y));
+        panel.child(new IDrawable.DrawableWidget(colorStripe(0xFF000000 | (color & 0x00FFFFFF), 0, 0, 6, HEIGHT)).size(6, HEIGHT));
+        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8));
+
+        Widget prefix = IKey.str("Citadel Upgrade")
                 .asWidget()
-                .top(8)
+                .pos(CONTENT_LEFT, HEADER_Y)
                 .color(0xFFFFFF)
                 .shadow(true)
-                .scale(1.25f);
+                .style(TextFormatting.BOLD)
+                .scale(1.15f);
 
         Widget factionNamePlate = IKey.str(factionName)
                 .asWidget()
                 .color(color)
                 .shadow(true)
-                .top(8)
+                .pos(CONTENT_LEFT, HEADER_Y + 15)
                 .style(TextFormatting.BOLD)
-                .scale(1.25f);
+                .scale(1.0f);
 
+        panel.child(prefix);
+        panel.child(factionNamePlate);
+        panel.child(IKey.str("Requirements to advance from level " + level + " to level " + (level + 1)).asWidget()
+                .pos(CONTENT_LEFT + 10, BODY_Y + 8)
+                .color(0xB8BDC3));
 
-        Widget title = new Row()
-                .paddingBottom(5)
-                .marginBottom(5)
-                .child(prefix)
-                .child(factionNamePlate)
-                .height(20)
-                .mainAxisAlignment(Alignment.MainAxis.CENTER);
-
-        // Close button
         ButtonWidget<?> closeButton = new ButtonWidget<>()
-                .size(100, 16)
-                .overlay(IKey.str("Close"))
-                .bottomRel(0.5f)
+                .size(94, 18)
+                .overlay(IKey.str("Close").color(0xFFFFFF))
+                .background(GuiTextures.MC_BUTTON)
+                .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
                 .onMousePressed(button -> {
                     panel.closeIfOpen();
                     return true;
-                });
+                })
+                .pos(CONTENT_LEFT + 8, ACTIONS_Y + 5);
 
-        // Upgrade button
         ButtonWidget<?> upgradeButton = new ButtonWidget<>()
-                .size(100, 16)
-                .overlay(IKey.str("Upgrade").color(requirementPassed.get() && outrankingOfficer ? 0xFFFFFF : 0x555555))
-                .bottomRel(0.5f)
+                .size(104, 18)
+                .overlay(IKey.str("Upgrade").color(requirementPassed.get() && outrankingOfficer ? 0xFFFFFF : 0x8A8A8A))
                 .hoverBackground(new DynamicDrawable(() -> (requirementPassed.get() && outrankingOfficer) ?
                         GuiTextures.MC_BUTTON_HOVERED :
                         GuiTextures.MC_BUTTON_DISABLED))
@@ -179,7 +202,8 @@ public class GUIUpgradePanel {
                     panel.closeIfOpen();
 
                     return true;
-                });
+                })
+                .pos(WIDTH - CONTENT_LEFT - 112, ACTIONS_Y + 5);
 
         if (!outrankingOfficer || !requirementPassed.get())
             upgradeButton.tooltip(richTooltip -> {
@@ -189,15 +213,14 @@ public class GUIUpgradePanel {
             });
 
 
-        //Level and claim limit display
         UITexture ARROW = UITexture.builder()
                 .location(ModularUI.ID, "gui/widgets/progress_bar_arrow")
                 .imageSize(20, 40)
                 .subAreaXYWH(0, 20, 20, 20)
                 .build();
 
-        Widget newLevel = IKey.str("Lvl " + (level + 1)).asWidget()
-                .color(0xFFAA00)
+        Widget newLevel = IKey.str("Level " + level + " -> " + (level + 1)).asWidget()
+                .color(0xFFE19A)
                 .shadow(true)
                 .height(16);
 
@@ -224,63 +247,70 @@ public class GUIUpgradePanel {
                 .mainAxisAlignment(Alignment.MainAxis.CENTER)
                 .expanded();
 
-
-        Widget levelIndicator = new Column()
-                .child(newLevel)
-                .child(claimIncrease)
-                .size(80, 20);
-
-
-        // Button row
-        Widget buttonRow = new Row()
-                .child(closeButton)
-                .child(levelIndicator)
-                .child(upgradeButton)
-                .expanded()
-                .height(20)
+        Widget insuranceIncrease = new Row()
+                .child(IKey.str("" + UPGRADE_HANDLER.getInsuranceSlotsForLevel(level))
+                        .asWidget()
+                        .scale(1.15f)
+                        .shadow(true)
+                        .color(0x6CB6FF))
+                .child(new IDrawable.DrawableWidget(ARROW)
+                        .height(8)
+                        .width(10)
+                        .margin(4, 0))
+                .child(IKey.str("" + UPGRADE_HANDLER.getInsuranceSlotsForLevel(level + 1))
+                        .asWidget()
+                        .shadow(true)
+                        .scale(1.15f)
+                        .style(TextFormatting.BOLD)
+                        .color(0x8BFFB0))
                 .mainAxisAlignment(Alignment.MainAxis.CENTER)
-                .paddingTop(5)
-                .marginTop(5);
+                .expanded();
 
-        // Main content column
-        Widget content = new Column()
-                .child(title)
-                .child(list)
-                .child(buttonRow)
-                .widthRel(0.98f)
-                .center()
-                .crossAxisAlignment(Alignment.CrossAxis.CENTER);
+        Widget progression = new Column()
+                .child(newLevel)
+                .child(IKey.str("Claims").asWidget().color(0xC7CCD1).shadow(true))
+                .child(claimIncrease)
+                .child(IKey.str("Insurance").asWidget().color(0xC7CCD1).shadow(true))
+                .child(insuranceIncrease)
+                .size(120, 54)
+                .pos(WIDTH - CONTENT_LEFT - 132, BODY_Y + 18);
 
-        // Assemble full panel
-        panel
-                .child(content)
-        ;
+        list.pos(CONTENT_LEFT + 8, BODY_Y + 34);
+        list.width(WIDTH - CONTENT_LEFT * 2 - 146);
+        list.height(140);
 
-        return new ModularScreen(panel);
+        panel.child(list);
+        panel.child(progression);
+        panel.child(closeButton);
+        panel.child(upgradeButton);
+
+        return panel;
 
     }
 
-    private static ModularScreen createNoMoreLevelsGui() {
-        ModularPanel panel = ModularPanel.defaultPanel("no_more_levels_panel", 180, 50);
-        return new ModularScreen(panel
+    private static ModularPanel createNoMoreLevelsPanel() {
+        ModularPanel panel = ModularPanel.defaultPanel("no_more_levels_panel", 220, 76);
+        return panel
+                .child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, 220, 76, 0xFF171B1F, 0xFF0D1013)).size(220, 76))
+                .child(new IDrawable.DrawableWidget(colorStripe(0xFF9F7A34, 0, 0, 6, 76)).size(6, 76))
                 .child(IKey.str("Your citadel is at it's max level!").asWidget()
+                        .pos(16, 16)
                         .shadow(true)
                         .style(TextFormatting.WHITE)
                         .height(16)
-                        .align(Alignment.TopCenter)
                 )
                 .child(new ButtonWidget<>()
-                        .size(100, 16)
-                        .overlay(IKey.str("Close"))
+                        .size(96, 18)
+                        .overlay(IKey.str("Close").color(0xFFFFFF))
+                        .background(GuiTextures.MC_BUTTON)
+                        .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
                         .onMousePressed(button -> {
                             panel.closeIfOpen();
                             return true;
                         })
-                        .center()
-                        .bottom(10)
+                        .pos(16, 42)
                 )
-
-        );
+        ;
 
     }
 
@@ -356,10 +386,42 @@ public class GUIUpgradePanel {
                 )
                 .paddingLeft(5)
                 .paddingRight(5)
-                .margin(3, 2)
+                .margin(2, 2)
                 .height(30)
-                .background(GuiTextures.BUTTON_CLEAN)
+                .background(buttonFill(0xFF262D33))
                 ;
+    }
+
+    private static IDrawable sectionBackdrop(int x, int y, int width, int height, int fillColor, int borderColor) {
+        return new IDrawable() {
+            @Override
+            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
+                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
+                Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
+                Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
+                Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
+                Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
+            }
+        };
+    }
+
+    private static IDrawable colorStripe(int color, int x, int y, int width, int height) {
+        return new IDrawable() {
+            @Override
+            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
+                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, color);
+            }
+        };
+    }
+
+    private static IDrawable buttonFill(int color) {
+        return (context, x, y, width, height, theme) -> {
+            Gui.drawRect(x, y, x + width, y + height, color);
+            Gui.drawRect(x, y, x + width, y + 1, 0xFF0F0F0F);
+            Gui.drawRect(x, y + height - 1, x + width, y + height, 0xFF0F0F0F);
+            Gui.drawRect(x, y, x + 1, y + height, 0xFF0F0F0F);
+            Gui.drawRect(x + width - 1, y, x + width, y + height, 0xFF0F0F0F);
+        };
     }
 
 

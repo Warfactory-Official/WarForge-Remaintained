@@ -1,65 +1,64 @@
 package com.flansmod.warforge.client;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
+import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.IngredientDrawable;
-import com.cleanroommc.modularui.factory.ClientGUI;
 import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.ModularScreen;
+import com.cleanroommc.modularui.screen.viewport.GuiContext;
+import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
-import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
+import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapDrawable;
 import com.flansmod.warforge.client.util.SkinUtil;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.ClaimManagerGuiData;
+import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
 import com.flansmod.warforge.common.network.PacketClaimChunkAction;
-import com.flansmod.warforge.common.network.PacketClaimChunksData;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.StackComparable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.resources.I18n;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.Vec3i;
+import net.minecraft.util.text.translation.I18n;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public class GuiClaimManager {
-    public static ModularScreen makeGUI(PacketClaimChunksData data) {
-        return makeGUI(data, -1, -1);
+public final class GuiClaimManager {
+    private static final int CELL_SIZE = 64;
+    private static final int MAX_VISIBLE_RADIUS = 5;
+    private static final int PADDING = 6;
+    private static final int HEADER = 22;
+    private static final int SIDE_GUTTER = 18;
+
+    private GuiClaimManager() {
     }
 
-    public static ModularScreen makeGUI(PacketClaimChunksData data, int pageX, int pageZ) {
+    public static ModularPanel buildPanel(ClaimManagerGuiData data) {
         int size = data.radius * 2 + 1;
-        int padding = 6;
-        int header = 22;
         ScaledResolution scaled = new ScaledResolution(Minecraft.getMinecraft());
-        int cell = ChunkMapViewport.recommendedCellSize(scaled);
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 size,
                 3,
-                size,
-                cell,
+                Math.min(size, MAX_VISIBLE_RADIUS * 2 + 1),
+                CELL_SIZE,
                 scaled.getScaledWidth(),
                 scaled.getScaledHeight(),
-                padding * 2 + 20,
+                PADDING * 2 + 20,
                 64,
-                pageX,
-                pageZ
+                data.pageX,
+                data.pageZ
         );
-        int width = viewport.visibleSize * cell + (2 * padding);
-        int height = viewport.visibleSize * cell + header + (2 * padding) + 20;
+        int width = viewport.visibleSize * CELL_SIZE + (2 * PADDING) + (2 * SIDE_GUTTER);
+        int height = viewport.visibleSize * CELL_SIZE + HEADER + (2 * PADDING) + 20;
+        int mapLeft = SIDE_GUTTER + PADDING;
 
         ModularPanel panel = ModularPanel.defaultPanel("claim_manager")
                 .width(width)
@@ -75,60 +74,31 @@ public class GuiClaimManager {
                 })
                 .width(12)
                 .height(12)
-                .pos(width - padding * 3, (padding / 2) + 1)
-        );
+                .pos(width - PADDING * 3, (PADDING / 2) + 1));
 
-        String claimCap = data.claimMax == Short.MAX_VALUE ? "INF" : String.valueOf(data.claimMax);
-        panel.child(IKey.str("Claims " + data.claimCount + "/" + claimCap + " | Loaded " + data.forceLoadedCount + "/" + data.forceLoadedMax).asWidget()
-                .pos(padding, padding));
+        panel.child(IKey.dynamic(() -> {
+                    String claimCap = ClientClaimChunkCache.claimMax == Short.MAX_VALUE ? "INF" : String.valueOf(ClientClaimChunkCache.claimMax);
+                    return "Claims " + ClientClaimChunkCache.claimCount + "/" + claimCap + " | Loaded " + ClientClaimChunkCache.forceLoadedCount + "/" + ClientClaimChunkCache.forceLoadedMax;
+                }).asWidget()
+                .pos(mapLeft, PADDING));
         if (viewport.visibleSize < size) {
-            panel.child(IKey.str("Map scaled to " + viewport.visibleSize + "x" + viewport.visibleSize).asWidget()
-                    .pos(padding, padding + 10));
+            panel.child(IKey.str("Map paged to " + viewport.visibleSize + "x" + viewport.visibleSize).asWidget()
+                    .pos(mapLeft, PADDING + 10));
         }
 
-        addPanButtons(panel, data, viewport, width, padding, header, cell);
-
-        Map<Long, ClaimChunkInfo> byChunk = new HashMap<Long, ClaimChunkInfo>();
-        for (ClaimChunkInfo chunk : data.chunks) {
-            byChunk.put(ChunkMapUtil.key(chunk.x, chunk.z), chunk);
-        }
-
-        List<ClaimChunkInfo> orderedClaims = new ArrayList<ClaimChunkInfo>(size * size);
-        List<SiegeCampAttackInfo> mapState = new ArrayList<SiegeCampAttackInfo>(size * size);
-
-        for (int z = data.centerZ - data.radius; z <= data.centerZ + data.radius; z++) {
-            for (int x = data.centerX - data.radius; x <= data.centerX + data.radius; x++) {
-                ClaimChunkInfo info = byChunk.getOrDefault(ChunkMapUtil.key(x, z), new ClaimChunkInfo());
-                info.x = x;
-                info.z = z;
-                orderedClaims.add(info);
-                mapState.add(toMapState(info, data.centerX, data.centerZ));
-            }
-        }
-
-        boolean[][] adjacency = new boolean[mapState.size()][4];
-        ChunkMapUtil.computeAdjacency(mapState, data.radius, adjacency);
-        ResourceLocation face = Minecraft.getMinecraft().player == null ? null : SkinUtil.getPlayerFace(Minecraft.getMinecraft().player.getUniqueID());
+        addPanButtons(panel, data, viewport, width);
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
-                int fullIndex = j * size + i;
-                ClaimChunkInfo info = orderedClaims.get(fullIndex);
-                ResourceLocation tileIcon = (info.x == data.centerX && info.z == data.centerZ) ? face : null;
-                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(
-                        mapState.get(fullIndex),
-                        info.claimType,
-                        info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
-                        tileIcon
-                );
-                String textureName = ChunkMapTextureDaemon.getTextureName("claimmap", data.dim, info.x, info.z);
-                final int finalIndex = fullIndex;
-                int localX = i - viewport.startX;
-                int localZ = j - viewport.startZ;
+                final int chunkX = data.centerX - data.radius + i;
+                final int chunkZ = data.centerZ - data.radius + j;
+                final int localX = i - viewport.startX;
+                final int localZ = j - viewport.startZ;
 
                 panel.child(new ButtonWidget<>()
-                        .overlay(new MapDrawable(textureName, renderInfo, adjacency[finalIndex]))
+                        .overlay(liveChunkOverlay(data, chunkX, chunkZ))
                         .onMousePressed(mouseButton -> {
+                            ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
                             byte action = determineAction(info, mouseButton);
                             if (action == -1) {
                                 return false;
@@ -136,14 +106,14 @@ public class GuiClaimManager {
 
                             PacketClaimChunkAction packet = new PacketClaimChunkAction();
                             packet.action = action;
-                            packet.chunk = new DimChunkPos(data.dim, info.x, info.z);
-                            packet.center = new DimChunkPos(data.dim, data.centerX, data.centerZ);
+                            packet.chunk = new DimChunkPos(data.dim, chunkX, chunkZ);
+                            packet.center = data.getCenter();
                             packet.radius = data.radius;
                             WarForgeMod.NETWORK.sendToServer(packet);
-                            panel.closeIfOpen();
                             return true;
                         })
-                        .tooltip(tooltip -> {
+                        .tooltipDynamic(tooltip -> {
+                            ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
                             if (info.factionId.equals(Faction.nullUuid)) {
                                 tooltip.addLine("Wilderness");
                             } else {
@@ -160,11 +130,11 @@ public class GuiClaimManager {
                                 ).asIcon().size(25));
                                 if (info.oreQuality != null) {
                                     tooltip.addLine(IKey.str("Ore In the chunk: " +
-                                            I18n.format(info.vein.translationKey,
-                                                    I18n.format(info.oreQuality.getTranslationKey()) + " [" +
+                                            I18n.translateToLocalFormatted(info.vein.translationKey,
+                                                    I18n.translateToLocal(info.oreQuality.getTranslationKey()) + " [" +
                                                             info.oreQuality.getMultString(info.vein) + "]")));
                                 } else {
-                                    tooltip.addLine(IKey.str("Ore In the chunk: " + I18n.format(info.vein.translationKey, "")));
+                                    tooltip.addLine(IKey.str("Ore In the chunk: " + I18n.translateToLocalFormatted(info.vein.translationKey, "")));
                                 }
                             } else {
                                 tooltip.addLine(IKey.str("No ores in this chunk"));
@@ -185,12 +155,44 @@ public class GuiClaimManager {
                                 tooltip.addLine(info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED) ? "Right click to unforce-load" : "Right click to force-load");
                             }
                         })
-                        .size(cell)
-                        .pos((localX * cell) + padding, (localZ * cell) + padding + header));
+                        .size(CELL_SIZE)
+                        .pos((localX * CELL_SIZE) + mapLeft, (localZ * CELL_SIZE) + PADDING + HEADER));
             }
         }
 
-        return new ModularScreen(Tags.MODID, panel);
+        return panel;
+    }
+
+    private static void addPanButtons(ModularPanel panel, ClaimManagerGuiData data, ChunkMapViewport viewport, int width) {
+        if (!viewport.canPanNorth() && !viewport.canPanSouth() && !viewport.canPanWest() && !viewport.canPanEast()) {
+            return;
+        }
+
+        if (viewport.canPanNorth()) {
+            panel.child(panButton("^", width / 2 - 6, 2, data, viewport.startX, viewport.panNorth()));
+        }
+        if (viewport.canPanSouth()) {
+            panel.child(panButton("v", width / 2 - 6, PADDING + HEADER + viewport.visibleSize * CELL_SIZE, data, viewport.startX, viewport.panSouth()));
+        }
+        if (viewport.canPanWest()) {
+            panel.child(panButton("<", 4, PADDING + HEADER + (viewport.visibleSize * CELL_SIZE) / 2 - 6, data, viewport.panWest(), viewport.startZ));
+        }
+        if (viewport.canPanEast()) {
+            panel.child(panButton(">", width - 16, PADDING + HEADER + (viewport.visibleSize * CELL_SIZE) / 2 - 6, data, viewport.panEast(), viewport.startZ));
+        }
+    }
+
+    private static ButtonWidget<?> panButton(String text, int x, int y, ClaimManagerGuiData data, int pageX, int pageZ) {
+        return new ButtonWidget<>()
+                .background(GuiTextures.BUTTON_CLEAN)
+                .overlay(IKey.str(text))
+                .onMousePressed(mouseButton -> {
+                    ClaimManagerGuiFactory.INSTANCE.openClient(data.getCenter(), data.radius, pageX, pageZ);
+                    return true;
+                })
+                .width(12)
+                .height(12)
+                .pos(x, y);
     }
 
     private static SiegeCampAttackInfo toMapState(ClaimChunkInfo info, int centerX, int centerZ) {
@@ -203,6 +205,63 @@ public class GuiClaimManager {
         state.mWarforgeVein = info.vein;
         state.mOreQuality = info.oreQuality;
         return state;
+    }
+
+    private static IDrawable liveChunkOverlay(ClaimManagerGuiData data, int chunkX, int chunkZ) {
+        return (GuiContext context, int x, int y, int width, int height, WidgetTheme theme) -> {
+            ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
+            ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(
+                    toMapState(info, data.centerX, data.centerZ),
+                    info.claimType,
+                    info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
+                    getCenterIcon(data, chunkX, chunkZ)
+            );
+            new MapDrawable(textureName(data.dim, chunkX, chunkZ), renderInfo, getLiveAdjacency(data, chunkX, chunkZ))
+                    .draw(context, x, y, width, height, theme);
+        };
+    }
+
+    private static ClaimChunkInfo getLiveInfo(ClaimManagerGuiData data, int chunkX, int chunkZ) {
+        ClaimChunkInfo info = ClientClaimChunkCache.get(new DimChunkPos(data.dim, chunkX, chunkZ));
+        if (info != null) {
+            return info;
+        }
+
+        ClaimChunkInfo fallback = new ClaimChunkInfo();
+        fallback.x = chunkX;
+        fallback.z = chunkZ;
+        return fallback;
+    }
+
+    private static boolean[] getLiveAdjacency(ClaimManagerGuiData data, int chunkX, int chunkZ) {
+        boolean[] adjacency = new boolean[4];
+        ClaimChunkInfo current = getLiveInfo(data, chunkX, chunkZ);
+
+        if (chunkZ > data.centerZ - data.radius) {
+            adjacency[0] = !current.factionId.equals(getLiveInfo(data, chunkX, chunkZ - 1).factionId);
+        }
+        if (chunkX < data.centerX + data.radius) {
+            adjacency[1] = !current.factionId.equals(getLiveInfo(data, chunkX + 1, chunkZ).factionId);
+        }
+        if (chunkZ < data.centerZ + data.radius) {
+            adjacency[2] = !current.factionId.equals(getLiveInfo(data, chunkX, chunkZ + 1).factionId);
+        }
+        if (chunkX > data.centerX - data.radius) {
+            adjacency[3] = !current.factionId.equals(getLiveInfo(data, chunkX - 1, chunkZ).factionId);
+        }
+
+        return adjacency;
+    }
+
+    private static ResourceLocation getCenterIcon(ClaimManagerGuiData data, int chunkX, int chunkZ) {
+        Minecraft minecraft = Minecraft.getMinecraft();
+        if (minecraft.player == null) {
+            return null;
+        }
+        if (chunkX != data.centerX || chunkZ != data.centerZ) {
+            return null;
+        }
+        return SkinUtil.getPlayerFace(minecraft.player.getUniqueID());
     }
 
     private static byte determineAction(ClaimChunkInfo info, int mouseButton) {
@@ -232,35 +291,7 @@ public class GuiClaimManager {
         };
     }
 
-    private static void addPanButtons(ModularPanel panel, PacketClaimChunksData data, ChunkMapViewport viewport, int width, int padding, int header, int cell) {
-        if (!viewport.canPanNorth() && !viewport.canPanSouth() && !viewport.canPanWest() && !viewport.canPanEast()) {
-            return;
-        }
-
-        if (viewport.canPanNorth()) {
-            panel.child(panButton("^", width / 2 - 6, 2, data, viewport.startX, viewport.panNorth()));
-        }
-        if (viewport.canPanSouth()) {
-            panel.child(panButton("v", width / 2 - 6, padding + header + viewport.visibleSize * cell, data, viewport.startX, viewport.panSouth()));
-        }
-        if (viewport.canPanWest()) {
-            panel.child(panButton("<", 2, padding + header + (viewport.visibleSize * cell) / 2 - 6, data, viewport.panWest(), viewport.startZ));
-        }
-        if (viewport.canPanEast()) {
-            panel.child(panButton(">", width - 14, padding + header + (viewport.visibleSize * cell) / 2 - 6, data, viewport.panEast(), viewport.startZ));
-        }
-    }
-
-    private static ButtonWidget<?> panButton(String text, int x, int y, PacketClaimChunksData data, int pageX, int pageZ) {
-        return new ButtonWidget<>()
-                .background(GuiTextures.BUTTON_CLEAN)
-                .overlay(IKey.str(text))
-                .onMousePressed(mouseButton -> {
-                    ClientGUI.open(makeGUI(data, pageX, pageZ));
-                    return true;
-                })
-                .width(12)
-                .height(12)
-                .pos(x, y);
+    private static String textureName(int dim, int x, int z) {
+        return "claimmap/" + dim + "_" + x + "_" + z;
     }
 }

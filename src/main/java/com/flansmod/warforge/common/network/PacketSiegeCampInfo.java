@@ -1,19 +1,14 @@
 package com.flansmod.warforge.common.network;
 
-import com.cleanroommc.modularui.factory.ClientGUI;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.client.ClientProxy;
-import com.flansmod.warforge.client.GuiSiegeCamp;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.util.math.Vec3i;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -87,19 +82,7 @@ public class PacketSiegeCampInfo extends PacketBase {
 
     @Override
     public void handleClientSide(EntityPlayer clientPlayer) {
-        ShowClientGUI();
+        WarForgeMod.LOGGER.warn("Ignoring legacy PacketSiegeCampInfo on the client. Siege camp UI now opens through the synced ModularUI factory path.");
     }
-
-    @SideOnly(Side.CLIENT)
-    private void ShowClientGUI() {
-        //Minecraft.getMinecraft().displayGuiScreen(new GuiSiegeCamp(mSiegeCampPos, mPossibleAttacks));
-
-        ClientGUI.open(GuiSiegeCamp.makeGUI(
-                mSiegeCampPos, mPossibleAttacks, momentum
-        ));
-    }
-
-
 }
-
 
