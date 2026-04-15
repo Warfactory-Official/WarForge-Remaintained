@@ -109,7 +109,7 @@ public class ClientTickHandler {
     private void cleanupBorderRenderData() {
         for (BorderRenderData data : renderData.values()) {
             if (data.renderList > 0) {
-                GlStateManager.glDeleteLists(data.renderList, 1);
+               Minecraft.getMinecraft().addScheduledTask( () -> GlStateManager.glDeleteLists(data.renderList, 1));
             }
         }
         renderData.clear();
