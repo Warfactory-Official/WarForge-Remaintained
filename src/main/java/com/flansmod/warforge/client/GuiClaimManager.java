@@ -7,6 +7,7 @@ import com.cleanroommc.modularui.factory.ClientGUI;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
@@ -189,7 +190,7 @@ public class GuiClaimManager {
             }
         }
 
-        return new ModularScreen(panel);
+        return new ModularScreen(Tags.MODID, panel);
     }
 
     private static SiegeCampAttackInfo toMapState(ClaimChunkInfo info, int centerX, int centerZ) {

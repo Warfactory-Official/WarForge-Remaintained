@@ -1,16 +1,19 @@
 package com.flansmod.warforge.common.mixins.vanilla;
 
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketRequestClaimChunks;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiButton;
+import net.minecraft.client.gui.GuiButtonImage;
 import net.minecraft.client.gui.inventory.GuiContainerCreative;
 import net.minecraft.client.renderer.InventoryEffectRenderer;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
+import net.minecraft.util.ResourceLocation;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -38,13 +41,16 @@ public abstract class GuiContainerCreativeMixin extends InventoryEffectRenderer 
             return;
         }
 
-        warforge$claimsButton = new GuiButton(
+       warforge$claimsButton = new GuiButtonImage(
                 WARFORGE_CREATIVE_CLAIMS_BUTTON_ID,
+                60,
+                0,
+                18,
+                18,
                 0,
                 0,
-                58,
-                20,
-                I18n.format("gui.warforge.claims")
+                0,
+                new ResourceLocation(Tags.MODID, "gui/icon_claim.png")
         );
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$claimsButton);
@@ -80,7 +86,7 @@ public abstract class GuiContainerCreativeMixin extends InventoryEffectRenderer 
             return;
         }
 
-        warforge$claimsButton.x = guiLeft + xSize - warforge$claimsButton.width - 4;
+        warforge$claimsButton.x = guiLeft + xSize  + 4 ;
         warforge$claimsButton.y = guiTop + 4;
     }
 }

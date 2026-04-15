@@ -94,18 +94,18 @@ public class MapDrawable implements IDrawable, Interactable {
 
             Gui.drawRect(x, y, x + width + 1, y + height + 1, baseNoAlpha | 0x20_000000);
 
-            // Top (light)
-            if (adjacency[3])
-                Gui.drawRect(x, y, x + width + 1, y + CB_THICKNESS, lightColor);
-            // Left (light)
+            // Top / North (light)
             if (adjacency[0])
+                Gui.drawRect(x, y, x + width + 1, y + CB_THICKNESS, lightColor);
+            // Left / West (light)
+            if (adjacency[3])
                 Gui.drawRect(x, y + CB_THICKNESS - 2, x + CB_THICKNESS, y + height, lightColor);
 
-            // Bottom (dark)
-            if (adjacency[1])
-                Gui.drawRect(x, y + height - CB_THICKNESS, x + width, y + height, darkColor);
-            // Right (dark)
+            // Bottom / South (dark)
             if (adjacency[2])
+                Gui.drawRect(x, y + height - CB_THICKNESS, x + width, y + height, darkColor);
+            // Right / East (dark)
+            if (adjacency[1])
                 Gui.drawRect(x + width - CB_THICKNESS, y, x + width, y + height, darkColor);
         } else {
             Gui.drawRect(x, y, x + width + 1, y + GRID_THICKNESS, GRID_COLOR);

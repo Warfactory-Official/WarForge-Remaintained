@@ -61,11 +61,6 @@ public class ChunkMapViewport {
     }
 
     public static int recommendedCellSize(ScaledResolution scaled) {
-        int minDim = Math.min(scaled.getScaledWidth(), scaled.getScaledHeight());
-        if (minDim <= 260) return 28;
-        if (minDim <= 340) return 36;
-        if (minDim <= 430) return 44;
-        if (minDim <= 560) return 52;
         return 64;
     }
 }

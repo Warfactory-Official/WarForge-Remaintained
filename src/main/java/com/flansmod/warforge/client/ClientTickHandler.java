@@ -73,6 +73,7 @@ public class ClientTickHandler {
    	public static boolean CLAIMS_DIRTY = false;
     public static boolean UI_DEBUG = false;
     public static boolean TIMER_DEBUG = false;
+    public static boolean showVeinOverlay = false;
     private final Tessellator tess;
     private final ModelBanner bannerModel = new ModelBanner();
     private final HashMap<ItemStack, ResourceLocation> bannerTextures = new HashMap<ItemStack, ResourceLocation>();
@@ -93,14 +94,17 @@ public class ClientTickHandler {
 
     public ClientTickHandler() {
         tess = Tessellator.getInstance();
-    toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
+        toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
 		ClientRegistry.registerKeyBinding(toggleBordersKey);
         claimManagerKey = new KeyBinding("key.warforge.claimmanager", Keyboard.KEY_M, "key.warforge.cathegory");
         ClientRegistry.registerKeyBinding(claimManagerKey);
+        toggleVeinOverlayKey = new KeyBinding("key.warforge.toggleveinoverlay", Keyboard.KEY_O, "key.warforge.cathegory");
+        ClientRegistry.registerKeyBinding(toggleVeinOverlayKey);
 
 	}
     public static KeyBinding toggleBordersKey;
     public static KeyBinding claimManagerKey;
+    public static KeyBinding toggleVeinOverlayKey;
 
     private void cleanupBorderRenderData() {
         for (BorderRenderData data : renderData.values()) {
@@ -129,6 +133,7 @@ public class ClientTickHandler {
         ChunkMapTextureDaemon.releaseAll();
         ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
         CLAIMS_DIRTY = true;
+        showVeinOverlay = true;
     }
 
     @SubscribeEvent
@@ -191,6 +196,10 @@ public class ClientTickHandler {
 
             if (claimManagerKey.isPressed()) {
                 requestClaimChunkData(standing, true);
+            }
+
+            if (toggleVeinOverlayKey.isPressed()) {
+                toggleVeinOverlay(player);
             }
 
             // Show new area timer if configured
@@ -272,7 +281,7 @@ public class ClientTickHandler {
                 }
 
 				// get the vein info
-				if (player.isSneaking()) {
+				if (showVeinOverlay) {
 					DimChunkPos currPos = new DimChunkPos(player.dimension, player.getPosition());
 					boolean hasPosData = CHUNK_VEIN_CACHE.isReceived(currPos);
 					boolean hasValidData = hasPosData && CHUNK_VEIN_CACHE.isRecognized(currPos);
@@ -437,6 +446,17 @@ public class ClientTickHandler {
             veinPos.incrementY(textHeight);
 		}
 	}
+
+    private void toggleVeinOverlay(EntityPlayerSP player) {
+        showVeinOverlay = !showVeinOverlay;
+        lastRenderStartTimeMs = -1;
+        cachedCompStrings = null;
+        compIt = null;
+        currComp = null;
+
+        player.sendMessage(new TextComponentString(I18n.format(
+                showVeinOverlay ? "warforge.info.vein.toggle.enabled" : "warforge.info.vein.toggle.disabled")));
+    }
 
 	private ArrayList<String> createVeinInfoStrings(Pair<Vein, Quality> veinInfo, boolean hasCached) {
 		ArrayList<String> result = new ArrayList<>(1);
