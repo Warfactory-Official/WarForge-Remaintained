@@ -68,6 +68,8 @@ public class WarForgeConfig {
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
     public static String[] INSURANCE_BLACKLIST_IDS = new String[]{"minecraft:*shulker_box", "appliedenergistics2:*cell*"};
+    public static String[] DEFAULT_FLAG_IDS = new String[0];
+    public static String[] CUSTOM_FLAG_ALLOWLIST = new String[]{"*"};
 
     // Sieges
     public static boolean SIEGE_ENABLE_NEW_TIMER = true;
@@ -233,6 +235,8 @@ public class WarForgeConfig {
         ENABLE_CITADEL_UPGRADES = configFile.getBoolean("Enable Citadel Upgrade System", CATEGORY_CLAIMS, false, "Applies claim limits that require upgrading to extend your faction's claim limit");
         ENABLE_ISOLATED_CLAIMS = configFile.getBoolean("Enabled Isolated Claims", CATEGORY_CLAIMS, ENABLE_ISOLATED_CLAIMS, "If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.");
         INSURANCE_BLACKLIST_IDS = configFile.getStringList("Insurance Blacklist", CATEGORY_CLAIMS, INSURANCE_BLACKLIST_IDS, "Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.");
+        DEFAULT_FLAG_IDS = configFile.getStringList("Available Default Flags", CATEGORY_CLAIMS, DEFAULT_FLAG_IDS, "Default built-in flags that can be chosen by factions. These resolve to assets/warforge/textures/flags/default/<id>.png");
+        CUSTOM_FLAG_ALLOWLIST = configFile.getStringList("Available Custom Flags", CATEGORY_CLAIMS, CUSTOM_FLAG_ALLOWLIST, "Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.");
 
         // Siege Camp Settings
         ATTACK_STRENGTH_SIEGE_CAMP = configFile.getInt("Siege Camp Attack Strength", CATEGORY_SIEGES, ATTACK_STRENGTH_SIEGE_CAMP, 1, 1024, "How much attack pressure a siege camp exerts on adjacent enemy claims");
@@ -403,6 +407,27 @@ public class WarForgeConfig {
     private static boolean globMatches(String pattern, String value) {
         String regex = Pattern.quote(pattern).replace("\\*", "\\E.*\\Q");
         return value.matches(regex);
+    }
+
+    public static boolean isDefaultFlagAvailable(String id) {
+        for (String allowed : DEFAULT_FLAG_IDS) {
+            if (allowed != null && allowed.trim().equalsIgnoreCase(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean isCustomFlagAvailable(String id) {
+        for (String allowed : CUSTOM_FLAG_ALLOWLIST) {
+            if (allowed == null || allowed.trim().isEmpty()) {
+                continue;
+            }
+            if (globMatches(allowed.trim().toLowerCase(Locale.ROOT), id.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static class ProtectionConfig {

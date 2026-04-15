@@ -18,6 +18,8 @@ import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.PacketBuffer;
 import net.minecraftforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.UUID;
 
@@ -46,6 +48,7 @@ public class FactionInsuranceGuiFactory extends AbstractUIFactory<FactionInsuran
         }
     }
 
+    @SideOnly(Side.CLIENT)
     public void openClient(UUID factionId) {
         GuiManager.openFromClient(this, new FactionInsuranceGuiData(verifyClientSide(Platform.getClientPlayer()), factionId));
     }

@@ -16,10 +16,12 @@ import com.cleanroommc.modularui.widgets.SlotGroupWidget;
 import com.cleanroommc.modularui.widgets.layout.Grid;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 import com.cleanroommc.modularui.widgets.slot.ModularSlot;
+import com.flansmod.warforge.client.util.FlagDrawable;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
+import com.flansmod.warforge.common.factories.FactionFlagSelectGuiFactory;
 import com.flansmod.warforge.common.factories.FactionInsuranceGuiFactory;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
@@ -29,8 +31,6 @@ import com.flansmod.warforge.common.network.PacketDisbandFaction;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
-import net.minecraft.item.ItemBanner;
-import net.minecraft.item.ItemShield;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
 public final class ModularCitadelGui {
@@ -91,22 +91,20 @@ public final class ModularCitadelGui {
                 .pos(CONTENT_LEFT + 8, STORAGE_Y + 32);
         panel.child(yieldGrid);
 
-        panel.child(IKey.str("Banner Relay").asWidget()
+        panel.child(IKey.str("Faction Flag").asWidget()
                 .pos(228, STORAGE_Y + 6)
                 .style(net.minecraft.util.text.TextFormatting.BOLD));
-        panel.child(IKey.str("Sets the faction banner copied into owned land").asWidget()
+        panel.child(IKey.str(citadel.factionFlagId.isEmpty() ? "Choose once. This cannot be changed later." : "Locked for this faction").asWidget()
                 .pos(228, STORAGE_Y + 18)
                 .color(0xB8BDC3));
-
-        ItemSlot bannerSlot = new ItemSlot()
-                .slot(new ModularSlot(handler, TileEntityCitadel.BANNER_SLOT_INDEX)
-                        .filter(stack -> stack.getItem() instanceof ItemBanner || stack.getItem() instanceof ItemShield))
-                .size(SLOT_SIZE)
-                .pos(228, STORAGE_Y + 38);
-        panel.child(bannerSlot);
-        panel.child(IKey.str("Banner or shield").asWidget()
-                .pos(252, STORAGE_Y + 42)
-                .color(0xD6DBE0));
+        if (!citadel.factionFlagId.isEmpty()) {
+            panel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).size(56, 32).pos(228, STORAGE_Y + 32));
+            panel.child(IKey.str(citadel.factionFlagId).asWidget().pos(288, STORAGE_Y + 42).color(0xD6DBE0));
+        } else if (hasFaction) {
+            panel.child(openButton("Choose", 228, STORAGE_Y + 38, 56, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+        } else {
+            panel.child(IKey.str("Create a faction first").asWidget().pos(228, STORAGE_Y + 42).color(0xD6DBE0));
+        }
 
         panel.child(IKey.str("Command Surface").asWidget()
                 .pos(CONTENT_LEFT + 8, ACTIONS_Y + 6)

@@ -84,6 +84,7 @@ public class WarForgeMod implements ILateMixinLoader {
     public static final PotionsModule POTIONS = new PotionsModule();
     public static final UpgradeHandler UPGRADE_HANDLER = new UpgradeHandler();
     public static final FactionChunkLoadingManager CHUNK_LOADING_MANAGER = new FactionChunkLoadingManager();
+    public static final ServerFlagRegistry FLAG_REGISTRY = new ServerFlagRegistry();
 	  public static VeinUtils VEIN_HANDLER = null;
 	  public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
 
@@ -546,6 +547,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
             NETWORK.sendTo(Siege.clearSiegeData(), (EntityPlayerMP) event.player);
             FACTIONS.sendAllSiegeInfoToNearby();
+            FLAG_REGISTRY.syncToPlayer((EntityPlayerMP) event.player);
 
             // begin queued sync info
             // don't sync if the upgrade info doesn't exist
@@ -618,6 +620,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @EventHandler
     public void serverAboutToStart(FMLServerAboutToStartEvent event) {
         MC_SERVER = event.getServer();
+        FLAG_REGISTRY.reload();
         CommandHandler handler = ((CommandHandler) MC_SERVER.getCommandManager());
         handler.registerCommand(new CommandFactions());
 

@@ -18,6 +18,7 @@ public class ClaimChunkInfo {
     public int z;
     public UUID factionId = Faction.nullUuid;
     public String factionName = "";
+    public String flagId = "";
     public int colour = 0xFFFFFF;
     public Faction.ClaimType claimType = Faction.ClaimType.NONE;
     public Vein vein;

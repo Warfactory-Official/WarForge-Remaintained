@@ -774,6 +774,7 @@ runClient2Task.configure {
     def baseClient = tasks.named("runClient", RunMinecraftTask).get()
     classpath(baseClient.getClasspath())
     getMainClass().set(baseClient.getMainClass())
+    dependsOn('shadowJar')
     workingDir = file('run/client2')
     def baseName = project.findProperty("developmentEnvironmentUserName") ?: "Developer"
     getUsername().set(baseName + "2")

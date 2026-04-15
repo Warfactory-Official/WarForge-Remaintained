@@ -17,11 +17,13 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.PacketBuffer;
 import org.jetbrains.annotations.NotNull;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiData> {
     public static final ClaimManagerGuiFactory INSTANCE = new ClaimManagerGuiFactory();
 
-    private static final IGuiHolder<ClaimManagerGuiData> HOLDER = new IGuiHolder<ClaimManagerGuiData>() {
+    private static final IGuiHolder<ClaimManagerGuiData> HOLDER = new IGuiHolder<>() {
         @Override
         public ModularPanel buildUI(ClaimManagerGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
             if (guiData.isClient()) {
@@ -54,6 +56,7 @@ public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiDat
         GuiManager.open(this, createServerData(serverPlayer, center, radius, pageX, pageZ, true), serverPlayer);
     }
 
+    @SideOnly(Side.CLIENT)
     public void openClient(DimChunkPos center, int radius, int pageX, int pageZ) {
         GuiManager.openFromClient(this, new ClaimManagerGuiData(verifyClientSide(Platform.getClientPlayer()), center, radius, pageX, pageZ));
     }

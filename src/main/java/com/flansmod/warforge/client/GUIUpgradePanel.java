@@ -18,6 +18,7 @@ import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.layout.Column;
 import com.cleanroommc.modularui.widgets.layout.Row;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionUpgradeGuiData;
 import com.flansmod.warforge.common.network.PacketRequestUpgrade;
@@ -59,7 +60,7 @@ public class GUIUpgradePanel {
         data.level = level;
         data.color = color;
         data.outrankingOfficer = outrankingOfficer;
-        return new ModularScreen(buildPanel(data));
+        return new ModularScreen(Tags.MODID, buildPanel(data));
     }
 
     public static ModularPanel buildPanel(FactionUpgradeGuiData data) {
@@ -276,7 +277,7 @@ public class GUIUpgradePanel {
                 .pos(WIDTH - CONTENT_LEFT - 132, BODY_Y + 18);
 
         list.pos(CONTENT_LEFT + 8, BODY_Y + 34);
-        list.width(WIDTH - CONTENT_LEFT * 2 - 146);
+        list.width(WIDTH - CONTENT_LEFT * 2 - 100);
         list.height(140);
 
         panel.child(list);

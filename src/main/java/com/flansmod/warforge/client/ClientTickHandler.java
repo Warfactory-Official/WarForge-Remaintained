@@ -24,6 +24,7 @@ import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.model.ModelBanner;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
@@ -81,6 +82,7 @@ public class ClientTickHandler {
     private float newAreaToastTime = 0;
     private String areaMessage = "";
     private int areaMessageColour = 0xFF_FF_FF_FF;
+    private String areaFlagId = "";
     private HashMap<DimChunkPos, BorderRenderData> renderData = new HashMap<>();
 
 	// -1 indicates the chunk wasn't the targeting of previous probe(s)
@@ -129,15 +131,18 @@ public class ClientTickHandler {
         ClientProxy.VEIN_ENTRIES.clear();
         WarForgeMod.NAMETAG_CACHE.purge(); //Purge to remove possible stale data
         ChunkMapTextureDaemon.releaseAll();
+        ClientFlagRegistry.clear();
         ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
         CLAIMS_DIRTY = true;
         showVeinOverlay = true;
+        areaFlagId = "";
     }
 
     @SubscribeEvent
     public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         cleanupBorderRenderData();
         ChunkMapTextureDaemon.releaseAll();
+        ClientFlagRegistry.clear();
     }
 
     @SubscribeEvent
@@ -196,6 +201,11 @@ public class ClientTickHandler {
                 ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
             }
 
+            if (toggleBordersKey.isPressed()) {
+                WarForgeMod.showBorders = !WarForgeMod.showBorders;
+                player.sendMessage(new TextComponentString("Borders " + (WarForgeMod.showBorders ? "enabled" : "disabled")));
+            }
+
             if (toggleVeinOverlayKey.isPressed()) {
                 toggleVeinOverlay(player);
             }
@@ -216,6 +226,7 @@ public class ClientTickHandler {
                             // Entered a new claim
                             areaMessage = "Entering " + postClaim.factionName;
                             areaMessageColour = postClaim.colour;
+                            areaFlagId = postClaim.flagId;
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         }
                     } else // Left a claim
@@ -224,12 +235,14 @@ public class ClientTickHandler {
                             // Gone nowhere
                             areaMessage = "Leaving " + preClaim.factionName;
                             areaMessageColour = preClaim.colour;
+                            areaFlagId = "";
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         } else {
                             // Entered another claim, possibly different faction
                             if (!preClaim.factionId.equals(postClaim.factionId)) {
                                 areaMessage = "Leaving " + preClaim.factionName + ", Entering " + postClaim.factionName;
                                 areaMessageColour = postClaim.colour;
+                                areaFlagId = postClaim.flagId;
                                 newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                             }
                         }
@@ -644,6 +657,24 @@ public class ClientTickHandler {
 
         GlStateManager.enableTexture2D();
         mc.fontRenderer.drawStringWithShadow(areaMessage, xText, yText + 11, colour);   // vertically centered text
+
+        var flagTexture = ClientFlagRegistry.getFlagTexture(areaFlagId);
+        var flagDims = ClientFlagRegistry.getFlagDimensions(areaFlagId);
+        if (flagTexture != null && flagDims != null && flagDims[0] > 0 && flagDims[1] > 0) {
+            int maxWidth = 64;
+            int maxHeight = 24;
+            float scale = Math.min(maxWidth / (float) flagDims[0], maxHeight / (float) flagDims[1]);
+            int drawWidth = Math.max(1, Math.round(flagDims[0] * scale));
+            int drawHeight = Math.max(1, Math.round(flagDims[1] * scale));
+            int flagX = ScreenSpaceUtil.getX(pos, drawWidth);
+            flagX += ScreenSpaceUtil.getXOffset(pos, 0);
+            int flagY = yText + totalHeight + 4;
+
+            mc.getTextureManager().bindTexture(flagTexture);
+            GlStateManager.color(1f, 1f, 1f, fadeOut);
+            Gui.drawScaledCustomSizeModalRect(flagX, flagY, 0, 0, flagDims[0], flagDims[1], drawWidth, drawHeight, flagDims[0], flagDims[1]);
+            ScreenSpaceUtil.incrementY(pos, drawHeight + 4);
+        }
 
         GlStateManager.disableBlend();
         GlStateManager.disableAlpha();

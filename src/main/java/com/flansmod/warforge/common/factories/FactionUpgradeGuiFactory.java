@@ -16,6 +16,8 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.PacketBuffer;
 import org.jetbrains.annotations.NotNull;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.UUID;
 
@@ -50,6 +52,7 @@ public class FactionUpgradeGuiFactory extends AbstractUIFactory<FactionUpgradeGu
         }
     }
 
+    @SideOnly(Side.CLIENT)
     public void openClient(UUID factionId) {
         GuiManager.openFromClient(this, new FactionUpgradeGuiData(verifyClientSide(Platform.getClientPlayer()), factionId));
     }

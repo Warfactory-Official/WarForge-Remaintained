@@ -46,6 +46,7 @@ public class PacketClaimChunksData extends PacketBase {
             data.writeInt(chunk.z);
             writeUUID(data, chunk.factionId);
             writeUTF(data, chunk.factionName);
+            writeUTF(data, chunk.flagId);
             data.writeInt(chunk.colour);
             writeUTF(data, chunk.claimType.serializedName);
             data.writeShort(chunk.vein != null ? chunk.vein.getId() : -1);
@@ -74,6 +75,7 @@ public class PacketClaimChunksData extends PacketBase {
             info.z = data.readInt();
             info.factionId = readUUID(data);
             info.factionName = readUTF(data);
+            info.flagId = readUTF(data);
             info.colour = data.readInt();
             info.claimType = Faction.ClaimType.fromSerialized(readUTF(data));
             short veinId = data.readShort();

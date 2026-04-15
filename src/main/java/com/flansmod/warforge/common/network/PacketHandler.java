@@ -267,7 +267,10 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 		registerPacket(PacketRequestUpgradeUI.class);
 		registerPacket(PacketUpgradeUI.class);
 		registerPacket(PacketRequestUpgrade.class);
-		registerPacket(PacketEffect.class);
+		registerPacket(PacketChooseFactionFlag.class);
+		registerPacket(PacketFlagManifest.class);
+		registerPacket(PacketFlagChunk.class);
+        registerPacket(PacketEffect.class);
 		registerPacket(PacketNamePlateChange.class);
 		registerPacket(PacketRequestNamePlate.class);
 		registerPacket(PacketChunkPosVeinID.class);

@@ -793,6 +793,37 @@ public class FactionStorage {
         return true;
     }
 
+    public boolean requestChooseFactionFlag(EntityPlayerMP player, UUID factionID, String flagId) {
+        Faction faction = getFaction(factionID);
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("That faction doesn't exist"));
+            return false;
+        }
+        if (!WarForgeMod.isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Role.LEADER)) {
+            player.sendMessage(new TextComponentString("You are not the faction leader"));
+            return false;
+        }
+        if (!faction.flagId.isEmpty()) {
+            player.sendMessage(new TextComponentString("This faction has already chosen its flag"));
+            return false;
+        }
+        if (!WarForgeMod.FLAG_REGISTRY.isAvailable(flagId)) {
+            player.sendMessage(new TextComponentString("That flag is not available"));
+            return false;
+        }
+
+        faction.flagId = flagId;
+        for (World world : MC_SERVER.worlds) {
+            for (TileEntity te : world.loadedTileEntityList) {
+                if (te instanceof TileEntityClaim claim && claim.getFaction().equals(faction.uuid)) {
+                    claim.updateFactionFlag(flagId);
+                }
+            }
+        }
+        faction.messageAll(new TextComponentString("Your faction selected its flag: " + flagId));
+        return true;
+    }
+
     public boolean requestRemovePlayerFromFaction(ICommandSender remover, UUID factionID, UUID toRemove) {
         Faction faction = getFaction(factionID);
         if (faction == null) {
@@ -1469,6 +1500,7 @@ public class FactionStorage {
                 if (ownerFaction != null) {
                     info.factionId = ownerFaction.uuid;
                     info.factionName = ownerFaction.name;
+                    info.flagId = ownerFaction.flagId;
                     info.colour = ownerFaction.colour;
                     info.claimType = ownerFaction.getClaimType(chunk);
                 }

@@ -23,6 +23,7 @@ import static com.flansmod.warforge.common.blocks.BlockCitadel.FACING;
 public abstract class TileEntityClaim extends TileEntity implements IClaim {
     public int colour = 0xFF_FF_FF;
     public String factionName = "";
+    public String factionFlagId = "";
     protected UUID factionUUID = Faction.nullUuid;
     public byte rotation;
 
@@ -109,10 +110,12 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     public void onServerSetFaction(Faction faction) {
         if (faction == null) {
             factionUUID = Faction.nullUuid;
+            factionFlagId = "";
         } else {
             factionUUID = faction.uuid;
             updateColour(faction.colour);
             factionName = faction.name;
+            factionFlagId = faction.flagId;
         }
 
         if(world.getBlockState(this.pos).getBlock() instanceof MultiBlockColumn) {
@@ -125,6 +128,11 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
 
     public void updateFactionName(String newName) {
         factionName = newName == null ? "" : newName;
+        updateTileEntity();
+    }
+
+    public void updateFactionFlag(String newFlagId) {
+        factionFlagId = newFlagId == null ? "" : newFlagId;
         updateTileEntity();
     }
 
@@ -197,6 +205,7 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
         tags.setUniqueId("faction", factionUUID);
         tags.setInteger("colour", colour);
         tags.setString("name", factionName);
+        tags.setString("flagId", factionFlagId);
         tags.setByte("rotation", rotation);
         return tags;
     }
@@ -206,6 +215,7 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
         factionUUID = tags.getUniqueId("faction");
         colour = tags.getInteger("colour");
         factionName = tags.getString("name");
+        factionFlagId = tags.getString("flagId");
         rotation = tags.getByte("rotation");
     }
 

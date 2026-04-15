@@ -17,6 +17,8 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
 import net.minecraft.network.PacketBuffer;
 import org.jetbrains.annotations.NotNull;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.Comparator;
 import java.util.Map;
@@ -58,6 +60,7 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         GuiManager.open(this, createServerData(serverPlayer, page), serverPlayer);
     }
 
+    @SideOnly(Side.CLIENT)
     public void openClient(FactionMemberManagerGuiData.Page page) {
         GuiManager.openFromClient(this, new FactionMemberManagerGuiData(verifyClientSide(Platform.getClientPlayer()), page));
     }

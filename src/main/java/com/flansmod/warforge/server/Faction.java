@@ -55,6 +55,7 @@ public class Faction {
     public int onlinePlayerCount = 0; // the number of current online players
     public long lastSiegeTimestamp = 0;
     public String name;
+    public String flagId = "";
     public DimBlockPos citadelPos;
     public HashMap<DimBlockPos, Integer> claims;
     public HashMap<DimBlockPos, ClaimType> claimTypes;
@@ -670,6 +671,8 @@ public class Faction {
         }
 
 
+        flagId = tags.getString("flagId");
+
         // Get gameplay params
         notoriety = tags.getInteger("notoriety");
         wealth = tags.getInteger("wealth");
@@ -715,6 +718,7 @@ public class Faction {
         // Set citadel pos and core params
         tags.setUniqueId("uuid", uuid);
         tags.setString("name", name);
+        tags.setString("flagId", flagId);
         tags.setInteger("colour", colour);
         tags.setShort("citadel_lvl", citadelLevel);
 
