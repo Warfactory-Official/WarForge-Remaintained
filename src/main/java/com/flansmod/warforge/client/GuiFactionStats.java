@@ -97,7 +97,7 @@ public final class GuiFactionStats {
             panel.child(actionButton("Stash", CONTENT_LEFT + 10, ACTIONS_Y + 8, 66, () -> FactionInsuranceGuiFactory.INSTANCE.openClient(data.factionId)));
             panel.child(actionButton("Members", CONTENT_LEFT + 80, ACTIONS_Y + 8, 62, () -> FactionMemberManagerGuiFactory.INSTANCE.openClient(FactionMemberManagerGuiData.Page.MEMBERS)));
         }
-        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
+        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES && data.isOwnFaction) {
             panel.child(new ButtonWidget<>()
                     .width(70)
                     .height(18)

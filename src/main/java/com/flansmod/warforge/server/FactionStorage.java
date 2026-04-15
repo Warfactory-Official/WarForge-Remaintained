@@ -29,7 +29,6 @@ import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.text.TextComponentString;
@@ -1749,7 +1748,7 @@ public class FactionStorage {
 
     }
 
-    public boolean requestMoveCitadel(EntityPlayerMP player) {
+    public boolean requestMoveCitadel(EntityPlayerMP player, DimBlockPos pos) {
         Faction faction = getFactionOfPlayer(player.getUniqueID());
         if (faction == null) {
             player.sendMessage(new TextComponentString("You are not in a faction"));
@@ -1767,14 +1766,14 @@ public class FactionStorage {
                 return false;
             }
         }
-        RayTraceResult hit = player.rayTrace(player.interactionManager.getBlockReachDistance(), 1.0F);
-        if (hit == null || hit.typeOfHit != RayTraceResult.Type.BLOCK || hit.sideHit == null) {
+        if (pos == null || pos.equals(DimBlockPos.ZERO)) {
             player.sendMessage(new TextComponentString("Look at the block face where you want to place the citadel"));
             return false;
         }
-
-        BlockPos targetPos = hit.getBlockPos().offset(hit.sideHit);
-        DimBlockPos pos = new DimBlockPos(player.dimension, targetPos);
+        if (pos.dim != player.dimension) {
+            player.sendMessage(new TextComponentString("You can only move the citadel in your current dimension"));
+            return false;
+        }
         if (pos.equals(faction.citadelPos)) {
             player.sendMessage(new TextComponentString("The citadel is already there"));
             return false;

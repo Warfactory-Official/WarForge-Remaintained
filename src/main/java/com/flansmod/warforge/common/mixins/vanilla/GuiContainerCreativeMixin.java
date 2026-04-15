@@ -17,6 +17,7 @@ import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.RayTraceResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -106,7 +107,12 @@ public abstract class GuiContainerCreativeMixin extends InventoryEffectRenderer 
             FactionStatsGuiFactory.INSTANCE.openClient(com.flansmod.warforge.server.Faction.nullUuid);
             ci.cancel();
         } else if (button.id == WARFORGE_CREATIVE_MOVE_CITADEL_BUTTON_ID) {
-            com.flansmod.warforge.common.WarForgeMod.NETWORK.sendToServer(new PacketMoveCitadel());
+            RayTraceResult hit = player.rayTrace(10.0d, 1.0F);
+            if (hit != null && hit.typeOfHit == RayTraceResult.Type.BLOCK && hit.sideHit != null) {
+                PacketMoveCitadel packet = new PacketMoveCitadel();
+                packet.pos = new com.flansmod.warforge.common.util.DimBlockPos(player.dimension, hit.getBlockPos().offset(hit.sideHit));
+                com.flansmod.warforge.common.WarForgeMod.NETWORK.sendToServer(packet);
+            }
             ci.cancel();
         }
     }

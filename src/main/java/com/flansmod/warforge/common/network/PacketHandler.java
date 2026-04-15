@@ -200,8 +200,10 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 	}
 
 	private ByteBuf decompress(ByteBuf compressedData) throws IOException {
+		byte[] compressedBytes = new byte[compressedData.readableBytes()];
+		compressedData.getBytes(compressedData.readerIndex(), compressedBytes);
 		// Create a GZIPInputStream to decompress the data
-		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedData.array());
+		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedBytes);
 		GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
 
 		// Use a ByteArrayOutputStream to hold the decompressed data

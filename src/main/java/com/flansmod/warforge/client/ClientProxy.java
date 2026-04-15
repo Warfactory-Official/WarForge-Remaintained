@@ -1,5 +1,9 @@
 package com.flansmod.warforge.client;
 
+import com.cleanroommc.modularui.factory.PosGuiData;
+import com.cleanroommc.modularui.screen.ModularPanel;
+import com.cleanroommc.modularui.screen.UISettings;
+import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.Content;
@@ -111,6 +115,11 @@ public class ClientProxy extends CommonProxy
 
 		WarForgeMod.LOGGER.error("Can't get info about a tile entity in a different dimension on client");
 		return null;
+	}
+
+	@Override
+	public ModularPanel buildCitadelUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings, TileEntityCitadel citadel) {
+		return ModularCitadelGui.buildUI(guiData, syncManager, settings, citadel);
 	}
 
 	@SubscribeEvent

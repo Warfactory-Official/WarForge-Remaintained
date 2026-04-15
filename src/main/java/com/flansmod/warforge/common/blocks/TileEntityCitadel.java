@@ -235,7 +235,7 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
 
     @Override
     public ModularPanel buildUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
-        return ModularCitadelGui.buildUI(guiData, syncManager, settings, this);
+        return com.flansmod.warforge.common.WarForgeMod.proxy.buildCitadelUI(guiData, syncManager, settings, this);
     }
 
 }
