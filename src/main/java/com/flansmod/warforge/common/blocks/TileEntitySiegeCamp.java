@@ -85,6 +85,10 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		markDirty();
 	}
 
+    public DimBlockPos getSiegeTarget() {
+        return siegeTarget;
+    }
+
 	private Faction getDefenders(DimBlockPos siegeTarget) {
 		return WarForgeMod.FACTIONS.getFaction(WarForgeMod.FACTIONS.getClaim(siegeTarget));
 	}

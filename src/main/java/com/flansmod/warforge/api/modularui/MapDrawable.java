@@ -20,6 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MapDrawable implements IDrawable, Interactable {
+    private static final int MAP_TEXTURE_SIZE = 64;
 
     public final static int CB_THICKNESS = 2; //Controls border thickness
     public final static int HL_THICKNESS = 1; //Controls border thickness on highlighted chunks
@@ -73,7 +74,7 @@ public class MapDrawable implements IDrawable, Interactable {
         GlStateManager.disableLighting();
         GlStateManager.enableAlpha();
         Minecraft.getMinecraft().getTextureManager().bindTexture(new ResourceLocation(Tags.MODID, mapData));
-        Gui.drawModalRectWithCustomSizedTexture(x, y, 0, 0, width, height, 16 * 4, 16 * 4);
+        Gui.drawScaledCustomSizeModalRect(x, y, 0, 0, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, width, height, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE);
         if (DEBUG) {
             FontRenderer fontRenderer = Minecraft.getMinecraft().fontRenderer;
             String numberText = extractNumbers(mapData);

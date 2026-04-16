@@ -14,6 +14,7 @@ import com.flansmod.warforge.api.modularui.MapDrawable;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.SiegeCampGuiData;
+import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
 import com.flansmod.warforge.common.network.PacketStartSiege;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
@@ -78,7 +79,8 @@ public final class GuiSiegeCamp {
                 tintByChunk.put(ChunkMapUtil.key(centerChunk.x + info.mOffset.getX(), centerChunk.z + info.mOffset.getZ()), info.mFactionColour);
             }
         }
-        ChunkMapTextureDaemon.requestMapUpdate("siegemap", data.siegeCampPos.dim, centerChunk.x, centerChunk.z, RADIUS, tintByChunk);
+        String textureNamespace = "siegemap_" + data.siegeCampPos.dim + "_" + centerChunk.x + "_" + centerChunk.z;
+        ChunkMapTextureDaemon.requestMapUpdate(textureNamespace, data.siegeCampPos.dim, centerChunk.x, centerChunk.z, RADIUS, tintByChunk);
 
         boolean[][] adjacencyArray = new boolean[orderedAttacks.size()][4];
         ChunkMapUtil.computeAdjacency(orderedAttacks, RADIUS, adjacencyArray);
@@ -117,9 +119,10 @@ public final class GuiSiegeCamp {
                 if (chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) {
                     chunkInfo.setCenterMarkType(SiegeCampAttackInfoRender.CenterMarkType.SIEGE_CAMP);
                 }
+                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(chunkInfo, chunkInfo.claimType, false, null);
 
                 panel.child(new ButtonWidget<>()
-                        .overlay(new MapDrawable(textureName(data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), chunkInfo, adjacencyArray[index]))
+                        .overlay(new MapDrawable(ChunkMapTextureDaemon.getTextureName(textureNamespace, data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), renderInfo, adjacencyArray[index]))
                         .onMousePressed(mouseButton -> {
                             if ((chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) && !chunkInfo.canAttack) {
                                 return false;
@@ -138,6 +141,7 @@ public final class GuiSiegeCamp {
                             } else {
                                 richTooltip.addLine(IKey.str("Wilderness").style(IKey.GREEN));
                             }
+                            richTooltip.addLine("Claim Type: " + formatClaimType(chunkInfo.claimType));
                             if (chunkInfo.mWarforgeVein != null) {
                                 richTooltip.addLine(new IngredientDrawable(
                                         chunkInfo.mWarforgeVein.compIds.stream()
@@ -165,7 +169,14 @@ public final class GuiSiegeCamp {
         return panel;
     }
 
-    private static String textureName(int dim, int x, int z) {
-        return "siegemap/" + dim + "_" + x + "_" + z;
+    private static String formatClaimType(Faction.ClaimType claimType) {
+        return switch (claimType) {
+            case BASIC -> "Basic";
+            case REINFORCED -> "Reinforced";
+            case CITADEL -> "Citadel";
+            case ADMIN -> "Admin";
+            case SIEGE -> "Siege";
+            default -> "None";
+        };
     }
 }

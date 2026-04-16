@@ -191,7 +191,7 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
                 return false;
             }
 
-            if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER)) {
+            if (!faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER)) {
                 player.sendMessage(new TextComponentString("You are not an officer of the faction"));
                 return false;
             }
@@ -242,6 +242,7 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
             info.mFactionUUID = claimedBy == null ? Faction.nullUuid : claimedBy.uuid;
             info.mFactionName = claimedBy == null ? "" : claimedBy.name;
             info.mFactionColour = claimedBy == null ? 0 : claimedBy.colour;
+            info.claimType = claimedBy == null ? Faction.ClaimType.NONE : claimedBy.getClaimType(chunk);
             Pair<Vein, Quality> veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z,
                     FMLCommonHandler.instance().getMinecraftServerInstance().worlds[0].getSeed());
             if (veinInfo != null) {

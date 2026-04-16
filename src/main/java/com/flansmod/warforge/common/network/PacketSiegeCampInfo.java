@@ -4,6 +4,7 @@ import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.server.Faction;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.entity.player.EntityPlayer;
@@ -35,6 +36,7 @@ public class PacketSiegeCampInfo extends PacketBase {
             data.writeByte(info.mOffset.getZ());
             data.writeInt(info.mFactionColour);
             data.writeShort(info.mWarforgeVein != null ? info.mWarforgeVein.getId() : -1);
+            writeUTF(data, info.claimType.serializedName);
 
             byte oreQualOrd = 0;
             if (info.mOreQuality != null) { oreQualOrd = (byte) info.mOreQuality.ordinal(); }
@@ -67,6 +69,7 @@ public class PacketSiegeCampInfo extends PacketBase {
 
             short possibleVein = data.readShort();
             info.mWarforgeVein = possibleVein < 0 ? null : ClientProxy.VEIN_ENTRIES.get(possibleVein);
+            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data));
             info.mOreQuality = Quality.values()[data.readByte()];
 
             mPossibleAttacks.add(info);
@@ -85,4 +88,3 @@ public class PacketSiegeCampInfo extends PacketBase {
         WarForgeMod.LOGGER.warn("Ignoring legacy PacketSiegeCampInfo on the client. Siege camp UI now opens through the synced ModularUI factory path.");
     }
 }
-

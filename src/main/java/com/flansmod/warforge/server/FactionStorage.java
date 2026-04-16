@@ -1170,9 +1170,19 @@ public class FactionStorage {
             factionOfficer.sendMessage(new TextComponentString("Could not find that siege camp"));
             return;
         }
+        if (siegeTE.getSiegeTarget() != null) {
+            factionOfficer.sendMessage(new TextComponentString("That siege camp is already committed to an active siege"));
+            return;
+        }
         if (!attacking.uuid.equals(siegeTE.getFaction())) {
             factionOfficer.sendMessage(new TextComponentString("Your faction doesn't own this block!"));
             return;
+        }
+        for (Siege siege : sieges.values()) {
+            if (siege.attackingCamps.contains(siegeCampPos)) {
+                factionOfficer.sendMessage(new TextComponentString("That siege camp is already part of an active siege"));
+                return;
+            }
         }
 
         DimChunkPos defendingChunk = siegeCampPos.toChunkPos().Offset(direction);
