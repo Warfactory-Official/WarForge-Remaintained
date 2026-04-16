@@ -42,6 +42,11 @@ public class ProtectionsModule {
     // It is generally expected that you are asking about a loaded chunk, not that that should matter
     @Nonnull
     public static ProtectionConfig GetProtections(UUID playerID, DimChunkPos pos) {
+        FactionStorage.SiegeZoneRelation siegeRelation = WarForgeMod.FACTIONS.getSiegeZoneRelation(playerID, pos);
+        if (siegeRelation == FactionStorage.SiegeZoneRelation.ATTACKER) {
+            return WarForgeConfig.SIEGECAMP_SIEGER;
+        }
+
         UUID factionID = WarForgeMod.FACTIONS.getClaim(pos);
         if (factionID.equals(FactionStorage.SAFE_ZONE_ID))
             return WarForgeConfig.SAFE_ZONE;
@@ -53,11 +58,11 @@ public class ProtectionsModule {
         if (faction != null) {
             boolean playerIsInFaction = playerID != null && !playerID.equals(Faction.nullUuid) && faction.isPlayerInFaction(playerID);
 
+            if (playerIsInFaction && siegeRelation == FactionStorage.SiegeZoneRelation.DEFENDER)
+                return WarForgeConfig.CLAIM_DEFENDED;
+
             if (faction.citadelPos.toChunkPos().equals(pos))
                 return playerIsInFaction ? WarForgeConfig.CITADEL_FRIEND : WarForgeConfig.CITADEL_FOE;
-
-            if (playerIsInFaction && faction.isCurrentlyDefending)
-                return WarForgeConfig.CLAIM_DEFENDED;
 
             return playerIsInFaction ? WarForgeConfig.CLAIM_FRIEND : WarForgeConfig.CLAIM_FOE;
         }

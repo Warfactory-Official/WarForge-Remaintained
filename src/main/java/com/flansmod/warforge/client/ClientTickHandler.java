@@ -66,6 +66,7 @@ public class ClientTickHandler {
     final static double alignment = 0.25d;
     final static double smaller_alignment = alignment - 0.125d;
     private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "world/borders.png");
+    private static final ResourceLocation textureConquered = new ResourceLocation(Tags.MODID, "world/borders_restricted.png");
     private static final ResourceLocation fastTexture = new ResourceLocation(Tags.MODID, "world/borders_fast.png");
     private static final ResourceLocation overlayTex = new ResourceLocation(Tags.MODID, "world/overlay.png");
     private static final ResourceLocation siegeprogress = new ResourceLocation(Tags.MODID, "gui/siegeprogressslim.png");
@@ -696,19 +697,21 @@ public class ClientTickHandler {
             }
 
             ClaimChunkInfo info = kvp.getValue();
-            if (info == null || info.factionId.equals(Faction.nullUuid)) {
+            if (info == null || !info.hasVisibleOutline()) {
                 continue;
             }
 
             if (renderData.containsKey(chunkPos)) {
                 BorderRenderData existing = renderData.get(chunkPos);
-                existing.factionId = info.factionId;
-                existing.colour = info.colour;
+                existing.factionId = info.outlineFactionId;
+                existing.colour = info.outlineColour;
+                existing.outlineStyle = info.outlineStyle;
                 tempData.put(chunkPos, existing);
             } else {
                 BorderRenderData data = new BorderRenderData();
-                data.factionId = info.factionId;
-                data.colour = info.colour;
+                data.factionId = info.outlineFactionId;
+                data.colour = info.outlineColour;
+                data.outlineStyle = info.outlineStyle;
                 tempData.put(chunkPos, data);
             }
         }
@@ -747,23 +750,23 @@ public class ClientTickHandler {
 
             boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
             if (renderData.containsKey(pos.north()))
-                renderNorth = !renderData.get(pos.north()).factionId.equals(data.factionId);
+                renderNorth = !sameBorderGroup(renderData.get(pos.north()), data);
             if (renderData.containsKey(pos.east()))
-                renderEast = !renderData.get(pos.east()).factionId.equals(data.factionId);
+                renderEast = !sameBorderGroup(renderData.get(pos.east()), data);
             if (renderData.containsKey(pos.south()))
-                renderSouth = !renderData.get(pos.south()).factionId.equals(data.factionId);
+                renderSouth = !sameBorderGroup(renderData.get(pos.south()), data);
             if (renderData.containsKey(pos.west()))
-                renderWest = !renderData.get(pos.west()).factionId.equals(data.factionId);
+                renderWest = !sameBorderGroup(renderData.get(pos.west()), data);
 
             //for super spesific edge cases
             if (renderData.containsKey(pos.north().west()))
-                renderNorthWest = !renderData.get(pos.north().west()).factionId.equals(data.factionId);
+                renderNorthWest = !sameBorderGroup(renderData.get(pos.north().west()), data);
             if (renderData.containsKey(pos.north().east()))
-                renderNorthEast = !renderData.get(pos.north().east()).factionId.equals(data.factionId);
+                renderNorthEast = !sameBorderGroup(renderData.get(pos.north().east()), data);
             if (renderData.containsKey(pos.south().west()))
-                renderSouthWest = !renderData.get(pos.south().west()).factionId.equals(data.factionId);
+                renderSouthWest = !sameBorderGroup(renderData.get(pos.south().west()), data);
             if (renderData.containsKey(pos.south().east()))
-                renderSouthEast = !renderData.get(pos.south().east()).factionId.equals(data.factionId);
+                renderSouthEast = !sameBorderGroup(renderData.get(pos.south().east()), data);
 
             // North edge, [0,0] -> [16,0] wall
             if (renderNorth) {
@@ -1012,19 +1015,16 @@ public class ClientTickHandler {
         GlStateManager.disableCull();
         mc.entityRenderer.disableLightmap();
 
-        // Choose textures based on rendering config
-        if (WarForgeConfig.DO_FANCY_RENDERING) {
-            mc.renderEngine.bindTexture(texture);
-            GlStateManager.enableAlpha();
-            GlStateManager.enableBlend();
-        } else {
-            mc.renderEngine.bindTexture(fastTexture);
-        }
-
         // Update render data if necessary
         if (CLAIMS_DIRTY) {
             updateRenderData();
             CLAIMS_DIRTY = false;
+        }
+
+        // Choose rendering state for the active border set
+        if (WarForgeConfig.DO_FANCY_RENDERING || hasConqueredBorders()) {
+            GlStateManager.enableAlpha();
+            GlStateManager.enableBlend();
         }
 
         // Slower update speed on fast graphics
@@ -1053,12 +1053,21 @@ public class ClientTickHandler {
     private void renderChunkBorders(double x, double y, double z) {
         if (!WarForgeMod.showBorders) {
 			return;
-		}for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
+		}
+
+        ResourceLocation boundTexture = null;
+        for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
             DimChunkPos pos = kvp.getKey();
             BorderRenderData data = kvp.getValue();
 
             if (data.renderList >= 0) {
                 GlStateManager.pushMatrix();
+
+                ResourceLocation desiredTexture = getBorderTexture(data);
+                if (desiredTexture != null && !desiredTexture.equals(boundTexture)) {
+                    Minecraft.getMinecraft().renderEngine.bindTexture(desiredTexture);
+                    boundTexture = desiredTexture;
+                }
 
                 int colour = data.colour;
                 float r = (float) (colour >> 16 & 255) / 255.0F;
@@ -1072,6 +1081,26 @@ public class ClientTickHandler {
                 GlStateManager.popMatrix();
             }
         }
+    }
+
+    private boolean hasConqueredBorders() {
+        for (BorderRenderData data : renderData.values()) {
+            if (data.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameBorderGroup(BorderRenderData first, BorderRenderData second) {
+        return first.factionId.equals(second.factionId) && first.outlineStyle == second.outlineStyle;
+    }
+
+    private ResourceLocation getBorderTexture(BorderRenderData data) {
+        if (data.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED) {
+            return textureConquered;
+        }
+        return WarForgeConfig.DO_FANCY_RENDERING ? texture : fastTexture;
     }
 
     private void renderPlayerPlacementOverlay(EntityPlayer player, double x, double y, double z, float partialTicks) {
@@ -1144,6 +1173,7 @@ public class ClientTickHandler {
     private static class BorderRenderData {
         public UUID factionId = Faction.nullUuid;
         public int colour = 0xFFFFFF;
+        public byte outlineStyle = ClaimChunkInfo.OUTLINE_NONE;
         public int renderList = -1;
     }
 }

@@ -45,6 +45,13 @@ import java.util.concurrent.TimeUnit;
 import static com.flansmod.warforge.common.WarForgeMod.*;
 
 public class FactionStorage {
+    public enum SiegeZoneRelation {
+        NONE,
+        ATTACKER,
+        DEFENDER,
+        OTHER
+    }
+
     // SafeZone and WarZone
     public static UUID SAFE_ZONE_ID = Faction.createUUID("safezone");
     public static UUID WAR_ZONE_ID = Faction.createUUID("conquered zone");
@@ -374,6 +381,34 @@ public class FactionStorage {
         return null;
     }
 
+    public SiegeZoneRelation getSiegeZoneRelation(UUID playerID, DimChunkPos chunkPos) {
+        Faction playerFaction = playerID == null || playerID.equals(Faction.nullUuid) ? null : getFactionOfPlayer(playerID);
+        SiegeZoneRelation bestRelation = SiegeZoneRelation.NONE;
+
+        for (Siege siege : sieges.values()) {
+            if (!siege.isChunkInBattleZone(chunkPos)) {
+                continue;
+            }
+
+            if (playerFaction == null) {
+                bestRelation = SiegeZoneRelation.OTHER;
+                continue;
+            }
+
+            if (playerFaction.uuid.equals(siege.attackingFaction)) {
+                return SiegeZoneRelation.ATTACKER;
+            }
+
+            if (playerFaction.uuid.equals(siege.defendingFaction)) {
+                bestRelation = SiegeZoneRelation.DEFENDER;
+            } else if (bestRelation == SiegeZoneRelation.NONE) {
+                bestRelation = SiegeZoneRelation.OTHER;
+            }
+        }
+
+        return bestRelation;
+    }
+
     public void update() {
         for (HashMap.Entry<UUID, Faction> entry : mFactions.entrySet()) {
             entry.getValue().update();
@@ -583,6 +618,12 @@ public class FactionStorage {
         }
 
         DimBlockPos blockPos = defenders.getSpecificPosForClaim(chunkPos);
+        if (blockPos == null) {
+            LOGGER.error("Defending claim position was null for completed siege at {} against faction {}", chunkPos, defenders.name);
+            siege.onCompleted(false);
+            sieges.remove(chunkPos);
+            return;
+        }
         boolean successful = siege.WasSuccessful();
         if (successful) {
             if (WarForgeConfig.ATTACKER_CONQUERED_CHUNK_PERIOD > 0) {
@@ -1219,6 +1260,7 @@ public class FactionStorage {
         long maxTime = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(attacking.getSiegeMomentum()) * 1000L;
 
         Siege siege = new Siege(attacking.uuid, defendingFactionID, defendingPos, maxTime);
+        siege.setBattleRadius(WarForgeConfig.SIEGE_BATTLE_RADIUS);
         siege.attackingCamps.add(siegeCampPos);
 
         sieges.put(defendingChunk, siege);
@@ -1512,6 +1554,21 @@ public class FactionStorage {
                     info.flagId = ownerFaction.flagId;
                     info.colour = ownerFaction.colour;
                     info.claimType = ownerFaction.getClaimType(chunk);
+                }
+
+                ObjectIntPair<UUID> conqueredInfo = conqueredChunks.get(chunk);
+                if (conqueredInfo != null) {
+                    Faction conqueredFaction = getFaction(conqueredInfo.getObj());
+                    if (conqueredFaction != null) {
+                        info.outlineFactionId = conqueredFaction.uuid;
+                        info.outlineColour = conqueredFaction.colour;
+                        info.outlineStyle = ClaimChunkInfo.OUTLINE_CONQUERED;
+                    }
+                }
+                if (!info.hasVisibleOutline() && ownerFaction != null) {
+                    info.outlineFactionId = ownerFaction.uuid;
+                    info.outlineColour = ownerFaction.colour;
+                    info.outlineStyle = ClaimChunkInfo.OUTLINE_CLAIM;
                 }
 
                 var veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, MC_SERVER.worlds[0].getSeed());

@@ -141,6 +141,12 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		}
 
 		// only modify external information if not performing cleanup on this tile entity
+		if (siegeTarget == null)
+		{
+
+			WarForgeMod.LOGGER.error("Siege conclusion error! siegeTarget is null!");
+			return;
+		}
 		Siege siege = WarForgeMod.FACTIONS.getSieges().get(siegeTarget.toChunkPos());
 		if (!siegeStatus.isCleanup() && siege != null) {
 			// update siege info and notify all nearby

@@ -26,6 +26,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.text.translation.I18n;
 
@@ -214,6 +215,8 @@ public final class GuiClaimManager {
                     toMapState(info, data.centerX, data.centerZ),
                     info.claimType,
                     info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
+                    info.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED,
+                    isBattleZoneChunk(data.dim, chunkX, chunkZ),
                     getCenterIcon(data, chunkX, chunkZ)
             );
             new MapDrawable(textureName(data.dim, chunkX, chunkZ), renderInfo, getLiveAdjacency(data, chunkX, chunkZ))
@@ -262,6 +265,19 @@ public final class GuiClaimManager {
             return null;
         }
         return SkinUtil.getPlayerFace(minecraft.player.getUniqueID());
+    }
+
+    private static boolean isBattleZoneChunk(int dim, int chunkX, int chunkZ) {
+        ChunkPos target = new ChunkPos(chunkX, chunkZ);
+        for (var siegeInfo : ClientProxy.sSiegeInfo.values()) {
+            if (siegeInfo == null || siegeInfo.attackingPos == null || siegeInfo.attackingPos.dim != dim || siegeInfo.warzoneChunks == null) {
+                continue;
+            }
+            if (siegeInfo.warzoneChunks.contains(target)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static byte determineAction(ClaimChunkInfo info, int mouseButton) {

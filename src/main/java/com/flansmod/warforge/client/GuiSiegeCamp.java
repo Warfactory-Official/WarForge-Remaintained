@@ -119,7 +119,7 @@ public final class GuiSiegeCamp {
                 if (chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) {
                     chunkInfo.setCenterMarkType(SiegeCampAttackInfoRender.CenterMarkType.SIEGE_CAMP);
                 }
-                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(chunkInfo, chunkInfo.claimType, false, null);
+                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(chunkInfo, chunkInfo.claimType, false, false, false, null);
 
                 panel.child(new ButtonWidget<>()
                         .overlay(new MapDrawable(ChunkMapTextureDaemon.getTextureName(textureNamespace, data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), renderInfo, adjacencyArray[index]))

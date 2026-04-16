@@ -12,7 +12,9 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.Gui;
+import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.texture.ITextureObject;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.opengl.GL11;
 
@@ -37,6 +39,7 @@ public class MapDrawable implements IDrawable, Interactable {
     private final ResourceLocation attackIcon = new ResourceLocation(Tags.MODID, "gui/icon_siege_attack.png");
     private final ResourceLocation selfIcon = new ResourceLocation(Tags.MODID, "gui/icon_siege_self.png");
     private final ResourceLocation selfIconBase = new ResourceLocation(Tags.MODID, "gui/icon_siege_self_base.png");
+    private final ResourceLocation conqueredOverlay = new ResourceLocation(Tags.MODID, "gui/conquered.png");
     private final boolean[] adjacency;
     private final boolean campChunk;
 
@@ -61,6 +64,7 @@ public class MapDrawable implements IDrawable, Interactable {
     public void draw(GuiContext context, int x, int y, int width, int height, WidgetTheme theme) {
         GlStateManager.pushAttrib();
         GlStateManager.pushMatrix();
+        ResourceLocation mapTexture = new ResourceLocation(Tags.MODID, mapData);
         boolean hovered = context.getMouseX() >= x && context.getMouseX() < x + width &&
                 context.getMouseY() >= y && context.getMouseY() < y + height;
 
@@ -73,12 +77,25 @@ public class MapDrawable implements IDrawable, Interactable {
         GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
         GlStateManager.disableLighting();
         GlStateManager.enableAlpha();
-        Minecraft.getMinecraft().getTextureManager().bindTexture(new ResourceLocation(Tags.MODID, mapData));
-        Gui.drawScaledCustomSizeModalRect(x, y, 0, 0, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, width, height, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE);
+        ITextureObject loadedTexture = Minecraft.getMinecraft().getTextureManager().getTexture(mapTexture);
+        if (loadedTexture instanceof DynamicTexture) {
+            Minecraft.getMinecraft().getTextureManager().bindTexture(mapTexture);
+            Gui.drawScaledCustomSizeModalRect(x, y, 0, 0, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE, width, height, MAP_TEXTURE_SIZE, MAP_TEXTURE_SIZE);
+        } else {
+            Gui.drawRect(x, y, x + width, y + height, 0xFF2A2A2A);
+        }
         if (DEBUG) {
             FontRenderer fontRenderer = Minecraft.getMinecraft().fontRenderer;
             String numberText = extractNumbers(mapData);
             fontRenderer.drawString(numberText, x + 10, y + 10, 0xFFFFFF); // index
+        }
+
+        if (chunkState instanceof ClaimChunkRenderInfo claimInfo && (claimInfo.conquered || claimInfo.battleZone)) {
+            Minecraft.getMinecraft().getTextureManager().bindTexture(conqueredOverlay);
+            float alpha = claimInfo.conquered && claimInfo.battleZone ? 0.65f : 0.5f;
+            GlStateManager.color(1f, 1f, 1f, alpha);
+            Gui.drawScaledCustomSizeModalRect(x, y, 0, 0, 64, 64, width, height, 64, 64);
+            GlStateManager.color(1f, 1f, 1f, 1f);
         }
 
         GlStateManager.color(1f, 1f, 1f, 1f);

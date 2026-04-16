@@ -100,6 +100,7 @@ public class WarForgeConfig {
     public static int MAX_OFFLINE_PLAYER_COUNT_MINIMUM = 0; // # players which can be on before playerCount dropping to 0 subsequently is marked as a live quit; Exclusively used when negative
     public static float MAX_OFFLINE_PLAYER_PERCENT = 0.5f; // % member count which must be online at some point during a siege before live quit penalties apply
     public static int VERTICAL_SIEGE_DIST = 40; // inclusive distance in blocks siege can be placed/started from/on a potential target claim
+    public static int SIEGE_BATTLE_RADIUS = 1;
     public static int SIEGE_ATTACKER_RADIUS = 1; // number of chunks player can be away from siege chunk in both directions
     public static int SIEGE_DEFENDER_RADIUS = 15;
     public static int NOTORIETY_PER_PLAYER_KILL = 1;
@@ -197,6 +198,16 @@ public class WarForgeConfig {
         CLAIM_FOE.ALLOW_MOUNT_ENTITY = false;
         CLAIM_FOE.ALLOW_DISMOUNT_ENTITY = false;
         UNCLAIMED.EXPLOSION_DAMAGE = true;
+
+        SIEGECAMP_SIEGER.BREAK_BLOCKS = false;
+        SIEGECAMP_SIEGER.PLACE_BLOCKS = false;
+        SIEGECAMP_SIEGER.INTERACT = true;
+        SIEGECAMP_SIEGER.USE_ITEM = true;
+        SIEGECAMP_SIEGER.BLOCK_REMOVAL = true;
+        SIEGECAMP_SIEGER.EXPLOSION_DAMAGE = true;
+        SIEGECAMP_SIEGER.BLOCK_BREAK_WHITELIST_IDS = new String[]{"minecraft:torch", "warforge:siegecampblock", "gregtech:machine"};
+        SIEGECAMP_SIEGER.BLOCK_PLACE_WHITELIST_IDS = new String[]{"minecraft:torch", "minecraft:web", "minecraft:tnt", "minecraft:end_crystal"};
+
         //WarForgeMod.VEIN_MAP.defaultReturnValue(null);
 
         CLAIM_DEFENDED.BREAK_BLOCKS = true;
@@ -252,6 +263,7 @@ public class WarForgeConfig {
         MAX_OFFLINE_PLAYER_COUNT_MINIMUM = configFile.getInt("Max Players Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_COUNT_MINIMUM, Integer.MIN_VALUE, Integer.MAX_VALUE, "A static minimum for the maximum number of players which can have been online at some point during a siege before the faction online player count dropping to 0 indicates a live quit. Negative values override the percent");
         MAX_OFFLINE_PLAYER_PERCENT = configFile.getFloat("Max Player % Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_PERCENT, 0, 1.0F, "The maximum percent of players in a faction which can be online at some point during a siege before the online count dropping to 0 indicates a live quit.");
         VERTICAL_SIEGE_DIST = configFile.getInt("Maximum Vertical Siege Radius [Inclusive]", CATEGORY_SIEGES, VERTICAL_SIEGE_DIST, 0, Integer.MAX_VALUE, "The number of blocks up or down a siege block can be placed from a potential target, inclusively. Sieges may also only be started on targets within this vertical radius.");
+        SIEGE_BATTLE_RADIUS = configFile.getInt("Battle Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_BATTLE_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from each active siege camp that count as the active battle area for siege progress and siege-zone protections.");
         SIEGE_ATTACKER_RADIUS = configFile.getInt("Attacker Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_ATTACKER_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from the siege block that an attacker can be in to prevent siege abandon.");
         SIEGE_DEFENDER_RADIUS = configFile.getInt("Defender Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_DEFENDER_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from the siege block that a defender can be in to prevent siege abandon.");
 
@@ -376,6 +388,7 @@ public class WarForgeConfig {
         compoundNBT.setFloat("fairQualMult", FAIR_QUAL_MULT);
         compoundNBT.setFloat("richQualMult", RICH_QUAL_MULT);
         compoundNBT.setShort("megachunkLength", VEIN_HANDLER.megachunkLength);
+        compoundNBT.setInteger("battleSiegeRadius", SIEGE_BATTLE_RADIUS);
         compoundNBT.setInteger("atkSiegeRadius", SIEGE_ATTACKER_RADIUS);
         compoundNBT.setInteger("defSiegeRadius", SIEGE_DEFENDER_RADIUS);
         compoundNBT.setBoolean("offlineRaidProtection", ENABLE_OFFLINE_RAID_PROTECTION);

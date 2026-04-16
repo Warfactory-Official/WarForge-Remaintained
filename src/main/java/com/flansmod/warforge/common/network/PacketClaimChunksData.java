@@ -52,6 +52,9 @@ public class PacketClaimChunksData extends PacketBase {
             data.writeShort(chunk.vein != null ? chunk.vein.getId() : -1);
             data.writeByte(chunk.oreQuality != null ? chunk.oreQuality.ordinal() : -1);
             data.writeByte(chunk.flags);
+            writeUUID(data, chunk.outlineFactionId);
+            data.writeInt(chunk.outlineColour);
+            data.writeByte(chunk.outlineStyle);
         }
     }
 
@@ -83,6 +86,9 @@ public class PacketClaimChunksData extends PacketBase {
             int qualityOrdinal = data.readByte();
             info.oreQuality = qualityOrdinal < 0 ? null : Quality.values()[qualityOrdinal];
             info.flags = data.readByte();
+            info.outlineFactionId = readUUID(data);
+            info.outlineColour = data.readInt();
+            info.outlineStyle = data.readByte();
             chunks.add(info);
         }
     }

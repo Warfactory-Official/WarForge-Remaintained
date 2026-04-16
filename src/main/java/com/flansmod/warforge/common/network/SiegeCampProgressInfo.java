@@ -17,6 +17,7 @@ public class SiegeCampProgressInfo {
     public int defendingColour;
     public String attackingName;
     public String defendingName;
+    public int battleRadius = 1;
 
     public int completionPoint = 5;
     public int mPreviousProgress = 0;
@@ -36,6 +37,7 @@ public class SiegeCampProgressInfo {
         info.defendingColour = 0x0000FF;
         info.attackingName = "Red Team";
         info.defendingName = "Blue Team";
+        info.battleRadius = 2;
         info.completionPoint = 10;
         info.progress = 6;
         info.mPreviousProgress = 4;

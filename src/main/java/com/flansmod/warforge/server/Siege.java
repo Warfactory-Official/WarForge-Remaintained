@@ -35,6 +35,7 @@ public class Siege {
     public long timeRemainingMillis;
     public long siegeEndTimeStamp = 999L;
     public boolean finished = false; //Used for controlling whenever siege has been concluded, Does not require saving
+    private int battleRadius = WarForgeConfig.SIEGE_BATTLE_RADIUS;
 
     public int mBaseDifficulty = 5;
 
@@ -116,6 +117,14 @@ public class Siege {
     // Attack progress starts at 0 and can be moved to -5 or mAttackSuccessThreshold
     public int GetAttackProgress() {
         return mAttackProgress;
+    }
+
+    public int getBattleRadius() {
+        return battleRadius;
+    }
+
+    public void setBattleRadius(int battleRadius) {
+        this.battleRadius = Math.max(0, battleRadius);
     }
 
     public void setAttackProgress(int progress) {
@@ -202,6 +211,7 @@ public class Siege {
         info.defendingPos = defendingClaim;
         info.defendingName = defenders.name;
         info.defendingColour = defenders.colour;
+        info.battleRadius = battleRadius;
         info.progress = GetAttackProgress();
         info.completionPoint = GetAttackSuccessThreshold();
         info.timeProgress = timeRemainingMillis;
@@ -376,7 +386,16 @@ public class Siege {
         DimChunkPos siegeCampChunkPos = siegeCampPos.toChunkPos();
         DimChunkPos playerChunkPos = new DimChunkPos(player.dimension, player.getPosition());
 
-        return isPlayerInRadius(siegeCampChunkPos, playerChunkPos);
+        return isPlayerInRadius(siegeCampChunkPos, playerChunkPos, battleRadius);
+    }
+
+    public boolean isChunkInBattleZone(DimChunkPos chunkPos) {
+        for (DimBlockPos siegeCamp : attackingCamps) {
+            if (siegeCamp != null && isPlayerInRadius(siegeCamp.toChunkPos(), chunkPos, battleRadius)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void onPVPKill(EntityPlayerMP killer, EntityPlayerMP killed) {
@@ -441,6 +460,7 @@ public class Siege {
         }
 
         defendingClaim = DimBlockPos.readFromNBT(tags, "defendLocation");
+        battleRadius = tags.hasKey("battleRadius") ? Math.max(0, tags.getInteger("battleRadius")) : WarForgeConfig.SIEGE_BATTLE_RADIUS;
         mAttackProgress = tags.getInteger("progress");
         mBaseDifficulty = tags.getInteger("baseDifficulty");
         mExtraDifficulty = tags.getInteger("extraDifficulty");
@@ -464,6 +484,7 @@ public class Siege {
 
         tags.setTag("attackLocations", claimsList);
         tags.setTag("defendLocation", defendingClaim.writeToNBT());
+        tags.setInteger("battleRadius", battleRadius);
         tags.setInteger("progress", mAttackProgress);
         tags.setInteger("baseDifficulty", mBaseDifficulty);
         tags.setInteger("extraDifficulty", mExtraDifficulty);
