@@ -5,7 +5,6 @@ import com.cleanroommc.modularui.factory.PosGuiData;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.UISettings;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
-import com.flansmod.warforge.client.ModularCitadelGui;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.server.Faction;
@@ -17,15 +16,12 @@ import net.minecraft.item.ItemShield;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
 import java.util.UUID;
 
-import static com.flansmod.warforge.common.blocks.BlockCitadel.FACING;
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 
 public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim, IGuiHolder<PosGuiData> {
@@ -141,15 +137,6 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     public void clear() {
         super.clear();
         bannerStack = ItemStack.EMPTY;
-    }
-
-    public ItemStack getBannerStackCopy() {
-        return bannerStack.copy();
-    }
-
-    public void setBannerStackCopy(ItemStack stack) {
-        bannerStack = stack == null ? ItemStack.EMPTY : stack.copy();
-        markDirty();
     }
 
     public void copyStorageFrom(TileEntityCitadel other) {

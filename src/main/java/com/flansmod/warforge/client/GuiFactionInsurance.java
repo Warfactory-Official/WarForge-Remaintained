@@ -1,12 +1,13 @@
 package com.flansmod.warforge.client;
 
+import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
+import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.widget.ParentWidget;
-import com.cleanroommc.modularui.widget.scroll.VerticalScrollData;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.layout.Grid;
+import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 import com.cleanroommc.modularui.widgets.slot.ModularSlot;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -22,6 +23,11 @@ public final class GuiFactionInsurance {
     private static final int HEADER_Y = 12;
     private static final int BODY_Y = 54;
     private static final int INVENTORY_Y = 182;
+    private static final int STASH_COLUMNS = 8;
+    private static final int STASH_CELL_SIZE = 18;
+    private static final int STASH_CELL_GAP = 2;
+    private static final int STASH_ROW_HEIGHT = STASH_CELL_SIZE + STASH_CELL_GAP;
+    private static final int STASH_LIST_HEIGHT = 56;
 
     private GuiFactionInsurance() {
     }
@@ -57,22 +63,25 @@ public final class GuiFactionInsurance {
         panel.child(IKey.str("Protected Reserve").asWidget()
                 .pos(CONTENT_LEFT + 10, BODY_Y + 8)
                 .style(TextFormatting.BOLD).color(0XFFFFFF));
-        panel.child(IKey.str(data.canDeposit ? "Officers and leaders may deposit. Withdrawal is disabled." : "Only officers and leaders may deposit into the stash.").asWidget()
+        panel.child(IKey.str(data.canDeposit ? "Officers and leaders may deposit. Stored items cannot be withdrawn." : "Only officers and leaders may deposit into the stash.").asWidget()
                 .pos(CONTENT_LEFT + 10, BODY_Y + 20)
                 .color(0xB8BDC3));
         panel.child(IKey.str(data.canVoid ? "Leader actions: use the red X to permanently void a slot." : "Only the leader can void stored items to free space.").asWidget()
                 .pos(CONTENT_LEFT + 10, BODY_Y + 30)
                 .color(data.canVoid ? 0xFFCC88 : 0xB8BDC3));
 
-        Grid stashGrid = new Grid()
-                .mapTo(6, data.slotCount, slot -> createInsuranceCell(data, slot))
-                .minElementMargin(4)
-                .scrollable(new VerticalScrollData())
-                .size(WIDTH - 30, 64)
-                .pos(CONTENT_LEFT + 8, BODY_Y + 46);
-        panel.child(stashGrid);
+        ListWidget stashList = new ListWidget();
+        stashList.scrollDirection(GuiAxis.Y)
+                .background(GuiTextures.SLOT_ITEM)
+                .width(WIDTH - 24)
+                .height(STASH_LIST_HEIGHT)
+                .pos(CONTENT_LEFT, BODY_Y + 46);
+        for (int slot = 0, row = 0; slot < data.slotCount; slot += STASH_COLUMNS, row++) {
+            stashList.addChild(createInsuranceRow(data, slot), row);
+        }
+        panel.child(stashList);
 
-        panel.child(IKey.str("Place items from your inventory into the stash slots below.").asWidget()
+        panel.child(IKey.str("Deposit or shift-click items into the stash. Matching stacks can be topped up; clearing a slot requires voiding it.").asWidget()
                 .pos(CONTENT_LEFT + 10, INVENTORY_Y + 8)
                 .color(0xB8BDC3));
         panel.child(com.cleanroommc.modularui.widgets.SlotGroupWidget.playerInventory(false)
@@ -81,12 +90,28 @@ public final class GuiFactionInsurance {
         return panel;
     }
 
+    private static ParentWidget<?> createInsuranceRow(FactionInsuranceGuiData data, int firstSlot) {
+        ParentWidget<?> row = new ParentWidget<>();
+        row.size(WIDTH - 40, STASH_ROW_HEIGHT);
+
+        for (int column = 0; column < STASH_COLUMNS; column++) {
+            int slot = firstSlot + column;
+            if (slot >= data.slotCount) {
+                break;
+            }
+
+            row.child(createInsuranceCell(data, slot).pos(4 + column * (STASH_CELL_SIZE + STASH_CELL_GAP), 0));
+        }
+
+        return row;
+    }
+
     private static ParentWidget<?> createInsuranceCell(FactionInsuranceGuiData data, int slot) {
         ParentWidget<?> cell = new ParentWidget<>();
-        cell.size(18, 18);
+        cell.size(STASH_CELL_SIZE, STASH_CELL_SIZE);
         cell.child(new ItemSlot()
-                .slot(new ModularSlot(data.insuranceHandler, slot).accessibility(false, data.canDeposit))
-                .size(18));
+                .slot(new ModularSlot(data.insuranceHandler, slot).accessibility(data.canDeposit, false))
+                .size(STASH_CELL_SIZE));
         if (data.canVoid) {
             cell.child(new ButtonWidget<>()
                     .width(8)

@@ -150,7 +150,7 @@ public final class GuiSiegeCamp {
                                                 .toArray(ItemStack[]::new)
                                 ).asIcon().size(25));
                                 richTooltip.addLine(IKey.str("Ore In the chunk: " +
-                                        I18n.translateToLocalFormatted(chunkInfo.mWarforgeVein.translationKey,
+                                        translateVeinName(chunkInfo.mWarforgeVein.translationKey,
                                                 I18n.translateToLocal(chunkInfo.mOreQuality.getTranslationKey()) + " [" +
                                                         chunkInfo.mOreQuality.getMultString(chunkInfo.mWarforgeVein) + "]")));
                             } else {
@@ -178,5 +178,13 @@ public final class GuiSiegeCamp {
             case SIEGE -> "Siege";
             default -> "None";
         };
+    }
+
+    private static String translateVeinName(String translationKey, Object... args) {
+        String resolvedKey = translationKey;
+        if (!I18n.canTranslate(resolvedKey) && I18n.canTranslate(resolvedKey + ".name")) {
+            resolvedKey += ".name";
+        }
+        return I18n.translateToLocalFormatted(resolvedKey, args);
     }
 }

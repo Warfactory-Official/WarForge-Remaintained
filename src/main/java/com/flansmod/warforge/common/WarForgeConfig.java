@@ -370,11 +370,6 @@ public class WarForgeConfig {
             configFile.save();
     }
 
-
-    private static void syncConfigSieges(File suggestedFile) {
-
-    }
-
     //New system to deal with that config sync
     public static PacketSyncConfig createConfigSyncPacket() {
         var packet = new PacketSyncConfig();

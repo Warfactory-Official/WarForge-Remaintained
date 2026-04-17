@@ -34,7 +34,7 @@ public class FactionInsuranceItemHandler implements IItemHandlerModifiable {
         ItemStack existing = getStackInSlot(slot);
         int limit = getSlotLimit(slot);
         if (existing.isEmpty()) {
-            int toInsert = Math.min(limit, stack.getCount());
+            int toInsert = Math.min(Math.min(limit, stack.getMaxStackSize()), stack.getCount());
             if (!simulate) {
                 ItemStack inserted = stack.copy();
                 inserted.setCount(toInsert);
@@ -73,28 +73,7 @@ public class FactionInsuranceItemHandler implements IItemHandlerModifiable {
 
     @Override
     public ItemStack extractItem(int slot, int amount, boolean simulate) {
-        if (slot < 0 || slot >= getSlots() || amount <= 0) {
-            return ItemStack.EMPTY;
-        }
-
-        ItemStack existing = getStackInSlot(slot);
-        if (existing.isEmpty()) {
-            return ItemStack.EMPTY;
-        }
-
-        int toExtract = Math.min(amount, existing.getCount());
-        ItemStack result = existing.copy();
-        result.setCount(toExtract);
-        if (!simulate) {
-            if (existing.getCount() == toExtract) {
-                setStackInSlot(slot, ItemStack.EMPTY);
-            } else {
-                ItemStack remainder = existing.copy();
-                remainder.shrink(toExtract);
-                setStackInSlot(slot, remainder);
-            }
-        }
-        return result;
+        return ItemStack.EMPTY;
     }
 
     @Override

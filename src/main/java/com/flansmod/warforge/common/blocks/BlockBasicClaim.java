@@ -106,6 +106,9 @@ public class BlockBasicClaim extends MultiBlockColumn implements ITileEntityProv
     @Override
     public boolean canPlaceBlockAt(World world, BlockPos pos) {
         if (!world.isRemote) {
+            if (FACTIONS.isChunkContested(new DimChunkPos(world.provider.getDimension(), pos)))
+                return false;
+
             // Can't claim a chunk claimed by another faction
             UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
             if (!existingClaim.equals(Faction.nullUuid))

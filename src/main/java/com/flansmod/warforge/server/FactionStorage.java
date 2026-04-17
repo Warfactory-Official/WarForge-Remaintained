@@ -306,6 +306,12 @@ public class FactionStorage {
             }
             return false;
         }
+        if (isChunkContested(chunkPos)) {
+            if (notify) {
+                player.sendMessage(new TextComponentString("This chunk is contested by an active siege"));
+            }
+            return false;
+        }
         if (!containsInt(WarForgeConfig.CLAIM_DIM_WHITELIST, chunkPos.dim)) {
             if (notify) {
                 player.sendMessage(new TextComponentString("You cannot claim chunks in this dimension"));
@@ -1148,6 +1154,19 @@ public class FactionStorage {
         return false;
     }
 
+    public boolean isChunkInBattleZone(DimChunkPos chunkPos) {
+        for (Siege siege : sieges.values()) {
+            if (siege.isChunkInBattleZone(chunkPos)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean isChunkContested(DimChunkPos chunkPos) {
+        return IsSiegeInProgress(chunkPos) || isChunkInBattleZone(chunkPos);
+    }
+
     public void onFactionMemberLoggedIn(UUID playerID) {
         Faction faction = getFactionOfPlayer(playerID);
         if (!isValidFaction(faction)) {
@@ -1859,6 +1878,12 @@ public class FactionStorage {
         }
 
         DimChunkPos oldChunk = faction.citadelPos.toChunkPos();
+        boolean movingAcrossChunks = !targetChunk.equals(oldChunk);
+        if (movingAcrossChunks && faction.citadelMoveTimeStamp > 0L && faction.citadelMoveCooldown > 0) {
+            player.sendMessage(new TextComponentString("You can move the citadel across chunks again in " + faction.citadelMoveCooldown + " day(s)"));
+            return false;
+        }
+
         DimBlockPos replacedClaimPos = targetChunk.equals(oldChunk) ? faction.citadelPos : faction.getSpecificPosForClaim(targetChunk);
         if (replacedClaimPos == null) {
             player.sendMessage(new TextComponentString("That claimed chunk has no stored claim position to replace"));
@@ -1909,6 +1934,10 @@ public class FactionStorage {
         faction.claims.put(pos, targetPending);
         faction.claimTypes.put(pos, Faction.ClaimType.CITADEL);
         newCitadel.onServerSetFaction(faction);
+        if (movingAcrossChunks) {
+            faction.citadelMoveCooldown = WarForgeConfig.CITADEL_MOVE_NUM_DAYS;
+            faction.citadelMoveTimeStamp = System.currentTimeMillis();
+        }
 
         INSTANCE.messageAll(new TextComponentString(faction.name + " moved their citadel"), true);
         return true;

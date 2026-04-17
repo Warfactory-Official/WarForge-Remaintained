@@ -13,7 +13,6 @@ import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiButtonImage;
 import net.minecraft.client.renderer.InventoryEffectRenderer;
 import net.minecraft.client.gui.inventory.GuiInventory;
-import net.minecraft.client.resources.I18n;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
 import net.minecraft.util.ResourceLocation;
@@ -28,6 +27,16 @@ import java.io.IOException;
 
 @Mixin(GuiInventory.class)
 public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
+    @Unique
+    private static final ResourceLocation WARFORGE_BUTTONS_TEXTURE = new ResourceLocation(Tags.MODID, "gui/icon_claim.png");
+    @Unique
+    private static final int WARFORGE_BUTTON_SIZE = 18;
+    @Unique
+    private static final int WARFORGE_MEMBERS_BUTTON_TEX_X = WARFORGE_BUTTON_SIZE;
+    @Unique
+    private static final int WARFORGE_STATS_BUTTON_TEX_X = WARFORGE_BUTTON_SIZE * 2;
+    @Unique
+    private static final int WARFORGE_MOVE_CITADEL_BUTTON_TEX_X = WARFORGE_BUTTON_SIZE * 3;
 
     @Unique
     private static final int WARFORGE_CLAIMS_BUTTON_ID = 0x57A9;
@@ -61,22 +70,22 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
                 WARFORGE_CLAIMS_BUTTON_ID,
                 60,
                 0,
-                18,
-                18,
+                WARFORGE_BUTTON_SIZE,
+                WARFORGE_BUTTON_SIZE,
                 0,
                 0,
                 0,
-                new ResourceLocation(Tags.MODID, "gui/icon_claim.png")
+                WARFORGE_BUTTONS_TEXTURE
         );
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$claimsButton);
-        warforge$membersButton = new GuiButton(WARFORGE_MEMBERS_BUTTON_ID, 60, 0, 18, 18, "M");
+        warforge$membersButton = warforge$createImageButton(WARFORGE_MEMBERS_BUTTON_ID, WARFORGE_MEMBERS_BUTTON_TEX_X);
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$membersButton);
-        warforge$statsButton = new GuiButton(WARFORGE_STATS_BUTTON_ID, 60, 0, 18, 18, "F");
+        warforge$statsButton = warforge$createImageButton(WARFORGE_STATS_BUTTON_ID, WARFORGE_STATS_BUTTON_TEX_X);
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$statsButton);
-        warforge$moveCitadelButton = new GuiButton(WARFORGE_MOVE_CITADEL_BUTTON_ID, 60, 0, 18, 18, "C");
+        warforge$moveCitadelButton = warforge$createImageButton(WARFORGE_MOVE_CITADEL_BUTTON_ID, WARFORGE_MOVE_CITADEL_BUTTON_TEX_X);
         warforge$updateClaimsButtonPos();
         buttonList.add(warforge$moveCitadelButton);
     }
@@ -115,6 +124,21 @@ public abstract class GuiInventoryMixin extends InventoryEffectRenderer {
             }
             ci.cancel();
         }
+    }
+
+    @Unique
+    private GuiButtonImage warforge$createImageButton(int id, int textureX) {
+        return new GuiButtonImage(
+                id,
+                60,
+                0,
+                WARFORGE_BUTTON_SIZE,
+                WARFORGE_BUTTON_SIZE,
+                textureX,
+                0,
+                0,
+                WARFORGE_BUTTONS_TEXTURE
+        );
     }
 
     @Unique

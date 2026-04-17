@@ -1,18 +1,20 @@
 package com.flansmod.warforge.client;
 
+import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.factory.PosGuiData;
 import com.cleanroommc.modularui.drawable.GuiTextures;
+import com.cleanroommc.modularui.factory.PosGuiData;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.UISettings;
 import com.cleanroommc.modularui.screen.viewport.GuiContext;
 import com.cleanroommc.modularui.theme.WidgetTheme;
-import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
-import com.cleanroommc.modularui.widget.Widget;
+import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
+import com.cleanroommc.modularui.widgets.RichTextWidget;
 import com.cleanroommc.modularui.widgets.SlotGroupWidget;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.cleanroommc.modularui.widgets.layout.Grid;
 import com.cleanroommc.modularui.widgets.slot.ItemSlot;
 import com.cleanroommc.modularui.widgets.slot.ModularSlot;
@@ -21,27 +23,22 @@ import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
-import com.flansmod.warforge.common.factories.FactionFlagSelectGuiFactory;
-import com.flansmod.warforge.common.factories.FactionInsuranceGuiFactory;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
-import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
-import com.flansmod.warforge.common.factories.FactionUpgradeGuiFactory;
+import com.flansmod.warforge.common.factories.*;
 import com.flansmod.warforge.common.network.PacketDisbandFaction;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Gui;
+import net.minecraft.util.text.TextFormatting;
 import net.minecraftforge.items.wrapper.InvWrapper;
 
 public final class ModularCitadelGui {
     private static final int PANEL_WIDTH = 350;
-    private static final int PANEL_HEIGHT = 250;
+    private static final int PANEL_HEIGHT = 200;
     private static final int SLOT_SIZE = 18;
     private static final int CONTENT_LEFT = 12;
     private static final int HEADER_Y = 12;
-    private static final int STORAGE_Y = 54;
+    private static final int STORAGE_Y = 40;
     private static final int ACTIONS_Y = 130;
-    private static final int INVENTORY_Y = 168;
 
     private ModularCitadelGui() {
     }
@@ -55,12 +52,26 @@ public final class ModularCitadelGui {
                 .width(PANEL_WIDTH)
                 .height(PANEL_HEIGHT)
                 .topRel(0.40f);
+        var yeldPanel = new Flow(GuiAxis.Y)
+                .background(sectionBackdrop(CONTENT_LEFT, STORAGE_Y, 100, 80, 0xEE20262B, 0xEE11161A))
+                .size(100, 80)
+                .pos(CONTENT_LEFT, STORAGE_Y)
+                .padding(5)
+                .margin(5);
+        panel.child(yeldPanel);
+
 
         panel.child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, PANEL_WIDTH, 36, 0xFF171B1F, 0xFF0D1013)).size(PANEL_WIDTH, 36));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, STORAGE_Y, 196, 68, 0xEE20262B, 0xEE11161A)).size(196, 68).pos(CONTENT_LEFT, STORAGE_Y));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(220, STORAGE_Y, 118, 68, 0xEE20262B, 0xEE11161A)).size(118, 68).pos(220, STORAGE_Y));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, ACTIONS_Y, PANEL_WIDTH - CONTENT_LEFT * 2, 52, 0xEE20262B, 0xEE11161A)).size(PANEL_WIDTH - CONTENT_LEFT * 2, 52).pos(CONTENT_LEFT, ACTIONS_Y));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, INVENTORY_Y, PANEL_WIDTH - CONTENT_LEFT * 2, 70, 0xEE20262B, 0xEE11161A)).size(PANEL_WIDTH - CONTENT_LEFT * 2, 70).pos(CONTENT_LEFT, INVENTORY_Y));
+        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(220, STORAGE_Y, 118, 50, 0xEE20262B, 0xEE11161A)).size(118, 68).pos(220, STORAGE_Y));
+
+        var actionsPanel = new Flow(GuiAxis.Y)
+                .background(sectionBackdrop(CONTENT_LEFT, ACTIONS_Y, PANEL_WIDTH - CONTENT_LEFT * 2, 65, 0xEE20262B, 0xEE11161A))
+                .padding(5)
+                .margin(5)
+                .size(PANEL_WIDTH - CONTENT_LEFT * 2, 65)
+                .pos(CONTENT_LEFT, ACTIONS_Y);
+
+        panel.child(actionsPanel);
 
         panel.child(new IDrawable.DrawableWidget(colorStripe(citadel.colour, 0, 0, 6, PANEL_HEIGHT)).size(6, PANEL_HEIGHT));
         panel.child(ButtonWidget.panelCloseButton().pos(PANEL_WIDTH - 18, 8));
@@ -75,21 +86,22 @@ public final class ModularCitadelGui {
                 .pos(CONTENT_LEFT, HEADER_Y + 14)
                 .color(0xC7CCD1));
 
-        panel.child(IKey.str("Yield Storage").asWidget()
-                .pos(CONTENT_LEFT + 8, STORAGE_Y + 6)
-                .style(net.minecraft.util.text.TextFormatting.BOLD));
-        panel.child(IKey.str("Resources collected from claimed territory").asWidget()
-                .pos(CONTENT_LEFT + 8, STORAGE_Y + 18)
-                .color(0xB8BDC3));
+        yeldPanel.child(new RichTextWidget()
+                .textBuilder(text -> text.add(TextFormatting.BOLD + "Yield Storage").textColor(0xFFFFFF))
+                .tooltip(tooltip -> tooltip.addLine("Resources collected from claimed territory"))
+                .width(90)
+                .height(10)
+                .margin(0, 0, 0, 5)
+        );
+
 
         Grid yieldGrid = new Grid()
                 .mapTo(3, TileEntityCitadel.NUM_YIELD_STACKS, slot ->
                         new ItemSlot()
                                 .slot(new ModularSlot(handler, slot))
                                 .size(SLOT_SIZE))
-                .size(3 * SLOT_SIZE, 3 * SLOT_SIZE)
-                .pos(CONTENT_LEFT + 8, STORAGE_Y + 32);
-        panel.child(yieldGrid);
+                .size(3 * SLOT_SIZE, 3 * SLOT_SIZE);
+        yeldPanel.child(yieldGrid);
 
         panel.child(IKey.str("Faction Flag").asWidget()
                 .pos(228, STORAGE_Y + 6)
@@ -101,23 +113,36 @@ public final class ModularCitadelGui {
             panel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).size(56, 32).pos(228, STORAGE_Y + 32));
             panel.child(IKey.str(citadel.factionFlagId).asWidget().pos(288, STORAGE_Y + 42).color(0xD6DBE0));
         } else if (hasFaction) {
-            panel.child(openButton("Choose", 228, STORAGE_Y + 38, 56, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+            panel.child(openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction())));
         } else {
             panel.child(IKey.str("Create a faction first").asWidget().pos(228, STORAGE_Y + 42).color(0xD6DBE0));
         }
 
-        panel.child(IKey.str("Command Surface").asWidget()
-                .pos(CONTENT_LEFT + 8, ACTIONS_Y + 6)
-                .style(net.minecraft.util.text.TextFormatting.BOLD));
+        actionsPanel.child(IKey.str("Command Surface").asWidget()
+                .color(0xFFFFFF)
+                .style(net.minecraft.util.text.TextFormatting.BOLD)
+                .right(220)
+        )
+        ;
 
+        var firsRow = new Flow(GuiAxis.X)
+                .padding(2)
+                .margin(2)
+                .height(18);
+        actionsPanel.child(firsRow);
         if (hasFaction) {
-            panel.child(openButton("Insurance", CONTENT_LEFT + 8, ACTIONS_Y + 16, 72, () -> FactionInsuranceGuiFactory.INSTANCE.openClient(citadel.getFaction())));
-            panel.child(openButton("Faction Stats", CONTENT_LEFT + 84, ACTIONS_Y + 16, 86, () -> FactionStatsGuiFactory.INSTANCE.openClient(citadel.getFaction())));
-            panel.child(openButton("Members", CONTENT_LEFT + 174, ACTIONS_Y + 16, 60, () -> FactionMemberManagerGuiFactory.INSTANCE.openClient(FactionMemberManagerGuiData.Page.MEMBERS)));
+            var secondRow = new Flow(GuiAxis.X)
+                    .padding(2)
+                    .margin(2)
+                    .height(18);
+            firsRow.child(openButton("Insurance", 75, () -> FactionInsuranceGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+            firsRow.child(openButton("Faction Stats", 75, () -> FactionStatsGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+            firsRow.child(openButton("Members", 75, () -> FactionMemberManagerGuiFactory.INSTANCE.openClient(FactionMemberManagerGuiData.Page.MEMBERS)));
+
             if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-                panel.child(openButton("Upgrade", CONTENT_LEFT + 238, ACTIONS_Y + 16, 54, () -> FactionUpgradeGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+                secondRow.child(openButton("Upgrade", 75, () -> FactionUpgradeGuiFactory.INSTANCE.openClient(citadel.getFaction())));
             }
-            panel.child(openButton("Recolor", CONTENT_LEFT + 296, ACTIONS_Y + 16, 42, () -> Minecraft.getMinecraft().player.openGui(
+            secondRow.child(openButton("Recolor", 75, () -> Minecraft.getMinecraft().player.openGui(
                     WarForgeMod.INSTANCE,
                     CommonProxy.GUI_TYPE_RECOLOUR_FACTION,
                     Minecraft.getMinecraft().world,
@@ -125,9 +150,10 @@ public final class ModularCitadelGui {
                     citadel.getPos().getY(),
                     citadel.getPos().getZ()
             )));
-            panel.child(dangerButton("Disband", CONTENT_LEFT + 8, ACTIONS_Y + 36, 54));
+            secondRow.child(dangerButton("Disband", 75));
+            actionsPanel.child(secondRow);
         } else {
-            panel.child(openButton("Create Faction", CONTENT_LEFT + 8, ACTIONS_Y + 16, 100, () -> Minecraft.getMinecraft().player.openGui(
+            firsRow.child(openButton("Create Faction", CONTENT_LEFT + 8, () -> Minecraft.getMinecraft().player.openGui(
                     WarForgeMod.INSTANCE,
                     CommonProxy.GUI_TYPE_CREATE_FACTION,
                     Minecraft.getMinecraft().world,
@@ -135,16 +161,12 @@ public final class ModularCitadelGui {
                     citadel.getPos().getY(),
                     citadel.getPos().getZ()
             )));
-            panel.child(IKey.str("The placer can establish the faction from here.").asWidget()
-                    .pos(CONTENT_LEFT + 116, ACTIONS_Y + 21)
+            firsRow.child(IKey.str("The placer can establish the faction from here.").asWidget()
                     .color(0xB8BDC3));
         }
 
-        panel.child(IKey.str("Inventory").asWidget()
-                .pos(CONTENT_LEFT + 8, INVENTORY_Y + 6)
-                .style(net.minecraft.util.text.TextFormatting.BOLD));
-        panel.child(SlotGroupWidget.playerInventory(false)
-                .pos(CONTENT_LEFT + 8, INVENTORY_Y + 20));
+        panel.child(new ParentWidget<>().child(SlotGroupWidget.playerInventory(false)).background(GuiTextures.MC_BACKGROUND).coverChildren().margin(5).padding(5).horizontalCenter().top(PANEL_HEIGHT));
+
 
         return panel;
     }
@@ -171,32 +193,42 @@ public final class ModularCitadelGui {
         };
     }
 
-    private static ButtonWidget<?> openButton(String label, int x, int y, int width, Runnable action) {
+    private static ButtonWidget<?> openButton(String label, int width, Runnable action) {
         return new ButtonWidget<>()
                 .width(width)
                 .height(18)
                 .overlay(IKey.str(label))
-                .background(GuiTextures.MC_BUTTON)
+                .background(GuiTextures.MC_BUTTON, buttonTinted(0xFF171B1F))
                 .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
+                .margin(10, 1)
                 .onMousePressed(mouseButton -> {
                     action.run();
                     return true;
-                })
-                .pos(x, y);
+                });
     }
 
-    private static ButtonWidget<?> dangerButton(String label, int x, int y, int width) {
+    private static ButtonWidget<?> dangerButton(String label, int width) {
         return new ButtonWidget<>()
                 .width(width)
                 .height(18)
+                .margin(10, 1)
                 .overlay(IKey.str(label).color(0xFFEAEA))
                 .background(buttonFill(0xFF7A2D2D))
                 .hoverBackground(buttonFill(0xFF944040))
                 .onMousePressed(mouseButton -> {
                     WarForgeMod.NETWORK.sendToServer(new PacketDisbandFaction());
                     return true;
-                })
-                .pos(x, y);
+                });
+    }
+
+    private static IDrawable buttonTinted(int color) {
+        return (context, x, y, width, height, theme) -> {
+            Gui.drawRect(x, y, x + width, y + height, color);
+            Gui.drawRect(x, y, x + width, y + 1, 0xFF0F0F0F);
+            Gui.drawRect(x, y + height - 1, x + width, y + height, 0xFF0F0F0F);
+            Gui.drawRect(x, y, x + 1, y + height, 0xFF0F0F0F);
+            Gui.drawRect(x + width - 1, y, x + width, y + height, 0xFF0F0F0F);
+        };
     }
 
     private static IDrawable buttonFill(int color) {

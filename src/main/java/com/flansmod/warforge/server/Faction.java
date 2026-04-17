@@ -73,7 +73,7 @@ public class Faction {
     public short citadelLevel = 0;
     public long offlineRaidProtectionUntil = 0L;
     public boolean offlineRaidProtectionDisabled = false;
-    public int citadelMoveCooldown = 1;
+    public int citadelMoveCooldown = 0;
     public boolean isCurrentlyDefending = false;
     //Only for new system
     public long citadelMoveTimeStamp = 0;
@@ -192,7 +192,9 @@ public class Faction {
             legacy += WarForgeConfig.LEGACY_PER_DAY;
         }
         loggedInToday = false;
-        citadelMoveCooldown--;
+        if (citadelMoveCooldown > 0) {
+            citadelMoveCooldown--;
+        }
     }
 
     public FactionDisplayInfo createInfo() {

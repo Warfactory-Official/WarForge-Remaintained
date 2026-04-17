@@ -141,8 +141,11 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
     // called before block place
     @Override
     public boolean canPlaceBlockAt(World world, BlockPos pos) {
-        // Can't claim a chunk claimed by another faction
         if (!world.isRemote) {
+            if (FACTIONS.isChunkContested(new DimChunkPos(world.provider.getDimension(), pos)))
+                return false;
+
+            // Can't claim a chunk claimed by another faction
             UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
             if (!existingClaim.equals(Faction.nullUuid))
                 return false;

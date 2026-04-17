@@ -327,10 +327,6 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		return defenderOfflineTimerMs < 0;
 	}
 
-	private long calcAbsoluteOfflineTimer() {
-		return hasLiveQuitSiege() ? -defenderOfflineTimerMs : defenderOfflineTimerMs;
-	}
-
 	// returns whether update has been cancelled
 	private boolean handleDesertion(boolean isAttackingSide) {
 		// end siege if idle timer reaches desertion timer
@@ -401,14 +397,6 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 
 	private Faction getAttacking() {
 		return WarForgeMod.FACTIONS.getFaction(factionUUID);
-	}
-
-	private <T extends EntityLivingBase> Faction getFac(T player) {
-		return WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUniqueID());
-	}
-
-	private Faction getPlayerFac(UUID playerID) {
-		return WarForgeMod.FACTIONS.getFactionOfPlayer(playerID);
 	}
 
 	@Override

@@ -425,6 +425,12 @@ public class WarForgeMod implements ILateMixinLoader {
             }
         }
 
+        if (FACTIONS.isChunkContested(pos)) {
+            player.sendMessage(new TextComponentString("This chunk is contested by an active siege"));
+            event.setCanceled(true);
+            return;
+        }
+
         ObjectIntPair<UUID> conqueredChunkInfo = FACTIONS.conqueredChunks.get(pos);
         if (conqueredChunkInfo != null) {
             UUID playerFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;

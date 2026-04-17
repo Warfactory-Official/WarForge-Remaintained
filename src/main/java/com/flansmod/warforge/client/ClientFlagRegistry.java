@@ -105,13 +105,9 @@ public final class ClientFlagRegistry {
 
     private static final class FlagAssembly {
         private final byte[][] parts;
-        private final int width;
-        private final int height;
 
         private FlagAssembly(int totalParts, int width, int height) {
             this.parts = new byte[totalParts][];
-            this.width = width;
-            this.height = height;
         }
 
         private boolean isComplete() {

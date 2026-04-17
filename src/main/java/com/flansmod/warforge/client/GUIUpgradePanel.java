@@ -17,6 +17,7 @@ import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.layout.Column;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -267,7 +268,7 @@ public class GUIUpgradePanel {
                 .mainAxisAlignment(Alignment.MainAxis.CENTER)
                 .expanded();
 
-        Widget progression = new Column()
+        Widget progression = new Flow(GuiAxis.Y)
                 .child(newLevel)
                 .child(IKey.str("Claims").asWidget().color(0xC7CCD1).shadow(true))
                 .child(claimIncrease)

@@ -131,11 +131,11 @@ public final class GuiClaimManager {
                                 ).asIcon().size(25));
                                 if (info.oreQuality != null) {
                                     tooltip.addLine(IKey.str("Ore In the chunk: " +
-                                            I18n.translateToLocalFormatted(info.vein.translationKey,
+                                            translateVeinName(info.vein.translationKey,
                                                     I18n.translateToLocal(info.oreQuality.getTranslationKey()) + " [" +
                                                             info.oreQuality.getMultString(info.vein) + "]")));
                                 } else {
-                                    tooltip.addLine(IKey.str("Ore In the chunk: " + I18n.translateToLocalFormatted(info.vein.translationKey, "")));
+                                    tooltip.addLine(IKey.str("Ore In the chunk: " + translateVeinName(info.vein.translationKey, "")));
                                 }
                             } else {
                                 tooltip.addLine(IKey.str("No ores in this chunk"));
@@ -305,6 +305,14 @@ public final class GuiClaimManager {
             case SIEGE -> "Siege";
             default -> "None";
         };
+    }
+
+    private static String translateVeinName(String translationKey, Object... args) {
+        String resolvedKey = translationKey;
+        if (!I18n.canTranslate(resolvedKey) && I18n.canTranslate(resolvedKey + ".name")) {
+            resolvedKey += ".name";
+        }
+        return I18n.translateToLocalFormatted(resolvedKey, args);
     }
 
     private static String textureName(int dim, int x, int z) {

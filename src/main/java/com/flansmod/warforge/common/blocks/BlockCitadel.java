@@ -100,10 +100,16 @@ public class BlockCitadel extends MultiBlockColumn implements ITileEntityProvide
 
     @Override
     public boolean canPlaceBlockAt(World world, BlockPos pos) {
-        // Can't claim a chunk claimed by another faction
-        UUID existingClaim = WarForgeMod.FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
-        if (!existingClaim.equals(Faction.nullUuid))
-            return false;
+        if (!world.isRemote) {
+            if (WarForgeMod.FACTIONS.isChunkContested(new DimChunkPos(world.provider.getDimension(), pos)))
+                return false;
+
+            // Can't claim a chunk claimed by another faction
+            UUID existingClaim = WarForgeMod.FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
+            if (!existingClaim.equals(Faction.nullUuid))
+                return false;
+        }
+
         // Can only place on a solid surface
         if (!world.getBlockState(pos.add(0, -1, 0)).isSideSolid(world, pos.add(0, -1, 0), EnumFacing.UP))
             return false;
