@@ -7,8 +7,6 @@ import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.factory.PosGuiData;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.cleanroommc.modularui.widget.ParentWidget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
@@ -53,19 +51,26 @@ public final class ModularCitadelGui {
                 .height(PANEL_HEIGHT)
                 .topRel(0.40f);
         var yeldPanel = new Flow(GuiAxis.Y)
-                .background(sectionBackdrop(CONTENT_LEFT, STORAGE_Y, 100, 80, 0xEE20262B, 0xEE11161A))
+                .background(sectionBackdrop(100, 80, 0xEE20262B, 0xEE11161A))
                 .size(100, 80)
                 .pos(CONTENT_LEFT, STORAGE_Y)
                 .padding(5)
                 .margin(5);
         panel.child(yeldPanel);
 
+        var flagPanel = new Flow(GuiAxis.Y)
+                .background((sectionBackdrop(215, 80, 0xEE20262B, 0xEE11161A)))
+                .size(210, 80)
+                .pos(CONTENT_LEFT + 110, STORAGE_Y)
+                .padding(5)
+                .margin(5);
 
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, PANEL_WIDTH, 36, 0xFF171B1F, 0xFF0D1013)).size(PANEL_WIDTH, 36));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(220, STORAGE_Y, 118, 50, 0xEE20262B, 0xEE11161A)).size(118, 68).pos(220, STORAGE_Y));
+        panel.child(flagPanel);
+
+        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(PANEL_WIDTH, 36, 0xFF171B1F, 0xFF0D1013)).size(PANEL_WIDTH, 36));
 
         var actionsPanel = new Flow(GuiAxis.Y)
-                .background(sectionBackdrop(CONTENT_LEFT, ACTIONS_Y, PANEL_WIDTH - CONTENT_LEFT * 2, 65, 0xEE20262B, 0xEE11161A))
+                .background(sectionBackdrop(PANEL_WIDTH - CONTENT_LEFT * 2, 65, 0xEE20262B, 0xEE11161A))
                 .padding(5)
                 .margin(5)
                 .size(PANEL_WIDTH - CONTENT_LEFT * 2, 65)
@@ -74,7 +79,7 @@ public final class ModularCitadelGui {
         panel.child(actionsPanel);
 
         panel.child(new IDrawable.DrawableWidget(colorStripe(citadel.colour, 0, 0, 6, PANEL_HEIGHT)).size(6, PANEL_HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().pos(PANEL_WIDTH - 18, 8));
+        panel.child(ButtonWidget.panelCloseButton().pos(PANEL_WIDTH - 18, 8).size(10));
 
         panel.child(IKey.str(hasFaction ? citadel.getClaimDisplayName() : "Unclaimed Citadel").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
@@ -103,22 +108,26 @@ public final class ModularCitadelGui {
                 .size(3 * SLOT_SIZE, 3 * SLOT_SIZE);
         yeldPanel.child(yieldGrid);
 
-        panel.child(IKey.str("Faction Flag").asWidget()
-                .pos(228, STORAGE_Y + 6)
+        flagPanel.child(IKey.str("Faction Flag").asWidget()
+                .color(0xFFFFFF)
+                .right(130)
+                .margin(0, 0, 0, 4)
                 .style(net.minecraft.util.text.TextFormatting.BOLD));
-        panel.child(IKey.str(citadel.factionFlagId.isEmpty() ? "Choose once. This cannot be changed later." : "Locked for this faction").asWidget()
-                .pos(228, STORAGE_Y + 18)
+        flagPanel.child(IKey.str(citadel.factionFlagId.isEmpty() ? "Choose once. This cannot be changed later." : "Locked for this faction").asWidget()
+                .margin(0, 0, 0, 4 )
                 .color(0xB8BDC3));
         if (!citadel.factionFlagId.isEmpty()) {
-            panel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).size(56, 32).pos(228, STORAGE_Y + 32));
-            panel.child(IKey.str(citadel.factionFlagId).asWidget().pos(288, STORAGE_Y + 42).color(0xD6DBE0));
+            flagPanel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).size(56, 32).pos(228, STORAGE_Y + 32));
+            flagPanel.child(IKey.str(citadel.factionFlagId).asWidget().pos(288, STORAGE_Y + 42).color(0xD6DBE0));
         } else if (hasFaction) {
-            panel.child(openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction())));
+            var chooseBtn = openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction()));
+            flagPanel.child(chooseBtn.width(50));
         } else {
             panel.child(IKey.str("Create a faction first").asWidget().pos(228, STORAGE_Y + 42).color(0xD6DBE0));
         }
 
         actionsPanel.child(IKey.str("Command Surface").asWidget()
+                .margin(0, 0, 0, 4)
                 .color(0xFFFFFF)
                 .style(net.minecraft.util.text.TextFormatting.BOLD)
                 .right(220)
@@ -171,26 +180,18 @@ public final class ModularCitadelGui {
         return panel;
     }
 
-    private static IDrawable sectionBackdrop(int x, int y, int width, int height, int fillColor, int borderColor) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
-                Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
-                Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
-                Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
-            }
+    private static IDrawable sectionBackdrop(int width, int height, int fillColor, int borderColor) {
+        return (context, drawX, drawY, drawWidth, drawHeight, theme) -> {
+            Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
+            Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
+            Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
+            Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
+            Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
         };
     }
 
     private static IDrawable colorStripe(int color, int x, int y, int width, int height) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, 0xFF000000 | (color & 0x00FFFFFF));
-            }
-        };
+        return (context, drawX, drawY, drawWidth, drawHeight, theme) -> Gui.drawRect(drawX, drawY, drawX + width, drawY + height, 0xFF000000 | (color & 0x00FFFFFF));
     }
 
     private static ButtonWidget<?> openButton(String label, int width, Runnable action) {

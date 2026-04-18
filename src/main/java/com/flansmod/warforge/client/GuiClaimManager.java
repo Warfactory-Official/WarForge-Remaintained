@@ -2,12 +2,13 @@ package com.flansmod.warforge.client;
 
 import com.cleanroommc.modularui.api.drawable.IKey;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.IngredientDrawable;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.viewport.GuiContext;
 import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
+import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapDrawable;
@@ -34,10 +35,16 @@ import java.util.Objects;
 
 public final class GuiClaimManager {
     private static final int CELL_SIZE = 64;
-    private static final int MAX_VISIBLE_RADIUS = 5;
-    private static final int PADDING = 6;
-    private static final int HEADER = 22;
-    private static final int SIDE_GUTTER = 18;
+    private static final int MAX_VISIBLE_RADIUS = 4;
+    private static final int CONTENT_LEFT = 12;
+    private static final int HEADER_HEIGHT = 40;
+    private static final int INFO_HEIGHT = 30;
+    private static final int LEGEND_HEIGHT = 20;
+    private static final int MAP_GUTTER = 18;
+    private static final int SECTION_SPACING = 4;
+    private static final int NAV_BUTTON_SIZE = 16;
+    private static final int MAP_BACKDROP_FILL = 0xFF161B20;
+    private static final int WILDERNESS_ACCENT = 0x4A4A4A;
 
     private GuiClaimManager() {
     }
@@ -52,42 +59,73 @@ public final class GuiClaimManager {
                 CELL_SIZE,
                 scaled.getScaledWidth(),
                 scaled.getScaledHeight(),
-                PADDING * 2 + 20,
+                CONTENT_LEFT * 2 + 40,
                 64,
                 data.pageX,
                 data.pageZ
         );
-        int width = viewport.visibleSize * CELL_SIZE + (2 * PADDING) + (2 * SIDE_GUTTER);
-        int height = viewport.visibleSize * CELL_SIZE + HEADER + (2 * PADDING) + 20;
-        int mapLeft = SIDE_GUTTER + PADDING;
+        int mapSize = viewport.visibleSize * CELL_SIZE;
+        int mapSectionWidth = mapSize + MAP_GUTTER * 2;
+        int mapSectionHeight = mapSize + MAP_GUTTER * 2;
+        int width = mapSectionWidth + CONTENT_LEFT * 2;
+        int infoY = HEADER_HEIGHT + SECTION_SPACING;
+        int mapY = infoY + INFO_HEIGHT + SECTION_SPACING;
+        int legendY = mapY + mapSectionHeight + SECTION_SPACING;
+        int height = legendY + LEGEND_HEIGHT + 12;
+        int mapLeft = CONTENT_LEFT + MAP_GUTTER;
+        int mapTop = mapY + MAP_GUTTER;
+        int accentColor = resolveAccentColor(data);
 
         ModularPanel panel = ModularPanel.defaultPanel("claim_manager")
                 .width(width)
                 .height(height)
                 .topRel(0.40f);
 
-        panel.child(new ButtonWidget<>()
-                .background(GuiTextures.BUTTON_CLEAN)
-                .overlay(GuiTextures.CLOSE)
-                .onMousePressed(mouseButton -> {
-                    panel.closeIfOpen();
-                    return true;
-                })
-                .width(12)
-                .height(12)
-                .pos(width - PADDING * 3, (PADDING / 2) + 1));
+        Flow infoSection = ModularGuiStyle.section(mapSectionWidth, INFO_HEIGHT).name("claim_manager_info_section").pos(CONTENT_LEFT, infoY);
+        Flow legendSection = ModularGuiStyle.section(mapSectionWidth, LEGEND_HEIGHT).name("claim_manager_legend_section").pos(CONTENT_LEFT, legendY);
 
-        panel.child(IKey.dynamic(() -> {
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(width, HEADER_HEIGHT));
+        panel.child(infoSection);
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.sectionBackdrop()).size(mapSectionWidth, mapSectionHeight).pos(CONTENT_LEFT, mapY));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.insetBackdrop(MAP_BACKDROP_FILL)).size(mapSize, mapSize).pos(mapLeft, mapTop));
+        panel.child(legendSection);
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(accentColor)).size(6, height));
+        panel.child(ModularGuiStyle.panelCloseButton(width));
+
+        panel.child(IKey.str("Territory Map").asWidget()
+                .name("claim_manager_title")
+                .pos(CONTENT_LEFT, 12)
+                .style(net.minecraft.util.text.TextFormatting.BOLD)
+                .shadow(true)
+                .color(ModularGuiStyle.TEXT_PRIMARY)
+                .scale(1.15f));
+        panel.child(new ScrollingTextWidget(IKey.str("Center [" + data.centerX + ", " + data.centerZ + "] | Radius " + data.radius + " | Dim " + data.dim))
+                .name("claim_manager_subtitle")
+                .pos(CONTENT_LEFT, 27)
+                .width(width - CONTENT_LEFT * 2 - 18)
+                .color(ModularGuiStyle.TEXT_SECONDARY));
+
+        infoSection.child(new ScrollingTextWidget(IKey.dynamic(() -> {
                     String claimCap = ClientClaimChunkCache.claimMax == Short.MAX_VALUE ? "INF" : String.valueOf(ClientClaimChunkCache.claimMax);
                     return "Claims " + ClientClaimChunkCache.claimCount + "/" + claimCap + " | Loaded " + ClientClaimChunkCache.forceLoadedCount + "/" + ClientClaimChunkCache.forceLoadedMax;
-                }).asWidget()
-                .pos(mapLeft, PADDING));
-        if (viewport.visibleSize < size) {
-            panel.child(IKey.str("Map paged to " + viewport.visibleSize + "x" + viewport.visibleSize).asWidget()
-                    .pos(mapLeft, PADDING + 10));
-        }
+                }))
+                .name("claim_manager_status_text")
+                .width(mapSectionWidth - 10)
+                .margin(0, 0, 0, 4)
+                .color(ModularGuiStyle.TEXT_PRIMARY));
+        infoSection.child(new ScrollingTextWidget(IKey.str(viewport.visibleSize < size
+                        ? "Paged view " + viewport.visibleSize + "x" + viewport.visibleSize + " across the selected radius."
+                        : "Showing the full selected radius."))
+                .name("claim_manager_page_text")
+                .width(mapSectionWidth - 10)
+                .margin(0, 0, 0, 2)
+                .color(ModularGuiStyle.TEXT_MUTED));
+        legendSection.child(new ScrollingTextWidget(IKey.str("Left click claim or unclaim. Right click toggles force-loading. Use arrows to page the map."))
+                .name("claim_manager_controls_text")
+                .width(mapSectionWidth - 10)
+                .color(ModularGuiStyle.TEXT_MUTED));
 
-        addPanButtons(panel, data, viewport, width);
+        addPanButtons(panel, data, viewport, CONTENT_LEFT, mapY, mapSectionWidth, mapSectionHeight);
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
@@ -97,6 +135,7 @@ public final class GuiClaimManager {
                 final int localZ = j - viewport.startZ;
 
                 panel.child(new ButtonWidget<>()
+                        .name("claim_chunk_" + data.dim + "_" + chunkX + "_" + chunkZ)
                         .overlay(liveChunkOverlay(data, chunkX, chunkZ))
                         .onMousePressed(mouseButton -> {
                             ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
@@ -157,43 +196,45 @@ public final class GuiClaimManager {
                             }
                         })
                         .size(CELL_SIZE)
-                        .pos((localX * CELL_SIZE) + mapLeft, (localZ * CELL_SIZE) + PADDING + HEADER));
+                        .pos((localX * CELL_SIZE) + mapLeft, (localZ * CELL_SIZE) + mapTop));
             }
         }
 
         return panel;
     }
 
-    private static void addPanButtons(ModularPanel panel, ClaimManagerGuiData data, ChunkMapViewport viewport, int width) {
+    private static void addPanButtons(ModularPanel panel, ClaimManagerGuiData data, ChunkMapViewport viewport, int mapSectionX, int mapSectionY, int mapSectionWidth, int mapSectionHeight) {
         if (!viewport.canPanNorth() && !viewport.canPanSouth() && !viewport.canPanWest() && !viewport.canPanEast()) {
             return;
         }
 
         if (viewport.canPanNorth()) {
-            panel.child(panButton("^", width / 2 - 6, 2, data, viewport.startX, viewport.panNorth()));
+            panel.child(panButton("^", mapSectionX + mapSectionWidth / 2 - NAV_BUTTON_SIZE / 2, mapSectionY + 1, data, viewport.startX, viewport.panNorth()));
         }
         if (viewport.canPanSouth()) {
-            panel.child(panButton("v", width / 2 - 6, PADDING + HEADER + viewport.visibleSize * CELL_SIZE, data, viewport.startX, viewport.panSouth()));
+            panel.child(panButton("v", mapSectionX + mapSectionWidth / 2 - NAV_BUTTON_SIZE / 2, mapSectionY + mapSectionHeight - NAV_BUTTON_SIZE - 1, data, viewport.startX, viewport.panSouth()));
         }
         if (viewport.canPanWest()) {
-            panel.child(panButton("<", 4, PADDING + HEADER + (viewport.visibleSize * CELL_SIZE) / 2 - 6, data, viewport.panWest(), viewport.startZ));
+            panel.child(panButton("<", mapSectionX + 1, mapSectionY + mapSectionHeight / 2 - NAV_BUTTON_SIZE / 2, data, viewport.panWest(), viewport.startZ));
         }
         if (viewport.canPanEast()) {
-            panel.child(panButton(">", width - 16, PADDING + HEADER + (viewport.visibleSize * CELL_SIZE) / 2 - 6, data, viewport.panEast(), viewport.startZ));
+            panel.child(panButton(">", mapSectionX + mapSectionWidth - NAV_BUTTON_SIZE - 1, mapSectionY + mapSectionHeight / 2 - NAV_BUTTON_SIZE / 2, data, viewport.panEast(), viewport.startZ));
         }
     }
 
     private static ButtonWidget<?> panButton(String text, int x, int y, ClaimManagerGuiData data, int pageX, int pageZ) {
-        return new ButtonWidget<>()
-                .background(GuiTextures.BUTTON_CLEAN)
-                .overlay(IKey.str(text))
-                .onMousePressed(mouseButton -> {
-                    ClaimManagerGuiFactory.INSTANCE.openClient(data.getCenter(), data.radius, pageX, pageZ);
-                    return true;
-                })
-                .width(12)
-                .height(12)
-                .pos(x, y);
+        ButtonWidget<?> button = ModularGuiStyle.actionButton(text, NAV_BUTTON_SIZE, () ->
+                ClaimManagerGuiFactory.INSTANCE.openClient(data.getCenter(), data.radius, pageX, pageZ));
+        button.name("claim_map_pan_" + switch (text) {
+            case "^" -> "north";
+            case "v" -> "south";
+            case "<" -> "west";
+            case ">" -> "east";
+            default -> "unknown";
+        });
+        button.height(NAV_BUTTON_SIZE);
+        button.pos(x, y);
+        return button;
     }
 
     private static SiegeCampAttackInfo toMapState(ClaimChunkInfo info, int centerX, int centerZ) {
@@ -317,5 +358,13 @@ public final class GuiClaimManager {
 
     private static String textureName(int dim, int x, int z) {
         return "claimmap/" + dim + "_" + x + "_" + z;
+    }
+
+    private static int resolveAccentColor(ClaimManagerGuiData data) {
+        ClaimChunkInfo center = getLiveInfo(data, data.centerX, data.centerZ);
+        if (center != null && !center.factionId.equals(Faction.nullUuid)) {
+            return center.colour;
+        }
+        return WILDERNESS_ACCENT;
     }
 }

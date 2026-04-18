@@ -3,15 +3,12 @@ package com.flansmod.warforge.client;
 import com.cleanroommc.modularui.api.GuiAxis;
 import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.theme.WidgetTheme;
 import com.cleanroommc.modularui.utils.Alignment;
 import com.cleanroommc.modularui.widget.Widget;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.client.util.PlayerFaceDrawable;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -20,7 +17,6 @@ import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
 import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.PacketFactionMemberManagerAction;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.util.text.TextFormatting;
 
 public final class GuiFactionMemberManager {
@@ -35,21 +31,27 @@ public final class GuiFactionMemberManager {
     }
 
     public static ModularPanel buildPanel(FactionMemberManagerGuiData data) {
+        int sectionWidth = WIDTH - CONTENT_LEFT * 2;
+        int listSectionHeight = HEIGHT - LIST_Y - 12;
+
         ModularPanel panel = ModularPanel.defaultPanel("faction_member_manager")
                 .width(WIDTH)
                 .height(HEIGHT)
                 .topRel(0.40f);
 
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(0, 0, WIDTH, 40, 0xFF171B1F, 0xFF0D1013)).size(WIDTH, 40));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, TAB_Y, WIDTH - CONTENT_LEFT * 2, 24, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, 24).pos(CONTENT_LEFT, TAB_Y));
-        panel.child(new IDrawable.DrawableWidget(sectionBackdrop(CONTENT_LEFT, LIST_Y, WIDTH - CONTENT_LEFT * 2, HEIGHT - LIST_Y - 12, 0xEE20262B, 0xEE11161A)).size(WIDTH - CONTENT_LEFT * 2, HEIGHT - LIST_Y - 12).pos(CONTENT_LEFT, LIST_Y));
-        panel.child(new IDrawable.DrawableWidget(colorStripe(data.hasFaction ? (0xFF000000 | (data.factionColor & 0x00FFFFFF)) : 0xFF4A4A4A, 0, 0, 6, HEIGHT)).size(6, HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().pos(WIDTH - 18, 8).size(10));
+        Flow tabSection = ModularGuiStyle.section(sectionWidth, 24).name("faction_member_tabs_section").pos(CONTENT_LEFT, TAB_Y);
+        Flow listSection = ModularGuiStyle.section(sectionWidth, listSectionHeight).name("faction_member_list_section").pos(CONTENT_LEFT, LIST_Y);
+
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(WIDTH, 40));
+        panel.child(tabSection);
+        panel.child(listSection);
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(data.hasFaction ? data.factionColor : 0x4A4A4A)).size(6, HEIGHT));
+        panel.child(ModularGuiStyle.panelCloseButton(WIDTH));
 
         panel.child(IKey.str("Faction Members").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .style(TextFormatting.BOLD)
-                .color(0xFFFFFF)
+                .color(ModularGuiStyle.TEXT_PRIMARY)
                 .shadow(true)
                 .scale(1.15f));
         if (data.hasFaction) {
@@ -59,58 +61,57 @@ public final class GuiFactionMemberManager {
                 default -> 0xFFFFFF;
             };
             Row headerRow = new Row();
+            headerRow.name("faction_member_header_row");
             headerRow.pos(CONTENT_LEFT, HEADER_Y + 15);
             headerRow.height(12);
             headerRow.child(IKey.str(data.factionName).asWidget().style(TextFormatting.BOLD).color(data.factionColor));
-            headerRow.child(IKey.str(" | ").asWidget().color(0xC7CCD1));
+            headerRow.child(IKey.str(" | ").asWidget().color(ModularGuiStyle.TEXT_SECONDARY));
             headerRow.child(IKey.str("Role: " + formatRole(data.viewerRole)).asWidget().color(viewerRoleColor));
             panel.child(headerRow);
         } else {
             panel.child(IKey.str("You are not currently in a faction").asWidget()
                     .pos(CONTENT_LEFT, HEADER_Y + 15)
-                    .color(0xC7CCD1));
+                    .color(ModularGuiStyle.TEXT_SECONDARY));
         }
 
         if (data.hasFaction) {
-            panel.child(new ButtonWidget<>()
-                    .width(58)
-                    .height(18)
-                    .overlay(IKey.str("Stats"))
-                    .background(GuiTextures.MC_BUTTON)
-                    .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
-                    .onMousePressed(mouseButton -> {
-                        FactionStatsGuiFactory.INSTANCE.openClient(data.factionId);
-                        return true;
-                    })
+            panel.child(ModularGuiStyle.actionButton("Stats", 58, () -> FactionStatsGuiFactory.INSTANCE.openClient(data.factionId))
                     .pos(WIDTH - 80, 11));
         }
 
-        panel.child(tabButton("Members", CONTENT_LEFT + 8, TAB_Y + 3, data.page == FactionMemberManagerGuiData.Page.MEMBERS, FactionMemberManagerGuiData.Page.MEMBERS));
-        panel.child(tabButton("Invites", CONTENT_LEFT + 90, TAB_Y + 3, data.page == FactionMemberManagerGuiData.Page.INVITES, FactionMemberManagerGuiData.Page.INVITES));
+        Row tabRow = new Row();
+        tabRow.name("faction_member_tab_row");
+        tabRow.width(sectionWidth - 10);
+        tabRow.height(18);
+        tabRow.child(tabButton("Members", data.page == FactionMemberManagerGuiData.Page.MEMBERS, FactionMemberManagerGuiData.Page.MEMBERS));
+        Widget invitesTab = tabButton("Invites", data.page == FactionMemberManagerGuiData.Page.INVITES, FactionMemberManagerGuiData.Page.INVITES);
+        invitesTab.margin(8, 0);
+        tabRow.child(invitesTab);
+        tabSection.child(tabRow);
 
         if (!data.hasFaction) {
-            panel.child(IKey.str("Join or create a faction before using the member console.").asWidget()
-                    .pos(CONTENT_LEFT + 12, LIST_Y + 14)
+            listSection.child(IKey.str("Join or create a faction before using the member console.").asWidget()
+                    .margin(0, 6)
                     .color(0xD5D9DE));
             return panel;
         }
 
-        panel.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "Roster" : "Invite Console").color(0xB8BDC3).asWidget()
-                .pos(CONTENT_LEFT + 10, LIST_Y + 8)
+        listSection.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "Roster" : "Invite Console").color(ModularGuiStyle.TEXT_MUTED).asWidget()
+                .margin(0, 0, 0, 4)
                 .style(TextFormatting.BOLD));
-        panel.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS
+        listSection.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS
                         ? "Faces, rank, presence, and direct faction actions."
                         : "Invite online unaffiliated players into the faction.")
                 .asWidget()
-                .pos(CONTENT_LEFT + 10, LIST_Y + 20)
-                .color(0xB8BDC3));
+                .margin(0, 0, 0, 6)
+                .color(ModularGuiStyle.TEXT_MUTED));
 
         ListWidget list = new ListWidget<>()
+                .name(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "faction_member_roster_list" : "faction_member_invite_list")
                 .scrollDirection(GuiAxis.Y)
-                .background(GuiTextures.SLOT_ITEM)
-                .width(WIDTH - 24)
-                .height(HEIGHT - LIST_Y - 41)
-                .pos(CONTENT_LEFT, LIST_Y + 30);
+                .background(ModularGuiStyle.insetBackdrop())
+                .width(sectionWidth - 10)
+                .height(listSectionHeight - 46);
 
         if (data.page == FactionMemberManagerGuiData.Page.MEMBERS) {
             if (data.members.isEmpty()) {
@@ -134,16 +135,19 @@ public final class GuiFactionMemberManager {
             }
         }
 
-        panel.child(list);
+        listSection.child(list);
         return panel;
     }
 
     private static Widget createMemberRow(FactionMemberManagerGuiData.MemberEntry member, FactionMemberManagerGuiData.Page page) {
         Row row = new Row();
+        row.name(ModularGuiStyle.debugName("member_row", member.username));
         row.width(WIDTH - 44);
         row.height(24);
         row.mainAxisAlignment(Alignment.MainAxis.START);
-        row.padding(1, 1);
+        row.padding(3, 3);
+        row.margin(0, 0, 0, 2);
+        row.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
 
         String status = member.online ? "Online" : "Offline";
         int rankColor = switch (member.role) {
@@ -158,7 +162,7 @@ public final class GuiFactionMemberManager {
                 .color(rankColor)
                 .tooltip(tooltip -> tooltip.addLine(member.username)));
         row.child(IKey.str(formatRole(member.role)).asWidget().width(52).color(rankColor));
-        row.child(IKey.str(status).color(member.online ? 0x55FF55 : 0xAAAAAA).asWidget().width(44));
+        row.child(IKey.str(status).color(member.online ? ModularGuiStyle.TEXT_SUCCESS : 0xAAAAAA).asWidget().width(44));
 
         if (member.canTransferLeadership) {
             row.child(actionButton("Lead", 36, true, PacketFactionMemberManagerAction.Action.TRANSFER_LEADER, member.playerId, page));
@@ -182,53 +186,36 @@ public final class GuiFactionMemberManager {
 
     private static Widget createInviteRow(FactionMemberManagerGuiData.InviteEntry invite, FactionMemberManagerGuiData.Page page) {
         Row row = new Row();
+        row.name(ModularGuiStyle.debugName("invite_row", invite.username));
         row.width(WIDTH - 44);
         row.height(24);
         row.mainAxisAlignment(Alignment.MainAxis.START);
+        row.padding(3, 3);
+        row.margin(0, 0, 0, 2);
+        row.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
 
         row.child(new IDrawable.DrawableWidget(new PlayerFaceDrawable(invite.playerId)).size(18, 18));
         row.child(new ScrollingTextWidget(IKey.str(invite.username))
+                .margin(5, 0)
                 .width(178)
                 .tooltip(tooltip -> tooltip.addLine(invite.username)));
-        row.child(IKey.str(invite.invited ? "Pending" : "Available").color(invite.invited ? 0xFFAA00 : 0x55FF55).asWidget().width(64));
+        row.child(IKey.str(invite.invited ? "Pending" : "Available").color(invite.invited ? 0xFFAA00 : ModularGuiStyle.TEXT_SUCCESS).asWidget().width(64));
         row.child(actionButton(invite.invited ? "Invited" : "Invite", 54, invite.canInvite, PacketFactionMemberManagerAction.Action.INVITE, invite.playerId, page));
         return row;
     }
 
-    private static ButtonWidget<?> actionButton(String label, int width, boolean enabled, PacketFactionMemberManagerAction.Action action, java.util.UUID target, FactionMemberManagerGuiData.Page page) {
-        return new ButtonWidget<>()
-                .width(width)
-                .height(16)
-                .overlay(IKey.str(label).color(enabled ? 0xFFFFFF : 0x666666))
-                .background(enabled ? GuiTextures.MC_BUTTON : GuiTextures.MC_BUTTON_DISABLED)
-                .hoverBackground(enabled ? GuiTextures.MC_BUTTON_HOVERED : GuiTextures.MC_BUTTON_DISABLED)
-                .onMousePressed(mouseButton -> {
-                    if (!enabled) {
-                        return false;
-                    }
-
-                    PacketFactionMemberManagerAction packet = new PacketFactionMemberManagerAction();
-                    packet.action = action;
-                    packet.target = target;
-                    packet.page = page;
-                    WarForgeMod.NETWORK.sendToServer(packet);
-                    return true;
-                });
+    private static Widget actionButton(String label, int width, boolean enabled, PacketFactionMemberManagerAction.Action action, java.util.UUID target, FactionMemberManagerGuiData.Page page) {
+        return ModularGuiStyle.actionButton(label, width, enabled, () -> {
+            PacketFactionMemberManagerAction packet = new PacketFactionMemberManagerAction();
+            packet.action = action;
+            packet.target = target;
+            packet.page = page;
+            WarForgeMod.NETWORK.sendToServer(packet);
+        });
     }
 
-    private static ButtonWidget<?> tabButton(String label, int x, int y, boolean selected, FactionMemberManagerGuiData.Page page) {
-        return new ButtonWidget<>()
-                .width(74)
-                .height(18)
-                .overlay(IKey.str(label).color(selected ? 0xFFFFFF : 0xCCCCCC))
-                .background(selected ? GuiTextures.MC_BUTTON_HOVERED : GuiTextures.MC_BUTTON)
-                .onMousePressed(mouseButton -> {
-                    if (!selected) {
-                        FactionMemberManagerGuiFactory.INSTANCE.openClient(page);
-                    }
-                    return true;
-                })
-                .pos(x, y);
+    private static Widget tabButton(String label, boolean selected, FactionMemberManagerGuiData.Page page) {
+        return ModularGuiStyle.tabButton(label, 74, selected, () -> FactionMemberManagerGuiFactory.INSTANCE.openClient(page));
     }
 
     private static String formatRole(Faction.Role role) {
@@ -236,28 +223,6 @@ public final class GuiFactionMemberManager {
             case LEADER -> "Leader";
             case OFFICER -> "Officer";
             default -> "Member";
-        };
-    }
-
-    private static IDrawable sectionBackdrop(int x, int y, int width, int height, int fillColor, int borderColor) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, fillColor);
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + 1, borderColor);
-                Gui.drawRect(drawX, drawY + height - 1, drawX + width, drawY + height, borderColor);
-                Gui.drawRect(drawX, drawY, drawX + 1, drawY + height, borderColor);
-                Gui.drawRect(drawX + width - 1, drawY, drawX + width, drawY + height, borderColor);
-            }
-        };
-    }
-
-    private static IDrawable colorStripe(int color, int x, int y, int width, int height) {
-        return new IDrawable() {
-            @Override
-            public void draw(GuiContext context, int drawX, int drawY, int drawWidth, int drawHeight, WidgetTheme theme) {
-                Gui.drawRect(drawX, drawY, drawX + width, drawY + height, color);
-            }
         };
     }
 }

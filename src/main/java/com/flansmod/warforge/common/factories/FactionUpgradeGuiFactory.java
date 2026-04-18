@@ -32,7 +32,7 @@ public class FactionUpgradeGuiFactory extends AbstractUIFactory<FactionUpgradeGu
             }
             return ModularPanel.defaultPanel("citadel_upgrade_panel")
                     .width(GUIUpgradePanel.WIDTH)
-                    .height(260)
+                    .height(GUIUpgradePanel.HEIGHT)
                     .topRel(0.40f);
         }
 
