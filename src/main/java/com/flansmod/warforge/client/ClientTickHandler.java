@@ -38,15 +38,12 @@ import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.text.TextComponentString;
 import net.minecraft.world.World;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent.ElementType;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 
@@ -56,15 +53,9 @@ import java.util.Iterator;
 import java.util.List;
 
 import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
-import net.minecraftforge.fml.common.network.FMLNetworkEvent;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
+
 import org.lwjgl.input.Keyboard;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
-import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
 import static com.flansmod.warforge.client.util.RenderUtil.*;
 
 public class ClientTickHandler {
@@ -770,20 +761,20 @@ public class ClientTickHandler {
                     for (int y = 0; y < 256; y++) {
                         if (x < 15) {
                             if (renderNorth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x + 1, y, pos.getZStart()));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x + 1, y, pos.getZStart()));
                                 renderZEdge(world, tess, x, y, pos.getZStart(), smaller_alignment + 0.001d, air0, air1, 0);
                             }
                             if (renderSouth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x + 1, y, pos.getZEnd()));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x + 1, y, pos.getZEnd()));
                                 renderZEdge(world, tess, x, y, pos.getZEnd(), 16d - smaller_alignment + 0.001d, air0, air1, 0);
                             }
                         }
                         if (y < 255) {
                             if (renderNorth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y + 1, pos.getZStart()));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y + 1, pos.getZStart()));
                                 //renderZVerticalEdge(world, x, y, pos.getZStart(), smaller_alignment, air0, air1, 0);
                                 if (x == 15 && renderEast) {
                                     renderZVerticalCorner(world, tess, x - smaller_alignment, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
@@ -794,8 +785,8 @@ public class ClientTickHandler {
                                 }
                             }
                             if (renderSouth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y + 1, pos.getZEnd()));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart() + x, y + 1, pos.getZEnd()));
                                 if (x == 15 && renderEast) {
                                     renderZVerticalCorner(world, tess, x - smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
                                 } else if (x == 0 && renderWest) {
@@ -814,20 +805,20 @@ public class ClientTickHandler {
                     for (int y = 0; y < 256; y++) {
                         if (z < 15) {
                             if (renderWest) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z + 1));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y, pos.getZStart() + z + 1));
                                 renderXEdge(world, tess, pos.getXStart(), y, z, smaller_alignment + 0.001d, air0, air1, 0);
                             }
                             if (renderEast) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z + 1));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y, pos.getZStart() + z + 1));
                                 renderXEdge(world, tess, pos.getXEnd(), y, z, 16d - smaller_alignment + 0.001d, air0, air1, 0);
                             }
                         }
                         if (y < 255) {
                             if (renderWest) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZStart() + z));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y + 1, pos.getZStart() + z));
                                 if (z == 15 && renderSouth) {
                                     renderXVerticalCorner(world, tess, smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
                                 } else if (z == 0 && renderNorth) {
@@ -837,8 +828,8 @@ public class ClientTickHandler {
                                 }
                             }
                             if (renderEast) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZStart() + z));
+                                boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
+                                boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y + 1, pos.getZStart() + z));
                                 if (z == 15 && renderSouth) {
                                     renderXVerticalCorner(world, tess, 16d - smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
                                 } else if (z == 0 && renderNorth) {
@@ -857,8 +848,8 @@ public class ClientTickHandler {
             if (renderNorthEast) {
                 if (!renderNorth && !renderEast) {
                     for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZStart()));
+                        boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y, pos.getZStart()));
+                        boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y + 1, pos.getZStart()));
                         renderZVerticalCorner(world, tess, 15, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                         renderXVerticalCorner(world, tess, 16 - smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
                     }
@@ -867,8 +858,8 @@ public class ClientTickHandler {
             if (renderNorthWest) {
                 if (!renderNorth && !renderWest) {
                     for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZStart()));
+                        boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y, pos.getZStart()));
+                        boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y + 1, pos.getZStart()));
                         renderZVerticalCorner(world, tess, -1 + smaller_alignment, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                         renderXVerticalCorner(world, tess, smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
                     }
@@ -877,8 +868,8 @@ public class ClientTickHandler {
             if (renderSouthWest) {
                 if (!renderSouth && !renderWest) {
                     for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZEnd()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZEnd()));
+                        boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y, pos.getZEnd()));
+                        boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXStart(), y + 1, pos.getZEnd()));
                         renderZVerticalCorner(world, tess, -1 + smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                         renderXVerticalCorner(world, tess, smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
                     }
@@ -887,8 +878,8 @@ public class ClientTickHandler {
             if (renderSouthEast) {
                 if (!renderSouth && !renderEast) {
                     for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZEnd()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZEnd()));
+                        boolean air0 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y, pos.getZEnd()));
+                        boolean air1 = isAirOrPartial(world, new BlockPos(pos.getXEnd(), y + 1, pos.getZEnd()));
                         renderZVerticalCorner(world, tess, 15, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                         renderXVerticalCorner(world, tess, 16 - smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
                     }
@@ -900,6 +891,11 @@ public class ClientTickHandler {
             break;
         }
     }
+
+	private boolean isAirOrPartial(World world, BlockPos pos)
+	{
+		return !world.getBlockState(pos).isOpaqueCube();
+	}
 
 
     @SubscribeEvent
