@@ -26,7 +26,7 @@ public final class ClientFlagRegistry {
     public static void clear() {
         for (ResourceLocation texture : textures.values()) {
             if (texture.getNamespace().equals(Tags.MODID)) {
-                Minecraft.getMinecraft().getTextureManager().deleteTexture(texture);
+                Minecraft.getMinecraft().addScheduledTask(() -> Minecraft.getMinecraft().getTextureManager().deleteTexture(texture));
             }
         }
         textures.clear();
