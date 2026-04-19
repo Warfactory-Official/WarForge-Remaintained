@@ -13,7 +13,6 @@ import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionUpgradeGuiData;
@@ -68,13 +67,13 @@ public class GUIUpgradePanel {
         int contentWidth = WIDTH - CONTENT_LEFT * 2 - 10;
         int listWidth = contentWidth;
         int progressionPanelHeight = 54;
-        int listHeight = BODY_SECTION_HEIGHT - progressionPanelHeight - 52;
+        int listHeight = BODY_SECTION_HEIGHT - progressionPanelHeight - 25;
         ListWidget list = new ListWidget<>()
                 .name("upgrade_requirement_list")
                 .scrollDirection(GuiAxis.Y)
                 .background(ModularGuiStyle.insetBackdrop())
-                .widthRel(0.98f)
-                .height(30 * 6 + 10);
+                .marginBottom(5)
+                .widthRel(0.98f);
 
 
         if (UPGRADE_HANDLER.getRequirementsFor(level + 1) == null) {
@@ -150,14 +149,15 @@ public class GUIUpgradePanel {
         Flow bodySection = ModularGuiStyle.section(WIDTH - CONTENT_LEFT * 2, BODY_SECTION_HEIGHT).name("upgrade_body_section").pos(CONTENT_LEFT, BODY_Y);
         Flow actionSection = ModularGuiStyle.section(WIDTH - CONTENT_LEFT * 2, 28).name("upgrade_action_section").pos(CONTENT_LEFT, ACTIONS_Y);
 
-        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(WIDTH, 40));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).name("upgrade_header_backdrop").size(WIDTH, 40));
         panel.child(bodySection);
         panel.child(actionSection);
-        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(color)).size(6, HEIGHT));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(color)).name("upgrade_color_stripe").size(6, HEIGHT));
         panel.child(ModularGuiStyle.panelCloseButton(WIDTH));
 
         Widget prefix = IKey.str("Citadel Upgrade")
                 .asWidget()
+                .name("upgrade_title")
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .color(ModularGuiStyle.TEXT_PRIMARY)
                 .shadow(true)
@@ -166,6 +166,7 @@ public class GUIUpgradePanel {
 
         Widget factionNamePlate = IKey.str(factionName)
                 .asWidget()
+                .name("upgrade_faction_name")
                 .color(color)
                 .shadow(true)
                 .pos(CONTENT_LEFT, HEADER_Y + 15)
@@ -175,12 +176,14 @@ public class GUIUpgradePanel {
         panel.child(prefix);
         panel.child(factionNamePlate);
         bodySection.child(IKey.str("Requirements to advance from level " + level + " to level " + (level + 1)).asWidget()
+                .name("upgrade_requirement_prompt")
                 .margin(0, 0, 0, 6)
                 .color(ModularGuiStyle.TEXT_MUTED));
 
         int closeButtonWidth = 94;
         int upgradeButtonWidth = 104;
         ButtonWidget<?> closeButton = ModularGuiStyle.actionButton("Close", closeButtonWidth, () -> panel.closeIfOpen());
+        closeButton.name("upgrade_close_button");
 
         boolean canUpgrade = requirementPassed.get() && outrankingOfficer;
         ButtonWidget<?> upgradeButton = ModularGuiStyle.actionButton("Upgrade", upgradeButtonWidth, canUpgrade, () -> {
@@ -189,6 +192,7 @@ public class GUIUpgradePanel {
                     NETWORK.sendToServer(packet);
                     panel.closeIfOpen();
                 });
+        upgradeButton.name("upgrade_confirm_button");
 
         if (!outrankingOfficer || !requirementPassed.get()) {
             upgradeButton.tooltip(richTooltip -> {
@@ -209,7 +213,7 @@ public class GUIUpgradePanel {
         list.height(listHeight);
         bodySection.child(list);
         Widget outcomePanel = createUpgradeOutcomePanel(contentWidth, progressionPanelHeight, level, arrow);
-        outcomePanel.margin(0, 4, 0, 0);
+        outcomePanel.margin(2, 2, 2, 0);
         bodySection.child(outcomePanel);
 
         var actionRow = new Flow(GuiAxis.X);
@@ -228,27 +232,29 @@ public class GUIUpgradePanel {
     private static Widget createUpgradeOutcomePanel(int width, int height, int level, UITexture arrow) {
         Flow outcomePanel = new Flow(GuiAxis.Y);
         outcomePanel.name("upgrade_outcome_panel");
-        outcomePanel.background(ModularGuiStyle.insetBackdrop());
-        outcomePanel.size(width, height);
-        outcomePanel.padding(5);
+        outcomePanel.height(height);
+        outcomePanel.padding(0);
+        outcomePanel.coverChildrenWidth();
 
         outcomePanel.child(IKey.str("Upgrade Outcome").asWidget()
+                .name("upgrade_outcome_title")
                 .color(ModularGuiStyle.TEXT_PRIMARY)
                 .style(TextFormatting.BOLD)
-                .margin(0, 0, 0, 2));
+                .margin(0, 0, 0, 1));
         outcomePanel.child(IKey.str("Level " + level + " -> " + (level + 1)).asWidget()
+                .name("upgrade_outcome_level_text")
                 .color(ModularGuiStyle.TEXT_WARNING)
                 .shadow(true)
                 .style(TextFormatting.BOLD)
-                .margin(0, 0, 0, 4));
+                .margin(0, 0, 0, 2));
 
-        var deltaRow =  new Flow(GuiAxis.X);
+        var deltaRow = new Flow(GuiAxis.X);
         deltaRow.name("upgrade_delta_row");
-        deltaRow.width(width - 10);
-        deltaRow.height(24);
+        deltaRow.height(20);
+        deltaRow.coverChildrenWidth();
+        deltaRow.marginTop(2);
 
         Widget claimCard = createUpgradeDeltaCard(
-                (width - 16) / 2,
                 "Claims",
                 String.valueOf(UPGRADE_HANDLER.getClaimLimitForLevel(level)),
                 String.valueOf(UPGRADE_HANDLER.getClaimLimitForLevel(level + 1)),
@@ -257,7 +263,6 @@ public class GUIUpgradePanel {
                 arrow
         );
         Widget insuranceCard = createUpgradeDeltaCard(
-                (width - 16) / 2,
                 "Insurance",
                 String.valueOf(UPGRADE_HANDLER.getInsuranceSlotsForLevel(level)),
                 String.valueOf(UPGRADE_HANDLER.getInsuranceSlotsForLevel(level + 1)),
@@ -265,7 +270,8 @@ public class GUIUpgradePanel {
                 0x8BFFB0,
                 arrow
         );
-        insuranceCard.margin(6, 0);
+        claimCard.marginRight(1);
+        insuranceCard.marginLeft(1);
 
         deltaRow.child(claimCard);
         deltaRow.child(insuranceCard);
@@ -274,29 +280,32 @@ public class GUIUpgradePanel {
         return outcomePanel;
     }
 
-    private static Widget createUpgradeDeltaCard(int width, String label, String previous, String next, int previousColor, int nextColor, UITexture arrow) {
+    private static Widget createUpgradeDeltaCard(String label, String previous, String next, int previousColor, int nextColor, UITexture arrow) {
         Flow card = new Flow(GuiAxis.Y);
         card.name(ModularGuiStyle.debugName("upgrade_delta_card", label));
-        card.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
-        card.size(width, 24);
-        card.padding(4);
+        card.padding(0);
+        card.coverChildren();
 
         card.child(IKey.str(label).asWidget()
-                .color(ModularGuiStyle.TEXT_SECONDARY)
-                .margin(0, 0, 0, 1));
+                .name(ModularGuiStyle.debugName("upgrade_delta_label", label))
+                .color(ModularGuiStyle.TEXT_SECONDARY));
 
         var valueRow = new Flow(GuiAxis.X);
-        valueRow.width(width - 8);
+        valueRow.name(ModularGuiStyle.debugName("upgrade_delta_values", label));
         valueRow.height(10);
+        valueRow.coverChildrenWidth();
         valueRow.child(IKey.str(previous).asWidget()
+                .name(ModularGuiStyle.debugName("upgrade_delta_previous", label))
                 .color(previousColor)
                 .shadow(true)
                 .scale(1.15f));
         valueRow.child(new IDrawable.DrawableWidget(arrow)
+                .name(ModularGuiStyle.debugName("upgrade_delta_arrow", label))
                 .height(8)
                 .width(10)
-                .margin(4, 0));
+                .margin(1, 0));
         valueRow.child(IKey.str(next).asWidget()
+                .name(ModularGuiStyle.debugName("upgrade_delta_next", label))
                 .color(nextColor)
                 .shadow(true)
                 .style(TextFormatting.BOLD)
@@ -309,9 +318,10 @@ public class GUIUpgradePanel {
     private static ModularPanel createNoMoreLevelsPanel() {
         ModularPanel panel = ModularPanel.defaultPanel("no_more_levels_panel", 220, 76);
         return panel
-                .child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(220, 76))
-                .child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(0xFF9F7A34)).size(6, 76))
+                .child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).name("upgrade_max_level_backdrop").size(220, 76))
+                .child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(0xFF9F7A34)).name("upgrade_max_level_stripe").size(6, 76))
                 .child(IKey.str("Your citadel is at it's max level!").asWidget()
+                        .name("upgrade_max_level_text")
                         .pos(16, 16)
                         .shadow(true)
                         .style(TextFormatting.WHITE)
@@ -320,7 +330,7 @@ public class GUIUpgradePanel {
                 .child(ModularGuiStyle.actionButton("Close", 96, () -> panel.closeIfOpen())
                         .pos(16, 42)
                 )
-        ;
+                ;
 
     }
 
@@ -376,10 +386,12 @@ public class GUIUpgradePanel {
                 .name(ModularGuiStyle.debugName("requirement_row", displayName))
                 .width(rowWidth)
                 .child(new IDrawable.DrawableWidget(new IngredientDrawable(ingredient))
+                        .name(ModularGuiStyle.debugName("requirement_icon", displayName))
                         .size(20, 20)
                         .align(Alignment.CenterLeft)
                 )
                 .child(IKey.str(displayName).asWidget()
+                        .name(ModularGuiStyle.debugName("requirement_name", displayName))
                         .align(Alignment.CenterLeft)
                         .left(nameLeft)
                         .width(nameWidth)
@@ -387,6 +399,7 @@ public class GUIUpgradePanel {
                         .shadow(true)
                 )
                 .child(IKey.str(has + "/" + count).asWidget()
+                        .name(ModularGuiStyle.debugName("requirement_count", displayName))
                         .align(Alignment.CenterLeft)
                         .left(countLeft)
                         .color(has >= count ? 0x55FF55 : 0xFF5555)
@@ -394,6 +407,7 @@ public class GUIUpgradePanel {
                         .scale(1.5f)
                 )
                 .child(new IDrawable.DrawableWidget(CHECK)
+                        .name(ModularGuiStyle.debugName("requirement_check", displayName))
                         .align(Alignment.CenterRight)
                         .setEnabledIf(x -> has >= count)
                         .size(20, 20)

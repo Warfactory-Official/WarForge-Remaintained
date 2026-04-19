@@ -13,12 +13,14 @@ public class SiegeCampGuiData extends GuiData {
     public final DimBlockPos siegeCampPos;
     public final List<SiegeCampAttackInfo> possibleAttacks;
     public final byte momentum;
+    public final int color;
 
-    public SiegeCampGuiData(EntityPlayer player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum) {
+    public SiegeCampGuiData(EntityPlayer player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
         super(player);
         this.siegeCampPos = siegeCampPos;
         this.possibleAttacks = new ArrayList<SiegeCampAttackInfo>(possibleAttacks);
         this.momentum = momentum;
+        this.color = color;
     }
 
     public PacketSiegeCampInfo toPacket() {
@@ -26,6 +28,7 @@ public class SiegeCampGuiData extends GuiData {
         packet.mSiegeCampPos = siegeCampPos;
         packet.mPossibleAttacks.addAll(possibleAttacks);
         packet.momentum = momentum;
+        packet.color = color;
         return packet;
     }
 }

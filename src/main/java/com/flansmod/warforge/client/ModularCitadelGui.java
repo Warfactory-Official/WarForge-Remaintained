@@ -79,7 +79,7 @@ public final class ModularCitadelGui {
         panel.child(actionsPanel);
 
         panel.child(new IDrawable.DrawableWidget(colorStripe(citadel.colour, 0, 0, 6, PANEL_HEIGHT)).size(6, PANEL_HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().pos(PANEL_WIDTH - 18, 8).size(10));
+        panel.child(ModularGuiStyle.panelCloseButton(PANEL_WIDTH));
 
         panel.child(IKey.str(hasFaction ? citadel.getClaimDisplayName() : "Unclaimed Citadel").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
@@ -195,50 +195,14 @@ public final class ModularCitadelGui {
     }
 
     private static ButtonWidget<?> openButton(String label, int width, Runnable action) {
-        return new ButtonWidget<>()
-                .width(width)
-                .height(18)
-                .overlay(IKey.str(label))
-                .background(GuiTextures.MC_BUTTON, buttonTinted(0xFF171B1F))
-                .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
-                .margin(10, 1)
-                .onMousePressed(mouseButton -> {
-                    action.run();
-                    return true;
-                });
+        ButtonWidget<?> button = ModularGuiStyle.actionButton(label, width, action);
+        button.margin(10, 1);
+        return button;
     }
 
     private static ButtonWidget<?> dangerButton(String label, int width) {
-        return new ButtonWidget<>()
-                .width(width)
-                .height(18)
-                .margin(10, 1)
-                .overlay(IKey.str(label).color(0xFFEAEA))
-                .background(buttonFill(0xFF7A2D2D))
-                .hoverBackground(buttonFill(0xFF944040))
-                .onMousePressed(mouseButton -> {
-                    WarForgeMod.NETWORK.sendToServer(new PacketDisbandFaction());
-                    return true;
-                });
-    }
-
-    private static IDrawable buttonTinted(int color) {
-        return (context, x, y, width, height, theme) -> {
-            Gui.drawRect(x, y, x + width, y + height, color);
-            Gui.drawRect(x, y, x + width, y + 1, 0xFF0F0F0F);
-            Gui.drawRect(x, y + height - 1, x + width, y + height, 0xFF0F0F0F);
-            Gui.drawRect(x, y, x + 1, y + height, 0xFF0F0F0F);
-            Gui.drawRect(x + width - 1, y, x + width, y + height, 0xFF0F0F0F);
-        };
-    }
-
-    private static IDrawable buttonFill(int color) {
-        return (context, x, y, width, height, theme) -> {
-            Gui.drawRect(x, y, x + width, y + height, color);
-            Gui.drawRect(x, y, x + width, y + 1, 0xFF0F0F0F);
-            Gui.drawRect(x, y + height - 1, x + width, y + height, 0xFF0F0F0F);
-            Gui.drawRect(x, y, x + 1, y + height, 0xFF0F0F0F);
-            Gui.drawRect(x + width - 1, y, x + width, y + height, 0xFF0F0F0F);
-        };
+        ButtonWidget<?> button = ModularGuiStyle.dangerButton(label, width, () -> WarForgeMod.NETWORK.sendToServer(new PacketDisbandFaction()));
+        button.margin(10, 1);
+        return button;
     }
 }

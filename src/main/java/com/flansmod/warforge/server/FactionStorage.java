@@ -31,8 +31,14 @@ import net.minecraft.util.DamageSource;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Vec3i;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.Style;
+import net.minecraft.util.text.TextComponentBase;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraft.util.text.TextFormatting;
+import net.minecraft.util.text.event.ClickEvent;
+import net.minecraft.util.text.event.HoverEvent;
 import net.minecraft.world.World;
 
 import java.awt.*;
@@ -45,6 +51,11 @@ import java.util.concurrent.TimeUnit;
 import static com.flansmod.warforge.common.WarForgeMod.*;
 
 public class FactionStorage {
+    private static final int TOAST_INFO = 0x708A97;
+    private static final int TOAST_SUCCESS = 0x55AA55;
+    private static final int TOAST_WARNING = 0xC79A3A;
+    private static final int TOAST_DANGER = 0xB34747;
+
     public enum SiegeZoneRelation {
         NONE,
         ATTACKER,
@@ -71,6 +82,170 @@ public class FactionStorage {
 
     public FactionStorage() {
         InitNeutralZones();
+    }
+
+    public void sendNotificationToPlayer(EntityPlayerMP player, String token, String title, String subtitle, int accentColor, int durationMs) {
+        sendNotificationToPlayer(player, token, title, subtitle, accentColor, durationMs, null);
+    }
+
+    public void sendNotificationToPlayer(EntityPlayerMP player, String token, String title, String subtitle, int accentColor, int durationMs, UUID actorId) {
+        if (player == null) {
+            return;
+        }
+        NETWORK.sendTo(new PacketClientNotification(token, title, subtitle, accentColor, durationMs, actorId), player);
+    }
+
+    public void sendNotificationToFaction(Faction faction, String token, String title, String subtitle, int accentColor, int durationMs) {
+        sendNotificationToFaction(faction, token, title, subtitle, accentColor, durationMs, null);
+    }
+
+    public void sendNotificationToFaction(Faction faction, String token, String title, String subtitle, int accentColor, int durationMs, UUID actorId) {
+        if (faction == null) {
+            return;
+        }
+        for (EntityPlayer onlinePlayer : faction.getOnlinePlayers(entityPlayer -> entityPlayer != null)) {
+            if (onlinePlayer instanceof EntityPlayerMP serverPlayer) {
+                sendNotificationToPlayer(serverPlayer, token, title, subtitle, accentColor, durationMs, actorId);
+            }
+        }
+    }
+
+    public void sendNotificationToFaction(Faction faction, String token, String title, String subtitle, int accentColor, int durationMs, UUID actorId, Collection<UUID> exclude) {
+        if (faction == null) {
+            return;
+        }
+        for (EntityPlayer onlinePlayer : faction.getOnlinePlayers(entityPlayer -> entityPlayer != null && !exclude.contains(entityPlayer.getUniqueID()))) {
+            if (onlinePlayer instanceof EntityPlayerMP serverPlayer) {
+                sendNotificationToPlayer(serverPlayer, token, title, subtitle, accentColor, durationMs, actorId);
+            }
+        }
+    }
+
+    public void sendSiegeStartNotifications(Faction attackers, Faction defenders, DimBlockPos defendingClaim) {
+        String target = defendingClaim.toFancyString();
+        sendNotificationToFaction(
+                attackers,
+                "siege_started_attackers_" + defendingClaim,
+                "Siege Started",
+                "You started a siege against " + defenders.name + " at " + target,
+                attackers.colour,
+                6000
+        );
+        sendNotificationToFaction(
+                defenders,
+                "siege_started_defenders_" + defendingClaim,
+                "Under Siege",
+                attackers.name + " started a siege at " + target,
+                TOAST_DANGER,
+                7000
+        );
+    }
+
+    private void sendSiegeOutcomeNotifications(Faction attackers, Faction defenders, DimBlockPos defendingClaim, boolean attackersWon) {
+        String target = defendingClaim.toFancyString();
+        if (attackersWon) {
+            sendNotificationToFaction(
+                    attackers,
+                    "siege_won_attackers_" + defendingClaim,
+                    "Siege Won",
+                    "You defeated " + defenders.name + " at " + target,
+                    TOAST_SUCCESS,
+                    7000
+            );
+            sendNotificationToFaction(
+                    defenders,
+                    "siege_lost_defenders_" + defendingClaim,
+                    "Siege Lost",
+                    attackers.name + " won the siege at " + target,
+                    TOAST_DANGER,
+                    7000
+            );
+        } else {
+            sendNotificationToFaction(
+                    attackers,
+                    "siege_lost_attackers_" + defendingClaim,
+                    "Siege Lost",
+                    "You failed to take " + target,
+                    TOAST_DANGER,
+                    7000
+            );
+            sendNotificationToFaction(
+                    defenders,
+                    "siege_won_defenders_" + defendingClaim,
+                    "Siege Won",
+                    "You defended " + target + " from " + attackers.name,
+                    TOAST_SUCCESS,
+                    7000
+            );
+        }
+    }
+
+    private void sendFactionMemberJoinedNotification(Faction faction, EntityPlayer player) {
+        sendNotificationToFaction(
+                faction,
+                "faction_member_joined_" + faction.uuid + "_" + player.getUniqueID(),
+                "Member Joined",
+                player.getName() + " joined " + faction.name,
+                faction.colour,
+                5000,
+                player.getUniqueID(),
+                Arrays.asList(player.getUniqueID())
+        );
+    }
+
+    private void sendFactionMemberLeftNotification(Faction faction, UUID playerId, String playerName, boolean wasKicked) {
+        sendNotificationToFaction(
+                faction,
+                "faction_member_left_" + faction.uuid + "_" + playerName,
+                wasKicked ? "Member Removed" : "Member Left",
+                wasKicked ? playerName + " was removed from " + faction.name : playerName + " left " + faction.name,
+                wasKicked ? TOAST_WARNING : TOAST_DANGER,
+                5000,
+                playerId
+        );
+    }
+
+    public void sendFactionPresenceNotification(Faction faction, UUID playerId, String playerName, boolean online) {
+        sendNotificationToFaction(
+                faction,
+                "faction_presence_" + faction.uuid + "_" + playerName,
+                online ? "Member Online" : "Member Offline",
+                playerName + (online ? " is now online" : " went offline"),
+                online ? TOAST_INFO : TOAST_WARNING,
+                4000,
+                playerId
+        );
+    }
+
+    public void sendClaimChangedNotification(Faction faction, String token, String title, String subtitle, int accentColor) {
+        sendClaimChangedNotification(faction, token, title, subtitle, accentColor, null);
+    }
+
+    public void sendClaimChangedNotification(Faction faction, String token, String title, String subtitle, int accentColor, UUID actorId) {
+        sendNotificationToFaction(faction, token, title, subtitle, accentColor, 5000, actorId);
+    }
+
+    public void sendUpgradeNotification(Faction faction, UUID playerId, String playerName) {
+        sendNotificationToFaction(
+                faction,
+                "faction_upgrade_" + faction.uuid + "_" + faction.citadelLevel,
+                "Citadel Upgraded",
+                playerName + " upgraded " + faction.name + " to level " + faction.citadelLevel,
+                TOAST_SUCCESS,
+                6000,
+                playerId
+        );
+    }
+
+    public void sendDisbandNotification(Faction faction) {
+        sendNotificationToFaction(
+                faction,
+                "faction_disbanded_" + faction.uuid,
+                "Faction Disbanded",
+                faction.name + " has been disbanded",
+                TOAST_DANGER,
+                7000
+        );
     }
 
     public static boolean IsNeutralZone(UUID factionID) {
@@ -185,11 +360,52 @@ public class FactionStorage {
     }
 
     public Faction GetFactionWithOpenInviteTo(UUID playerID) {
+        ArrayList<Faction> invites = getFactionsWithOpenInvitesTo(playerID);
+        return invites.isEmpty() ? null : invites.get(0);
+    }
+
+    public ArrayList<Faction> getFactionsWithOpenInvitesTo(UUID playerID) {
+        ArrayList<Faction> factions = new ArrayList<>();
         for (HashMap.Entry<UUID, Faction> entry : mFactions.entrySet()) {
-            if (entry.getValue().isInvitingPlayer(playerID))
-                return entry.getValue();
+            if (entry.getValue().isInvitingPlayer(playerID)) {
+                factions.add(entry.getValue());
+            }
+        }
+        factions.sort(Comparator.comparing(faction -> faction.name, String.CASE_INSENSITIVE_ORDER));
+        return factions;
+    }
+
+    public Faction getFactionWithOpenInviteTo(UUID playerID, String factionName) {
+        if (factionName == null || factionName.isEmpty()) {
+            return null;
+        }
+        for (Faction faction : getFactionsWithOpenInvitesTo(playerID)) {
+            if (faction.name.equalsIgnoreCase(factionName)) {
+                return faction;
+            }
         }
         return null;
+    }
+
+    public void clearInvitesToPlayer(UUID playerID) {
+        if (playerID == null || playerID.equals(Faction.nullUuid)) {
+            return;
+        }
+        for (Faction faction : mFactions.values()) {
+            faction.pendingInvites.remove(playerID);
+        }
+    }
+
+    private ITextComponent createInviteChatMessage(Faction faction) {
+        TextComponentString message = new TextComponentString("You have received an invite to " + faction.name + ". ");
+        TextComponentString clickPart = new TextComponentString("[Click to join]");
+        clickPart.setStyle(new Style()
+                .setColor(TextFormatting.GREEN)
+                .setUnderlined(true)
+                .setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/f accept " + faction.name))
+                .setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new TextComponentString("Join " + faction.name))));
+        message.appendSibling(clickPart);
+        return message;
     }
 
     public String[] GetFactionNames() {
@@ -242,7 +458,18 @@ public class FactionStorage {
 
     // This is called for any non-citadel claim. Citadels can be factionless, so this makes no sense
     public void onNonCitadelClaimPlaced(IClaim claim, EntityLivingBase placer) {
-        onNonCitadelClaimPlaced(claim, getFactionOfPlayer(placer.getUniqueID()));
+        Faction faction = getFactionOfPlayer(placer.getUniqueID());
+        onNonCitadelClaimPlaced(claim, faction);
+        if (faction != null && placer != null) {
+            sendClaimChangedNotification(
+                    faction,
+                    "claim_added_" + claim.getClaimPos(),
+                    "Chunk Claimed",
+                    placer.getName() + " claimed " + claim.getClaimPos().toFancyString(),
+                    faction.colour,
+                    placer.getUniqueID()
+            );
+        }
     }
 
     public void onNonCitadelClaimPlaced(IClaim claim, Faction faction) {
@@ -290,6 +517,14 @@ public class FactionStorage {
         faction.claimNoTileEntity(chunkPos, player.getPosition().getY(), claimBlock.claimType);
         claimBlock.consume(player.inventory);
         faction.messageAll(new TextComponentString("Claimed the chunk [" + chunkPos.x + ", " + chunkPos.z + "]"));
+        sendClaimChangedNotification(
+                faction,
+                "claim_added_" + chunkPos,
+                "Chunk Claimed",
+                player.getName() + " claimed [" + chunkPos.x + ", " + chunkPos.z + "]",
+                faction.colour,
+                player.getUniqueID()
+        );
         return true;
     }
 
@@ -570,6 +805,7 @@ public class FactionStorage {
 
                 attackers.messageAll(new TextComponentTranslation("warforge.info.siege_won_attackers", attackers.name, blockPos.toFancyString()));
                 defenders.messageAll(new TextComponentTranslation("warforge.info.siege_lost_defenders", defenders.name, blockPos.toFancyString()));
+                sendSiegeOutcomeNotifications(attackers, defenders, blockPos, true);
                 attackers.notoriety += WarForgeConfig.NOTORIETY_PER_SIEGE_ATTACK_SUCCESS;
 
                 if (WarForgeConfig.SIEGE_CAPTURE) {
@@ -593,6 +829,7 @@ public class FactionStorage {
 
                 attackers.messageAll(new TextComponentTranslation("warforge.info.siege_lost_attackers", attackers.name, blockPos.toFancyString()));
                 defenders.messageAll(new TextComponentTranslation("warforge.info.siege_won_defenders", defenders.name, blockPos.toFancyString()));
+                sendSiegeOutcomeNotifications(attackers, defenders, blockPos, false);
                 defenders.notoriety += WarForgeConfig.NOTORIETY_PER_SIEGE_DEFEND_SUCCESS;
 
                 attackers.stopMomentum(true);
@@ -643,6 +880,7 @@ public class FactionStorage {
             mClaims.remove(blockPos.toChunkPos());
             attackers.messageAll(new TextComponentTranslation("warforge.info.siege_won_attackers", attackers.name, blockPos.toFancyString()));
             defenders.messageAll(new TextComponentTranslation("warforge.info.siege_lost_defenders", defenders.name, blockPos.toFancyString()));
+            sendSiegeOutcomeNotifications(attackers, defenders, blockPos, true);
             attackers.notoriety += WarForgeConfig.NOTORIETY_PER_SIEGE_ATTACK_SUCCESS;
             if (WarForgeConfig.SIEGE_CAPTURE) {
                 MC_SERVER.getWorld(blockPos.dim).setBlockState(blockPos.toRegularPos(), Content.basicClaimBlock.getDefaultState());
@@ -659,6 +897,7 @@ public class FactionStorage {
             }
             attackers.messageAll(new TextComponentTranslation("warforge.info.siege_lost_attackers", attackers.name, blockPos.toFancyString()));
             defenders.messageAll(new TextComponentTranslation("warforge.info.siege_won_defenders", defenders.name, blockPos.toFancyString()));
+            sendSiegeOutcomeNotifications(attackers, defenders, blockPos, false);
             defenders.notoriety += WarForgeConfig.NOTORIETY_PER_SIEGE_DEFEND_SUCCESS;
             attackers.stopMomentum(true);
         }
@@ -832,6 +1071,7 @@ public class FactionStorage {
                         faction.citadelLevel + "! You can now claim " +
                         UPGRADE_HANDLER.getClaimLimitForLevel(faction.citadelLevel) +
                         " chunks and force-load up to " + faction.getMaxForceLoadedChunks() + " chunks."));
+        sendUpgradeNotification(faction, officer.getUniqueID(), officer.getName());
 
 
         faction.soundEffectAll(Sounds.sfxUpgrade);
@@ -914,6 +1154,9 @@ public class FactionStorage {
         }
 
         faction.removePlayer(toRemove);
+        if (userProfile != null && faction.getMemberCount() > 0) {
+            sendFactionMemberLeftNotification(faction, toRemove, userProfile.getName(), !removingSelf);
+        }
 
         if (faction.getMemberCount() < 1)
             disbandAndCleanup(faction);
@@ -951,18 +1194,81 @@ public class FactionStorage {
         // TODO: Faction player limit - grows with claims?
 
         faction.invitePlayer(invitee);
-        MC_SERVER.getPlayerList().getPlayerByUUID(invitee).sendMessage(new TextComponentString("You have received an invite to " + faction.name + ". Type /f accept to join"));
+        EntityPlayerMP inviteePlayer = MC_SERVER.getPlayerList().getPlayerByUUID(invitee);
+        if (inviteePlayer != null) {
+            inviteePlayer.sendMessage(createInviteChatMessage(faction));
+            sendNotificationToPlayer(
+                    inviteePlayer,
+                    "faction_invite_" + faction.uuid,
+                    "Faction Invite",
+                    faction.name + "",
+                    faction.colour,
+                    7000,
+                    factionOfficer instanceof EntityPlayer ? ((EntityPlayer) factionOfficer).getUniqueID() : null
+            );
+        }
 
         return true;
     }
 
     public void RequestAcceptInvite(EntityPlayer player) {
-        Faction inviter = GetFactionWithOpenInviteTo(player.getUniqueID());
-        if (inviter != null) {
-            invalidateRedeemableInsuranceVault(player.getUniqueID(), player);
-            inviter.addPlayer(player.getUniqueID());
-        } else
+        RequestAcceptInvite(player, (String) null);
+    }
+
+    public void RequestAcceptInvite(EntityPlayer player, UUID factionId) {
+        if (factionId == null || factionId.equals(Faction.nullUuid)) {
+            RequestAcceptInvite(player, (String) null);
+            return;
+        }
+
+        Faction inviter = getFaction(factionId);
+        if (inviter == null || !inviter.isInvitingPlayer(player.getUniqueID())) {
+            player.sendMessage(new TextComponentString("You do not have an invite from that faction"));
+            return;
+        }
+
+        if (getFactionOfPlayer(player.getUniqueID()) != null) {
+            player.sendMessage(new TextComponentString("You are already in a faction"));
+            return;
+        }
+
+        invalidateRedeemableInsuranceVault(player.getUniqueID(), player);
+        inviter.addPlayer(player.getUniqueID());
+        sendFactionMemberJoinedNotification(inviter, player);
+    }
+
+    public void RequestAcceptInvite(EntityPlayer player, String factionName) {
+        if (getFactionOfPlayer(player.getUniqueID()) != null) {
+            player.sendMessage(new TextComponentString("You are already in a faction"));
+            return;
+        }
+
+        ArrayList<Faction> invites = getFactionsWithOpenInvitesTo(player.getUniqueID());
+        if (invites.isEmpty()) {
             player.sendMessage(new TextComponentString("You have no open invite to accept"));
+            return;
+        }
+
+        Faction inviter;
+        if (factionName != null && !factionName.trim().isEmpty()) {
+            inviter = getFactionWithOpenInviteTo(player.getUniqueID(), factionName.trim());
+            if (inviter == null) {
+                player.sendMessage(new TextComponentString("You do not have an invite from " + factionName));
+                return;
+            }
+        } else if (invites.size() == 1) {
+            inviter = invites.get(0);
+        } else {
+            player.sendMessage(new TextComponentString("You have multiple faction invites. Use /f accept <factionName> or click one below:"));
+            for (Faction invite : invites) {
+                player.sendMessage(createInviteChatMessage(invite));
+            }
+            return;
+        }
+
+        invalidateRedeemableInsuranceVault(player.getUniqueID(), player);
+        inviter.addPlayer(player.getUniqueID());
+        sendFactionMemberJoinedNotification(inviter, player);
     }
 
     public boolean RequestTransferLeadership(EntityPlayer factionLeader, UUID factionID, UUID newLeaderID) {
@@ -1174,6 +1480,10 @@ public class FactionStorage {
         }
         faction.onlinePlayerCount += 1;
         faction.offlineRaidProtectionUntil = 0L;
+        GameProfile profile = MC_SERVER.getPlayerProfileCache().getProfileByUUID(playerID);
+        if (profile != null) {
+            sendFactionPresenceNotification(faction, playerID, profile.getName(), true);
+        }
     }
 
     public void onFactionMemberLoggedOut(UUID playerID) {
@@ -1182,6 +1492,10 @@ public class FactionStorage {
             return;
         }
         faction.onlinePlayerCount = Math.max(0, faction.onlinePlayerCount - 1);
+        GameProfile profile = MC_SERVER.getPlayerProfileCache().getProfileByUUID(playerID);
+        if (profile != null) {
+            sendFactionPresenceNotification(faction, playerID, profile.getName(), false);
+        }
         if (faction.onlinePlayerCount == 0 && WarForgeConfig.ENABLE_OFFLINE_RAID_PROTECTION && !faction.offlineRaidProtectionDisabled) {
             faction.offlineRaidProtectionUntil = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(WarForgeConfig.OFFLINE_RAID_PROTECTION_HOURS);
         }
@@ -1730,6 +2044,14 @@ public class FactionStorage {
             }
         }
         faction.messageAll(new TextComponentString(player.getName() + " unclaimed " + pos.toFancyString()));
+        sendClaimChangedNotification(
+                faction,
+                "claim_removed_" + pos,
+                "Chunk Unclaimed",
+                player.getName() + " unclaimed " + pos.toFancyString(),
+                TOAST_WARNING,
+                player.getUniqueID()
+        );
 
         return true;
     }
@@ -1792,6 +2114,13 @@ public class FactionStorage {
         }
         faction.islandCollectors.removeAll(removedCollectors);
         WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
+        sendClaimChangedNotification(
+                faction,
+                "claim_removed_" + pos,
+                "Chunk Unclaimed",
+                "A claim at " + pos.toFancyString() + " was removed",
+                TOAST_WARNING
+        );
         return true;
     }
 

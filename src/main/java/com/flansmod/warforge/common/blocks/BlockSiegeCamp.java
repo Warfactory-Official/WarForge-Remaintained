@@ -205,7 +205,8 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
                     player,
                     new DimBlockPos(world.provider.getDimension(), pos),
                     CalculatePossibleAttackDirections(world, pos, player),
-                    faction.getSiegeMomentum()
+                    faction.getSiegeMomentum(),
+                    faction.colour
             );
         }
 

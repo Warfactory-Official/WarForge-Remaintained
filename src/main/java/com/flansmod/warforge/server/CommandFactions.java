@@ -1,12 +1,10 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.client.util.WarForgeNotifications;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.network.FactionDisplayInfo;
-import com.flansmod.warforge.common.network.LeaderboardInfo;
-import com.flansmod.warforge.common.network.PacketFactionInfo;
-import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
+import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction.PlayerData;
@@ -36,7 +34,7 @@ public class CommandFactions extends CommandBase {
     private static final String[] tabCompletionsOp = new String[]{
             "invite", "accept", "disband", "expel", "leave", "time", "info", "top", "notoriety", "wealth", "legacy",
             "promote", "demote", "msg", "setleader", "rename", "siege", "borders", "vault",
-            "safe", "war", "protection", "resetflagcooldowns", "offlineprotection",
+            "safe", "war", "protection", "resetflagcooldowns", "offlineprotection", "debugmsg"
     };
 
     static {
@@ -117,7 +115,7 @@ public class CommandFactions extends CommandBase {
         switch (args[0].toLowerCase()) {
             case "help": {
                 sender.sendMessage(new TextComponentString("/f invite <playerName>"));
-                sender.sendMessage(new TextComponentString("/f accept"));
+                sender.sendMessage(new TextComponentString("/f accept [factionName]"));
                 sender.sendMessage(new TextComponentString("/f disband"));
                 sender.sendMessage(new TextComponentString("/f expel <playerName>"));
                 sender.sendMessage(new TextComponentString("/f leave"));
@@ -144,6 +142,23 @@ public class CommandFactions extends CommandBase {
 
             case "create": {
                 sender.sendMessage(new TextComponentString("Craft a Citadel to create a faction"));
+                break;
+            }
+            case "debugmsg": {
+                if (args.length < 3) {
+                    sender.sendMessage(new TextComponentString("Invalid arguments, message title and message"));
+                    break;
+                }
+                if(!WarForgeMod.isOp(sender)){
+                    sender.sendMessage(new TextComponentString("You must be an operator to use this"));
+                    break;
+                }
+                if(!(sender instanceof EntityPlayerMP))
+                    break;
+
+                WarForgeMod.FACTIONS.sendNotificationToPlayer( (EntityPlayerMP) sender, "warforge_notification_debug", args[1], args[2], hexToArgb(args[3]), 5000, sender.getCommandSenderEntity().getPersistentID());
+
+
                 break;
             }
             case "invite": {
@@ -179,7 +194,11 @@ public class CommandFactions extends CommandBase {
             }
             case "accept": {
                 if (sender instanceof EntityPlayer) {
-                    WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender);
+                    if (args.length >= 2) {
+                        WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender, args[1]);
+                    } else {
+                        WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender);
+                    }
                 } else {
                     sender.sendMessage(new TextComponentString("The server can't accept a faction invite"));
                 }
@@ -684,4 +703,22 @@ public class CommandFactions extends CommandBase {
 
     }
 
+
+    public int hexToArgb(String hex) {
+        if (hex == null) return 0xFFFFFFFF;
+
+        String cleanHex = hex.startsWith("#") ? hex.substring(1) : hex;
+
+        try {
+            long value = Long.parseLong(cleanHex, 16);
+
+            if (cleanHex.length() <= 6) {
+                return (int) (value | 0xFF000000);
+            }
+
+            return (int) value;
+        } catch (NumberFormatException e) {
+            return 0xFFFFFFFF;
+        }
+    }
 }

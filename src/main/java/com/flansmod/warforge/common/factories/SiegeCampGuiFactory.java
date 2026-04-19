@@ -7,6 +7,7 @@ import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.screen.ModularScreen;
 import com.cleanroommc.modularui.screen.UISettings;
 import com.cleanroommc.modularui.value.sync.PanelSyncManager;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.GuiSiegeCamp;
 import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
@@ -27,14 +28,14 @@ public class SiegeCampGuiFactory extends AbstractUIFactory<SiegeCampGuiData> {
                 return GuiSiegeCamp.buildPanel(guiData);
             }
             return ModularPanel.defaultPanel("siege_main")
-                    .width(340)
-                    .height(380)
+                    .width(380)
+                    .height(508)
                     .topRel(0.40f);
         }
 
         @Override
         public ModularScreen createScreen(SiegeCampGuiData guiData, ModularPanel mainPanel) {
-            return new ModularScreen(mainPanel);
+            return new ModularScreen(Tags.MODID,mainPanel);
         }
     };
 
@@ -48,9 +49,9 @@ public class SiegeCampGuiFactory extends AbstractUIFactory<SiegeCampGuiData> {
         }
     }
 
-    public void open(EntityPlayer player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum) {
+    public void open(EntityPlayer player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
         EntityPlayerMP serverPlayer = verifyServerSide(player);
-        GuiManager.open(this, new SiegeCampGuiData(serverPlayer, siegeCampPos, possibleAttacks, momentum), serverPlayer);
+        GuiManager.open(this, new SiegeCampGuiData(serverPlayer, siegeCampPos, possibleAttacks, momentum, color), serverPlayer);
     }
 
     @Override
@@ -67,6 +68,6 @@ public class SiegeCampGuiFactory extends AbstractUIFactory<SiegeCampGuiData> {
     public @NotNull SiegeCampGuiData readGuiData(EntityPlayer entityPlayer, PacketBuffer packetBuffer) {
         PacketSiegeCampInfo packet = new PacketSiegeCampInfo();
         packet.decodeInto(null, packetBuffer);
-        return new SiegeCampGuiData(entityPlayer, packet.mSiegeCampPos, packet.mPossibleAttacks, packet.momentum);
+        return new SiegeCampGuiData(entityPlayer, packet.mSiegeCampPos, packet.mPossibleAttacks, packet.momentum, packet.color);
     }
 }

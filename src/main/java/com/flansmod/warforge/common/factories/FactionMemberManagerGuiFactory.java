@@ -106,8 +106,16 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
             packetBuffer.writeLong(invite.playerId.getMostSignificantBits());
             packetBuffer.writeLong(invite.playerId.getLeastSignificantBits());
             packetBuffer.writeString(invite.username);
+            packetBuffer.writeLong(invite.factionId.getMostSignificantBits());
+            packetBuffer.writeLong(invite.factionId.getLeastSignificantBits());
+            packetBuffer.writeInt(invite.factionColor);
+            packetBuffer.writeLong(invite.inviterId.getMostSignificantBits());
+            packetBuffer.writeLong(invite.inviterId.getLeastSignificantBits());
+            packetBuffer.writeString(invite.inviterName);
+            packetBuffer.writeBoolean(invite.incoming);
             packetBuffer.writeBoolean(invite.invited);
             packetBuffer.writeBoolean(invite.canInvite);
+            packetBuffer.writeBoolean(invite.canAccept);
         }
     }
 
@@ -147,8 +155,14 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
             FactionMemberManagerGuiData.InviteEntry invite = new FactionMemberManagerGuiData.InviteEntry();
             invite.playerId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
             invite.username = packetBuffer.readString(32767);
+            invite.factionId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
+            invite.factionColor = packetBuffer.readInt();
+            invite.inviterId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
+            invite.inviterName = packetBuffer.readString(32767);
+            invite.incoming = packetBuffer.readBoolean();
             invite.invited = packetBuffer.readBoolean();
             invite.canInvite = packetBuffer.readBoolean();
+            invite.canAccept = packetBuffer.readBoolean();
             data.inviteCandidates.add(invite);
         }
         return data;
@@ -158,6 +172,22 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         FactionMemberManagerGuiData data = new FactionMemberManagerGuiData(player, page);
         Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUniqueID());
         if (faction == null) {
+            if (page == FactionMemberManagerGuiData.Page.INVITES) {
+                for (Faction inviteFaction : WarForgeMod.FACTIONS.getFactionsWithOpenInvitesTo(player.getUniqueID())) {
+                    FactionMemberManagerGuiData.InviteEntry invite = new FactionMemberManagerGuiData.InviteEntry();
+                    invite.incoming = true;
+                    invite.factionId = inviteFaction.uuid;
+                    invite.factionColor = inviteFaction.colour;
+                    invite.username = inviteFaction.name;
+                    invite.playerId = inviteFaction.getLeaderId();
+                    invite.inviterId = invite.playerId;
+                    invite.inviterName = invite.playerId.equals(Faction.nullUuid) ? "" : resolveName(invite.playerId);
+                    invite.invited = true;
+                    invite.canAccept = true;
+                    data.inviteCandidates.add(invite);
+                }
+                data.inviteCandidates.sort(Comparator.comparing(invite -> invite.username, String.CASE_INSENSITIVE_ORDER));
+            }
             return data;
         }
 

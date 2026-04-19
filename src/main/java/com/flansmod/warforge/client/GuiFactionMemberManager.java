@@ -89,19 +89,26 @@ public final class GuiFactionMemberManager {
         tabRow.child(invitesTab);
         tabSection.child(tabRow);
 
-        if (!data.hasFaction) {
+        if (!data.hasFaction && data.page != FactionMemberManagerGuiData.Page.INVITES) {
             listSection.child(IKey.str("Join or create a faction before using the member console.").asWidget()
                     .margin(0, 6)
                     .color(0xD5D9DE));
             return panel;
         }
 
-        listSection.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "Roster" : "Invite Console").color(ModularGuiStyle.TEXT_MUTED).asWidget()
+        String sectionTitle = data.page == FactionMemberManagerGuiData.Page.MEMBERS
+                ? "Roster"
+                : data.hasFaction ? "Invite Console" : "Pending Invites";
+        String sectionDescription = data.page == FactionMemberManagerGuiData.Page.MEMBERS
+                ? "Faces, rank, presence, and direct faction actions."
+                : data.hasFaction
+                ? "Invite online unaffiliated players into the faction."
+                : "Accept one of your outstanding faction invites.";
+
+        listSection.child(IKey.str(sectionTitle).color(ModularGuiStyle.TEXT_MUTED).asWidget()
                 .margin(0, 0, 0, 4)
                 .style(TextFormatting.BOLD));
-        listSection.child(IKey.str(data.page == FactionMemberManagerGuiData.Page.MEMBERS
-                        ? "Faces, rank, presence, and direct faction actions."
-                        : "Invite online unaffiliated players into the faction.")
+        listSection.child(IKey.str(sectionDescription)
                 .asWidget()
                 .margin(0, 0, 0, 6)
                 .color(ModularGuiStyle.TEXT_MUTED));
@@ -123,7 +130,16 @@ public final class GuiFactionMemberManager {
                 }
             }
         } else {
-            if (!data.canInvitePlayers) {
+            if (!data.hasFaction) {
+                if (data.inviteCandidates.isEmpty()) {
+                    list.addChild(IKey.str("You have no open faction invites.").asWidget().pos(6, 6), 0);
+                } else {
+                    int index = 0;
+                    for (FactionMemberManagerGuiData.InviteEntry invite : data.inviteCandidates) {
+                        list.addChild(createIncomingInviteRow(invite, data.page), index++);
+                    }
+                }
+            } else if (!data.canInvitePlayers) {
                 list.addChild(IKey.str("Officer or leader rank is required to send invites.").asWidget().pos(6, 6), 0);
             } else if (data.inviteCandidates.isEmpty()) {
                 list.addChild(IKey.str("No online players are currently eligible for invite.").asWidget().pos(6, 6), 0);
@@ -185,7 +201,7 @@ public final class GuiFactionMemberManager {
     }
 
     private static Widget createInviteRow(FactionMemberManagerGuiData.InviteEntry invite, FactionMemberManagerGuiData.Page page) {
-        Row row = new Row();
+        Flow row = new Flow(GuiAxis.X);
         row.name(ModularGuiStyle.debugName("invite_row", invite.username));
         row.width(WIDTH - 44);
         row.height(24);
@@ -201,6 +217,38 @@ public final class GuiFactionMemberManager {
                 .tooltip(tooltip -> tooltip.addLine(invite.username)));
         row.child(IKey.str(invite.invited ? "Pending" : "Available").color(invite.invited ? 0xFFAA00 : ModularGuiStyle.TEXT_SUCCESS).asWidget().width(64));
         row.child(actionButton(invite.invited ? "Invited" : "Invite", 54, invite.canInvite, PacketFactionMemberManagerAction.Action.INVITE, invite.playerId, page));
+        return row;
+    }
+
+    private static Widget createIncomingInviteRow(FactionMemberManagerGuiData.InviteEntry invite, FactionMemberManagerGuiData.Page page) {
+        Flow row = new Flow(GuiAxis.X);
+        row.name(ModularGuiStyle.debugName("incoming_invite_row", invite.username));
+        row.width(WIDTH - 44);
+        row.height(24);
+        row.mainAxisAlignment(Alignment.MainAxis.START);
+        row.padding(3, 3);
+        row.margin(0, 0, 0, 2);
+        row.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
+
+        if (!invite.inviterId.equals(Faction.nullUuid)) {
+            row.child(new IDrawable.DrawableWidget(new PlayerFaceDrawable(invite.inviterId)).size(18, 18));
+        } else {
+            row.child(IKey.str("?").asWidget().width(18).color(ModularGuiStyle.TEXT_MUTED));
+        }
+        row.child(new ScrollingTextWidget(IKey.str(invite.username))
+                .margin(5, 0)
+                .width(108)
+                .color(invite.factionColor)
+                .tooltip(tooltip -> tooltip.addLine(invite.username)));
+        row.child(new ScrollingTextWidget(IKey.str(invite.inviterName.isEmpty() ? "Faction invite" : "From: " + invite.inviterName))
+                .width(116)
+                .color(ModularGuiStyle.TEXT_SECONDARY)
+                .tooltip(tooltip -> {
+                    if (!invite.inviterName.isEmpty()) {
+                        tooltip.addLine("Invited by " + invite.inviterName);
+                    }
+                }));
+        row.child(actionButton("Join", 44, invite.canAccept, PacketFactionMemberManagerAction.Action.ACCEPT_INVITE, invite.factionId, page));
         return row;
     }
 

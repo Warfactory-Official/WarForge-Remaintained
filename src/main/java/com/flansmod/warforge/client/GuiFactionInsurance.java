@@ -18,15 +18,13 @@ import net.minecraft.util.text.TextFormatting;
 
 public final class GuiFactionInsurance {
     private static final int WIDTH = 356;
-    private static final int HEIGHT = 248;
+    private static final int HEIGHT = 190;
     private static final int CONTENT_LEFT = 12;
     private static final int HEADER_Y = 12;
     private static final int BODY_Y = 54;
-    private static final int INVENTORY_Y = 182;
-    private static final int STASH_COLUMNS = 8;
+    private static final int INVENTORY_Y = 191;
     private static final int STASH_CELL_SIZE = 18;
-    private static final int STASH_CELL_GAP = 2;
-    private static final int STASH_ROW_HEIGHT = STASH_CELL_SIZE + STASH_CELL_GAP;
+    private static final int STASH_ROW_HEIGHT = STASH_CELL_SIZE;
     private static final int STASH_LIST_HEIGHT = 56;
 
     private GuiFactionInsurance() {
@@ -41,7 +39,10 @@ public final class GuiFactionInsurance {
                 .topRel(0.40f);
 
         Flow bodySection = ModularGuiStyle.section(sectionWidth, 118).name("insurance_body_section").pos(CONTENT_LEFT, BODY_Y);
-        Flow inventorySection = ModularGuiStyle.section(sectionWidth, 54).name("insurance_inventory_section").pos(CONTENT_LEFT, INVENTORY_Y);
+        Flow inventorySection = new Flow(GuiAxis.Y)
+                .size(sectionWidth, 54)
+                .padding(5)
+                .margin(5).name("insurance_inventory_section").pos(CONTENT_LEFT, INVENTORY_Y);
 
         panel.child(new com.cleanroommc.modularui.api.drawable.IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(WIDTH, 40));
         panel.child(bodySection);
@@ -78,20 +79,20 @@ public final class GuiFactionInsurance {
                 .margin(0, 0, 0, 4)
                 .color(data.canVoid ? 0xFFCC88 : ModularGuiStyle.TEXT_MUTED));
 
+        int stashListWidth = sectionWidth - 10;
+        int stashColumns = Math.max(1, stashListWidth / STASH_CELL_SIZE);
+
         ListWidget stashList = new ListWidget();
         stashList.scrollDirection(GuiAxis.Y)
                 .name("insurance_stash_list")
                 .background(ModularGuiStyle.insetBackdrop())
-                .width(sectionWidth - 10)
+                .width(stashListWidth)
                 .height(STASH_LIST_HEIGHT);
-        for (int slot = 0, row = 0; slot < data.slotCount; slot += STASH_COLUMNS, row++) {
-            stashList.addChild(createInsuranceRow(data, slot), row);
+        for (int slot = 0, row = 0; slot < data.slotCount; slot += stashColumns, row++) {
+            stashList.addChild(createInsuranceRow(data, slot, stashColumns, stashListWidth), row);
         }
         bodySection.child(stashList);
 
-        inventorySection.child(IKey.str("Deposit or shift-click items into the stash. Matching stacks can be topped up; clearing a slot requires voiding it.").asWidget()
-                .margin(0, 0, 0, 4)
-                .color(ModularGuiStyle.TEXT_MUTED));
         inventorySection.child(new ParentWidget<>()
                 .child(SlotGroupWidget.playerInventory(false))
                 .background(GuiTextures.MC_BACKGROUND)
@@ -101,18 +102,18 @@ public final class GuiFactionInsurance {
         return panel;
     }
 
-    private static ParentWidget<?> createInsuranceRow(FactionInsuranceGuiData data, int firstSlot) {
+    private static ParentWidget<?> createInsuranceRow(FactionInsuranceGuiData data, int firstSlot, int stashColumns, int rowWidth) {
         ParentWidget<?> row = new ParentWidget<>();
-        row.name("insurance_row_" + (firstSlot / STASH_COLUMNS));
-        row.size(WIDTH - 40, STASH_ROW_HEIGHT);
+        row.name("insurance_row_" + (firstSlot / stashColumns));
+        row.size(rowWidth, STASH_ROW_HEIGHT);
 
-        for (int column = 0; column < STASH_COLUMNS; column++) {
+        for (int column = 0; column < stashColumns; column++) {
             int slot = firstSlot + column;
             if (slot >= data.slotCount) {
                 break;
             }
 
-            row.child(createInsuranceCell(data, slot).pos(4 + column * (STASH_CELL_SIZE + STASH_CELL_GAP), 0));
+            row.child(createInsuranceCell(data, slot).pos(column * STASH_CELL_SIZE, 0));
         }
 
         return row;
@@ -133,6 +134,7 @@ public final class GuiFactionInsurance {
                 WarForgeMod.NETWORK.sendToServer(packet);
             });
             voidButton.name("insurance_void_slot_" + slot);
+            voidButton.tooltip(tooltip -> tooltip.addLine("Click to void the slot").addLine("Warning, this cannot be undone"));
             cell.child(voidButton.pos(10, 0));
         }
         return cell;

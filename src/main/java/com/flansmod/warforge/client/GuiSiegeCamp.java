@@ -1,10 +1,12 @@
 package com.flansmod.warforge.client;
 
+import com.cleanroommc.modularui.api.drawable.IDrawable;
 import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiTextures;
 import com.cleanroommc.modularui.drawable.IngredientDrawable;
 import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.widgets.ButtonWidget;
+import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
+import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.api.Time;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
@@ -32,8 +34,13 @@ import java.util.Objects;
 public final class GuiSiegeCamp {
     private static final int RADIUS = 2;
     private static final int CELL_SIZE = 64;
-    private static final int OFFSET = 6;
-    private static final int TOP_OFFSET = 13;
+    private static final int CONTENT_LEFT = 12;
+    private static final int HEADER_HEIGHT = 40;
+    private static final int INFO_HEIGHT = 48;
+    private static final int LEGEND_HEIGHT = 28;
+    private static final int MAP_GUTTER = 18;
+    private static final int SECTION_SPACING = 8;
+    private static final int MAP_BACKDROP_FILL = 0xFF161B20;
 
     private GuiSiegeCamp() {
     }
@@ -54,12 +61,24 @@ public final class GuiSiegeCamp {
                 -1
         );
 
-        int width = (CELL_SIZE * viewport.visibleSize) + (2 * OFFSET);
-        int height = (CELL_SIZE * viewport.visibleSize) + TOP_OFFSET + (int) (2.5 * OFFSET) + 12;
+        int mapSize = CELL_SIZE * viewport.visibleSize;
+        int mapSectionWidth = mapSize + MAP_GUTTER * 2;
+        int mapSectionHeight = mapSize + MAP_GUTTER * 2;
+        int width = mapSectionWidth + CONTENT_LEFT * 2;
+        int infoY = HEADER_HEIGHT + SECTION_SPACING;
+        int mapY = infoY + INFO_HEIGHT + SECTION_SPACING;
+        int legendY = mapY + mapSectionHeight + SECTION_SPACING;
+        int height = legendY + LEGEND_HEIGHT + 12;
+        int mapLeft = CONTENT_LEFT + MAP_GUTTER;
+        int mapTop = mapY + MAP_GUTTER;
+
         ModularPanel panel = ModularPanel.defaultPanel("siege_main")
                 .width(width)
                 .height(height)
                 .topRel(0.40f);
+
+        Flow infoSection = ModularGuiStyle.section(mapSectionWidth, INFO_HEIGHT).name("siege_info_section").pos(CONTENT_LEFT, infoY);
+        Flow legendSection = ModularGuiStyle.section(mapSectionWidth, LEGEND_HEIGHT).name("siege_legend_section").pos(CONTENT_LEFT, legendY);
 
         HashMap<Long, SiegeCampAttackInfo> byOffset = new HashMap<Long, SiegeCampAttackInfo>();
         for (SiegeCampAttackInfo info : data.possibleAttacks) {
@@ -85,20 +104,32 @@ public final class GuiSiegeCamp {
         boolean[][] adjacencyArray = new boolean[orderedAttacks.size()][4];
         ChunkMapUtil.computeAdjacency(orderedAttacks, RADIUS, adjacencyArray);
 
-        panel.child(new ButtonWidget<>()
-                .background(GuiTextures.BUTTON_CLEAN)
-                .overlay(GuiTextures.CLOSE)
-                .onMousePressed(mouseButton -> {
-                    panel.closeIfOpen();
-                    return true;
-                })
-                .width(12)
-                .height(12)
-                .pos(width - OFFSET * 3, (OFFSET / 2) + 1));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).name("siege_header_backdrop").size(width, HEADER_HEIGHT));
+        panel.child(infoSection);
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.sectionBackdrop()).name("siege_map_frame").size(mapSectionWidth, mapSectionHeight).pos(CONTENT_LEFT, mapY));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.insetBackdrop(MAP_BACKDROP_FILL)).name("siege_map_backdrop").size(mapSize, mapSize).pos(mapLeft, mapTop));
+        panel.child(legendSection);
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe()).name("siege_color_stripe").size(6, height));
+        panel.child(ModularGuiStyle.panelCloseButton(width));
 
-        panel.child(IKey.str("Select chunk to siege").asWidget().pos(OFFSET, OFFSET));
-        panel.child(IKey.str("Current momentum: " + data.momentum).asWidget()
-                .pos(width - (OFFSET + 12 + 5 + 100), OFFSET)
+        panel.child(IKey.str("Siege Target Map").asWidget()
+                .name("siege_title")
+                .pos(CONTENT_LEFT, 12)
+                .style(net.minecraft.util.text.TextFormatting.BOLD)
+                .shadow(true)
+                .color(ModularGuiStyle.TEXT_PRIMARY)
+                .scale(1.15f));
+        panel.child(new ScrollingTextWidget(IKey.str("Camp [" + centerChunk.x + ", " + centerChunk.z + "] | Dim " + data.siegeCampPos.dim + " | Radius " + RADIUS))
+                .name("siege_subtitle")
+                .pos(CONTENT_LEFT, 27)
+                .width(width - CONTENT_LEFT * 2 - 18)
+                .color(ModularGuiStyle.TEXT_SECONDARY));
+
+        infoSection.child(new ScrollingTextWidget(IKey.str("Current momentum: " + data.momentum))
+                .name("siege_momentum_text")
+                .width(mapSectionWidth - 10)
+                .margin(0, 0, 0, 4)
+                .color(ModularGuiStyle.TEXT_PRIMARY)
                 .tooltip(richTooltip -> {
                     richTooltip.addLine("§6Momentum System§r");
                     richTooltip.addLine("§7Momentum affects siege duration.§r");
@@ -109,6 +140,15 @@ public final class GuiSiegeCamp {
                         richTooltip.addLine("§eLevel " + level + "§r: §a" + new Time(time).getFormattedTime(Time.TimeFormat.MINUTES_SECONDS, Time.Verbality.SHORT));
                     }
                 }));
+        infoSection.child(new ScrollingTextWidget(IKey.str("Select a target chunk around the siege camp. Center tile is your current camp position."))
+                .name("siege_prompt_text")
+                .width(mapSectionWidth - 10)
+                .margin(0, 0, 0, 2)
+                .color(ModularGuiStyle.TEXT_MUTED));
+        legendSection.child(new ScrollingTextWidget(IKey.str("Click an attackable chunk to begin the siege. Tooltips show faction ownership, claim type, and vein data."))
+                .name("siege_controls_text")
+                .width(mapSectionWidth - 10)
+                .color(ModularGuiStyle.TEXT_MUTED));
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
@@ -122,6 +162,7 @@ public final class GuiSiegeCamp {
                 ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(chunkInfo, chunkInfo.claimType, false, false, false, null);
 
                 panel.child(new ButtonWidget<>()
+                        .name("siege_chunk_" + data.siegeCampPos.dim + "_" + (centerChunk.x + chunkInfo.mOffset.getX()) + "_" + (centerChunk.z + chunkInfo.mOffset.getZ()))
                         .overlay(new MapDrawable(ChunkMapTextureDaemon.getTextureName(textureNamespace, data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), renderInfo, adjacencyArray[index]))
                         .onMousePressed(mouseButton -> {
                             if ((chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) && !chunkInfo.canAttack) {
@@ -162,7 +203,7 @@ public final class GuiSiegeCamp {
                             }
                         })
                         .size(CELL_SIZE)
-                        .pos((localX * CELL_SIZE + OFFSET), (localZ * CELL_SIZE + OFFSET) + TOP_OFFSET));
+                        .pos((localX * CELL_SIZE) + mapLeft, (localZ * CELL_SIZE) + mapTop));
             }
         }
 

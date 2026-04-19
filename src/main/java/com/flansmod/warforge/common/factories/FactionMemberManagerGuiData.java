@@ -29,8 +29,14 @@ public class FactionMemberManagerGuiData extends GuiData {
     public static class InviteEntry {
         public UUID playerId = Faction.nullUuid;
         public String username = "";
+        public UUID factionId = Faction.nullUuid;
+        public int factionColor = 0x4E8E87;
+        public UUID inviterId = Faction.nullUuid;
+        public String inviterName = "";
+        public boolean incoming;
         public boolean invited;
         public boolean canInvite;
+        public boolean canAccept;
     }
 
     public Page page;

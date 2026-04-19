@@ -18,6 +18,7 @@ public class PacketSiegeCampInfo extends PacketBase {
     public DimBlockPos mSiegeCampPos;
     public List<SiegeCampAttackInfo> mPossibleAttacks = new ArrayList<>();
     public byte momentum;
+    public int color;
 
     @Override
     public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
@@ -44,6 +45,7 @@ public class PacketSiegeCampInfo extends PacketBase {
         }
 
         data.writeByte(momentum);
+        data.writeInt(color);
     }
 
     @Override
@@ -75,6 +77,7 @@ public class PacketSiegeCampInfo extends PacketBase {
             mPossibleAttacks.add(info);
         }
         momentum = data.readByte();
+        color = data.readInt();
 
     }
 

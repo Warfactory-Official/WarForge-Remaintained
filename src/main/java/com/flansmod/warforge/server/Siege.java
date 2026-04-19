@@ -234,6 +234,7 @@ public class Siege {
         calculateBasePower();
         defenders.isCurrentlyDefending = true;
         WarForgeMod.INSTANCE.messageAll(new TextComponentString(attackers.name + " started a siege against " + defenders.name), true);
+        WarForgeMod.FACTIONS.sendSiegeStartNotifications(attackers, defenders, defendingClaim);
         WarForgeMod.FACTIONS.sendSiegeInfoToNearby(defendingClaim.toChunkPos());
         return true;
     }

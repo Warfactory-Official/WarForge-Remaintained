@@ -50,7 +50,6 @@ import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
  */
 public class Faction {
     public static final UUID nullUuid = new UUID(0, 0);
-    private static final float INVITE_DECAY_TIME = 20 * 60 * WarForgeConfig.INVITE_DECAY_TIME;
     public UUID uuid;
     public int onlinePlayerCount = 0; // the number of current online players
     public long lastSiegeTimestamp = 0;
@@ -62,7 +61,7 @@ public class Faction {
     public HashSet<DimChunkPos> forcedChunks;
     public HashSet<DimBlockPos> islandCollectors;
     public HashMap<UUID, PlayerData> members;
-    public HashMap<UUID, Float> pendingInvites;
+    public HashSet<UUID> pendingInvites;
     public HashMap<UUID, Integer> killCounter;
     public ArrayList<ItemStack> insuranceStacks;
     public boolean loggedInToday;
@@ -83,7 +82,7 @@ public class Faction {
 
     public Faction() {
         members = new HashMap<UUID, PlayerData>();
-        pendingInvites = new HashMap<UUID, Float>();
+        pendingInvites = new HashSet<UUID>();
         claims = new HashMap<DimBlockPos, Integer>();
         claimTypes = new HashMap<DimBlockPos, ClaimType>();
         forcedChunks = new HashSet<DimChunkPos>();
@@ -156,17 +155,6 @@ public class Faction {
     }
 
     public void update() {
-        UUID uuidToRemove = nullUuid;
-        for (HashMap.Entry<UUID, Float> entry : pendingInvites.entrySet()) {
-            entry.setValue(entry.getValue() - 1);
-            if (entry.getValue() <= 0)
-                uuidToRemove = entry.getKey();
-        }
-
-        // So this could break if players were sending > 1 unique invite per tick, but why would they do that?
-        if (!uuidToRemove.equals(nullUuid))
-            pendingInvites.remove(uuidToRemove);
-
         if (!loggedInToday) {
             for (HashMap.Entry<UUID, PlayerData> kvp : members.entrySet()) {
                 loggedInToday = true;
@@ -232,20 +220,16 @@ public class Faction {
     public void invitePlayer(UUID playerID) {
         // Don't invite offline players
         getPlayer(playerID);
-
-        if (pendingInvites.containsKey(playerID))
-            pendingInvites.replace(playerID, INVITE_DECAY_TIME);
-        else
-            pendingInvites.put(playerID, INVITE_DECAY_TIME);
+        pendingInvites.add(playerID);
     }
 
     public boolean isInvitingPlayer(UUID playerID) {
-        return pendingInvites.containsKey(playerID);
+        return pendingInvites.contains(playerID);
     }
 
     public void addPlayer(UUID playerID) {
         members.put(playerID, new PlayerData());
-        pendingInvites.remove(playerID);
+        WarForgeMod.FACTIONS.clearInvitesToPlayer(playerID);
 
         // Let everyone know
         messageAll(new TextComponentString(getPlayerName(playerID) + " joined " + name));
@@ -310,6 +294,7 @@ public class Faction {
 
 
         String message = getMemberCount() > 0 ? name + " was disbanded." : name + " was abandoned and disbanded";
+        WarForgeMod.FACTIONS.sendDisbandNotification(this);
         messageAll(new TextComponentString(message));
         members.clear();
         claims.clear();
@@ -437,6 +422,13 @@ public class Faction {
             WarForgeMod.INSTANCE.messageAll(new TextComponentString(name + "'s citadel was destroyed. " + name + " is no more."), true);
         } else {
             messageAll(new TextComponentString("Our faction lost a claim at " + claimBlockPos.toFancyString()));
+            WarForgeMod.FACTIONS.sendClaimChangedNotification(
+                    this,
+                    "claim_lost_" + claimBlockPos,
+                    "Claim Lost",
+                    "Your faction lost the claim at " + claimBlockPos.toFancyString(),
+                    0xB34747
+            );
 
             claims.remove(claimBlockPos);
             claimTypes.remove(claimBlockPos);
@@ -618,6 +610,7 @@ public class Faction {
         forcedChunks.clear();
         islandCollectors.clear();
         members.clear();
+        pendingInvites.clear();
 
         // Get citadel pos and defining params
         uuid = tags.getUniqueId("uuid");
@@ -705,6 +698,12 @@ public class Faction {
             }
         }
 
+        NBTTagList inviteList = tags.getTagList("pendingInvites", 10);
+        for (NBTBase base : inviteList) {
+            NBTTagCompound inviteTags = (NBTTagCompound) base;
+            pendingInvites.add(inviteTags.getUniqueId("uuid"));
+        }
+
         insuranceStacks.clear();
         NBTTagList insuranceList = tags.getTagList("insurance", 10);
         for (NBTBase base : insuranceList) {
@@ -782,6 +781,14 @@ public class Faction {
             memberList.appendTag(memberTags);
         }
         tags.setTag("members", memberList);
+
+        NBTTagList inviteList = new NBTTagList();
+        for (UUID invitee : pendingInvites) {
+            NBTTagCompound inviteTags = new NBTTagCompound();
+            inviteTags.setUniqueId("uuid", invitee);
+            inviteList.appendTag(inviteTags);
+        }
+        tags.setTag("pendingInvites", inviteList);
 
         NBTTagList insuranceList = new NBTTagList();
         for (int i = 0; i < insuranceStacks.size(); i++) {

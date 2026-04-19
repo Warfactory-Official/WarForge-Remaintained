@@ -17,7 +17,8 @@ public class PacketFactionMemberManagerAction extends PacketBase {
         DEMOTE,
         KICK_OR_LEAVE,
         TRANSFER_LEADER,
-        INVITE
+        INVITE,
+        ACCEPT_INVITE
     }
 
     public Action action = Action.INVITE;
@@ -70,6 +71,7 @@ public class PacketFactionMemberManagerAction extends PacketBase {
                 }
             }
             case INVITE -> WarForgeMod.FACTIONS.requestInvitePlayerToMyFaction(playerEntity, target);
+            case ACCEPT_INVITE -> WarForgeMod.FACTIONS.RequestAcceptInvite(playerEntity, target);
         }
 
         FactionMemberManagerGuiFactory.INSTANCE.open(playerEntity, page);

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -38,7 +39,8 @@ public class VeinConfigHandler {
         yaml = new Yaml();
     }
 
-    public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.cfg");
+    public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.yml");
+    public final static Path LEGACY_CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.cfg");
     public static final List<String> EXAMPLE_YAML = Collections.unmodifiableList(Arrays.asList(
             "# It should be said that it is RECOMMENDED to BACKUP ANY vein config files with significant time invested into them; ",
             "# trying to update the file when auto-generated vein ids are present may cause data loss if a poorly timed error occurs.",
@@ -106,6 +108,7 @@ public class VeinConfigHandler {
     ));
 
     public static void writeStubIfEmpty() throws IOException {
+        migrateLegacyConfigIfNeeded();
         if (Files.notExists(CONFIG_PATH) || Files.size(CONFIG_PATH) == 0) {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.write(
@@ -116,6 +119,16 @@ public class VeinConfigHandler {
                     StandardOpenOption.WRITE
             );
         }
+    }
+
+    private static void migrateLegacyConfigIfNeeded() throws IOException {
+        if (Files.exists(CONFIG_PATH) || Files.notExists(LEGACY_CONFIG_PATH)) {
+            return;
+        }
+
+        Files.createDirectories(CONFIG_PATH.getParent());
+        Files.move(LEGACY_CONFIG_PATH, CONFIG_PATH, StandardCopyOption.REPLACE_EXISTING);
+        WarForgeMod.LOGGER.info("Migrated legacy vein config from {} to {}", LEGACY_CONFIG_PATH, CONFIG_PATH);
     }
 
     // called after writeStub
