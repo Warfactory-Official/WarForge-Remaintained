@@ -213,7 +213,8 @@ public class FactionStorage {
                 playerName + (online ? " is now online" : " went offline"),
                 online ? TOAST_INFO : TOAST_WARNING,
                 4000,
-                playerId
+                playerId,
+                Arrays.asList(playerId)
         );
     }
 

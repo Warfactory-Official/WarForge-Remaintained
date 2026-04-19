@@ -10,6 +10,8 @@
   "client": [
     "vanilla.RenderMixin",
     "vanilla.GuiInventoryMixin",
-    "vanilla.GuiContainerCreativeMixin"
+    "vanilla.GuiContainerCreativeMixin",
+    "vanilla.MixinNetHandlerPlayClient",
+    "vanilla.MixinNetworkManager"
   ]
 }

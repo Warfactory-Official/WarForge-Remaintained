@@ -142,12 +142,14 @@ public class ClientTickHandler {
     @SubscribeEvent
     public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         cleanupBorderRenderData();
-        ChunkMapTextureDaemon.releaseAll();
+        Minecraft.getMinecraft().addScheduledTask(ChunkMapTextureDaemon::releaseAll);
         ClientFlagRegistry.clear();
     }
 
     @SubscribeEvent
     public void onTick(ClientTickEvent tick) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.world == null || mc.player == null) return;
 
         // Handle client packets and perform the client-side tick
         WarForgeMod.NETWORK.handleClientPackets();
@@ -266,10 +268,12 @@ public class ClientTickHandler {
 
     @SubscribeEvent
     public void onRenderHUD(RenderGameOverlayEvent event) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.world == null || mc.player == null) return;
+
         ScreenSpaceUtil.resetOffsets(event);
 
         if (event.getType() == ElementType.BOSSHEALTH) {
-            Minecraft mc = Minecraft.getMinecraft();
             EntityPlayerSP player = mc.player;
 
             if (player != null) {

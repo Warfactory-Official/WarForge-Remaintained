@@ -75,6 +75,7 @@ import java.util.*;
 )
 @Mod.EventBusSubscriber(modid = Tags.MODID)
 public class WarForgeMod implements ILateMixinLoader {
+    public static final boolean PACKET_DEBUG = false;
     public static final PacketHandler NETWORK = new PacketHandler();
     public static final Leaderboard LEADERBOARD = new Leaderboard();
     public static final FactionStorage FACTIONS = new FactionStorage();
@@ -565,7 +566,7 @@ public class WarForgeMod implements ILateMixinLoader {
                     final int limit = UPGRADE_HANDLER.getLIMITS()[i];
                     final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
 
-                    SyncQueueHandler.enqueue(() ->
+                    SyncQueueHandler.enqueue((EntityPlayerMP) event.player, () ->
                             NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), (EntityPlayerMP) event.player)
                     );
                 }
@@ -577,7 +578,7 @@ public class WarForgeMod implements ILateMixinLoader {
 			while (veinIndex < veins.size()) {
 				PacketVeinEntries currPacket = new PacketVeinEntries();
 				veinIndex = currPacket.fillFrom(veins, veinIndex);
-				SyncQueueHandler.enqueue(() -> NETWORK.sendTo(currPacket, (EntityPlayerMP) event.player));
+				SyncQueueHandler.enqueue((EntityPlayerMP) event.player, () -> NETWORK.sendTo(currPacket, (EntityPlayerMP) event.player));
 			}
         }
     }

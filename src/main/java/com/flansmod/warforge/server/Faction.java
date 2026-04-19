@@ -488,7 +488,7 @@ public class Faction {
     public void soundEffectAll(SoundEvent soundEvent, float volume, float pitch) {
         for (UUID playerID : members.keySet()) {
             final EntityPlayerMP player = (EntityPlayerMP) getPlayer(playerID);
-            if (player != null) {
+            if (player != null && !player.hasDisconnected()) {
                 player.connection.sendPacket(new SPacketSoundEffect(
                         soundEvent,
                         SoundCategory.PLAYERS,

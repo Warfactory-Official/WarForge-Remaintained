@@ -326,6 +326,7 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 	 */
 	public void sendTo(PacketBase packet, EntityPlayerMP player)
 	{
+		if (player == null || player.hasDisconnected()) return;
 		channels.get(Side.SERVER).attr(FMLOutboundHandler.FML_MESSAGETARGET).set(FMLOutboundHandler.OutboundTarget.PLAYER);
 		channels.get(Side.SERVER).attr(FMLOutboundHandler.FML_MESSAGETARGETARGS).set(player);
 		channels.get(Side.SERVER).writeAndFlush(packet);
@@ -375,6 +376,7 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 	 */
 	public void sendTo(Packet<?> packet, EntityPlayerMP player)
 	{
+		if (player == null || player.hasDisconnected()) return;
 		player.connection.sendPacket(packet);
 	}
 

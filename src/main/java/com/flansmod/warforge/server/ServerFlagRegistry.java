@@ -104,7 +104,7 @@ public class ServerFlagRegistry {
             packet.partIndex = index;
             packet.totalParts = totalChunks;
             packet.data = chunk;
-            SyncQueueHandler.enqueue(() -> {
+            SyncQueueHandler.enqueue(player, () -> {
                 if (WarForgeMod.MC_SERVER.getPlayerList().getPlayerByUUID(player.getUniqueID()) != null) {
                     WarForgeMod.NETWORK.sendTo(packet, player);
                 }
