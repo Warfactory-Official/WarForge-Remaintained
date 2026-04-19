@@ -123,7 +123,7 @@ public final class ModularCitadelGui {
             var chooseBtn = openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction()));
             flagPanel.child(chooseBtn.width(50));
         } else {
-            panel.child(IKey.str("Create a faction first").asWidget().pos(228, STORAGE_Y + 42).color(0xD6DBE0));
+            panel.child(IKey.str("Create a faction first").asWidget().pos(180, STORAGE_Y + 42).color(0xD6DBE0));
         }
 
         actionsPanel.child(IKey.str("Command Surface").asWidget()
@@ -162,16 +162,18 @@ public final class ModularCitadelGui {
             secondRow.child(dangerButton("Disband", 75));
             actionsPanel.child(secondRow);
         } else {
-            firsRow.child(openButton("Create Faction", CONTENT_LEFT + 8, () -> Minecraft.getMinecraft().player.openGui(
+            var columnStart = new Flow(GuiAxis.Y);
+            columnStart.child(openButton("Create Faction", 100, () -> Minecraft.getMinecraft().player.openGui(
                     WarForgeMod.INSTANCE,
                     CommonProxy.GUI_TYPE_CREATE_FACTION,
                     Minecraft.getMinecraft().world,
                     citadel.getPos().getX(),
                     citadel.getPos().getY(),
                     citadel.getPos().getZ()
-            )));
-            firsRow.child(IKey.str("The placer can establish the faction from here.").asWidget()
-                    .color(0xB8BDC3));
+            )).margin(2));
+            columnStart.child(IKey.str("The placer can establish the faction from here.").asWidget()
+                    .color(0xB8BDC3).margin(2));
+            firsRow.child(columnStart);
         }
 
         panel.child(new ParentWidget<>().child(SlotGroupWidget.playerInventory(false)).background(GuiTextures.MC_BACKGROUND).coverChildren().margin(5).padding(5).horizontalCenter().top(PANEL_HEIGHT));
