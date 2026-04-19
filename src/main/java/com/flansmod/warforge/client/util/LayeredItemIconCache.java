@@ -196,7 +196,7 @@ public final class LayeredItemIconCache {
         builder.append('#').append(stack.getMetadata());
         NBTTagCompound tag = stack.getTagCompound();
         if (tag != null) {
-            builder.append('#').append(tag.toString());
+            builder.append('#').append(tag);
         }
         return builder.toString();
     }

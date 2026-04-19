@@ -109,7 +109,7 @@ public final class GuiSiegeCamp {
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.sectionBackdrop()).name("siege_map_frame").size(mapSectionWidth, mapSectionHeight).pos(CONTENT_LEFT, mapY));
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.insetBackdrop(MAP_BACKDROP_FILL)).name("siege_map_backdrop").size(mapSize, mapSize).pos(mapLeft, mapTop));
         panel.child(legendSection);
-        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe()).name("siege_color_stripe").size(6, height));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(data.color)).name("siege_color_stripe").size(6, height));
         panel.child(ModularGuiStyle.panelCloseButton(width));
 
         panel.child(IKey.str("Siege Target Map").asWidget()
