@@ -300,7 +300,7 @@ public class ClientTickHandler {
 
 					// probe the server for the data for this chunk
 					if (!hasValidData && permitChunkReprobeMs.getLong(currPos) <= System.currentTimeMillis()) {
-						WarForgeMod.LOGGER.atInfo().log("Pinging server for chunk vein info");
+						WarForgeMod.LOGGER.info("Pinging server for chunk vein info");
 						permitChunkReprobeMs.put(currPos, System.currentTimeMillis() + 5000);  // only ping every 5s as needed
 						PacketChunkPosVeinID packetChunkVeinRequest = new PacketChunkPosVeinID();
 						packetChunkVeinRequest.veinLocation = currPos;
