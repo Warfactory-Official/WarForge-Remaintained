@@ -1,5 +1,9 @@
 package com.flansmod.warforge.common;
 
+import com.cleanroommc.modularui.factory.PosGuiData;
+import com.cleanroommc.modularui.screen.ModularPanel;
+import com.cleanroommc.modularui.screen.UISettings;
+import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
@@ -94,5 +98,12 @@ public class CommonProxy implements IGuiHandler
 	public void UpdateSiegeInfo(SiegeCampProgressInfo mInfo) 
 	{
 		// Do nothing, update on client
+	}
+
+	public ModularPanel buildCitadelUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings, TileEntityCitadel citadel) {
+		return ModularPanel.defaultPanel("citadel_modular")
+				.width(350)
+				.height(250)
+				.topRel(0.40f);
 	}
 }

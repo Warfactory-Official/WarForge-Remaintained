@@ -200,8 +200,10 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 	}
 
 	private ByteBuf decompress(ByteBuf compressedData) throws IOException {
+		byte[] compressedBytes = new byte[compressedData.readableBytes()];
+		compressedData.getBytes(compressedData.readerIndex(), compressedBytes);
 		// Create a GZIPInputStream to decompress the data
-		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedData.array());
+		ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(compressedBytes);
 		GZIPInputStream gzipInputStream = new GZIPInputStream(byteArrayInputStream);
 
 		// Use a ByteArrayOutputStream to hold the decompressed data
@@ -262,17 +264,26 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
 		registerPacket(PacketPlaceFlag.class);
 		registerPacket(PacketTimeUpdates.class);
 		registerPacket(PacketSetFactionColour.class);
+		registerPacket(PacketClientNotification.class);
 		registerPacket(PacketMoveCitadel.class);
 		registerPacket(PacketCitadelUpgradeRequirement.class);
 		registerPacket(PacketRequestUpgradeUI.class);
 		registerPacket(PacketUpgradeUI.class);
 		registerPacket(PacketRequestUpgrade.class);
-		registerPacket(PacketEffect.class);
+		registerPacket(PacketChooseFactionFlag.class);
+		registerPacket(PacketFlagManifest.class);
+		registerPacket(PacketFlagChunk.class);
+        registerPacket(PacketEffect.class);
 		registerPacket(PacketNamePlateChange.class);
 		registerPacket(PacketRequestNamePlate.class);
 		registerPacket(PacketChunkPosVeinID.class);
 		registerPacket(PacketVeinEntries.class);
 		registerPacket(PacketSyncConfig.class);
+        registerPacket(PacketRequestClaimChunks.class);
+        registerPacket(PacketClaimChunksData.class);
+        registerPacket(PacketClaimChunkAction.class);
+        registerPacket(PacketFactionMemberManagerAction.class);
+        registerPacket(PacketFactionInsuranceAction.class);
 	}
 
 	/**

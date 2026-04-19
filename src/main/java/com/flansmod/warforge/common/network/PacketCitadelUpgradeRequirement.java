@@ -18,11 +18,13 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
     public int level;
     public HashMap<StackComparable, Integer> requirements;
     public int limit;
+    public int insuranceSlots;
 
-    public PacketCitadelUpgradeRequirement(int level, HashMap<StackComparable, Integer> requirements, int limit) {
+    public PacketCitadelUpgradeRequirement(int level, HashMap<StackComparable, Integer> requirements, int limit, int insuranceSlots) {
         this.level = level;
         this.requirements = requirements;
         this.limit = limit;
+        this.insuranceSlots = insuranceSlots;
     }
 
 
@@ -34,6 +36,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
     public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
         data.writeInt(level);
         data.writeInt(limit);
+        data.writeInt(insuranceSlots);
         for (StackComparable stack : requirements.keySet()) {
             writeUTF(data, stack.writeToNBT().toString());
             data.writeInt(requirements.get(stack));
@@ -45,6 +48,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
     public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
         level = data.readInt();
         limit = data.readInt();
+        insuranceSlots = data.readInt();
         requirements = new HashMap<>();
 
         while (data.isReadable()) {
@@ -68,7 +72,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
 
     @Override
     public void handleClientSide(EntityPlayer clientPlayer) {
-        WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit);
+        WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit, insuranceSlots);
 
     }
 

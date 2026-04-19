@@ -1,12 +1,10 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.client.util.WarForgeNotifications;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.network.FactionDisplayInfo;
-import com.flansmod.warforge.common.network.LeaderboardInfo;
-import com.flansmod.warforge.common.network.PacketFactionInfo;
-import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
+import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction.PlayerData;
@@ -31,12 +29,12 @@ public class CommandFactions extends CommandBase {
     private static final List<String> ALIASES;
     private static final String[] tabCompletions = new String[]{
             "invite", "accept", "disband", "expel", "leave", "time", "info", "top", "notoriety", "wealth", "legacy",
-            "promote", "demote", "msg", "setleader", "borders",
+            "promote", "demote", "msg", "setleader", "borders", "vault",
     };
     private static final String[] tabCompletionsOp = new String[]{
             "invite", "accept", "disband", "expel", "leave", "time", "info", "top", "notoriety", "wealth", "legacy",
-            "promote", "demote", "msg", "setleader", "siege", "borders",
-            "safe", "war", "protection", "resetflagcooldowns",
+            "promote", "demote", "msg", "setleader", "rename", "siege", "borders", "vault",
+            "safe", "war", "protection", "resetflagcooldowns", "offlineprotection", "debugmsg"
     };
 
     static {
@@ -61,9 +59,9 @@ public class CommandFactions extends CommandBase {
     public String getUsage(ICommandSender sender) {
         final boolean isOp = WarForgeMod.isOp(sender);
         final String base = "/f <help|create|invite|accept|disband|expel|remove|leave|exit|setleader|time|info|top|" +
-                            "wealth|bal|baltop|notoriety|pvp|pvptop|legacy|playtime|playtimetop|home|spawn|" + "promote|demote|chat|msg|borders>";
+                            "wealth|bal|baltop|notoriety|pvp|pvptop|legacy|playtime|playtimetop|home|spawn|" + "promote|demote|chat|msg|borders|vault>";
         if (!isOp) return base;
-        final String opExtras = " | safezone|claimsafe|warzone|claimwarzone|war|protection|sieges|clearnotoriety|clearlegacy|resetflagcooldowns";
+        final String opExtras = " | safezone|claimsafe|warzone|claimwarzone|war|protection|sieges|clearnotoriety|clearlegacy|resetflagcooldowns|offlineprotection|rename";
         return base + opExtras;
     }
 
@@ -81,8 +79,18 @@ public class CommandFactions extends CommandBase {
         if (args.length == 2) {
             return switch (args[0]) {
                 case "info" -> getListOfStringsMatchingLastWord(args, WarForgeMod.FACTIONS.GetFactionNames());
+                case "vault" -> getListOfStringsMatchingLastWord(args, "redeem");
+                case "offlineprotection" -> getListOfStringsMatchingLastWord(args, WarForgeMod.FACTIONS.GetFactionNames());
+                case "rename" -> getListOfStringsMatchingLastWord(args, WarForgeMod.FACTIONS.GetFactionNames());
                 case "invite", "expel", "demote", "promote", "setleader" ->
                         getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+                default -> getListOfStringsMatchingLastWord(args, new String[0]);
+            };
+        }
+
+        if (args.length == 3) {
+            return switch (args[0]) {
+                case "offlineprotection" -> getListOfStringsMatchingLastWord(args, "enable", "disable", "status");
                 default -> getListOfStringsMatchingLastWord(args, new String[0]);
             };
         }
@@ -107,7 +115,7 @@ public class CommandFactions extends CommandBase {
         switch (args[0].toLowerCase()) {
             case "help": {
                 sender.sendMessage(new TextComponentString("/f invite <playerName>"));
-                sender.sendMessage(new TextComponentString("/f accept"));
+                sender.sendMessage(new TextComponentString("/f accept [factionName]"));
                 sender.sendMessage(new TextComponentString("/f disband"));
                 sender.sendMessage(new TextComponentString("/f expel <playerName>"));
                 sender.sendMessage(new TextComponentString("/f leave"));
@@ -118,10 +126,15 @@ public class CommandFactions extends CommandBase {
                 sender.sendMessage(new TextComponentString("/f legacy"));
                 sender.sendMessage(new TextComponentString("/f notoriety"));
                 sender.sendMessage(new TextComponentString("/f borders"));
+                sender.sendMessage(new TextComponentString("/f vault redeem"));
+                if (WarForgeMod.isOp(sender)) {
+                    sender.sendMessage(new TextComponentString("/f offlineprotection <faction> <enable|disable|status>"));
+                }
 
                 if (WarForgeMod.isOp(sender)) {
                     sender.sendMessage(new TextComponentString("/f safezone"));
                     sender.sendMessage(new TextComponentString("/f warzone"));
+                    sender.sendMessage(new TextComponentString("/f rename <oldFactionName> <newFactionName>"));
                 }
 
                 break;
@@ -129,6 +142,23 @@ public class CommandFactions extends CommandBase {
 
             case "create": {
                 sender.sendMessage(new TextComponentString("Craft a Citadel to create a faction"));
+                break;
+            }
+            case "debugmsg": {
+                if (args.length < 3) {
+                    sender.sendMessage(new TextComponentString("Invalid arguments, message title and message"));
+                    break;
+                }
+                if(!WarForgeMod.isOp(sender)){
+                    sender.sendMessage(new TextComponentString("You must be an operator to use this"));
+                    break;
+                }
+                if(!(sender instanceof EntityPlayerMP))
+                    break;
+
+                WarForgeMod.FACTIONS.sendNotificationToPlayer( (EntityPlayerMP) sender, "warforge_notification_debug", args[1], args[2], hexToArgb(args[3]), 5000, sender.getCommandSenderEntity().getPersistentID());
+
+
                 break;
             }
             case "invite": {
@@ -164,7 +194,11 @@ public class CommandFactions extends CommandBase {
             }
             case "accept": {
                 if (sender instanceof EntityPlayer) {
-                    WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender);
+                    if (args.length >= 2) {
+                        WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender, args[1]);
+                    } else {
+                        WarForgeMod.FACTIONS.RequestAcceptInvite((EntityPlayer) sender);
+                    }
                 } else {
                     sender.sendMessage(new TextComponentString("The server can't accept a faction invite"));
                 }
@@ -553,6 +587,66 @@ public class CommandFactions extends CommandBase {
 
                 break;
             }
+            case "vault": {
+                if (!(sender instanceof EntityPlayerMP)) {
+                    sender.sendMessage(new TextComponentString("Only valid for players"));
+                } else if (args.length == 2 && "redeem".equalsIgnoreCase(args[1])) {
+                    WarForgeMod.FACTIONS.requestRedeemInsuranceVault((EntityPlayerMP) sender);
+                } else {
+                    sender.sendMessage(new TextComponentString("Usage: /f vault redeem"));
+                }
+                break;
+            }
+            case "offlineprotection": {
+                if (!WarForgeMod.isOp(sender)) {
+                    sender.sendMessage(new TextComponentString("Operator permissions required"));
+                    break;
+                }
+                if (args.length < 3) {
+                    sender.sendMessage(new TextComponentString("Usage: /f offlineprotection <faction> <enable|disable|status>"));
+                    break;
+                }
+                Faction targetFaction = WarForgeMod.FACTIONS.getFaction(args[1]);
+                if (targetFaction == null) {
+                    sender.sendMessage(new TextComponentString("Could not find that faction"));
+                    break;
+                }
+                switch (args[2].toLowerCase()) {
+                    case "enable" -> {
+                        targetFaction.offlineRaidProtectionDisabled = false;
+                        sender.sendMessage(new TextComponentString("Enabled offline raid protection for " + targetFaction.name));
+                    }
+                    case "disable" -> {
+                        targetFaction.offlineRaidProtectionDisabled = true;
+                        sender.sendMessage(new TextComponentString("Disabled offline raid protection for " + targetFaction.name));
+                    }
+                    case "status" -> sender.sendMessage(new TextComponentString(
+                            "Offline protection for " + targetFaction.name + ": "
+                                    + (targetFaction.offlineRaidProtectionDisabled ? "DISABLED" : "ENABLED")
+                                    + ", online=" + targetFaction.onlinePlayerCount
+                                    + ", protectedNow=" + WarForgeMod.FACTIONS.isOfflineRaidProtected(targetFaction)
+                    ));
+                    default -> sender.sendMessage(new TextComponentString("Usage: /f offlineprotection <faction> <enable|disable|status>"));
+                }
+                break;
+            }
+            case "rename": {
+                if (!WarForgeMod.isOp(sender)) {
+                    sender.sendMessage(new TextComponentString("Operator permissions required"));
+                    break;
+                }
+                if (args.length < 3) {
+                    sender.sendMessage(new TextComponentString("Usage: /f rename <oldFactionName> <newFactionName>"));
+                    break;
+                }
+                Faction targetFaction = WarForgeMod.FACTIONS.getFaction(args[1]);
+                if (targetFaction == null) {
+                    sender.sendMessage(new TextComponentString("Could not find that faction"));
+                    break;
+                }
+                WarForgeMod.FACTIONS.requestRenameFaction(sender, targetFaction.uuid, args[2]);
+                break;
+            }
             case "clearnotoriety": {
                 if (WarForgeMod.isOp(sender)) {
                     WarForgeMod.FACTIONS.clearNotoriety();
@@ -609,4 +703,22 @@ public class CommandFactions extends CommandBase {
 
     }
 
+
+    public int hexToArgb(String hex) {
+        if (hex == null) return 0xFFFFFFFF;
+
+        String cleanHex = hex.startsWith("#") ? hex.substring(1) : hex;
+
+        try {
+            long value = Long.parseLong(cleanHex, 16);
+
+            if (cleanHex.length() <= 6) {
+                return (int) (value | 0xFF000000);
+            }
+
+            return (int) value;
+        } catch (NumberFormatException e) {
+            return 0xFFFFFFFF;
+        }
+    }
 }

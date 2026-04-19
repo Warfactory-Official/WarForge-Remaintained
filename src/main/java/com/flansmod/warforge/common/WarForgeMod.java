@@ -6,6 +6,7 @@ import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinConfigHandler;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.client.PlayerNametagCache;
+import com.flansmod.warforge.common.factories.WarForgeGuiFactories;
 import com.flansmod.warforge.common.blocks.BlockBasicClaim;
 import com.flansmod.warforge.common.blocks.IMultiBlockInit;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;
@@ -82,6 +83,8 @@ public class WarForgeMod implements ILateMixinLoader {
     public static final TeleportsModule TELEPORTS = new TeleportsModule();
     public static final PotionsModule POTIONS = new PotionsModule();
     public static final UpgradeHandler UPGRADE_HANDLER = new UpgradeHandler();
+    public static final FactionChunkLoadingManager CHUNK_LOADING_MANAGER = new FactionChunkLoadingManager();
+    public static final ServerFlagRegistry FLAG_REGISTRY = new ServerFlagRegistry();
 	  public static VeinUtils VEIN_HANDLER = null;
 	  public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
 
@@ -203,12 +206,14 @@ public class WarForgeMod implements ILateMixinLoader {
         MinecraftForge.EVENT_BUS.register(MODEL_EVENT_HANDLER);
         proxy.preInit(event);
         EffectRegistry.init();
+        CHUNK_LOADING_MANAGER.initialize();
     }
 
     @EventHandler
     public void init(FMLInitializationEvent event) {
         NetworkRegistry.INSTANCE.registerGuiHandler(this, proxy);
         NETWORK.initialise();
+        WarForgeGuiFactories.init();
         proxy.Init(event);
     }
 
@@ -232,8 +237,10 @@ public class WarForgeMod implements ILateMixinLoader {
 
         IMultiBlockInit.registerMaps();
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
+            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.yml");
+            Path legacyConfigFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
             try {
+                UpgradeHandler.migrateLegacyConfigIfNeeded(legacyConfigFile, configFile);
                 UpgradeHandler.writeStubIfEmpty(configFile);
                 UpgradeHandler.parseConfig(configFile);
             } catch (IOException e) {
@@ -407,31 +414,31 @@ public class WarForgeMod implements ILateMixinLoader {
         // All block placements are cancelled if there is already a block from this mod in that chunk
         DimChunkPos pos = new DimBlockPos(event.getWorld().provider.getDimension(), placementPos).toChunkPos();
         if (!FACTIONS.getClaim(pos).equals(Faction.nullUuid)) {
-            // check if claim chunk has actual claim pos, and if not then remove it
+            // validate stored claim record and reject placement if the claim exists.
             Faction claimingFaction = FACTIONS.getFaction(FACTIONS.getClaim(pos));
-            DimBlockPos claimPos = claimingFaction.getSpecificPosForClaim(pos);
-            if (claimPos == null) {
+            if (claimingFaction == null || claimingFaction.getSpecificPosForClaim(pos) == null) {
                 FACTIONS.getClaims().remove(pos);
             } else {
-                // check if block is not claim, and if it is marked as claim, but no claim block can be found, then remove phantom claim
-                if (!isClaim(event.getWorld().getBlockState(claimPos.toRegularPos()).getBlock())) {
-                    FACTIONS.getClaims().remove(claimingFaction.uuid);
-                    claimingFaction.onClaimLost(claimPos);
-                } else {
-                    player.sendMessage(new TextComponentString("This chunk already has a claim"));
-                    event.setCanceled(true);
-                    return;
-                }
+                player.sendMessage(new TextComponentString("This chunk already has a claim"));
+                event.setCanceled(true);
+                return;
             }
+        }
+
+        if (FACTIONS.isChunkContested(pos)) {
+            player.sendMessage(new TextComponentString("This chunk is contested by an active siege"));
+            event.setCanceled(true);
+            return;
         }
 
         ObjectIntPair<UUID> conqueredChunkInfo = FACTIONS.conqueredChunks.get(pos);
         if (conqueredChunkInfo != null) {
+            UUID playerFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
             // remove invalid entries if necessary, and if not then do actual comparison
             if (conqueredChunkInfo.getObj() == null || conqueredChunkInfo.getObj().equals(Faction.nullUuid) || FACTIONS.getFaction(conqueredChunkInfo.getObj()) == null) {
                 WarForgeMod.LOGGER.atError().log("Found invalid conquered chunk at " + pos + "; removing and permitting placement.");
                 FACTIONS.conqueredChunks.remove(pos);
-            } else if (!conqueredChunkInfo.getObj().equals(playerFaction.uuid)) {
+            } else if (!conqueredChunkInfo.getObj().equals(playerFactionId)) {
                 player.sendMessage(new TextComponentTranslation("warforge.info.chunk_is_conquered",
                         WarForgeMod.FACTIONS.getFaction(FACTIONS.conqueredChunks.get(pos).getObj()).name,
                         TimeHelper.formatTime(FACTIONS.conqueredChunks.get(pos).getInteger())));
@@ -512,10 +519,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @SubscribeEvent
     public void playerLeftGame(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!event.player.world.isRemote) {
-            Faction playerFaction = FACTIONS.getFactionOfPlayer(event.player.getUniqueID());
-            if (FactionStorage.isValidFaction(playerFaction)) {
-                playerFaction.onlinePlayerCount -= 1;
-            }
+            FACTIONS.onFactionMemberLoggedOut(event.player.getUniqueID());
         }
     }
 
@@ -535,10 +539,7 @@ public class WarForgeMod implements ILateMixinLoader {
                 LOGGER.info("Player moved from the void to 0,256,0");
             }
 
-            Faction playerFaction = FACTIONS.getFactionOfPlayer(event.player.getUniqueID());
-            if (FactionStorage.isValidFaction(playerFaction)) {
-                playerFaction.onlinePlayerCount += 1;
-            }
+            FACTIONS.onFactionMemberLoggedIn(event.player.getUniqueID());
 
             PacketTimeUpdates packet = new PacketTimeUpdates();
 
@@ -546,11 +547,13 @@ public class WarForgeMod implements ILateMixinLoader {
             packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
 
             NETWORK.sendTo(packet, (EntityPlayerMP) event.player);
+            FACTIONS.sendClaimChunks((EntityPlayerMP) event.player, new DimChunkPos(event.player.dimension, event.player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
 
             // sends packet to client which clears all previously remembered sieges; identical attacking and def names = clear packet
 
             NETWORK.sendTo(Siege.clearSiegeData(), (EntityPlayerMP) event.player);
             FACTIONS.sendAllSiegeInfoToNearby();
+            FLAG_REGISTRY.syncToPlayer((EntityPlayerMP) event.player);
 
             // begin queued sync info
             // don't sync if the upgrade info doesn't exist
@@ -560,9 +563,10 @@ public class WarForgeMod implements ILateMixinLoader {
                     final int level = i;
                     final HashMap<StackComparable, Integer> requirements = UPGRADE_HANDLER.getLEVELS()[i];
                     final int limit = UPGRADE_HANDLER.getLIMITS()[i];
+                    final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
 
                     SyncQueueHandler.enqueue(() ->
-                            NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit), (EntityPlayerMP) event.player)
+                            NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), (EntityPlayerMP) event.player)
                     );
                 }
             }
@@ -622,6 +626,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @EventHandler
     public void serverAboutToStart(FMLServerAboutToStartEvent event) {
         MC_SERVER = event.getServer();
+        FLAG_REGISTRY.reload();
         CommandHandler handler = ((CommandHandler) MC_SERVER.getCommandManager());
         handler.registerCommand(new CommandFactions());
 
@@ -653,6 +658,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
             NBTTagCompound tags = CompressedStreamTools.readCompressed(new FileInputStream(dataFile));
             readFromNBT(tags);
+            CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.getAllFactions());
             LOGGER.info("Successfully loaded " + dataFile.getName());
         } catch (Exception e) {
             LOGGER.error("Failed to load data from warforgefactions.dat and backup; restart strongly recommended");
@@ -708,6 +714,7 @@ public class WarForgeMod implements ILateMixinLoader {
     @EventHandler
     public void serverStopped(FMLServerStoppingEvent event) {
         save("Server Stop");
+        CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;
     }
 

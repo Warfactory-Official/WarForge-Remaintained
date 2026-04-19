@@ -81,8 +81,15 @@ public class PacketSyncConfig extends PacketBase {
         WarForgeConfig.RICH_QUAL_MULT = compound.getFloat("richQualMult");
 
         ClientProxy.megachunkLength = compound.getShort("megachunkLength");
+        WarForgeConfig.SIEGE_BATTLE_RADIUS = compound.hasKey("battleSiegeRadius")
+                ? compound.getInteger("battleSiegeRadius")
+                : WarForgeConfig.SIEGE_BATTLE_RADIUS;
         WarForgeConfig.SIEGE_ATTACKER_RADIUS = compound.getInteger("atkSiegeRadius");
         WarForgeConfig.SIEGE_DEFENDER_RADIUS = compound.getInteger("defSiegeRadius");
+        WarForgeConfig.ENABLE_OFFLINE_RAID_PROTECTION = compound.getBoolean("offlineRaidProtection");
+        WarForgeConfig.OFFLINE_RAID_PROTECTION_HOURS = compound.getInteger("offlineRaidProtectionHours");
+        String insuranceBlacklist = compound.getString("insuranceBlacklist");
+        WarForgeConfig.INSURANCE_BLACKLIST_IDS = insuranceBlacklist.isEmpty() ? new String[0] : insuranceBlacklist.split("\n");
 
         WarForgeConfig.SIEGE_MOMENTUM_TIME.clear();
         WarForgeConfig.SIEGE_MOMENTUM_TIME.putAll(parsedMap);

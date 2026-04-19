@@ -31,6 +31,7 @@ public class PacketSiegeCampProgressUpdate extends PacketBase
 		data.writeInt(info.defendingPos.getZ());
 		data.writeInt(info.defendingColour);
 		writeUTF(data, info.defendingName);
+		data.writeInt(info.battleRadius);
 		
 		data.writeInt(info.progress);
 		data.writeInt(info.mPreviousProgress);
@@ -64,6 +65,7 @@ public class PacketSiegeCampProgressUpdate extends PacketBase
 		info.defendingPos = new DimBlockPos(dim, x, y, z);
 		info.defendingColour = data.readInt();
 		info.defendingName = readUTF(data);
+		info.battleRadius = data.readInt();
 		
 		info.progress = data.readInt();
 		info.mPreviousProgress = data.readInt();

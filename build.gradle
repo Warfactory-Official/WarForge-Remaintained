@@ -567,7 +567,7 @@ dependencies {
 
     compileOnlyApi 'org.jetbrains:annotations:24.1.0'
     annotationProcessor 'org.jetbrains:annotations:24.1.0'
-    patchedMinecraft('net.minecraft:launchwrapper:1.17.2') {
+    patchedMinecraft('net.minecraft:launchwrapper:1.12') {
         transitive = false
     }
 
@@ -764,6 +764,20 @@ if (separateRunDirectories.toBoolean()) {
     runServer {
         workingDir = file('run/server')
     }
+}
+
+def runClient2Task = tasks.register("runClient2", RunMinecraftTask, Distribution.CLIENT)
+runClient2Task.configure {
+    setGroup("Modded Minecraft")
+    setDescription("Runs a second modded client for local multiplayer testing")
+    setup(project)
+    def baseClient = tasks.named("runClient", RunMinecraftTask).get()
+    classpath(baseClient.getClasspath())
+    getMainClass().set(baseClient.getMainClass())
+    dependsOn('shadowJar')
+    workingDir = file('run/client2')
+    def baseName = project.findProperty("developmentEnvironmentUserName") ?: "Developer"
+    getUsername().set(baseName + "2")
 }
 
 // Create API library jar
@@ -1083,6 +1097,9 @@ idea {
                 }
                 '2. Run Client'(Gradle) {
                     taskNames = ['runClient']
+                }
+                '2b. Run Client #2'(Gradle) {
+                    taskNames = ['runClient2']
                 }
                 if (enableJava17RunTasks.toBoolean()) {
                     '2a. Run Client (Java 17)'(Gradle) {

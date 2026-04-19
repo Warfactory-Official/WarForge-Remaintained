@@ -1,5 +1,9 @@
 package com.flansmod.warforge.client;
 
+import com.cleanroommc.modularui.factory.PosGuiData;
+import com.cleanroommc.modularui.screen.ModularPanel;
+import com.cleanroommc.modularui.screen.UISettings;
+import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.Content;
@@ -10,6 +14,7 @@ import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.*;
 import com.flansmod.warforge.common.effect.AnimatedEffectHandler;
 import com.flansmod.warforge.common.network.PacketRequestFactionInfo;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.server.Faction;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
@@ -37,8 +42,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 
-import static com.flansmod.warforge.common.WarForgeConfig.SIEGE_ATTACKER_RADIUS;
-import static com.flansmod.warforge.common.WarForgeConfig.SIEGE_DEFENDER_RADIUS;
 import static com.flansmod.warforge.common.WarForgeMod.FACTIONS;
 
 public class ClientProxy extends CommonProxy
@@ -112,6 +115,11 @@ public class ClientProxy extends CommonProxy
 		return null;
 	}
 
+	@Override
+	public ModularPanel buildCitadelUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings, TileEntityCitadel citadel) {
+		return ModularCitadelGui.buildUI(guiData, syncManager, settings, citadel);
+	}
+
 	@SubscribeEvent
 	public void registerModels(ModelRegistryEvent event) {
 		RegisterModel(Content.citadelBlockItem);
@@ -119,6 +127,7 @@ public class ClientProxy extends CommonProxy
 		RegisterModel(Content.reinforcedClaimBlockItem);
 		RegisterModel(Content.siegeCampBlockItem);
 		RegisterModel(Content.adminClaimBlockItem);
+        RegisterModel(Content.islandCollectorItem);
 
 		RegisterModel(Content.topLeaderboardItem);
 		RegisterModel(Content.legacyLeaderboardItem);
@@ -144,21 +153,24 @@ public class ClientProxy extends CommonProxy
 			String facName = null;
 			if (playerFaction != null && !playerFaction.uuid.equals(Faction.nullUuid)) { facName = playerFaction.name; }
 
-			// assign radius according to player faction
+			// assign the synced battle radius when the player is directly involved in the siege
 			int sqrRad = -1;
-			if (facName != null && facName.equals(info.defendingName)) { sqrRad = SIEGE_DEFENDER_RADIUS; } else if (facName != null && facName.equals(info.attackingName)) { sqrRad = SIEGE_ATTACKER_RADIUS; }
+			if (facName != null && (facName.equals(info.defendingName) || facName.equals(info.attackingName))) {
+				sqrRad = info.battleRadius;
+			}
 
 			// if the player is on either side of the siege, fill the warzone for them
 			if (sqrRad != -1) {
 				// setup the warzone data
+				ChunkPos siegeChunk = info.attackingPos.toChunkPos();
 				int warzoneLength = 2 * sqrRad + 1;
-				int zEnd = info.attackingPos.getZ() + sqrRad;
-				int xEnd = info.attackingPos.getX() + sqrRad;
+				int zEnd = siegeChunk.z + sqrRad;
+				int xEnd = siegeChunk.x + sqrRad;
 				info.warzoneChunks = new ArrayList<>(warzoneLength * warzoneLength);
 
 				// add the warzone chunks
-				for (int z = info.attackingPos.getZ() - sqrRad; z < zEnd; ++z) {
-					for (int x = info.attackingPos.getX() - sqrRad; x < xEnd; ++x) {
+				for (int z = siegeChunk.z - sqrRad; z <= zEnd; ++z) {
+					for (int x = siegeChunk.x - sqrRad; x <= xEnd; ++x) {
 						info.warzoneChunks.add(new ChunkPos(x, z));  // don't use dim chunk as dim is redundant info
 					}
 				}
@@ -174,8 +186,6 @@ public class ClientProxy extends CommonProxy
 	}
 
 	public static void requestFactionInfo(UUID factionID) {
-		PacketRequestFactionInfo request = new PacketRequestFactionInfo();
-		request.mFactionIDRequest = factionID;
-		WarForgeMod.NETWORK.sendToServer(request);
+		FactionStatsGuiFactory.INSTANCE.openClient(factionID);
 	}
 }

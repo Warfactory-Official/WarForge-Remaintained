@@ -106,6 +106,9 @@ public class BlockBasicClaim extends MultiBlockColumn implements ITileEntityProv
     @Override
     public boolean canPlaceBlockAt(World world, BlockPos pos) {
         if (!world.isRemote) {
+            if (FACTIONS.isChunkContested(new DimChunkPos(world.provider.getDimension(), pos)))
+                return false;
+
             // Can't claim a chunk claimed by another faction
             UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
             if (!existingClaim.equals(Faction.nullUuid))
@@ -127,10 +130,9 @@ public class BlockBasicClaim extends MultiBlockColumn implements ITileEntityProv
 
             TileEntity te = world.getTileEntity(pos);
             if (te instanceof TileEntityBasicClaim claim) {
-
-                FACTIONS.onNonCitadelClaimPlaced(claim, placer);
-                super.onBlockPlacedBy(world, pos, state, placer, stack);
                 claim.onPlacedBy(placer);
+                FACTIONS.onNonCitadelClaimPlaced(claim, placer);
+                world.setBlockToAir(pos);
             }
 
         }

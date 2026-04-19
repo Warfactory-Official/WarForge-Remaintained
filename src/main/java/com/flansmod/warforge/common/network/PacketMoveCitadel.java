@@ -1,8 +1,7 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.common.util.DimBlockPos;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.entity.player.EntityPlayer;
@@ -10,8 +9,8 @@ import net.minecraft.entity.player.EntityPlayerMP;
 
 public class PacketMoveCitadel extends PacketBase 
 {
-	public DimBlockPos pos;
-	
+	public DimBlockPos pos = DimBlockPos.ZERO;
+
 	@Override
 	public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) 
 	{
@@ -24,11 +23,7 @@ public class PacketMoveCitadel extends PacketBase
 	@Override
 	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
 	{
-		int dim = data.readInt();
-		int x = data.readInt();
-		int y = data.readInt();
-		int z = data.readInt();
-		pos = new DimBlockPos(dim, x, y, z);
+		pos = new DimBlockPos(data.readInt(), data.readInt(), data.readInt(), data.readInt());
 	}
 
 	@Override

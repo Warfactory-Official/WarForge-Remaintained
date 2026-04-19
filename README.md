@@ -4,3 +4,7 @@ A fork of [WarForge](https://github.com/FlansMods/WarForge) by [Flan](https://gi
 Maintained by Reclipse, Super and Norwood.
 
 [Dev Environment](https://github.com/CleanroomMC/TemplateDevEnv) by CleanroomMC
+
+## Documentation
+
+- [Configuration Guide](docs/configuration.md)

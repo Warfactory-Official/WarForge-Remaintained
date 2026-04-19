@@ -1,5 +1,10 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.cleanroommc.modularui.api.IGuiHolder;
+import com.cleanroommc.modularui.factory.PosGuiData;
+import com.cleanroommc.modularui.screen.ModularPanel;
+import com.cleanroommc.modularui.screen.UISettings;
+import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.server.Faction;
@@ -11,18 +16,15 @@ import net.minecraft.item.ItemShield;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumParticleTypes;
 import net.minecraft.util.SoundCategory;
-import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.WorldServer;
 
 import java.util.UUID;
 
-import static com.flansmod.warforge.common.blocks.BlockCitadel.FACING;
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 
-public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim {
+public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim, IGuiHolder<PosGuiData> {
     public static final int BANNER_SLOT_INDEX = NUM_BASE_SLOTS;
     public static final int NUM_SLOTS = NUM_BASE_SLOTS + 1;
 
@@ -137,6 +139,14 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
         bannerStack = ItemStack.EMPTY;
     }
 
+    public void copyStorageFrom(TileEntityCitadel other) {
+        for (int i = 0; i < NUM_YIELD_STACKS; i++) {
+            yieldStacks[i] = other.yieldStacks[i].copy();
+        }
+        bannerStack = other.bannerStack.copy();
+        markDirty();
+    }
+
     /**
      * Builds the statue and assigns rotation.
      *
@@ -208,6 +218,11 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
 
         bannerStack = new ItemStack(nbt.getCompoundTag("banner"));
         placer = nbt.getUniqueId("placer");
+    }
+
+    @Override
+    public ModularPanel buildUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
+        return com.flansmod.warforge.common.WarForgeMod.proxy.buildCitadelUI(guiData, syncManager, settings, this);
     }
 
 }

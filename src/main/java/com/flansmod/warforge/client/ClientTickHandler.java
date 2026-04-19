@@ -4,14 +4,17 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
+import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.client.util.RenderUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.blocks.IClaim;
+import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.PacketChunkPosVeinID;
+import com.flansmod.warforge.common.network.PacketRequestClaimChunks;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -21,6 +24,7 @@ import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.model.ModelBanner;
 import net.minecraft.client.renderer.*;
 import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
@@ -32,7 +36,6 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemBlock;
 import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
 import net.minecraft.util.ResourceLocation;
@@ -45,24 +48,16 @@ import net.minecraftforge.client.event.RenderGameOverlayEvent.ElementType;
 import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.fml.client.registry.ClientRegistry;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
 import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
-import net.minecraftforge.fml.common.network.FMLNetworkEvent;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-
-import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
 import net.minecraftforge.fml.common.network.FMLNetworkEvent;
 import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.lwjgl.input.Keyboard;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
+import java.util.UUID;
 
 import static com.flansmod.warforge.client.ClientProxy.CHUNK_VEIN_CACHE;
 import static com.flansmod.warforge.client.util.RenderUtil.*;
@@ -71,6 +66,7 @@ public class ClientTickHandler {
     final static double alignment = 0.25d;
     final static double smaller_alignment = alignment - 0.125d;
     private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "world/borders.png");
+    private static final ResourceLocation textureConquered = new ResourceLocation(Tags.MODID, "world/borders_restricted.png");
     private static final ResourceLocation fastTexture = new ResourceLocation(Tags.MODID, "world/borders_fast.png");
     private static final ResourceLocation overlayTex = new ResourceLocation(Tags.MODID, "world/overlay.png");
     private static final ResourceLocation siegeprogress = new ResourceLocation(Tags.MODID, "gui/siegeprogressslim.png");
@@ -80,14 +76,14 @@ public class ClientTickHandler {
    	public static boolean CLAIMS_DIRTY = false;
     public static boolean UI_DEBUG = false;
     public static boolean TIMER_DEBUG = false;
+    public static boolean showVeinOverlay = true;
     private final Tessellator tess;
-    private final ModelBanner bannerModel = new ModelBanner();
-    private final HashMap<ItemStack, ResourceLocation> bannerTextures = new HashMap<ItemStack, ResourceLocation>();
-    private final int renderList = GLAllocation.generateDisplayLists(1);
     private DimChunkPos playerChunkPos = new DimChunkPos(0, 0, 0);
+    private DimChunkPos lastClaimSyncChunk = new DimChunkPos(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
     private float newAreaToastTime = 0;
     private String areaMessage = "";
     private int areaMessageColour = 0xFF_FF_FF_FF;
+    private String areaFlagId = "";
     private HashMap<DimChunkPos, BorderRenderData> renderData = new HashMap<>();
 
 	// -1 indicates the chunk wasn't the targeting of previous probe(s)
@@ -99,11 +95,26 @@ public class ClientTickHandler {
 
     public ClientTickHandler() {
         tess = Tessellator.getInstance();
-    toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
+        toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
 		ClientRegistry.registerKeyBinding(toggleBordersKey);
+        claimManagerKey = new KeyBinding("key.warforge.claimmanager", Keyboard.KEY_M, "key.warforge.cathegory");
+        ClientRegistry.registerKeyBinding(claimManagerKey);
+        toggleVeinOverlayKey = new KeyBinding("key.warforge.toggleveinoverlay", Keyboard.KEY_O, "key.warforge.cathegory");
+        ClientRegistry.registerKeyBinding(toggleVeinOverlayKey);
 
 	}
-	public static KeyBinding toggleBordersKey;
+    public static KeyBinding toggleBordersKey;
+    public static KeyBinding claimManagerKey;
+    public static KeyBinding toggleVeinOverlayKey;
+
+    private void cleanupBorderRenderData() {
+        for (BorderRenderData data : renderData.values()) {
+            if (data.renderList > 0) {
+               Minecraft.getMinecraft().addScheduledTask( () -> GlStateManager.glDeleteLists(data.renderList, 1));
+            }
+        }
+        renderData.clear();
+    }
 
     @SubscribeEvent
     public void onPlayerLogin(FMLNetworkEvent.ClientConnectedToServerEvent event) {
@@ -114,11 +125,25 @@ public class ClientTickHandler {
 		compIt = null;
 		currComp = null;
 		cachedCompStrings = null;
+        cleanupBorderRenderData();
 
         // clear stale data
         CHUNK_VEIN_CACHE.purge();
         ClientProxy.VEIN_ENTRIES.clear();
         WarForgeMod.NAMETAG_CACHE.purge(); //Purge to remove possible stale data
+        ChunkMapTextureDaemon.releaseAll();
+        ClientFlagRegistry.clear();
+        ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
+        CLAIMS_DIRTY = true;
+        showVeinOverlay = true;
+        areaFlagId = "";
+    }
+
+    @SubscribeEvent
+    public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        cleanupBorderRenderData();
+        ChunkMapTextureDaemon.releaseAll();
+        ClientFlagRegistry.clear();
     }
 
     @SubscribeEvent
@@ -126,6 +151,7 @@ public class ClientTickHandler {
 
         // Handle client packets and perform the client-side tick
         WarForgeMod.NETWORK.handleClientPackets();
+        ChunkMapTextureDaemon.flushTextureQueue();
         WarForgeMod.proxy.TickClient();
 
         // Use a more efficient approach for expired siege info removal
@@ -167,47 +193,57 @@ public class ClientTickHandler {
 				lastRenderStartTimeMs = -1;
             }
 
+            if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
+                requestClaimChunkData(standing);
+                lastClaimSyncChunk = standing;
+            }
+
+            if (claimManagerKey.isPressed()) {
+                ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
+            }
+
+            if (toggleBordersKey.isPressed()) {
+                WarForgeMod.showBorders = !WarForgeMod.showBorders;
+                player.sendMessage(new TextComponentString("Borders " + (WarForgeMod.showBorders ? "enabled" : "disabled")));
+            }
+
+            if (toggleVeinOverlayKey.isPressed()) {
+                toggleVeinOverlay(player);
+            }
+
             // Show new area timer if configured
             if (WarForgeConfig.SHOW_NEW_AREA_TIMER > 0.0f) {
 
                 // Only perform claim checks if the player has moved to a new chunk
                 if (!standing.equals(playerChunkPos)) {
-                    IClaim preClaim = null;
-                    IClaim postClaim = null;
-
-                    // Iterate only through the necessary tile entities (avoid loading all entities unnecessarily)
-                    for (TileEntity te : player.world.loadedTileEntityList) {
-                        if (te instanceof IClaim && !((IClaim) te).getFaction().equals(Faction.nullUuid)) {
-                            DimChunkPos tePos = ((IClaim) te).getClaimPos().toChunkPos();
-                            if (tePos.equals(playerChunkPos)) {
-                                preClaim = (IClaim) te;
-                            }
-                            if (tePos.equals(standing)) {
-                                postClaim = (IClaim) te;
-                            }
-                        }
-                    }
+                    ClaimChunkInfo preClaim = ClientClaimChunkCache.get(playerChunkPos);
+                    ClaimChunkInfo postClaim = ClientClaimChunkCache.get(standing);
+                    boolean hadPreClaim = preClaim != null && !preClaim.factionId.equals(Faction.nullUuid);
+                    boolean hasPostClaim = postClaim != null && !postClaim.factionId.equals(Faction.nullUuid);
 
                     // Generate area message only if needed (reduce redundant logic)
-                    if (preClaim == null) {
-                        if (postClaim != null) {
+                    if (!hadPreClaim) {
+                        if (hasPostClaim) {
                             // Entered a new claim
-                            areaMessage = "Entering " + postClaim.getClaimDisplayName();
-                            areaMessageColour = postClaim.getColour();
+                            areaMessage = "Entering " + postClaim.factionName;
+                            areaMessageColour = postClaim.colour;
+                            areaFlagId = postClaim.flagId;
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         }
                     } else // Left a claim
                     {
-                        if (postClaim == null) {
+                        if (!hasPostClaim) {
                             // Gone nowhere
-                            areaMessage = "Leaving " + preClaim.getClaimDisplayName();
-                            areaMessageColour = preClaim.getColour();
+                            areaMessage = "Leaving " + preClaim.factionName;
+                            areaMessageColour = preClaim.colour;
+                            areaFlagId = "";
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         } else {
                             // Entered another claim, possibly different faction
-                            if (!preClaim.getFaction().equals(postClaim.getFaction())) {
-                                areaMessage = "Leaving " + preClaim.getClaimDisplayName() + ", Entering " + postClaim.getClaimDisplayName();
-                                areaMessageColour = postClaim.getColour();
+                            if (!preClaim.factionId.equals(postClaim.factionId)) {
+                                areaMessage = "Leaving " + preClaim.factionName + ", Entering " + postClaim.factionName;
+                                areaMessageColour = postClaim.colour;
+                                areaFlagId = postClaim.flagId;
                                 newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                             }
                         }
@@ -219,6 +255,13 @@ public class ClientTickHandler {
         }
 
 
+    }
+
+    private void requestClaimChunkData(DimChunkPos center) {
+        PacketRequestClaimChunks packet = new PacketRequestClaimChunks();
+        packet.center = center;
+        packet.radius = WarForgeConfig.CLAIM_MANAGER_RADIUS;
+        WarForgeMod.NETWORK.sendToServer(packet);
     }
 
     @SubscribeEvent
@@ -249,7 +292,7 @@ public class ClientTickHandler {
                 }
 
 				// get the vein info
-				if (player.isSneaking()) {
+				if (showVeinOverlay) {
 					DimChunkPos currPos = new DimChunkPos(player.dimension, player.getPosition());
 					boolean hasPosData = CHUNK_VEIN_CACHE.isReceived(currPos);
 					boolean hasValidData = hasPosData && CHUNK_VEIN_CACHE.isRecognized(currPos);
@@ -257,7 +300,7 @@ public class ClientTickHandler {
 
 					// probe the server for the data for this chunk
 					if (!hasValidData && permitChunkReprobeMs.getLong(currPos) <= System.currentTimeMillis()) {
-						WarForgeMod.LOGGER.atInfo().log("Pinging server for chunk vein info");
+						WarForgeMod.LOGGER.info("Pinging server for chunk vein info");
 						permitChunkReprobeMs.put(currPos, System.currentTimeMillis() + 5000);  // only ping every 5s as needed
 						PacketChunkPosVeinID packetChunkVeinRequest = new PacketChunkPosVeinID();
 						packetChunkVeinRequest.veinLocation = currPos;
@@ -414,6 +457,17 @@ public class ClientTickHandler {
             veinPos.incrementY(textHeight);
 		}
 	}
+
+    private void toggleVeinOverlay(EntityPlayerSP player) {
+        showVeinOverlay = !showVeinOverlay;
+        lastRenderStartTimeMs = -1;
+        cachedCompStrings = null;
+        compIt = null;
+        currComp = null;
+
+        player.sendMessage(new TextComponentString(I18n.format(
+                showVeinOverlay ? "warforge.info.vein.toggle.enabled" : "warforge.info.vein.toggle.disabled")));
+    }
 
 	private ArrayList<String> createVeinInfoStrings(Pair<Vein, Quality> veinInfo, boolean hasCached) {
 		ArrayList<String> result = new ArrayList<>(1);
@@ -605,6 +659,24 @@ public class ClientTickHandler {
         GlStateManager.enableTexture2D();
         mc.fontRenderer.drawStringWithShadow(areaMessage, xText, yText + 11, colour);   // vertically centered text
 
+        var flagTexture = ClientFlagRegistry.getFlagTexture(areaFlagId);
+        var flagDims = ClientFlagRegistry.getFlagDimensions(areaFlagId);
+        if (flagTexture != null && flagDims != null && flagDims[0] > 0 && flagDims[1] > 0) {
+            int maxWidth = 64;
+            int maxHeight = 24;
+            float scale = Math.min(maxWidth / (float) flagDims[0], maxHeight / (float) flagDims[1]);
+            int drawWidth = Math.max(1, Math.round(flagDims[0] * scale));
+            int drawHeight = Math.max(1, Math.round(flagDims[1] * scale));
+            int flagX = ScreenSpaceUtil.getX(pos, drawWidth);
+            flagX += ScreenSpaceUtil.getXOffset(pos, 0);
+            int flagY = yText + totalHeight + 4;
+
+            mc.getTextureManager().bindTexture(flagTexture);
+            GlStateManager.color(1f, 1f, 1f, fadeOut);
+            Gui.drawScaledCustomSizeModalRect(flagX, flagY, 0, 0, flagDims[0], flagDims[1], drawWidth, drawHeight, flagDims[0], flagDims[1]);
+            ScreenSpaceUtil.incrementY(pos, drawHeight + 4);
+        }
+
         GlStateManager.disableBlend();
         GlStateManager.disableAlpha();
         ScreenSpaceUtil.incrementY(pos, totalHeight + 14 + extraPadding);
@@ -617,20 +689,36 @@ public class ClientTickHandler {
         // Update our list from the old one
         HashMap<DimChunkPos, BorderRenderData> tempData = new HashMap<DimChunkPos, BorderRenderData>();
 
-        // Find all our data entries first
-        for (TileEntity te : world.loadedTileEntityList) {
-            if (te instanceof IClaim) {
-                if (((IClaim) te).getFaction().equals(Faction.nullUuid)) continue;
-                DimBlockPos blockPos = ((IClaim) te).getClaimPos();
-                DimChunkPos chunkPos = blockPos.toChunkPos();
+        // Find all synced claim chunks in our current dimension.
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+            DimChunkPos chunkPos = kvp.getKey();
+            if (chunkPos.dim != world.provider.getDimension()) {
+                continue;
+            }
 
-                if (renderData.containsKey(chunkPos)) {
-                    tempData.put(chunkPos, renderData.get(chunkPos));
-                } else {
-                    BorderRenderData data = new BorderRenderData();
-                    data.claim = (IClaim) te;
-                    tempData.put(chunkPos, data);
-                }
+            ClaimChunkInfo info = kvp.getValue();
+            if (info == null || !info.hasVisibleOutline()) {
+                continue;
+            }
+
+            if (renderData.containsKey(chunkPos)) {
+                BorderRenderData existing = renderData.get(chunkPos);
+                existing.factionId = info.outlineFactionId;
+                existing.colour = info.outlineColour;
+                existing.outlineStyle = info.outlineStyle;
+                tempData.put(chunkPos, existing);
+            } else {
+                BorderRenderData data = new BorderRenderData();
+                data.factionId = info.outlineFactionId;
+                data.colour = info.outlineColour;
+                data.outlineStyle = info.outlineStyle;
+                tempData.put(chunkPos, data);
+            }
+        }
+
+        for (HashMap.Entry<DimChunkPos, BorderRenderData> oldEntry : renderData.entrySet()) {
+            if (!tempData.containsKey(oldEntry.getKey()) && oldEntry.getValue().renderList > 0) {
+                GlStateManager.glDeleteLists(oldEntry.getValue().renderList, 1);
             }
         }
 
@@ -662,23 +750,23 @@ public class ClientTickHandler {
 
             boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
             if (renderData.containsKey(pos.north()))
-                renderNorth = !renderData.get(pos.north()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorth = !sameBorderGroup(renderData.get(pos.north()), data);
             if (renderData.containsKey(pos.east()))
-                renderEast = !renderData.get(pos.east()).claim.getFaction().equals(data.claim.getFaction());
+                renderEast = !sameBorderGroup(renderData.get(pos.east()), data);
             if (renderData.containsKey(pos.south()))
-                renderSouth = !renderData.get(pos.south()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouth = !sameBorderGroup(renderData.get(pos.south()), data);
             if (renderData.containsKey(pos.west()))
-                renderWest = !renderData.get(pos.west()).claim.getFaction().equals(data.claim.getFaction());
+                renderWest = !sameBorderGroup(renderData.get(pos.west()), data);
 
             //for super spesific edge cases
             if (renderData.containsKey(pos.north().west()))
-                renderNorthWest = !renderData.get(pos.north().west()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorthWest = !sameBorderGroup(renderData.get(pos.north().west()), data);
             if (renderData.containsKey(pos.north().east()))
-                renderNorthEast = !renderData.get(pos.north().east()).claim.getFaction().equals(data.claim.getFaction());
+                renderNorthEast = !sameBorderGroup(renderData.get(pos.north().east()), data);
             if (renderData.containsKey(pos.south().west()))
-                renderSouthWest = !renderData.get(pos.south().west()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouthWest = !sameBorderGroup(renderData.get(pos.south().west()), data);
             if (renderData.containsKey(pos.south().east()))
-                renderSouthEast = !renderData.get(pos.south().east()).claim.getFaction().equals(data.claim.getFaction());
+                renderSouthEast = !sameBorderGroup(renderData.get(pos.south().east()), data);
 
             // North edge, [0,0] -> [16,0] wall
             if (renderNorth) {
@@ -927,19 +1015,16 @@ public class ClientTickHandler {
         GlStateManager.disableCull();
         mc.entityRenderer.disableLightmap();
 
-        // Choose textures based on rendering config
-        if (WarForgeConfig.DO_FANCY_RENDERING) {
-            mc.renderEngine.bindTexture(texture);
-            GlStateManager.enableAlpha();
-            GlStateManager.enableBlend();
-        } else {
-            mc.renderEngine.bindTexture(fastTexture);
-        }
-
         // Update render data if necessary
         if (CLAIMS_DIRTY) {
             updateRenderData();
             CLAIMS_DIRTY = false;
+        }
+
+        // Choose rendering state for the active border set
+        if (WarForgeConfig.DO_FANCY_RENDERING || hasConqueredBorders()) {
+            GlStateManager.enableAlpha();
+            GlStateManager.enableBlend();
         }
 
         // Slower update speed on fast graphics
@@ -968,14 +1053,23 @@ public class ClientTickHandler {
     private void renderChunkBorders(double x, double y, double z) {
         if (!WarForgeMod.showBorders) {
 			return;
-		}for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
+		}
+
+        ResourceLocation boundTexture = null;
+        for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
             DimChunkPos pos = kvp.getKey();
             BorderRenderData data = kvp.getValue();
 
             if (data.renderList >= 0) {
                 GlStateManager.pushMatrix();
 
-                int colour = data.claim.getColour();
+                ResourceLocation desiredTexture = getBorderTexture(data);
+                if (desiredTexture != null && !desiredTexture.equals(boundTexture)) {
+                    Minecraft.getMinecraft().renderEngine.bindTexture(desiredTexture);
+                    boundTexture = desiredTexture;
+                }
+
+                int colour = data.colour;
                 float r = (float) (colour >> 16 & 255) / 255.0F;
                 float g = (float) (colour >> 8 & 255) / 255.0F;
                 float b = (float) (colour & 255) / 255.0F;
@@ -987,6 +1081,26 @@ public class ClientTickHandler {
                 GlStateManager.popMatrix();
             }
         }
+    }
+
+    private boolean hasConqueredBorders() {
+        for (BorderRenderData data : renderData.values()) {
+            if (data.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean sameBorderGroup(BorderRenderData first, BorderRenderData second) {
+        return first.factionId.equals(second.factionId) && first.outlineStyle == second.outlineStyle;
+    }
+
+    private ResourceLocation getBorderTexture(BorderRenderData data) {
+        if (data.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED) {
+            return textureConquered;
+        }
+        return WarForgeConfig.DO_FANCY_RENDERING ? texture : fastTexture;
     }
 
     private void renderPlayerPlacementOverlay(EntityPlayer player, double x, double y, double z, float partialTicks) {
@@ -1035,18 +1149,16 @@ public class ClientTickHandler {
         boolean canPlace = true;
         List<DimChunkPos> siegeablePositions = new ArrayList<>();
 
-        for (TileEntity te : Minecraft.getMinecraft().world.loadedTileEntityList) {
-            if (te instanceof IClaim) {
-                DimBlockPos blockPos = ((IClaim) te).getClaimPos();
-                DimChunkPos chunkPos = blockPos.toChunkPos();
-
-                if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z) {
-                    canPlace = false;
-                }
-                if (((IClaim) te).canBeSieged()) {
-                    siegeablePositions.add(chunkPos);
-                }
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+            DimChunkPos chunkPos = kvp.getKey();
+            ClaimChunkInfo info = kvp.getValue();
+            if (info == null || info.factionId.equals(Faction.nullUuid)) {
+                continue;
             }
+            if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z && playerPos.dim == chunkPos.dim) {
+                canPlace = false;
+            }
+            siegeablePositions.add(chunkPos);
         }
 
         // If holding siege camp block, allow placement if adjacent to siegable positions
@@ -1059,7 +1171,9 @@ public class ClientTickHandler {
 
 
     private static class BorderRenderData {
-        public IClaim claim;
+        public UUID factionId = Faction.nullUuid;
+        public int colour = 0xFFFFFF;
+        public byte outlineStyle = ClaimChunkInfo.OUTLINE_NONE;
         public int renderList = -1;
     }
 }

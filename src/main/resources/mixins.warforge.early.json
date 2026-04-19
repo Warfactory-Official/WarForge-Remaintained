@@ -8,6 +8,8 @@
   "mixins": [],
   "server": [],
   "client": [
-    "vanilla.RenderMixin"
+    "vanilla.RenderMixin",
+    "vanilla.GuiInventoryMixin",
+    "vanilla.GuiContainerCreativeMixin"
   ]
 }

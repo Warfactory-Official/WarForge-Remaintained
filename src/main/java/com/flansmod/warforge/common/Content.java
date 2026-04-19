@@ -20,6 +20,8 @@ public class Content
 {
 	static public Block citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, statue, dummyTranslusent;
 	static public Item citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem;
+    static public Block islandCollectorBlock;
+    static public Item islandCollectorItem;
 	
 	static public Block adminClaimBlock;
 	static public Item adminClaimBlockItem;
@@ -47,6 +49,10 @@ public class Content
         siegeCampBlock = new BlockSiegeCamp(Material.ROCK).setRegistryName("siegecampblock").setTranslationKey("siegecampblock");
         siegeCampBlockItem = new ItemBlock(siegeCampBlock).setRegistryName("siegecampblock").setTranslationKey("siegecampblock");
         GameRegistry.registerTileEntity(TileEntitySiegeCamp.class, new ResourceLocation(Tags.MODID, "siegecamp"));
+
+        islandCollectorBlock = new BlockIslandCollector(Material.ROCK).setRegistryName("islandcollector").setTranslationKey("islandcollector");
+        islandCollectorItem = new ItemBlock(islandCollectorBlock).setRegistryName("islandcollector").setTranslationKey("islandcollector");
+        GameRegistry.registerTileEntity(TileEntityIslandCollector.class, new ResourceLocation(Tags.MODID, "islandcollector"));
 
 		//Dummy Block
 		statue = new BlockDummy().setRegistryName("dummy").setTranslationKey("dummy");
@@ -81,6 +87,7 @@ public class Content
 	{
 		final Item[] items = {
 				citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem, adminClaimBlockItem,
+                islandCollectorItem,
 				topLeaderboardItem, wealthLeaderboardItem, notorietyLeaderboardItem,
 				legacyLeaderboardItem,
 		};
@@ -95,7 +102,7 @@ public class Content
 	public void registerBlocks(RegistryEvent.Register<Block> event)
 	{
 		final Block[] blocks = {
-			citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, adminClaimBlock,
+			citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, adminClaimBlock, islandCollectorBlock,
 			topLeaderboardBlock, wealthLeaderboardBlock, notorietyLeaderboardBlock,
 			legacyLeaderboardBlock, statue, dummyTranslusent
 		};

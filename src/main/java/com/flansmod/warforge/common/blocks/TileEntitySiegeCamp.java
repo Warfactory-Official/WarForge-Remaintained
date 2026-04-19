@@ -85,6 +85,10 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		markDirty();
 	}
 
+    public DimBlockPos getSiegeTarget() {
+        return siegeTarget;
+    }
+
 	private Faction getDefenders(DimBlockPos siegeTarget) {
 		return WarForgeMod.FACTIONS.getFaction(WarForgeMod.FACTIONS.getClaim(siegeTarget));
 	}
@@ -137,6 +141,12 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		}
 
 		// only modify external information if not performing cleanup on this tile entity
+		if (siegeTarget == null)
+		{
+
+			WarForgeMod.LOGGER.error("Siege conclusion error! siegeTarget is null!");
+			return;
+		}
 		Siege siege = WarForgeMod.FACTIONS.getSieges().get(siegeTarget.toChunkPos());
 		if (!siegeStatus.isCleanup() && siege != null) {
 			// update siege info and notify all nearby
@@ -264,7 +274,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 					} else {
 						// if going to overshoot/ hit zero and not already 0
 						if (defenderAbandonTickTimer != 0) {
-							defenders.messageAll(new TextComponentString("Your faction's [" + getAttacking().name + "] siege abandon timer is now 0."));
+							defenders.messageAll(new TextComponentString("Your faction's [" + defenders.name + "] siege abandon timer is now 0."));
 							defenderAbandonTickTimer = 0;
 						}
 					}
@@ -315,10 +325,6 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 
 	private boolean hasLiveQuitSiege() {
 		return defenderOfflineTimerMs < 0;
-	}
-
-	private long calcAbsoluteOfflineTimer() {
-		return hasLiveQuitSiege() ? -defenderOfflineTimerMs : defenderOfflineTimerMs;
 	}
 
 	// returns whether update has been cancelled
@@ -391,14 +397,6 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 
 	private Faction getAttacking() {
 		return WarForgeMod.FACTIONS.getFaction(factionUUID);
-	}
-
-	private <T extends EntityLivingBase> Faction getFac(T player) {
-		return WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUniqueID());
-	}
-
-	private Faction getPlayerFac(UUID playerID) {
-		return WarForgeMod.FACTIONS.getFactionOfPlayer(playerID);
 	}
 
 	@Override

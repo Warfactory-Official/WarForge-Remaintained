@@ -2,6 +2,7 @@ package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.ContainerBasicClaim;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketMoveCitadel;
 import com.flansmod.warforge.common.network.PacketPlaceFlag;
@@ -62,7 +63,7 @@ public class GuiBasicClaim extends GuiContainer
 		{
 			case BUTTON_INFO:
 			{
-				ClientProxy.requestFactionInfo(claimContainer.claim.getFaction());
+				FactionStatsGuiFactory.INSTANCE.openClient(claimContainer.claim.getFaction());
 				break;
 			}
 			case BUTTON_REMOVE_CLAIM:
@@ -87,9 +88,7 @@ public class GuiBasicClaim extends GuiContainer
 			}
 			case BUTTON_MOVE_CITADEL:
 			{
-				PacketMoveCitadel packet = new PacketMoveCitadel();
-				packet.pos = claimContainer.claim.getClaimPos();
-				WarForgeMod.NETWORK.sendToServer(packet);
+				WarForgeMod.NETWORK.sendToServer(new PacketMoveCitadel());
 				
 				Minecraft.getMinecraft().displayGuiScreen(null);
 				break;
