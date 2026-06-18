@@ -64,6 +64,7 @@ public class ClientProxy extends CommonProxy
 		MinecraftForge.EVENT_BUS.register(this);
 		MinecraftForge.EVENT_BUS.register(new ClientTickHandler());
 		MinecraftForge.EVENT_BUS.register(new AnimatedEffectHandler());
+		MinecraftForge.EVENT_BUS.register(new ClaimFlagRenderer());
 		ClientRegistry.registerKeyBinding(factionChatKey);
 	}
 

@@ -476,8 +476,10 @@ public class WarForgeMod implements ILateMixinLoader {
                 return;
             }
 
-            if (WarForgeConfig.ENABLE_CITADEL_UPGRADES && !playerFaction.canPlaceClaim()) {
-                player.sendMessage(new TextComponentString("Your faction reached it's level's claim limit, upgrade the level to incrase the limit"));
+            if (!playerFaction.canPlaceClaim()) {
+                player.sendMessage(new TextComponentString(WarForgeConfig.ENABLE_CITADEL_UPGRADES
+                        ? "Your faction reached it's level's claim limit, upgrade the level to incrase the limit"
+                        : "Your faction has reached its claim limit"));
                 event.setCanceled(true);
             }
 
@@ -721,6 +723,6 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @Override
     public List<String> getMixinConfigs() {
-        return Collections.singletonList("mixins.warforge.json");
+        return Arrays.asList("mixins.warforge.json", "mixins.warforge.hbm.json");
     }
 }

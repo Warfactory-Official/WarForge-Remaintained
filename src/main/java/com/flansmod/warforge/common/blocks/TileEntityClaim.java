@@ -177,6 +177,7 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
             if (faction != null) {
                 colour = faction.colour;
                 factionName = faction.name;
+                factionFlagId = faction.flagId;
             }
         } else {
             WarForgeMod.LOGGER.error("Loaded TileEntity from NBT on client?");

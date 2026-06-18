@@ -10,6 +10,10 @@ pluginManagement {
                 includeGroup 'com.gtnewhorizons.retrofuturagradle'
             }
         }
+        maven {
+            name 'Warfactory Releases"'
+            url 'https://repo.warfactory.co/releases'
+        }
         gradlePluginPortal()
         mavenCentral()
         mavenLocal()
@@ -17,9 +21,9 @@ pluginManagement {
 }
 
 plugins {
-    id 'com.diffplug.blowdryerSetup' version '1.7.0'
+    id 'com.diffplug.blowdryerSetup' version '1.7.1'
     // Automatic toolchain provisioning
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.7.0'
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
 }
 
 blowdryerSetup {

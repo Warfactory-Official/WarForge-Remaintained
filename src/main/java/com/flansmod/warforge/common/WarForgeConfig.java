@@ -61,6 +61,7 @@ public class WarForgeConfig {
     public static int SUPPORT_STRENGTH_BASIC = 1;
     public static int FORCE_LOADED_CHUNKS_BASE = 4;
     public static int FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = 1;
+    public static int MAX_CLAIMS_PER_FACTION = -1;
     public static int CLAIM_MANAGER_RADIUS = 4;
     public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
     public static int OFFLINE_RAID_PROTECTION_HOURS = 24;
@@ -68,7 +69,10 @@ public class WarForgeConfig {
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
     public static String[] INSURANCE_BLACKLIST_IDS = new String[]{"minecraft:*shulker_box", "appliedenergistics2:*cell*"};
-    public static String[] DEFAULT_FLAG_IDS = new String[0];
+    public static String[] DEFAULT_FLAG_IDS = new String[]{
+            "white", "light_gray", "gray", "black", "red", "orange", "yellow", "lime",
+            "green", "cyan", "light_blue", "blue", "purple", "magenta", "pink", "brown"
+    };
     public static String[] CUSTOM_FLAG_ALLOWLIST = new String[]{"*"};
 
     // Sieges
@@ -239,6 +243,7 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_BASIC = configFile.getInt("Basic Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_BASIC, 1, 1024, "The support strength a basic claim gives to adjacent claims");
         FORCE_LOADED_CHUNKS_BASE = configFile.getInt("Force-loaded Chunks Base Limit", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_BASE, 0, 1024, "How many claim chunks each faction can force-load by default.");
         FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = configFile.getInt("Force-loaded Chunks Per Citadel Level", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128, "Extra force-load chunk capacity granted per citadel level.");
+        MAX_CLAIMS_PER_FACTION = configFile.getInt("Max Claims Per Faction", CATEGORY_CLAIMS, MAX_CLAIMS_PER_FACTION, -1, 1000000, "Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.");
         CLAIM_MANAGER_RADIUS = configFile.getInt("Claim Manager Radius", CATEGORY_CLAIMS, CLAIM_MANAGER_RADIUS, 1, 12, "Square radius in chunks shown in the claim manager UI.");
         ENABLE_OFFLINE_RAID_PROTECTION = configFile.getBoolean("Enable Offline Raid Protection", CATEGORY_CLAIMS, ENABLE_OFFLINE_RAID_PROTECTION, "If enabled, factions cannot be sieged for a limited period after all their members go offline.");
         OFFLINE_RAID_PROTECTION_HOURS = configFile.getInt("Offline Raid Protection Hours", CATEGORY_CLAIMS, OFFLINE_RAID_PROTECTION_HOURS, 0, 168, "How many hours a faction remains protected from new sieges after the last member goes offline.");
@@ -246,7 +251,7 @@ public class WarForgeConfig {
         ENABLE_CITADEL_UPGRADES = configFile.getBoolean("Enable Citadel Upgrade System", CATEGORY_CLAIMS, false, "Applies claim limits that require upgrading to extend your faction's claim limit");
         ENABLE_ISOLATED_CLAIMS = configFile.getBoolean("Enabled Isolated Claims", CATEGORY_CLAIMS, ENABLE_ISOLATED_CLAIMS, "If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.");
         INSURANCE_BLACKLIST_IDS = configFile.getStringList("Insurance Blacklist", CATEGORY_CLAIMS, INSURANCE_BLACKLIST_IDS, "Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.");
-        DEFAULT_FLAG_IDS = configFile.getStringList("Available Default Flags", CATEGORY_CLAIMS, DEFAULT_FLAG_IDS, "Default built-in flags that can be chosen by factions. These resolve to assets/warforge/textures/flags/default/<id>.png");
+        DEFAULT_FLAG_IDS = configFile.getStringList("Available Default Flags", CATEGORY_CLAIMS, DEFAULT_FLAG_IDS, "Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).");
         CUSTOM_FLAG_ALLOWLIST = configFile.getStringList("Available Custom Flags", CATEGORY_CLAIMS, CUSTOM_FLAG_ALLOWLIST, "Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.");
 
         // Siege Camp Settings

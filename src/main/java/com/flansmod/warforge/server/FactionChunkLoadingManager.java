@@ -1,5 +1,6 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -17,28 +18,32 @@ import java.util.Set;
 import java.util.UUID;
 
 public class FactionChunkLoadingManager implements ForgeChunkManager.LoadingCallback {
-    private final HashMap<UUID, HashMap<Integer, ForgeChunkManager.Ticket>> ticketsByFaction = new HashMap<UUID, HashMap<Integer, ForgeChunkManager.Ticket>>();
+    private final HashMap<UUID, HashMap<Integer, List<ForgeChunkManager.Ticket>>> ticketsByFaction = new HashMap<UUID, HashMap<Integer, List<ForgeChunkManager.Ticket>>>();
 
     public void initialize() {
         ForgeChunkManager.setForcedChunkLoadingCallback(WarForgeMod.INSTANCE, this);
     }
 
     public void shutdown() {
-        for (Map<Integer, ForgeChunkManager.Ticket> byDim : ticketsByFaction.values()) {
-            for (ForgeChunkManager.Ticket ticket : byDim.values()) {
-                ForgeChunkManager.releaseTicket(ticket);
+        for (Map<Integer, List<ForgeChunkManager.Ticket>> byDim : ticketsByFaction.values()) {
+            for (List<ForgeChunkManager.Ticket> tickets : byDim.values()) {
+                for (ForgeChunkManager.Ticket ticket : tickets) {
+                    ForgeChunkManager.releaseTicket(ticket);
+                }
             }
         }
         ticketsByFaction.clear();
     }
 
     public void releaseFaction(UUID factionId) {
-        Map<Integer, ForgeChunkManager.Ticket> byDim = ticketsByFaction.remove(factionId);
+        Map<Integer, List<ForgeChunkManager.Ticket>> byDim = ticketsByFaction.remove(factionId);
         if (byDim == null) {
             return;
         }
-        for (ForgeChunkManager.Ticket ticket : byDim.values()) {
-            ForgeChunkManager.releaseTicket(ticket);
+        for (List<ForgeChunkManager.Ticket> tickets : byDim.values()) {
+            for (ForgeChunkManager.Ticket ticket : tickets) {
+                ForgeChunkManager.releaseTicket(ticket);
+            }
         }
     }
 
@@ -65,18 +70,20 @@ public class FactionChunkLoadingManager implements ForgeChunkManager.LoadingCall
             chunksByDim.computeIfAbsent(collectorChunk.dim, dim -> new HashSet<DimChunkPos>()).add(collectorChunk);
         }
 
-        HashMap<Integer, ForgeChunkManager.Ticket> ticketsByDim = ticketsByFaction.computeIfAbsent(faction.uuid, id -> new HashMap<Integer, ForgeChunkManager.Ticket>());
+        HashMap<Integer, List<ForgeChunkManager.Ticket>> ticketsByDim = ticketsByFaction.computeIfAbsent(faction.uuid, id -> new HashMap<Integer, List<ForgeChunkManager.Ticket>>());
 
         ArrayList<Integer> obsoleteDims = new ArrayList<Integer>();
         for (Integer dim : ticketsByDim.keySet()) {
             if (!chunksByDim.containsKey(dim) || chunksByDim.get(dim).isEmpty()) {
-                ForgeChunkManager.releaseTicket(ticketsByDim.get(dim));
+                releaseAll(ticketsByDim.get(dim));
                 obsoleteDims.add(dim);
             }
         }
         for (Integer dim : obsoleteDims) {
             ticketsByDim.remove(dim);
         }
+
+        int maxDepth = Math.max(1, ForgeChunkManager.getMaxChunkDepthFor(Tags.MODID));
 
         for (Map.Entry<Integer, HashSet<DimChunkPos>> entry : chunksByDim.entrySet()) {
             int dim = entry.getKey();
@@ -90,23 +97,46 @@ public class FactionChunkLoadingManager implements ForgeChunkManager.LoadingCall
                 continue;
             }
 
-            ForgeChunkManager.Ticket ticket = ticketsByDim.get(dim);
-            if (ticket == null) {
-                ticket = ForgeChunkManager.requestTicket(WarForgeMod.INSTANCE, world, ForgeChunkManager.Type.NORMAL);
+            List<ForgeChunkManager.Ticket> tickets = ticketsByDim.computeIfAbsent(dim, id -> new ArrayList<ForgeChunkManager.Ticket>());
+
+            int neededTickets = (chunks.size() + maxDepth - 1) / maxDepth;
+
+            while (tickets.size() > neededTickets) {
+                ForgeChunkManager.releaseTicket(tickets.remove(tickets.size() - 1));
+            }
+            while (tickets.size() < neededTickets) {
+                ForgeChunkManager.Ticket ticket = ForgeChunkManager.requestTicket(WarForgeMod.INSTANCE, world, ForgeChunkManager.Type.NORMAL);
                 if (ticket == null) {
-                    WarForgeMod.LOGGER.warn("Failed to allocate chunk-loading ticket for faction {} in dimension {}", faction.name, dim);
-                    continue;
+                    WarForgeMod.LOGGER.warn("Failed to allocate chunk-loading ticket for faction {} in dimension {} ({} of {} tickets allocated)", faction.name, dim, tickets.size(), neededTickets);
+                    break;
                 }
-                ticketsByDim.put(dim, ticket);
+                tickets.add(ticket);
             }
 
-            Set<ChunkPos> currentlyForced = new HashSet<ChunkPos>(ticket.getChunkList());
-            for (ChunkPos chunkPos : currentlyForced) {
-                ForgeChunkManager.unforceChunk(ticket, chunkPos);
+            if (tickets.isEmpty()) {
+                ticketsByDim.remove(dim);
+                continue;
             }
 
+            for (ForgeChunkManager.Ticket ticket : tickets) {
+                for (ChunkPos chunkPos : new HashSet<ChunkPos>(ticket.getChunkList())) {
+                    ForgeChunkManager.unforceChunk(ticket, chunkPos);
+                }
+            }
+
+            int ticketIndex = 0;
+            int forcedOnCurrent = 0;
             for (DimChunkPos chunk : chunks) {
-                ForgeChunkManager.forceChunk(ticket, new ChunkPos(chunk.x, chunk.z));
+                if (forcedOnCurrent >= maxDepth) {
+                    ticketIndex++;
+                    forcedOnCurrent = 0;
+                }
+                if (ticketIndex >= tickets.size()) {
+                    WarForgeMod.LOGGER.warn("Faction {} exceeded chunk-loading capacity in dimension {}; {} chunks could not be force-loaded", faction.name, dim, chunks.size() - (ticketIndex * maxDepth));
+                    break;
+                }
+                ForgeChunkManager.forceChunk(tickets.get(ticketIndex), new ChunkPos(chunk.x, chunk.z));
+                forcedOnCurrent++;
             }
         }
 
@@ -115,9 +145,17 @@ public class FactionChunkLoadingManager implements ForgeChunkManager.LoadingCall
         }
     }
 
+    private void releaseAll(List<ForgeChunkManager.Ticket> tickets) {
+        if (tickets == null) {
+            return;
+        }
+        for (ForgeChunkManager.Ticket ticket : tickets) {
+            ForgeChunkManager.releaseTicket(ticket);
+        }
+    }
+
     @Override
     public void ticketsLoaded(List<ForgeChunkManager.Ticket> tickets, World world) {
-        // We rebuild chunk-loading state from faction data on startup.
         for (ForgeChunkManager.Ticket ticket : tickets) {
             ForgeChunkManager.releaseTicket(ticket);
         }

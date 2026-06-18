@@ -8,7 +8,11 @@ import com.flansmod.warforge.common.network.SyncQueueHandler;
 import net.minecraft.entity.player.EntityPlayerMP;
 
 import javax.imageio.ImageIO;
+import javax.imageio.ImageReader;
+import javax.imageio.stream.ImageInputStream;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -24,7 +29,9 @@ import java.util.concurrent.Executors;
 
 public class ServerFlagRegistry {
     public static final int MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
-    public static final int MAX_DIMENSION = 256;
+    public static final int MAX_DIMENSION = 512;
+    public static final int MIN_DIMENSION = 8;
+    public static final double MAX_ASPECT_RATIO = 2.0;
     private static final int CHUNK_SIZE = 30_000;
 
     private final ExecutorService syncExecutor = Executors.newFixedThreadPool(2, runnable -> {
@@ -128,20 +135,84 @@ public class ServerFlagRegistry {
                 WarForgeMod.LOGGER.warn("Skipping custom flag {} due to file size {}", fileName, size);
                 return;
             }
-            byte[] bytes = Files.readAllBytes(file);
-            BufferedImage image = ImageIO.read(file.toFile());
-            if (image == null) {
+
+            int[] dimensions = readImageDimensions(file);
+            if (dimensions == null) {
                 WarForgeMod.LOGGER.warn("Skipping custom flag {} because it is not a readable image", fileName);
                 return;
             }
-            if (image.getWidth() > MAX_DIMENSION || image.getHeight() > MAX_DIMENSION) {
-                WarForgeMod.LOGGER.warn("Skipping custom flag {} because dimensions {}x{} exceed {}x{}", fileName, image.getWidth(), image.getHeight(), MAX_DIMENSION, MAX_DIMENSION);
+            if (!validateDimensions(fileName, dimensions[0], dimensions[1])) {
                 return;
             }
-            customFlags.put(id, new CustomFlagData(id, image.getWidth(), image.getHeight(), bytes));
+
+            BufferedImage source = ImageIO.read(file.toFile());
+            if (source == null) {
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} because it could not be decoded", fileName);
+                return;
+            }
+            if (!validateDimensions(fileName, source.getWidth(), source.getHeight())) {
+                return;
+            }
+
+            byte[] sanitized = sanitize(source);
+            if (sanitized.length > MAX_FILE_SIZE_BYTES) {
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} because the sanitized image is too large ({} bytes)", fileName, sanitized.length);
+                return;
+            }
+
+            customFlags.put(id, new CustomFlagData(id, source.getWidth(), source.getHeight(), sanitized));
         } catch (IOException e) {
             WarForgeMod.LOGGER.error("Failed to load custom flag " + fileName, e);
         }
+    }
+
+    private boolean validateDimensions(String fileName, int width, int height) {
+        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+            WarForgeMod.LOGGER.warn("Skipping custom flag {} because dimensions {}x{} exceed {}x{}", fileName, width, height, MAX_DIMENSION, MAX_DIMENSION);
+            return false;
+        }
+        if (width < MIN_DIMENSION || height < MIN_DIMENSION) {
+            WarForgeMod.LOGGER.warn("Skipping custom flag {} because dimensions {}x{} are below the minimum of {}x{}", fileName, width, height, MIN_DIMENSION, MIN_DIMENSION);
+            return false;
+        }
+        double ratio = (double) Math.max(width, height) / Math.min(width, height);
+        if (ratio > MAX_ASPECT_RATIO) {
+            WarForgeMod.LOGGER.warn("Skipping custom flag {} because aspect ratio {}:{} exceeds {}:1", fileName, width, height, MAX_ASPECT_RATIO);
+            return false;
+        }
+        return true;
+    }
+
+    private static int[] readImageDimensions(Path file) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(file.toFile())) {
+            if (stream == null) {
+                return null;
+            }
+            Iterator<ImageReader> readers = ImageIO.getImageReaders(stream);
+            if (!readers.hasNext()) {
+                return null;
+            }
+            ImageReader reader = readers.next();
+            try {
+                reader.setInput(stream, true, true);
+                return new int[]{reader.getWidth(0), reader.getHeight(0)};
+            } finally {
+                reader.dispose();
+            }
+        }
+    }
+
+    private static byte[] sanitize(BufferedImage source) throws IOException {
+        BufferedImage clean = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = clean.createGraphics();
+        try {
+            graphics.drawImage(source, 0, 0, null);
+        } finally {
+            graphics.dispose();
+        }
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        ImageIO.write(clean, "PNG", out);
+        return out.toByteArray();
     }
 
     public static Path getCustomFlagsDir() {

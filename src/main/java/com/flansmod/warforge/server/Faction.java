@@ -310,11 +310,16 @@ public class Faction {
     }
 
     public boolean canPlaceClaim() {
-        int claimLimitForLevel = WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(citadelLevel);
-        if (claimLimitForLevel == -1)
-            return true;
-        else
-            return claimLimitForLevel > claims.size();
+        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
+            int claimLimitForLevel = WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(citadelLevel);
+            if (claimLimitForLevel != -1 && claims.size() >= claimLimitForLevel) {
+                return false;
+            }
+        }
+        if (WarForgeConfig.MAX_CLAIMS_PER_FACTION >= 0 && claims.size() >= WarForgeConfig.MAX_CLAIMS_PER_FACTION) {
+            return false;
+        }
+        return true;
     }
 
     public int getMaxForceLoadedChunks() {

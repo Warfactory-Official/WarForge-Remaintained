@@ -9,7 +9,6 @@ import com.cleanroommc.modularui.widget.Widget;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.client.util.PlayerFaceDrawable;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
@@ -60,7 +59,7 @@ public final class GuiFactionMemberManager {
                 case OFFICER -> 0x55E3FF;
                 default -> 0xFFFFFF;
             };
-            Row headerRow = new Row();
+            var headerRow = new Flow(GuiAxis.X);
             headerRow.name("faction_member_header_row");
             headerRow.pos(CONTENT_LEFT, HEADER_Y + 15);
             headerRow.height(12);
@@ -79,7 +78,7 @@ public final class GuiFactionMemberManager {
                     .pos(WIDTH - 80, 11));
         }
 
-        Row tabRow = new Row();
+        var tabRow = new Flow(GuiAxis.X);
         tabRow.name("faction_member_tab_row");
         tabRow.width(sectionWidth - 10);
         tabRow.height(18);
@@ -156,7 +155,7 @@ public final class GuiFactionMemberManager {
     }
 
     private static Widget createMemberRow(FactionMemberManagerGuiData.MemberEntry member, FactionMemberManagerGuiData.Page page) {
-        Row row = new Row();
+        var row = new Flow(GuiAxis.X);
         row.name(ModularGuiStyle.debugName("member_row", member.username));
         row.width(WIDTH - 44);
         row.height(24);

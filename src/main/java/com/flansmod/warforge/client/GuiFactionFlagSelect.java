@@ -7,7 +7,6 @@ import com.cleanroommc.modularui.screen.ModularPanel;
 import com.cleanroommc.modularui.widgets.ListWidget;
 import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
 import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.cleanroommc.modularui.widgets.layout.Row;
 import com.flansmod.warforge.client.util.FlagDrawable;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionFlagSelectGuiData;
@@ -60,8 +59,8 @@ public final class GuiFactionFlagSelect {
         return panel;
     }
 
-    private static Row createRow(FactionFlagSelectGuiData data, String flagId) {
-        Row row = new Row();
+    private static Flow createRow(FactionFlagSelectGuiData data, String flagId) {
+        var row = new Flow(GuiAxis.X);
         row.name(ModularGuiStyle.debugName("flag_row", flagId));
         row.width(WIDTH - 40);
         row.height(28);

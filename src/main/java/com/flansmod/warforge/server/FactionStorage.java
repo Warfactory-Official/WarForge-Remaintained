@@ -554,9 +554,11 @@ public class FactionStorage {
             }
             return false;
         }
-        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES && !faction.canPlaceClaim()) {
+        if (!faction.canPlaceClaim()) {
             if (notify) {
-                player.sendMessage(new TextComponentString("Your faction reached it's level's claim limit, upgrade the level to incrase the limit"));
+                player.sendMessage(new TextComponentString(WarForgeConfig.ENABLE_CITADEL_UPGRADES
+                        ? "Your faction reached it's level's claim limit, upgrade the level to incrase the limit"
+                        : "Your faction has reached its claim limit"));
             }
             return false;
         }
@@ -1106,6 +1108,9 @@ public class FactionStorage {
                     claim.updateFactionFlag(flagId);
                 }
             }
+        }
+        for (EntityPlayerMP online : MC_SERVER.getPlayerList().getPlayers()) {
+            sendClaimChunks(online, new DimChunkPos(online.dimension, online.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
         }
         faction.messageAll(new TextComponentString("Your faction selected its flag: " + flagId));
         return true;

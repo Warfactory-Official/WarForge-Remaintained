@@ -39,14 +39,16 @@
  */
 dependencies {
     shadowImplementation ("org.yaml:snakeyaml:2.4")
-    compileOnly 'org.projectlombok:lombok:1.18.30'
-    annotationProcessor 'org.projectlombok:lombok:1.18.30'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
 
     implementation rfg.deobf("curse.maven:effortlessbuilding-302113:2847346")
 
     runtimeOnly rfg.deobf("curse.maven:creativecore-257814:4722163")
     runtimeOnly rfg.deobf("curse.maven:configanytime-870276:5212709")
     runtimeOnly rfg.deobf("curse.maven:mekanism-ce-399904:6853226")
+    devOnlyNonPublishable "com.hbm:ntm-ce:2.5.0.3"
+    runtimeOnly rfg.deobf("curse.maven:ctm-267602:2915363")
 
     runtimeOnly rfg.deobf("curse.maven:gregtech-ce-unofficial-557242:5519022")
     runtimeOnly rfg.deobf("curse.maven:codechicken-lib-1-8-242818:2779848")
