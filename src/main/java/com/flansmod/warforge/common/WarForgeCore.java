@@ -31,7 +31,7 @@ public class WarForgeCore implements IEarlyMixinLoader, IFMLLoadingPlugin {
 
     @Override
     public String getAccessTransformerClass() {
-        return "";
+        return null;
     }
 
     @Override

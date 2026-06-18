@@ -64,6 +64,7 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 
 		Random rand = new Random((WarForgeMod.currTickTimestamp * world.getSeed()) * 2654435761L);
 		ArrayList<ItemStack> yieldComps = new ArrayList<>(currVein.compIds.size());
+		float yieldMult = getYieldMultiplier();  // collector-specific scaling (e.g. citadels yield more)
 
 		// for each component in the vein, attempt to yield it numYields many times
 		for (StackComparable currComp : currVein.compIds) {
@@ -86,6 +87,9 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 					++numItems;  // add extra yield
 				}
 			}
+
+			// scale the rolled amount by this collector's yield multiplier
+			numItems = Math.round(numItems * yieldMult);
 
 			if (numItems == 0) { continue; } // adding an itemstack with 0 of the item will result in an air itemstack
 

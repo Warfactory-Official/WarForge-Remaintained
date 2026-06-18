@@ -7,4 +7,7 @@ Maintained by Reclipse, Super and Norwood.
 
 ## Documentation
 
+- [Factions, Citadels and Upgrades](docs/factions.md)
+- [The Vein System](docs/veins.md)
+- [The Siege System](docs/sieges.md)
 - [Configuration Guide](docs/configuration.md)

@@ -501,7 +501,7 @@ public class WarForgeMod implements ILateMixinLoader {
                 return;
             }
 
-            if (playerFaction.calcNumSieges() > 2) {
+            if (playerFaction.calcNumSieges() >= WarForgeConfig.MAX_SIEGES) {
                 player.sendMessage(new TextComponentTranslation("warforge.info.too_many_siege_blocks"));
                 event.setCanceled(true);
                 return;
