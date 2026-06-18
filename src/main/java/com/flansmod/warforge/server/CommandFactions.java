@@ -1,12 +1,16 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.api.vein.Quality;
+import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.client.util.WarForgeNotifications;
 import com.flansmod.warforge.common.ProtectionsModule;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.server.Faction.PlayerData;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 import com.mojang.authlib.GameProfile;
@@ -23,6 +27,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 public class CommandFactions extends CommandBase {
@@ -34,7 +39,7 @@ public class CommandFactions extends CommandBase {
     private static final String[] tabCompletionsOp = new String[]{
             "invite", "accept", "disband", "expel", "leave", "time", "info", "top", "notoriety", "wealth", "legacy",
             "promote", "demote", "msg", "setleader", "rename", "siege", "borders", "vault",
-            "safe", "war", "protection", "resetflagcooldowns", "offlineprotection", "debugmsg"
+            "safe", "war", "protection", "resetflagcooldowns", "offlineprotection", "debugmsg", "vein"
     };
 
     static {
@@ -84,6 +89,7 @@ public class CommandFactions extends CommandBase {
                 case "rename" -> getListOfStringsMatchingLastWord(args, WarForgeMod.FACTIONS.GetFactionNames());
                 case "invite", "expel", "demote", "promote", "setleader" ->
                         getListOfStringsMatchingLastWord(args, server.getOnlinePlayerNames());
+                case "vein" -> getListOfStringsMatchingLastWord(args, "info", "set", "clear", "reroll", "seed");
                 default -> getListOfStringsMatchingLastWord(args, new String[0]);
             };
         }
@@ -135,6 +141,7 @@ public class CommandFactions extends CommandBase {
                     sender.sendMessage(new TextComponentString("/f safezone"));
                     sender.sendMessage(new TextComponentString("/f warzone"));
                     sender.sendMessage(new TextComponentString("/f rename <oldFactionName> <newFactionName>"));
+                    sender.sendMessage(new TextComponentString("/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]"));
                 }
 
                 break;
@@ -159,6 +166,14 @@ public class CommandFactions extends CommandBase {
                 WarForgeMod.FACTIONS.sendNotificationToPlayer( (EntityPlayerMP) sender, "warforge_notification_debug", args[1], args[2], hexToArgb(args[3]), 5000, sender.getCommandSenderEntity().getPersistentID());
 
 
+                break;
+            }
+            case "vein": {
+                if (!WarForgeMod.isOp(sender)) {
+                    sender.sendMessage(new TextComponentString("You must be an operator to use this"));
+                    break;
+                }
+                handleVeinCommand(server, sender, args);
                 break;
             }
             case "invite": {
@@ -703,6 +718,133 @@ public class CommandFactions extends CommandBase {
 
     }
 
+
+    private void handleVeinCommand(MinecraftServer server, ICommandSender sender, String[] args) {
+        if (WarForgeMod.VEIN_HANDLER == null || !WarForgeMod.VEIN_HANDLER.hasFinishedInit) {
+            sender.sendMessage(new TextComponentString("The vein system is not initialized yet"));
+            return;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(new TextComponentString("/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]"));
+            return;
+        }
+
+        String sub = args[1].toLowerCase(Locale.ROOT);
+
+        int atIndex = -1;
+        for (int i = 2; i < args.length; ++i) {
+            if (args[i].equalsIgnoreCase("at")) { atIndex = i; break; }
+        }
+
+        int baseX;
+        int baseZ;
+        int dim;
+        int radius = 0;
+        if (atIndex >= 0) {
+            try {
+                baseX = Integer.parseInt(args[atIndex + 1]);
+                baseZ = Integer.parseInt(args[atIndex + 2]);
+                dim = (args.length > atIndex + 3) ? Integer.parseInt(args[atIndex + 3]) : senderDim(sender);
+                if (args.length > atIndex + 4) { radius = Integer.parseInt(args[atIndex + 4]); }
+            } catch (Exception e) {
+                sender.sendMessage(new TextComponentString("Usage: ... at <chunkX> <chunkZ> [dim] [radius]"));
+                return;
+            }
+        } else if (sender instanceof EntityPlayer) {
+            EntityPlayer player = (EntityPlayer) sender;
+            baseX = player.chunkCoordX;
+            baseZ = player.chunkCoordZ;
+            dim = player.dimension;
+        } else {
+            sender.sendMessage(new TextComponentString("From the console you must specify 'at <chunkX> <chunkZ> [dim] [radius]'"));
+            return;
+        }
+
+        radius = Math.max(0, Math.min(radius, 16));
+        long seed = server.getWorld(0).getSeed();
+
+        switch (sub) {
+            case "info": {
+                Pair<Vein, Quality> info = WarForgeMod.VEIN_HANDLER.peekStoredVein(dim, baseX, baseZ);
+                String location = "chunk (" + baseX + ", " + baseZ + ") in dim " + dim;
+                if (info == null) {
+                    sender.sendMessage(new TextComponentString(location + ": no stored vein (rolls from the seed on first access)"));
+                } else if (info.getLeft() == null) {
+                    sender.sendMessage(new TextComponentString(location + ": cleared (no vein)"));
+                } else {
+                    sender.sendMessage(new TextComponentString(location + ": " + info.getLeft().translationKey + " [" + info.getRight() + "]"));
+                }
+                break;
+            }
+            case "set": {
+                if (args.length < 3 || args[2].equalsIgnoreCase("at")) {
+                    sender.sendMessage(new TextComponentString("/f vein set <veinKeyOrId> [quality]"));
+                    return;
+                }
+                Vein vein = WarForgeMod.VEIN_HANDLER.findVein(args[2]);
+                if (vein == null) {
+                    sender.sendMessage(new TextComponentString("Unknown vein '" + args[2] + "'"));
+                    return;
+                }
+                int quality = Quality.FAIR.ordinal();
+                if (args.length > 3 && !args[3].equalsIgnoreCase("at")) {
+                    try {
+                        quality = Quality.valueOf(args[3].toUpperCase(Locale.ROOT)).ordinal();
+                    } catch (IllegalArgumentException e) {
+                        sender.sendMessage(new TextComponentString("Unknown quality '" + args[3] + "' (POOR, FAIR, RICH)"));
+                        return;
+                    }
+                }
+                int count = 0;
+                for (int x = baseX - radius; x <= baseX + radius; ++x) {
+                    for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
+                        WarForgeMod.VEIN_HANDLER.setVeinOverride(dim, x, z, vein.getId(), quality);
+                        ++count;
+                    }
+                }
+                sender.sendMessage(new TextComponentString("Set " + count + " chunk(s) to vein " + vein.translationKey + " [" + Quality.getQuality(quality) + "]"));
+                refreshClaimViews(server);
+                break;
+            }
+            case "clear": {
+                int count = 0;
+                for (int x = baseX - radius; x <= baseX + radius; ++x) {
+                    for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
+                        WarForgeMod.VEIN_HANDLER.clearVeinAt(dim, x, z);
+                        ++count;
+                    }
+                }
+                sender.sendMessage(new TextComponentString("Cleared the vein in " + count + " chunk(s)"));
+                refreshClaimViews(server);
+                break;
+            }
+            case "reroll":
+            case "seed": {
+                int count = 0;
+                for (int x = baseX - radius; x <= baseX + radius; ++x) {
+                    for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
+                        WarForgeMod.VEIN_HANDLER.rerollVeinAt(dim, x, z, seed);
+                        ++count;
+                    }
+                }
+                sender.sendMessage(new TextComponentString("Rerolled the vein in " + count + " chunk(s) from the world seed"));
+                refreshClaimViews(server);
+                break;
+            }
+            default:
+                sender.sendMessage(new TextComponentString("Unknown vein subcommand '" + sub + "'"));
+        }
+    }
+
+    private int senderDim(ICommandSender sender) {
+        return (sender instanceof EntityPlayer) ? ((EntityPlayer) sender).dimension : 0;
+    }
+
+    private void refreshClaimViews(MinecraftServer server) {
+        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+            WarForgeMod.FACTIONS.sendClaimChunks(player, new DimChunkPos(player.dimension, player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
+        }
+    }
 
     public int hexToArgb(String hex) {
         if (hex == null) return 0xFFFFFFFF;
