@@ -1005,6 +1005,8 @@ public class FactionStorage {
             NETWORK.sendToAllAround(packet, entityPlayer.posX, entityPlayer.posY, entityPlayer.posZ, 100, entityPlayer.dimension);
         });
 
+        com.flansmod.warforge.common.util.FactionDisplay.refreshFactionTabNames(faction);
+
         INSTANCE.messageAll(new TextComponentString("Faction " + oldName + " was renamed to " + newName), true);
         return true;
     }

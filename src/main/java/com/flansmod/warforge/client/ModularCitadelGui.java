@@ -92,46 +92,45 @@ public final class ModularCitadelGui {
                 .color(0xC7CCD1));
 
         yeldPanel.child(new RichTextWidget()
-                .textBuilder(text -> text.add(TextFormatting.BOLD + "Yield Storage").textColor(0xFFFFFF))
-                .tooltip(tooltip -> tooltip.addLine("Resources collected from claimed territory"))
-                .width(90)
-                .height(10)
-                .margin(0, 0, 0, 5)
-        );
+                    .textBuilder(text -> text.add(TextFormatting.BOLD + "Yield Storage").textColor(0xFFFFFF))
+                    .tooltip(tooltip -> tooltip.addLine("Resources collected from claimed territory"))
+                    .width(90)
+                    .height(10)
+                    .margin(0, 0, 0, 5)
+            );
 
 
-        Grid yieldGrid = new Grid()
-                .mapTo(3, TileEntityCitadel.NUM_YIELD_STACKS, slot ->
-                        new ItemSlot()
-                                .slot(new ModularSlot(handler, slot))
-                                .size(SLOT_SIZE))
-                .size(3 * SLOT_SIZE, 3 * SLOT_SIZE);
-        yeldPanel.child(yieldGrid);
+            Grid yieldGrid = new Grid()
+                    .mapTo(3, TileEntityCitadel.NUM_YIELD_STACKS, slot ->
+                            new ItemSlot()
+                                    .slot(new ModularSlot(handler, slot))
+                                    .size(SLOT_SIZE))
+                    .size(3 * SLOT_SIZE, 3 * SLOT_SIZE);
+            yeldPanel.child(yieldGrid);
 
-        flagPanel.child(IKey.str("Faction Flag").asWidget()
-                .color(0xFFFFFF)
-                .right(130)
-                .margin(0, 0, 0, 4)
-                .style(net.minecraft.util.text.TextFormatting.BOLD));
-        flagPanel.child(IKey.str(citadel.factionFlagId.isEmpty() ? "Choose once. This cannot be changed later." : "Locked for this faction").asWidget()
-                .margin(0, 0, 0, 4 )
-                .color(0xB8BDC3));
-        if (!citadel.factionFlagId.isEmpty()) {
-            flagPanel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).size(56, 32).pos(228, STORAGE_Y + 32));
-            flagPanel.child(IKey.str(citadel.factionFlagId).asWidget().pos(288, STORAGE_Y + 42).color(0xD6DBE0));
-        } else if (hasFaction) {
-            var chooseBtn = openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction()));
-            flagPanel.child(chooseBtn.width(50));
-        } else {
-            panel.child(IKey.str("Create a faction first").asWidget().pos(180, STORAGE_Y + 42).color(0xD6DBE0));
-        }
+            flagPanel.child(IKey.str("Faction Flag").asWidget()
+                    .color(0xFFFFFF)
+                    .right(130)
+                    .margin(0, 0, 0, 5)
+                    .style(net.minecraft.util.text.TextFormatting.BOLD));
+            flagPanel.child(IKey.str("Choose once. This cannot be changed later.").asWidget().setEnabledIf(_ -> citadel.factionFlagId.isEmpty())
+                    .color(0xB8BDC3));
+            if (!citadel.factionFlagId.isEmpty()) {
+                flagPanel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).margin(4).size(95, 54).relativeToParent().center());
 
-        actionsPanel.child(IKey.str("Command Surface").asWidget()
-                .margin(0, 0, 0, 4)
-                .color(0xFFFFFF)
-                .style(net.minecraft.util.text.TextFormatting.BOLD)
-                .right(220)
-        )
+            } else if (hasFaction) {
+                var chooseBtn = openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction()));
+                flagPanel.child(chooseBtn.width(50));
+            } else {
+                panel.child(IKey.str("Create a faction first").asWidget().pos(180, STORAGE_Y + 42).color(0xD6DBE0));
+            }
+
+            actionsPanel.child(IKey.str("Command Surface").asWidget()
+                    .margin(0, 0, 0, 4)
+                    .color(0xFFFFFF)
+                    .style(net.minecraft.util.text.TextFormatting.BOLD)
+                    .right(220)
+            )
         ;
 
         var firsRow = new Flow(GuiAxis.X)

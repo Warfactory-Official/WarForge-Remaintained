@@ -238,6 +238,7 @@ public class Faction {
         // re-check number of online players
         onlinePlayerCount = getOnlinePlayers(entityPlayer -> true).size();
 
+        com.flansmod.warforge.common.util.FactionDisplay.refreshTabName(playerID);
     }
 
     // TODO:
@@ -273,6 +274,7 @@ public class Faction {
 
     public void removePlayer(UUID playerID) {
         members.remove(playerID);
+        com.flansmod.warforge.common.util.FactionDisplay.refreshTabName(playerID);
     }
 
     public void disband() {
@@ -296,7 +298,11 @@ public class Faction {
         String message = getMemberCount() > 0 ? name + " was disbanded." : name + " was abandoned and disbanded";
         WarForgeMod.FACTIONS.sendDisbandNotification(this);
         messageAll(new TextComponentString(message));
+        java.util.List<UUID> formerMembers = new java.util.ArrayList<>(members.keySet());
         members.clear();
+        for (UUID formerMember : formerMembers) {
+            com.flansmod.warforge.common.util.FactionDisplay.refreshTabName(formerMember);
+        }
         claims.clear();
         claimTypes.clear();
         forcedChunks.clear();

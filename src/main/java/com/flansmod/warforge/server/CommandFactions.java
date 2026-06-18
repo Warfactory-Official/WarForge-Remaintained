@@ -153,7 +153,7 @@ public class CommandFactions extends CommandBase {
             }
             case "debugmsg": {
                 if (args.length < 3) {
-                    sender.sendMessage(new TextComponentString("Invalid arguments, message title and message"));
+                    sender.sendMessage(new TextComponentString("Invalid arguments, message title and color"));
                     break;
                 }
                 if(!WarForgeMod.isOp(sender)){
@@ -163,7 +163,7 @@ public class CommandFactions extends CommandBase {
                 if(!(sender instanceof EntityPlayerMP))
                     break;
 
-                WarForgeMod.FACTIONS.sendNotificationToPlayer( (EntityPlayerMP) sender, "warforge_notification_debug", args[1], args[2], hexToArgb(args[3]), 5000, sender.getCommandSenderEntity().getPersistentID());
+                WarForgeMod.FACTIONS.sendNotificationToPlayer( (EntityPlayerMP) sender, "warforge_notification_debug", args[0], args[1], hexToArgb(args[2]), 5000, sender.getCommandSenderEntity().getPersistentID());
 
 
                 break;

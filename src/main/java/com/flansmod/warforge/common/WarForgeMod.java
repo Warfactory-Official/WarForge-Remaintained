@@ -15,6 +15,7 @@ import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.potions.PotionsModule;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.FactionDisplay;
 import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.server.*;
 import com.flansmod.warforge.server.Faction.Role;
@@ -41,6 +42,7 @@ import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
 import net.minecraftforge.event.world.BlockEvent;
@@ -524,6 +526,18 @@ public class WarForgeMod implements ILateMixinLoader {
         if (!event.player.world.isRemote) {
             FACTIONS.onFactionMemberLoggedOut(event.player.getUniqueID());
         }
+    }
+
+    @SubscribeEvent
+    public void onServerChat(ServerChatEvent event) {
+        if (!WarForgeConfig.FACTION_PREFIX_IN_CHAT) {
+            return;
+        }
+        Faction faction = FACTIONS.getFactionOfPlayer(event.getPlayer().getUniqueID());
+        if (faction == null) {
+            return;
+        }
+        event.setComponent(FactionDisplay.withChatPrefix(faction, event.getComponent()));
     }
 
     @SubscribeEvent

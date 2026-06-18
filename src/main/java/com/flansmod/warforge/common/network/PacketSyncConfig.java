@@ -91,6 +91,12 @@ public class PacketSyncConfig extends PacketBase {
         String insuranceBlacklist = compound.getString("insuranceBlacklist");
         WarForgeConfig.INSURANCE_BLACKLIST_IDS = insuranceBlacklist.isEmpty() ? new String[0] : insuranceBlacklist.split("\n");
 
+        WarForgeConfig.FACTION_PREFIX_IN_CHAT = compound.getBoolean("factionPrefixChat");
+        WarForgeConfig.FACTION_PREFIX_IN_TABLIST = compound.getBoolean("factionPrefixTab");
+        if (compound.hasKey("islandCollectorSlots")) {
+            WarForgeConfig.ISLAND_COLLECTOR_SLOTS = compound.getInteger("islandCollectorSlots");
+        }
+
         WarForgeConfig.SIEGE_MOMENTUM_TIME.clear();
         WarForgeConfig.SIEGE_MOMENTUM_TIME.putAll(parsedMap);
 

@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.cleanroommc.modularui.factory.TileEntityGuiFactory;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
@@ -7,6 +8,7 @@ import net.minecraft.block.Block;
 import net.minecraft.block.ITileEntityProvider;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.EntityPlayerMP;
@@ -24,6 +26,7 @@ public class BlockIslandCollector extends Block implements ITileEntityProvider {
         super(materialIn);
         setHardness(4.0f);
         setResistance(20.0f);
+        setCreativeTab(CreativeTabs.COMBAT);
     }
 
     @Override
@@ -70,9 +73,7 @@ public class BlockIslandCollector extends Block implements ITileEntityProvider {
                     && !WarForgeMod.isOp(playerIn)) {
                 return true;
             }
-        }
-        if (te instanceof IInventory inventory) {
-            playerIn.displayGUIChest(inventory);
+            TileEntityGuiFactory.INSTANCE.open(playerIn, pos);
             return true;
         }
         return false;

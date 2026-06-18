@@ -34,6 +34,7 @@ public class WarForgeConfig {
 
     // Warps
     public static final String CATEGORY_WARPS = "Warps";
+    public static final String CATEGORY_DISPLAY = "Display";
 
     // Config
     public static Configuration configFile;
@@ -63,6 +64,7 @@ public class WarForgeConfig {
     public static int FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = 1;
     public static int MAX_CLAIMS_PER_FACTION = -1;
     public static int CLAIM_MANAGER_RADIUS = 4;
+    public static int ISLAND_COLLECTOR_SLOTS = 100;
     public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
     public static int OFFLINE_RAID_PROTECTION_HOURS = 24;
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
@@ -127,6 +129,10 @@ public class WarForgeConfig {
     public static boolean BLOCK_ENDER_CHEST = false;
     public static boolean SHOW_YIELD_TIMERS = true;
     public static int CITADEL_MOVE_NUM_DAYS = 7;
+
+    // Display
+    public static boolean FACTION_PREFIX_IN_CHAT = true;
+    public static boolean FACTION_PREFIX_IN_TABLIST = true;
 
     public static boolean ENABLE_F_HOME_COMMAND = true;
     public static boolean ALLOW_F_HOME_BETWEEN_DIMENSIONS = false;
@@ -245,6 +251,7 @@ public class WarForgeConfig {
         FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = configFile.getInt("Force-loaded Chunks Per Citadel Level", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128, "Extra force-load chunk capacity granted per citadel level.");
         MAX_CLAIMS_PER_FACTION = configFile.getInt("Max Claims Per Faction", CATEGORY_CLAIMS, MAX_CLAIMS_PER_FACTION, -1, 1000000, "Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.");
         CLAIM_MANAGER_RADIUS = configFile.getInt("Claim Manager Radius", CATEGORY_CLAIMS, CLAIM_MANAGER_RADIUS, 1, 12, "Square radius in chunks shown in the claim manager UI.");
+        ISLAND_COLLECTOR_SLOTS = configFile.getInt("Island Collector Slot Count", CATEGORY_CLAIMS, ISLAND_COLLECTOR_SLOTS, 1, 1024, "Number of pull-only storage slots in the faction yield collector block. Shrinking this on an existing world relocates any items that no longer fit into remaining slots.");
         ENABLE_OFFLINE_RAID_PROTECTION = configFile.getBoolean("Enable Offline Raid Protection", CATEGORY_CLAIMS, ENABLE_OFFLINE_RAID_PROTECTION, "If enabled, factions cannot be sieged for a limited period after all their members go offline.");
         OFFLINE_RAID_PROTECTION_HOURS = configFile.getInt("Offline Raid Protection Hours", CATEGORY_CLAIMS, OFFLINE_RAID_PROTECTION_HOURS, 0, 168, "How many hours a faction remains protected from new sieges after the last member goes offline.");
         CITADEL_MOVE_NUM_DAYS = configFile.getInt("Days Between Citadel Moves", CATEGORY_CLAIMS, CITADEL_MOVE_NUM_DAYS, 0, 1024, "How many days a faction has to wait to move their citadel again");
@@ -342,6 +349,9 @@ public class WarForgeConfig {
         SHOW_OPPONENT_BORDERS = configFile.getBoolean("Show Opponent Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_OPPONENT_BORDERS, "Turns the in-world border rendering on/off for opponent chunks");
         SHOW_ALLY_BORDERS = configFile.getBoolean("Show Ally Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_ALLY_BORDERS, "Turns the in-world border rendering on/off for ally chunks");
         SHOW_YIELD_TIMERS = configFile.getBoolean("Show yield timers", CATEGORY_CLIENT, SHOW_YIELD_TIMERS, "Whether to show a readout of the time until the next yield / siege in top left of your screen");
+
+        FACTION_PREFIX_IN_CHAT = configFile.getBoolean("Faction Prefix In Chat", CATEGORY_DISPLAY, FACTION_PREFIX_IN_CHAT, "If enabled, a player's faction name is shown as a coloured prefix before their name in chat.");
+        FACTION_PREFIX_IN_TABLIST = configFile.getBoolean("Faction Prefix In Tab List", CATEGORY_DISPLAY, FACTION_PREFIX_IN_TABLIST, "If enabled, a player's faction name is shown as a coloured prefix before their name in the tab player list.");
         VEIN_MEMBER_DISPLAY_TIME_MS = configFile.getInt("Vein Member Display Time", CATEGORY_CLIENT, (int) VEIN_MEMBER_DISPLAY_TIME_MS, 100, Integer.MAX_VALUE, "The time in milliseconds for which each member of a vein will be displayed when it is being cycled through, to the precision allowed by the client tick system.");
         MODERN_WARFARE_MODELS = configFile.getBoolean("Enable modern warfare models", Configuration.CATEGORY_CLIENT, MODERN_WARFARE_MODELS, "Enable modern warfare models, instead of medival more vanilla-friendly models");
         HUD_VERT_CUTOFF_PERCENT = configFile.getFloat("HUD Vertical cutoff", CATEGORY_CLIENT, HUD_VERT_CUTOFF_PERCENT, 0.0f, 1.0f, "What percent of the entire screen resolution from the top must certain displays (such as vein info) be before they stop rendering. Set to 0.0 to disable all relevant displays, or 1.0 to turn this off.");
@@ -394,6 +404,9 @@ public class WarForgeConfig {
         compoundNBT.setBoolean("offlineRaidProtection", ENABLE_OFFLINE_RAID_PROTECTION);
         compoundNBT.setInteger("offlineRaidProtectionHours", OFFLINE_RAID_PROTECTION_HOURS);
         compoundNBT.setString("insuranceBlacklist", String.join("\n", INSURANCE_BLACKLIST_IDS));
+        compoundNBT.setBoolean("factionPrefixChat", FACTION_PREFIX_IN_CHAT);
+        compoundNBT.setBoolean("factionPrefixTab", FACTION_PREFIX_IN_TABLIST);
+        compoundNBT.setInteger("islandCollectorSlots", ISLAND_COLLECTOR_SLOTS);
         packet.configNBT = compoundNBT.toString();
         return packet;
     }
