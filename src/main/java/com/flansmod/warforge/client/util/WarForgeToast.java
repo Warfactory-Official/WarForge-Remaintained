@@ -6,18 +6,23 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.gui.toasts.GuiToast;
 import net.minecraft.client.gui.toasts.IToast;
+import net.minecraft.client.renderer.GLAllocation;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.fml.relauncher.Side;
 import net.minecraftforge.fml.relauncher.SideOnly;
+import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
+import java.nio.FloatBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 @SideOnly(Side.CLIENT)
 public class WarForgeToast implements IToast {
+    private static final FloatBuffer MODELVIEW_BUFFER = GLAllocation.createDirectFloatBuffer(16);
+
     private final String token;
     private String title;
     @Nullable
@@ -74,9 +79,15 @@ public class WarForgeToast implements IToast {
         int contentHeight = (titleLines.size() + bodyLines.size()) * lineHeight;
         int targetHeight = Math.max(32, contentHeight + 14);
 
-        // Shift left so the (now bounded) right edge lines up with the screen edge.
+        // Vanilla GuiToast slides every toast by a fixed 160px (its origin runs from screenWidth
+        // when hidden to screenWidth - 160 when shown), which under-travels for our wider toasts:
+        // they pop in/out instead of sliding fully off-screen. Recover vanilla's eased progress and
+        // scale the slide to the real width, so at rest the right edge sits flush against the screen
+        // edge and when fully hidden the whole box is off-screen.
+        float slideProgress = readSlideProgress(screenWidth);
+
         GlStateManager.pushMatrix();
-        GlStateManager.translate(160 - targetWidth, 0.0F, 0.0F);
+        GlStateManager.translate(slideProgress * (160 - targetWidth), 0.0F, 0.0F);
 
         Gui.drawRect(0, 0, targetWidth, targetHeight, 0xFF171B1F);
 
@@ -105,6 +116,20 @@ public class WarForgeToast implements IToast {
         GlStateManager.popMatrix();
 
         return delta - this.firstDrawTime < this.displayTimeMs ? Visibility.SHOW : Visibility.HIDE;
+    }
+
+    /**
+     * Reads how far through vanilla's slide animation the toast is by inspecting the horizontal
+     * translation {@link GuiToast} applied. Vanilla places the toast origin at
+     * {@code screenWidth - 160 * progress}, where progress eases from 0 (fully off-screen) to 1
+     * (resting), so {@code progress = (screenWidth - originX) / 160}.
+     */
+    private static float readSlideProgress(int screenWidth) {
+        MODELVIEW_BUFFER.clear();
+        GlStateManager.getFloat(GL11.GL_MODELVIEW_MATRIX, MODELVIEW_BUFFER);
+        float originX = MODELVIEW_BUFFER.get(12);
+        float progress = (screenWidth - originX) / 160.0F;
+        return progress < 0.0F ? 0.0F : Math.min(progress, 1.0F);
     }
 
     @Override

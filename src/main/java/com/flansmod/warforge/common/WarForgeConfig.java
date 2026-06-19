@@ -36,6 +36,9 @@ public class WarForgeConfig {
     public static final String CATEGORY_WARPS = "Warps";
     public static final String CATEGORY_DISPLAY = "Display";
 
+    // Debug / diagnostics
+    public static final String CATEGORY_DEBUG = "Debug";
+
     // Config
     public static Configuration configFile;
     public static boolean DO_FANCY_RENDERING = true;
@@ -159,6 +162,10 @@ public class WarForgeConfig {
     public static boolean ENABLE_SPAWN_POTION_EFFECT = false; // TODO
     public static boolean ALLOW_SPAWN_BETWEEN_DIMENSIONS = false;
     public static boolean ENABLE_TPA_POTIONS = true;
+
+    // When enabled, logs every server-side setBlockState that lands inside a claimed chunk.
+    // Diagnostic aid for finding mods that mutate protected terrain outside the explosion-event path.
+    public static boolean DEBUG_TRACE_SETBLOCK = false;
 
     public static ScreenPos POS_TIMERS = ScreenPos.BOTTOM_RIGHT;
     public static ScreenPos POS_VEIN_INDICATOR = ScreenPos.TOP;
@@ -411,6 +418,13 @@ public class WarForgeConfig {
 
         String botChannelString = configFile.getString("Discord Bot Channel ID", Configuration.CATEGORY_GENERAL, "" + FACTIONS_BOT_CHANNEL_ID, "https://github.com/Chikachi/DiscordIntegration/wiki/IMC-Feature");
         FACTIONS_BOT_CHANNEL_ID = Long.parseLong(botChannelString);
+
+        // Debug / diagnostics
+        DEBUG_TRACE_SETBLOCK = configFile.getBoolean("Trace setBlockState In Claimed Chunks", CATEGORY_DEBUG, DEBUG_TRACE_SETBLOCK,
+                "DEBUG/diagnostic only. When enabled, logs every server-side setBlockState that lands inside a claimed chunk, " +
+                        "together with the position, the owning claim, the block being placed and the calling code. " +
+                        "Use this to identify mods that mutate protected terrain outside the explosion-event path " +
+                        "(e.g. GregTech Industrial TNT, AE2 Tiny TNT). Very spammy - leave disabled in production.");
 
         if (configFile.hasChanged())
             configFile.save();

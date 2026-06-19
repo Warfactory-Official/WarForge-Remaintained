@@ -195,9 +195,15 @@ public class ClientTickHandler {
 				lastRenderStartTimeMs = -1;
             }
 
-            if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
-                requestClaimChunkData(standing);
-                lastClaimSyncChunk = standing;
+
+            boolean guiOpen = Minecraft.getMinecraft().currentScreen != null;
+            if (!guiOpen) {
+                if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
+                    requestClaimChunkData(standing);
+                    lastClaimSyncChunk = standing;
+                }
+            } else if (player.ticksExisted % 40 == 0 && lastClaimSyncChunk.dim == player.dimension) {
+                requestClaimChunkData(lastClaimSyncChunk);
             }
 
             if (claimManagerKey.isPressed()) {

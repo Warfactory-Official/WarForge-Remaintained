@@ -8,19 +8,16 @@ import journeymap.client.api.IClientAPI;
 import journeymap.client.api.IClientPlugin;
 import journeymap.client.api.display.PolygonOverlay;
 import journeymap.client.api.event.ClientEvent;
-import journeymap.client.api.model.MapPolygon;
 import journeymap.client.api.model.ShapeProperties;
+import journeymap.client.api.util.PolygonHelper;
 import net.minecraft.client.Minecraft;
-import net.minecraft.util.math.BlockPos;
 
-import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
- * Optional JourneyMap integration: draws a faction-coloured border over each claimed chunk.
+ * Optional JourneyMap integration: draws a faction-coloured fill over each claimed chunk.
  * <p>
  * This class is only ever loaded by JourneyMap's {@code @ClientPlugin} discovery, so when JourneyMap
  * is absent it is never referenced and nothing here runs — keeping the dependency soft. It only
@@ -101,23 +98,15 @@ public class WarForgeJourneyMapPlugin implements IClientPlugin, JourneyMapClaimC
     }
 
     private PolygonOverlay buildOverlay(int dim, int x, int z, int colour) {
-        int bx = x << 4;
-        int bz = z << 4;
-        List<BlockPos> points = new ArrayList<>(4);
-        points.add(new BlockPos(bx, 0, bz));
-        points.add(new BlockPos(bx + 16, 0, bz));
-        points.add(new BlockPos(bx + 16, 0, bz + 16));
-        points.add(new BlockPos(bx, 0, bz + 16));
-
         ShapeProperties shape = new ShapeProperties()
                 .setStrokeColor(colour)
                 .setStrokeWidth(3.0f)
                 .setStrokeOpacity(1.0f)
                 .setFillColor(colour)
-                .setFillOpacity(1);
+                .setFillOpacity(0.4f);
 
         String id = "warforge_claim_" + dim + "_" + x + "_" + z;
-        PolygonOverlay overlay = new PolygonOverlay(getModId(), id, dim, shape, new MapPolygon(points));
+        PolygonOverlay overlay = new PolygonOverlay(getModId(), id, dim, shape, PolygonHelper.createChunkPolygon(x, 0, z));
         overlay.setOverlayGroupName("WarForge Claims");
         return overlay;
     }

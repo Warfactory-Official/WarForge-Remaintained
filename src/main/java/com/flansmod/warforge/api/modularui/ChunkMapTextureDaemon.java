@@ -2,7 +2,6 @@ package com.flansmod.warforge.api.modularui;
 
 import com.flansmod.warforge.api.ChunkDynamicTextureThread;
 import com.flansmod.warforge.api.Color4i;
-import net.minecraft.block.material.MapColor;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -25,18 +24,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ChunkMapTextureDaemon {
     private static final ConcurrentHashMap<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<String, AtomicInteger>();
     private static final ConcurrentHashMap<String, Set<String>> ACTIVE_TEXTURES = new ConcurrentHashMap<String, Set<String>>();
-    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(new ThreadFactory() {
-        @Override
-        public Thread newThread(Runnable r) {
-            Thread thread = new Thread(r, "WarForge-ChunkMapTextureDaemon");
-            thread.setDaemon(true);
-            return thread;
-        }
+    private static final ConcurrentHashMap<String, MapRequest> LAST_REQUEST = new ConcurrentHashMap<String, MapRequest>();
+    private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "WarForge-ChunkMapTextureDaemon");
+        thread.setDaemon(true);
+        return thread;
     });
 
     public static void requestMapUpdate(String namespace, int dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
-        final int generation = GENERATIONS.computeIfAbsent(namespace, ignored -> new AtomicInteger(0)).incrementAndGet();
         final HashMap<Long, Integer> tintCopy = new HashMap<Long, Integer>(tintByChunk);
+
+
+        MapRequest request = new MapRequest(dim, centerX, centerZ, radius, tintCopy);
+        if (request.equals(LAST_REQUEST.get(namespace))) {
+            return;
+        }
+        LAST_REQUEST.put(namespace, request);
+
+        final int generation = GENERATIONS.computeIfAbsent(namespace, ignored -> new AtomicInteger(0)).incrementAndGet();
         HashSet<String> desired = new HashSet<String>();
         for (int x = centerX - radius; x <= centerX + radius; x++) {
             for (int z = centerZ - radius; z <= centerZ + radius; z++) {
@@ -61,6 +66,7 @@ public class ChunkMapTextureDaemon {
     }
 
     public static void releaseNamespace(String namespace) {
+        LAST_REQUEST.remove(namespace);
         Set<String> active = ACTIVE_TEXTURES.remove(namespace);
         if (active == null) {
             return;
@@ -77,6 +83,7 @@ public class ChunkMapTextureDaemon {
             releaseNamespace(namespace);
         }
         GENERATIONS.clear();
+        LAST_REQUEST.clear();
     }
 
     private static void replaceActiveTextures(String namespace, Set<String> desired) {
@@ -154,8 +161,8 @@ public class ChunkMapTextureDaemon {
                             int y = neighbor.getHeightValue(localX, localZ);
                             heightMap17[index] = y;
                             IBlockState state = neighbor.getBlockState(localX, y - 1, localZ);
-                            MapColor mapColor = state.getMapColor(world, new BlockPos(worldX, y - 1, worldZ));
-                            rawChunk17[index] = 0xFF000000 | mapColor.colorValue;
+                            int rgb = MapBlockColorSampler.sampleColor(world, state, new BlockPos(worldX, y - 1, worldZ));
+                            rawChunk17[index] = 0xFF000000 | (rgb & 0x00FFFFFF);
                         } else if (tint != null) {
                             heightMap17[index] = minY;
                             rawChunk17[index] = 0xFF000000 | (tint & 0x00FFFFFF);
@@ -190,5 +197,28 @@ public class ChunkMapTextureDaemon {
                 ).run();
             }
         }
+    }
+
+    /**
+     * Identifies a map build request so identical re-evaluations can be skipped.
+     */
+        private record MapRequest(int dim, int centerX, int centerZ, int radius, HashMap<Long, Integer> tints) {
+
+        @Override
+            public boolean equals(Object o) {
+                if (this == o) {
+                    return true;
+                }
+                if (!(o instanceof MapRequest)) {
+                    return false;
+                }
+                MapRequest other = (MapRequest) o;
+                return dim == other.dim
+                        && centerX == other.centerX
+                        && centerZ == other.centerZ
+                        && radius == other.radius
+                        && tints.equals(other.tints);
+            }
+
     }
 }

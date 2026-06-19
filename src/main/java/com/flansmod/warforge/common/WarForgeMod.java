@@ -757,6 +757,6 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @Override
     public List<String> getMixinConfigs() {
-        return Arrays.asList("mixins.warforge.json", "mixins.warforge.hbm.json");
+        return Arrays.asList("mixins.warforge.json", "mixins.warforge.hbm.json", "mixins.warforge.debug.json");
     }
 }
