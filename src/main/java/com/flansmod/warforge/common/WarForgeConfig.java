@@ -134,6 +134,23 @@ public class WarForgeConfig {
     public static boolean FACTION_PREFIX_IN_CHAT = true;
     public static boolean FACTION_PREFIX_IN_TABLIST = true;
 
+    // JourneyMap claim border overlay (optional compat)
+    public static final int JM_MODE_DISABLED = 0;
+    public static final int JM_MODE_AUTO = 1;
+    public static final int JM_MODE_PLAYER = 2;
+    public static int JOURNEYMAP_CLAIM_MODE = JM_MODE_DISABLED;
+    public static int JOURNEYMAP_VEIN_MODE = JM_MODE_DISABLED;
+    public static int JOURNEYMAP_VEIN_AUTO_RADIUS = 24;
+
+    public static int parseJourneyMapMode(String value) {
+        if (value == null) return JM_MODE_DISABLED;
+        switch (value.trim().toUpperCase(java.util.Locale.ROOT)) {
+            case "AUTO": return JM_MODE_AUTO;
+            case "PLAYER": return JM_MODE_PLAYER;
+            default: return JM_MODE_DISABLED;
+        }
+    }
+
     public static boolean ENABLE_F_HOME_COMMAND = true;
     public static boolean ALLOW_F_HOME_BETWEEN_DIMENSIONS = false;
     public static boolean ENABLE_F_HOME_POTION_EFFECT = false; // TODO
@@ -352,6 +369,20 @@ public class WarForgeConfig {
 
         FACTION_PREFIX_IN_CHAT = configFile.getBoolean("Faction Prefix In Chat", CATEGORY_DISPLAY, FACTION_PREFIX_IN_CHAT, "If enabled, a player's faction name is shown as a coloured prefix before their name in chat.");
         FACTION_PREFIX_IN_TABLIST = configFile.getBoolean("Faction Prefix In Tab List", CATEGORY_DISPLAY, FACTION_PREFIX_IN_TABLIST, "If enabled, a player's faction name is shown as a coloured prefix before their name in the tab player list.");
+        JOURNEYMAP_CLAIM_MODE = parseJourneyMapMode(configFile.getString("JourneyMap Claim Display Mode", CATEGORY_DISPLAY, "DISABLED",
+                "Draws a faction-coloured border over claimed chunks on JourneyMap, if it is installed. Server-authoritative.\n"
+                        + "DISABLED = no overlay.\n"
+                        + "AUTO = every claim is shown to everyone globally, updated live regardless of whether a player has visited the area.\n"
+                        + "PLAYER = a chunk's claim only appears (and updates) on a player's map once that player has observed (loaded) that chunk; unobserved claims are never sent to the client.",
+                new String[]{"DISABLED", "AUTO", "PLAYER"}));
+        JOURNEYMAP_VEIN_MODE = parseJourneyMapMode(configFile.getString("JourneyMap Vein Display Mode", CATEGORY_DISPLAY, "DISABLED",
+                "Draws each chunk's ore vein as a small item icon on JourneyMap, if it is installed. Server-authoritative.\n"
+                        + "DISABLED = no overlay.\n"
+                        + "AUTO = veins for a wide radius around each player are sent automatically as they move; no need to enter each chunk.\n"
+                        + "PLAYER = a chunk's vein only appears once the player has walked into and loaded that chunk; unobserved veins are never sent to the client.",
+                new String[]{"DISABLED", "AUTO", "PLAYER"}));
+        JOURNEYMAP_VEIN_AUTO_RADIUS = configFile.getInt("JourneyMap Vein Auto Radius", CATEGORY_DISPLAY, JOURNEYMAP_VEIN_AUTO_RADIUS, 1, 128,
+                "In AUTO vein mode, how many chunks around each player to reveal veins for. Larger values reveal more of the map but cause the server to generate and store veins over a wider area.");
         VEIN_MEMBER_DISPLAY_TIME_MS = configFile.getInt("Vein Member Display Time", CATEGORY_CLIENT, (int) VEIN_MEMBER_DISPLAY_TIME_MS, 100, Integer.MAX_VALUE, "The time in milliseconds for which each member of a vein will be displayed when it is being cycled through, to the precision allowed by the client tick system.");
         MODERN_WARFARE_MODELS = configFile.getBoolean("Enable modern warfare models", Configuration.CATEGORY_CLIENT, MODERN_WARFARE_MODELS, "Enable modern warfare models, instead of medival more vanilla-friendly models");
         HUD_VERT_CUTOFF_PERCENT = configFile.getFloat("HUD Vertical cutoff", CATEGORY_CLIENT, HUD_VERT_CUTOFF_PERCENT, 0.0f, 1.0f, "What percent of the entire screen resolution from the top must certain displays (such as vein info) be before they stop rendering. Set to 0.0 to disable all relevant displays, or 1.0 to turn this off.");
@@ -407,6 +438,8 @@ public class WarForgeConfig {
         compoundNBT.setBoolean("factionPrefixChat", FACTION_PREFIX_IN_CHAT);
         compoundNBT.setBoolean("factionPrefixTab", FACTION_PREFIX_IN_TABLIST);
         compoundNBT.setInteger("islandCollectorSlots", ISLAND_COLLECTOR_SLOTS);
+        compoundNBT.setInteger("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
+        compoundNBT.setInteger("jmVeinMode", JOURNEYMAP_VEIN_MODE);
         packet.configNBT = compoundNBT.toString();
         return packet;
     }

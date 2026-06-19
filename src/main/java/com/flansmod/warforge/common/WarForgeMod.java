@@ -46,6 +46,7 @@ import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
 import net.minecraftforge.event.world.BlockEvent;
+import net.minecraftforge.event.world.ChunkWatchEvent;
 import net.minecraftforge.event.world.WorldEvent;
 import net.minecraftforge.fml.common.FMLCommonHandler;
 import net.minecraftforge.fml.common.Mod;
@@ -81,6 +82,8 @@ public class WarForgeMod implements ILateMixinLoader {
     public static final PacketHandler NETWORK = new PacketHandler();
     public static final Leaderboard LEADERBOARD = new Leaderboard();
     public static final FactionStorage FACTIONS = new FactionStorage();
+    public static final JourneyMapClaimSync JOURNEYMAP_SYNC = new JourneyMapClaimSync();
+    public static final JourneyMapVeinSync JOURNEYMAP_VEIN_SYNC = new JourneyMapVeinSync();
     public static final Content CONTENT = new Content();
     public static final ProtectionsModule PROTECTIONS = new ProtectionsModule();
     public static final TeleportsModule TELEPORTS = new TeleportsModule();
@@ -525,6 +528,21 @@ public class WarForgeMod implements ILateMixinLoader {
     public void playerLeftGame(PlayerEvent.PlayerLoggedOutEvent event) {
         if (!event.player.world.isRemote) {
             FACTIONS.onFactionMemberLoggedOut(event.player.getUniqueID());
+            if (event.player instanceof EntityPlayerMP) {
+                JOURNEYMAP_SYNC.onPlayerLogout((EntityPlayerMP) event.player);
+                JOURNEYMAP_VEIN_SYNC.onPlayerLogout((EntityPlayerMP) event.player);
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public void onChunkObserved(ChunkWatchEvent.Watch event) {
+        // A chunk just entered this player's view; in PLAYER mode this is the moment we are allowed to
+        // reveal that chunk's claim border / vein to them.
+        EntityPlayerMP player = event.getPlayer();
+        if (player != null) {
+            JOURNEYMAP_SYNC.onChunkObserved(player, player.dimension, event.getChunk().x, event.getChunk().z);
+            JOURNEYMAP_VEIN_SYNC.onChunkObserved(player, player.dimension, event.getChunk().x, event.getChunk().z);
         }
     }
 
@@ -571,6 +589,8 @@ public class WarForgeMod implements ILateMixinLoader {
             NETWORK.sendTo(Siege.clearSiegeData(), (EntityPlayerMP) event.player);
             FACTIONS.sendAllSiegeInfoToNearby();
             FLAG_REGISTRY.syncToPlayer((EntityPlayerMP) event.player);
+            JOURNEYMAP_SYNC.onPlayerJoin((EntityPlayerMP) event.player);
+            JOURNEYMAP_VEIN_SYNC.onPlayerJoin((EntityPlayerMP) event.player);
 
             // begin queued sync info
             // don't sync if the upgrade info doesn't exist

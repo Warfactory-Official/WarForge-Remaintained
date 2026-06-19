@@ -799,6 +799,7 @@ public class CommandFactions extends CommandBase {
                 for (int x = baseX - radius; x <= baseX + radius; ++x) {
                     for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
                         WarForgeMod.VEIN_HANDLER.setVeinOverride(dim, x, z, vein.getId(), quality);
+                        WarForgeMod.JOURNEYMAP_VEIN_SYNC.onVeinChanged(dim, x, z);
                         ++count;
                     }
                 }
@@ -811,6 +812,7 @@ public class CommandFactions extends CommandBase {
                 for (int x = baseX - radius; x <= baseX + radius; ++x) {
                     for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
                         WarForgeMod.VEIN_HANDLER.clearVeinAt(dim, x, z);
+                        WarForgeMod.JOURNEYMAP_VEIN_SYNC.onVeinChanged(dim, x, z);
                         ++count;
                     }
                 }
@@ -824,6 +826,7 @@ public class CommandFactions extends CommandBase {
                 for (int x = baseX - radius; x <= baseX + radius; ++x) {
                     for (int z = baseZ - radius; z <= baseZ + radius; ++z) {
                         WarForgeMod.VEIN_HANDLER.rerollVeinAt(dim, x, z, seed);
+                        WarForgeMod.JOURNEYMAP_VEIN_SYNC.onVeinChanged(dim, x, z);
                         ++count;
                     }
                 }

@@ -18,6 +18,8 @@ public class ServerTickHandler
 		WarForgeMod.TELEPORTS.update();
 		WarForgeMod.proxy.TickServer();
 		WarForgeMod.FACTIONS.update();
+		WarForgeMod.JOURNEYMAP_SYNC.tick();
+		WarForgeMod.JOURNEYMAP_VEIN_SYNC.tick();
 		SyncQueueHandler.sync(tick);
 
 

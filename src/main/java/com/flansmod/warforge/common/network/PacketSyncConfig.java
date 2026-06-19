@@ -96,6 +96,11 @@ public class PacketSyncConfig extends PacketBase {
         if (compound.hasKey("islandCollectorSlots")) {
             WarForgeConfig.ISLAND_COLLECTOR_SLOTS = compound.getInteger("islandCollectorSlots");
         }
+        WarForgeConfig.JOURNEYMAP_CLAIM_MODE = compound.getInteger("jmClaimMode");
+        WarForgeConfig.JOURNEYMAP_VEIN_MODE = compound.getInteger("jmVeinMode");
+        // Each connection starts from a clean slate; the server re-sends whatever this client is allowed to see.
+        com.flansmod.warforge.client.JourneyMapClaimCache.applyClear();
+        com.flansmod.warforge.client.JourneyMapVeinCache.applyClear();
 
         WarForgeConfig.SIEGE_MOMENTUM_TIME.clear();
         WarForgeConfig.SIEGE_MOMENTUM_TIME.putAll(parsedMap);

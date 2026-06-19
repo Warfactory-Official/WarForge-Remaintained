@@ -49,6 +49,9 @@ dependencies {
     runtimeOnly rfg.deobf("curse.maven:mekanism-ce-399904:6853226")
     devOnlyNonPublishable "com.hbm:ntm-ce:2.5.0.3"
     runtimeOnly rfg.deobf("curse.maven:ctm-267602:2915363")
+    // JourneyMap is an optional integration: compile against its client API, but never bundle it.
+    compileOnly rfg.deobf("curse.maven:journeymap-32274:5172461")
+    runtimeOnly rfg.deobf("curse.maven:journeymap-32274:5172461")
 
     runtimeOnly rfg.deobf("curse.maven:gregtech-ce-unofficial-557242:5519022")
     runtimeOnly rfg.deobf("curse.maven:codechicken-lib-1-8-242818:2779848")

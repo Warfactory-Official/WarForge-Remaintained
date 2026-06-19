@@ -284,6 +284,8 @@ public class PacketHandler extends MessageToMessageCodec<FMLProxyPacket, PacketB
         registerPacket(PacketClaimChunkAction.class);
         registerPacket(PacketFactionMemberManagerAction.class);
         registerPacket(PacketFactionInsuranceAction.class);
+        registerPacket(PacketJourneyMapClaims.class);
+        registerPacket(PacketJourneyMapVeins.class);
 	}
 
 	/**
