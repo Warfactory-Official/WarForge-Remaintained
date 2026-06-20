@@ -80,6 +80,11 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 	public void setSiegeTarget(DimBlockPos siegeTarget) {
 		this.siegeTarget = siegeTarget;
 		defenders = getDefenders(this.siegeTarget);
+		if (defenders == null) {
+			WarForgeMod.LOGGER.error("Siege camp at " + getClaimPos() + " could not bind to target " + siegeTarget + " (no defending faction); aborting bind.");
+			this.siegeTarget = null;
+			return;
+		}
 		largestSeenDefenderCount = defenders.onlinePlayerCount;
 		siegeStatus = SiegeStatus.ACTIVE;
 		markDirty();
@@ -438,8 +443,13 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 					nbt.getInteger("attackZ"));
 
 			defenders = getDefenders(siegeTarget);
-			largestSeenDefenderCount = defenders.onlinePlayerCount;
-			lastSeenDefenderCount = defenders.onlinePlayerCount;
+			if (defenders != null) {
+				largestSeenDefenderCount = defenders.onlinePlayerCount;
+				lastSeenDefenderCount = defenders.onlinePlayerCount;
+			} else {
+				WarForgeMod.LOGGER.warn("Siege camp at " + pos + " loaded with target " + siegeTarget + " but no defending faction; clearing target.");
+				siegeTarget = null;
+			}
 		} else siegeTarget = null;
 
 		if(FMLCommonHandler.instance().getEffectiveSide() == Side.SERVER) {

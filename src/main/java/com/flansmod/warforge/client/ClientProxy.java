@@ -94,7 +94,6 @@ public class ClientProxy extends CommonProxy
 	@Override
 	public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
         return switch (ID) {
-            case GUI_TYPE_CITADEL -> new GuiCitadel(getServerGuiElement(ID, player, world, x, y, z));
             case GUI_TYPE_CREATE_FACTION ->
                     new GuiCreateFaction((TileEntityCitadel) world.getTileEntity(new BlockPos(x, y, z)), false);
             case GUI_TYPE_RECOLOUR_FACTION ->

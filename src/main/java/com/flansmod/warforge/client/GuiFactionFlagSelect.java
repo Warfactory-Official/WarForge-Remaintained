@@ -68,7 +68,7 @@ public final class GuiFactionFlagSelect {
         row.margin(0, 0, 0, 2);
         row.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
         row.child(new IDrawable.DrawableWidget(new FlagDrawable(flagId)).size(42, 24));
-        row.child(new ScrollingTextWidget(IKey.str(displayName(flagId)).color(ModularGuiStyle.TEXT_SECONDARY)).width(160).tooltip(t -> t.addLine(flagId)));
+        row.child(new ScrollingTextWidget(IKey.str(displayName(flagId)).color(ModularGuiStyle.TEXT_PRIMARY)).width(160).tooltip(t -> t.addLine(flagId)));
         boolean chosen = flagId.equals(data.currentFlagId);
         boolean clickable = data.canChoose && data.currentFlagId.isEmpty();
         if (chosen) {

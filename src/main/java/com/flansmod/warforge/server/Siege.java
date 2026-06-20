@@ -22,6 +22,7 @@ import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraft.world.World;
 
 import java.util.ArrayList;
 import java.util.UUID;
@@ -59,6 +60,12 @@ public class Siege {
      * - Elapsed days with no attacker logins
      */
     private int mAttackProgress = 0;
+
+    // True for UI-declared sieges that have no physical siege camp block. Such sieges are anchored
+    // logically at the chosen start-from chunk (stored as attackingCamps[0]) and run their
+    // attacker-presence / abandon check from the server siege loop instead of a camp TileEntity.
+    public boolean campless = false;
+    private int attackerAbsenceTicks = 0;
 
     public Siege() {
         attackingCamps = new ArrayList<>(4);
@@ -264,6 +271,28 @@ public class Siege {
         }
     }
 
+    // For UI-declared (camp-less) sieges, the physical camp's attacker-presence engine does not
+    // exist, so enforce a minimal equivalent here from the server siege loop: if no attacking member
+    // stays within the attacker radius of the anchor chunk for the desertion timer, the siege is
+    // abandoned. Returns true when the siege should conclude as an attacker failure. No-op for
+    // camp-backed sieges (the camp TE handles them) and when presence is not required.
+    public boolean tickCamplessPresence() {
+        if (!campless || !WarForgeConfig.SIEGE_DECLARE_REQUIRE_PRESENCE) return false;
+        if (attackingCamps.isEmpty() || attackingCamps.get(0) == null) return false;
+        int limitTicks = WarForgeConfig.ATTACKER_DESERTION_TIMER * 20;
+        if (limitTicks <= 0) return false; // 0 disables the timer rather than failing instantly
+        Faction attackers = WarForgeMod.FACTIONS.getFaction(attackingFaction);
+        if (attackers == null) return false;
+        DimChunkPos anchor = attackingCamps.get(0).toChunkPos();
+        boolean present = !attackers.getOnlinePlayers(p -> p != null && !p.isDead
+                && isPlayerInRadius(anchor, new DimChunkPos(p.dimension, p.getPosition()), WarForgeConfig.SIEGE_ATTACKER_RADIUS)).isEmpty();
+        if (present) {
+            attackerAbsenceTicks = 0;
+            return false;
+        }
+        return ++attackerAbsenceTicks >= limitTicks;
+    }
+
     public void AdvanceDay() {
         Faction attackers = WarForgeMod.FACTIONS.getFaction(attackingFaction);
         Faction defenders = WarForgeMod.FACTIONS.getFaction(defendingFaction);
@@ -284,14 +313,14 @@ public class Siege {
         mAttackProgress += totalSwing;
 
         if (totalSwing > 0) {
-            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " shifted " + totalSwing + " points in your favour. The progress is now at " + GetAttackProgress() + "/" + mBaseDifficulty));
-            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " shifted " + totalSwing + " points in their favour. The progress is now at " + GetAttackProgress() + "/" + mBaseDifficulty));
+            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " shifted " + totalSwing + " points in your favour. The progress is now at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
+            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " shifted " + totalSwing + " points in their favour. The progress is now at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
         } else if (totalSwing < 0) {
-            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " shifted " + -totalSwing + " points in your favour. The progress is now at " + GetAttackProgress() + "/" + mBaseDifficulty));
-            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " shifted " + -totalSwing + " points in their favour. The progress is now at " + GetAttackProgress() + "/" + mBaseDifficulty));
+            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " shifted " + -totalSwing + " points in your favour. The progress is now at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
+            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " shifted " + -totalSwing + " points in their favour. The progress is now at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
         } else {
-            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " did not shift today. The progress is at " + GetAttackProgress() + "/" + mBaseDifficulty));
-            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " did not shift today. The progress is at " + GetAttackProgress() + "/" + mBaseDifficulty));
+            defenders.messageAll(new TextComponentString("The siege on " + defendingClaim.toFancyString() + " by " + attackers.name + " did not shift today. The progress is at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
+            attackers.messageAll(new TextComponentString("Your siege on " + defenders.name + " at " + defendingClaim.toFancyString() + " did not shift today. The progress is at " + GetAttackProgress() + "/" + GetAttackSuccessThreshold()));
         }
 
         FACTION_STORAGE.sendSiegeInfoToNearby(defendingClaim.toChunkPos());
@@ -372,7 +401,10 @@ public class Siege {
         // for every attacking siege camp attempt to locate it, and if an actual siege camp handle appropriately
         finished = true;
         for (DimBlockPos siegeCampPos : attackingCamps) {
-            TileEntity siegeCamp = WarForgeMod.MC_SERVER.getWorld(siegeCampPos.dim).getTileEntity(siegeCampPos.toRegularPos());
+            if (siegeCampPos == null) continue;
+            World world = WarForgeMod.MC_SERVER.getWorld(siegeCampPos.dim);
+            if (world == null) continue;
+            TileEntity siegeCamp = world.getTileEntity(siegeCampPos.toRegularPos());
             if (siegeCamp != null) {
                 if (siegeCamp instanceof TileEntitySiegeCamp) {
                     if (successful) ((TileEntitySiegeCamp) siegeCamp).cleanupPassedSiege();
@@ -465,9 +497,11 @@ public class Siege {
         mAttackProgress = tags.getInteger("progress");
         mBaseDifficulty = tags.getInteger("baseDifficulty");
         mExtraDifficulty = tags.getInteger("extraDifficulty");
+        campless = tags.getBoolean("campless");
+        attackerAbsenceTicks = tags.getInteger("attackerAbsenceTicks");
         if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER) {
 
-            timeRemainingMillis = tags.getInteger("timeElapsed");
+            timeRemainingMillis = tags.getLong("timeElapsed");
             recalculateEndTimestamp();
         }
     }
@@ -490,5 +524,7 @@ public class Siege {
         tags.setInteger("baseDifficulty", mBaseDifficulty);
         tags.setInteger("extraDifficulty", mExtraDifficulty);
         tags.setLong("timeElapsed", timeRemainingMillis);
+        tags.setBoolean("campless", campless);
+        tags.setInteger("attackerAbsenceTicks", attackerAbsenceTicks);
     }
 }

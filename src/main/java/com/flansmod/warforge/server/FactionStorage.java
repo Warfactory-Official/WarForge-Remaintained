@@ -249,6 +249,201 @@ public class FactionStorage {
         );
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Alliances
+    // ---------------------------------------------------------------------------------------------
+
+    // Player-facing reason the attacker may not siege the defender due to diplomacy, or null if allowed.
+    private String getSiegeBlockReason(Faction attacker, Faction defender) {
+        if (attacker == null || defender == null) {
+            return null;
+        }
+        if (attacker.isAllyOf(defender.uuid)) {
+            return "You are allied with " + defender.name + " and cannot siege them. Break the alliance first.";
+        }
+        if (attacker.isInTruceWith(defender.uuid)) {
+            return "You are in a truce with " + defender.name + " for another "
+                    + TimeHelper.formatTime(attacker.getTruceRemainingMs(defender.uuid)) + " and cannot siege them.";
+        }
+        return null;
+    }
+
+    // Drops the given faction from every other faction's alliance/request/truce structures so nothing
+    // dangles after it is disbanded.
+    private void removeFactionFromAllAlliances(UUID factionId) {
+        for (Faction other : mFactions.values()) {
+            other.allies.remove(factionId);
+            other.pendingAllianceRequests.remove(factionId);
+            other.truces.remove(factionId);
+        }
+    }
+
+    // Factions that the given faction could currently invite to an alliance (excludes itself, the
+    // safe/war pseudo-zones, and existing allies). Used to populate the alliance UI.
+    public java.util.List<Faction> getAlliableFactions(Faction faction) {
+        java.util.ArrayList<Faction> result = new java.util.ArrayList<Faction>();
+        if (faction == null) {
+            return result;
+        }
+        for (Faction other : mFactions.values()) {
+            if (other.uuid.equals(faction.uuid) || IsNeutralZone(other.uuid) || faction.isAllyOf(other.uuid)) {
+                continue;
+            }
+            result.add(other);
+        }
+        return result;
+    }
+
+    private boolean canManageAlliances(EntityPlayerMP player, Faction faction) {
+        if (faction == null) {
+            player.sendMessage(new TextComponentString("You are not in a faction"));
+            return false;
+        }
+        if (!WarForgeMod.isOp(player) && !faction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER)) {
+            player.sendMessage(new TextComponentString("You must be an officer to manage alliances"));
+            return false;
+        }
+        return true;
+    }
+
+    public void requestInviteAlly(EntityPlayerMP player, UUID targetFactionId) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (!canManageAlliances(player, faction)) {
+            return;
+        }
+        Faction target = getFaction(targetFactionId);
+        if (target == null || IsNeutralZone(targetFactionId)) {
+            player.sendMessage(new TextComponentString("That faction no longer exists"));
+            return;
+        }
+        if (target.uuid.equals(faction.uuid)) {
+            player.sendMessage(new TextComponentString("You cannot ally with your own faction"));
+            return;
+        }
+        if (faction.isAllyOf(target.uuid)) {
+            player.sendMessage(new TextComponentString("You are already allied with " + target.name));
+            return;
+        }
+        if (WarForgeConfig.MAX_ALLIES >= 0 && faction.allies.size() >= WarForgeConfig.MAX_ALLIES) {
+            player.sendMessage(new TextComponentString("Your faction has reached the maximum number of alliances"));
+            return;
+        }
+        // If they already requested us, treat this as an accept (mutual consent reached).
+        if (faction.pendingAllianceRequests.contains(target.uuid)) {
+            acceptAllianceInternal(faction, target);
+            return;
+        }
+        if (target.pendingAllianceRequests.contains(faction.uuid)) {
+            player.sendMessage(new TextComponentString("You have already sent an alliance request to " + target.name));
+            return;
+        }
+        target.pendingAllianceRequests.add(faction.uuid);
+        faction.messageAll(new TextComponentString("Sent an alliance request to " + target.name + "."));
+        target.messageAll(new TextComponentString(faction.name + " has requested an alliance. Open Faction Members > Alliances to respond."));
+        sendNotificationToFaction(faction, "alliance_request_sent_" + target.uuid, "Alliance Requested", "Request sent to " + target.name, TOAST_INFO, 5000);
+        sendNotificationToFaction(target, "alliance_request_" + faction.uuid, "Alliance Request", faction.name + " wants to ally", faction.colour, 8000);
+    }
+
+    public void requestAcceptAlliance(EntityPlayerMP player, UUID requesterFactionId) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (!canManageAlliances(player, faction)) {
+            return;
+        }
+        if (!faction.pendingAllianceRequests.contains(requesterFactionId)) {
+            player.sendMessage(new TextComponentString("There is no pending alliance request from that faction"));
+            return;
+        }
+        Faction requester = getFaction(requesterFactionId);
+        faction.pendingAllianceRequests.remove(requesterFactionId);
+        if (requester == null) {
+            player.sendMessage(new TextComponentString("That faction no longer exists"));
+            return;
+        }
+        if (WarForgeConfig.MAX_ALLIES >= 0 && faction.allies.size() >= WarForgeConfig.MAX_ALLIES) {
+            player.sendMessage(new TextComponentString("Your faction has reached the maximum number of alliances"));
+            return;
+        }
+        acceptAllianceInternal(faction, requester);
+    }
+
+    private void acceptAllianceInternal(Faction a, Faction b) {
+        a.allies.add(b.uuid);
+        b.allies.add(a.uuid);
+        a.pendingAllianceRequests.remove(b.uuid);
+        b.pendingAllianceRequests.remove(a.uuid);
+        // A fresh alliance clears any lingering truce between the two.
+        a.truces.remove(b.uuid);
+        b.truces.remove(a.uuid);
+        a.messageAll(new TextComponentString("Your faction is now allied with " + b.name + "."));
+        b.messageAll(new TextComponentString("Your faction is now allied with " + a.name + "."));
+        sendNotificationToFaction(a, "alliance_formed_" + b.uuid, "Alliance Formed", "Now allied with " + b.name, TOAST_SUCCESS, 6000);
+        sendNotificationToFaction(b, "alliance_formed_" + a.uuid, "Alliance Formed", "Now allied with " + a.name, TOAST_SUCCESS, 6000);
+    }
+
+    public void requestDeclineAlliance(EntityPlayerMP player, UUID requesterFactionId) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (!canManageAlliances(player, faction)) {
+            return;
+        }
+        if (!faction.pendingAllianceRequests.remove(requesterFactionId)) {
+            player.sendMessage(new TextComponentString("There is no pending alliance request from that faction"));
+            return;
+        }
+        Faction requester = getFaction(requesterFactionId);
+        faction.messageAll(new TextComponentString("Declined the alliance request" + (requester != null ? " from " + requester.name : "") + "."));
+        if (requester != null) {
+            requester.messageAll(new TextComponentString(faction.name + " declined your alliance request."));
+            sendNotificationToFaction(requester, "alliance_declined_" + faction.uuid, "Alliance Declined", faction.name + " declined your request", TOAST_WARNING, 5000);
+        }
+    }
+
+    public void requestBreakAlliance(EntityPlayerMP player, UUID allyFactionId) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (!canManageAlliances(player, faction)) {
+            return;
+        }
+        if (!faction.isAllyOf(allyFactionId)) {
+            player.sendMessage(new TextComponentString("You are not allied with that faction"));
+            return;
+        }
+        Faction ally = getFaction(allyFactionId);
+        faction.allies.remove(allyFactionId);
+        if (ally != null) {
+            ally.allies.remove(faction.uuid);
+        }
+        // Apply a mutual truce so neither side can instantly retaliate.
+        long truceMs = (long) WarForgeConfig.ALLIANCE_TRUCE_DURATION_MINUTES * 60_000L;
+        if (truceMs > 0) {
+            long expiry = System.currentTimeMillis() + truceMs;
+            faction.truces.put(allyFactionId, expiry);
+            if (ally != null) {
+                ally.truces.put(faction.uuid, expiry);
+            }
+        }
+        String allyName = ally != null ? ally.name : "that faction";
+        String truceMsg = truceMs > 0 ? " A truce prevents fighting for " + TimeHelper.formatTime(truceMs) + "." : "";
+        faction.messageAll(new TextComponentString("Your alliance with " + allyName + " has been broken." + truceMsg));
+        sendNotificationToFaction(faction, "alliance_broken_" + allyFactionId, "Alliance Broken", "No longer allied with " + allyName, TOAST_WARNING, 6000);
+        if (ally != null) {
+            ally.messageAll(new TextComponentString(faction.name + " broke your alliance." + truceMsg));
+            sendNotificationToFaction(ally, "alliance_broken_" + faction.uuid, "Alliance Broken", faction.name + " broke the alliance", TOAST_DANGER, 6000);
+        }
+    }
+
+    public void requestToggleAllyInteraction(EntityPlayerMP player) {
+        Faction faction = getFactionOfPlayer(player.getUniqueID());
+        if (!canManageAlliances(player, faction)) {
+            return;
+        }
+        faction.allowAllyInteraction = !faction.allowAllyInteraction;
+        faction.messageAll(new TextComponentString(faction.allowAllyInteraction
+                ? "Allies may now interact within your faction's claims."
+                : "Allies can no longer interact within your faction's claims."));
+        sendNotificationToFaction(faction, "ally_interaction_" + faction.uuid, "Ally Access",
+                faction.allowAllyInteraction ? "Allies may now use your land" : "Allies can no longer use your land",
+                TOAST_INFO, 5000);
+    }
+
     public static boolean IsNeutralZone(UUID factionID) {
         return factionID.equals(SAFE_ZONE_ID) || factionID.equals(WAR_ZONE_ID);
     }
@@ -662,21 +857,18 @@ public class FactionStorage {
     public void updateConqueredChunks(long msUpdateTime) {
         int msPassed = (int) (msUpdateTime - previousUpdateTimestamp); // the difference is likely less than 596h (max time storage of int using ms)
 
-        try {
-            // concurrent modification exception can occur when conquered chunks is checked by other methods, such as pre block place
-            for (DimChunkPos chunkPosKey : conqueredChunks.keySet()) {
-                ObjectIntPair<UUID> chunkEntry = conqueredChunks.get(chunkPosKey);
-
-                if (chunkEntry.getInteger() < msPassed) conqueredChunks.remove(chunkPosKey);
-                else chunkEntry.setInteger(chunkEntry.getInteger() - msPassed);
-            }
-        } catch (Exception e) {
-            LOGGER.atError().log("Error when updating conquered chunk of type " + e + ", with stacktrace:");
-            e.printStackTrace();
+        // Iterate with an explicit iterator so expired entries are removed in-place; the previous
+        // keySet()-then-remove loop threw ConcurrentModificationException (and swallowed it).
+        var it = conqueredChunks.entrySet().iterator();
+        while (it.hasNext()) {
+            ObjectIntPair<UUID> chunkEntry = it.next().getValue();
+            if (chunkEntry.getInteger() < msPassed) it.remove();
+            else chunkEntry.setInteger(chunkEntry.getInteger() - msPassed);
         }
     }
 
     public void advanceSiegeDay() {
+        pruneInvalidSieges();
         for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
             kvp.getValue().AdvanceDay();
             if (kvp.getValue().isCompleted())
@@ -693,9 +885,15 @@ public class FactionStorage {
     }
 
     public void updateSiegeTimers() {
+        pruneInvalidSieges();
         for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
-            kvp.getValue().updateSiegeTimer();
-            if (kvp.getValue().isCompleted())
+            Siege siege = kvp.getValue();
+            siege.updateSiegeTimer();
+            // Camp-less declared sieges have no camp TE to enforce attacker presence; do it here.
+            if (siege.tickCamplessPresence()) {
+                siege.setAttackProgress(-5); // attacker abandoned -> defenders hold
+            }
+            if (siege.isCompleted())
                 finishedSiegeQueue.add(kvp.getKey());
         }
         processCompleteSieges();
@@ -765,7 +963,11 @@ public class FactionStorage {
     public synchronized void processCompleteSieges() {
         while (!finishedSiegeQueue.isEmpty()) {
             var siege = finishedSiegeQueue.poll();
-            sieges.get(siege).finished = true;
+            Siege completed = sieges.get(siege);
+            // Another path (TE conclusion / command termination) may have already removed this siege
+            // before its queued entry drained; skip rather than NPE and abort the whole drain loop.
+            if (completed == null) continue;
+            completed.finished = true;
             handleCompletedSiege(siege);
         }
     }
@@ -855,6 +1057,10 @@ public class FactionStorage {
     // cleanup is done by failing, passing, or cancelling siege through the TE class. If called without boolean, it is assumed to not be from inside TE
     public void handleCompletedSiege(DimChunkPos chunkPos, boolean doCleanup) {
         Siege siege = sieges.get(chunkPos);
+        if (siege == null) {
+            LOGGER.warn("Attempted to complete non-existent siege at {}", chunkPos);
+            return;
+        }
 
         Faction attackers = getFaction(siege.attackingFaction);
         Faction defenders = getFaction(siege.defendingFaction);
@@ -914,6 +1120,74 @@ public class FactionStorage {
         for (Siege activeSiege : sieges.values()) {
             if (activeSiege.defendingFaction.equals(defenders.uuid))
                 return;
+        }
+        defenders.isCurrentlyDefending = false;
+    }
+
+    // Immediately ends every siege the given faction attacks or defends. Used when the faction is
+    // disbanded / defeated so no siege (or ticking camp TE) is left referencing a faction that no
+    // longer exists.
+    private void terminateSiegesInvolving(UUID factionID) {
+        if (factionID == null || sieges.isEmpty()) return;
+        ArrayList<DimChunkPos> involved = new ArrayList<>();
+        for (Map.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
+            Siege siege = kvp.getValue();
+            if (factionID.equals(siege.attackingFaction) || factionID.equals(siege.defendingFaction)) {
+                involved.add(kvp.getKey());
+            }
+        }
+        for (DimChunkPos key : involved) {
+            Siege siege = sieges.remove(key);
+            if (siege == null) continue;
+            try {
+                siege.onCompleted(false);
+            } catch (Throwable t) {
+                LOGGER.error("Error cleaning up siege at {} during faction removal", key, t);
+            }
+            Faction other = getFaction(factionID.equals(siege.attackingFaction) ? siege.defendingFaction : siege.attackingFaction);
+            if (other != null) {
+                other.messageAll(new TextComponentString("A siege was cancelled because the opposing faction no longer exists."));
+            }
+            clearDefendingFlagIfNoSieges(siege.defendingFaction);
+        }
+    }
+
+    // Defensive sweep run each siege-update pass: drops any siege whose attacker/defender faction is
+    // gone or whose defending claim is no longer held by the defender (admin edits, dimension unload,
+    // untracked claim loss), so dangling sieges can't tick forever against dead state.
+    private void pruneInvalidSieges() {
+        if (sieges.isEmpty()) return;
+        ArrayList<DimChunkPos> invalid = null;
+        for (Map.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
+            Siege siege = kvp.getValue();
+            Faction attackers = getFaction(siege.attackingFaction);
+            Faction defenders = getFaction(siege.defendingFaction);
+            boolean targetGone = siege.defendingClaim == null
+                    || !siege.defendingFaction.equals(getClaim(siege.defendingClaim.toChunkPos()));
+            if (attackers == null || defenders == null || targetGone) {
+                if (invalid == null) invalid = new ArrayList<>();
+                invalid.add(kvp.getKey());
+            }
+        }
+        if (invalid == null) return;
+        for (DimChunkPos key : invalid) {
+            Siege siege = sieges.remove(key);
+            if (siege == null) continue;
+            try {
+                siege.onCompleted(false);
+            } catch (Throwable t) {
+                LOGGER.error("Error cleaning up dangling siege at {}", key, t);
+            }
+            clearDefendingFlagIfNoSieges(siege.defendingFaction);
+            LOGGER.warn("Pruned dangling siege at {} (participant or target no longer valid)", key);
+        }
+    }
+
+    private void clearDefendingFlagIfNoSieges(UUID defendingFaction) {
+        Faction defenders = getFaction(defendingFaction);
+        if (defenders == null) return;
+        for (Siege other : sieges.values()) {
+            if (other.defendingFaction.equals(defendingFaction)) return;
         }
         defenders.isCurrentlyDefending = false;
     }
@@ -1376,6 +1650,9 @@ public class FactionStorage {
         if (faction == null) {
             return;
         }
+        // End any siege this faction attacks or defends before its data is torn down, otherwise the
+        // siege (and any ticking camp TEs) would be left pointing at a faction that no longer exists.
+        terminateSiegesInvolving(faction.uuid);
         if (unlockInsurance) {
             unlockInsuranceVault(faction);
         }
@@ -1394,6 +1671,7 @@ public class FactionStorage {
         });
         faction.disband();
         mFactions.remove(faction.uuid);
+        removeFactionFromAllAlliances(faction.uuid);
         WarForgeMod.CHUNK_LOADING_MANAGER.releaseFaction(faction.uuid);
         LEADERBOARD.UnregisterFaction(faction);
     }
@@ -1461,7 +1739,7 @@ public class FactionStorage {
                 return true;
 
             for (DimBlockPos attackerPos : kvp.getValue().attackingCamps) {
-                if (attackerPos.toChunkPos().equals(chunkPos))
+                if (attackerPos != null && attackerPos.toChunkPos().equals(chunkPos))
                     return true;
             }
         }
@@ -1547,6 +1825,15 @@ public class FactionStorage {
             return;
         }
 
+        // Server-side authority: the camp GUI only ever offers cardinally-adjacent targets, but the
+        // wire packet carries raw offset bytes. Reject crafted diagonal / non-adjacent directions so a
+        // malicious client can't siege a chunk that bypassed the GUI's adjacency / vertical checks.
+        if (Math.abs(direction.getX()) > 1 || Math.abs(direction.getZ()) > 1
+                || (direction.getX() != 0 && direction.getZ() != 0)) {
+            factionOfficer.sendMessage(new TextComponentString("Invalid siege direction"));
+            return;
+        }
+
         TileEntitySiegeCamp siegeTE = (TileEntitySiegeCamp) MC_SERVER.getWorld(siegeCampPos.dim).getTileEntity(siegeCampPos.toRegularPos());
         if (siegeTE == null) {
             factionOfficer.sendMessage(new TextComponentString("Could not find that siege camp"));
@@ -1576,6 +1863,12 @@ public class FactionStorage {
             return;
         }
 
+        String allianceBlock = getSiegeBlockReason(attacking, defending);
+        if (allianceBlock != null) {
+            factionOfficer.sendMessage(new TextComponentString(allianceBlock));
+            return;
+        }
+
         if (isOfflineRaidProtected(defending)) {
             factionOfficer.sendMessage(new TextComponentString("That faction is offline and protected until " + TimeHelper.formatTime(defending.offlineRaidProtectionUntil - System.currentTimeMillis())));
             return;
@@ -1598,17 +1891,140 @@ public class FactionStorage {
             return;
         }
 
-        long maxTime = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(attacking.getSiegeMomentum()) * 1000L;
-
-        Siege siege = new Siege(attacking.uuid, defendingFactionID, defendingPos, maxTime);
-        siege.setBattleRadius(WarForgeConfig.SIEGE_BATTLE_RADIUS);
-        siege.attackingCamps.add(siegeCampPos);
-
-        sieges.put(defendingChunk, siege);
+        Siege siege = createSiege(attacking, defending, defendingPos, defendingChunk, siegeCampPos, false);
         siegeTE.setSiegeTarget(defendingPos);
         siege.start();
 
         attacking.lastSiegeTimestamp = currentTimeStamp;
+    }
+
+    // Shared siege construction for both the camp-driven path (requestStartSiege) and the UI-declared
+    // path (requestDeclareSiege). For camp sieges anchorPos is the physical camp block; for camp-less
+    // declared sieges it is the representative block of the chosen start-from chunk.
+    private Siege createSiege(Faction attacking, Faction defending, DimBlockPos defendingPos,
+                              DimChunkPos defendingChunk, DimBlockPos anchorPos, boolean campless) {
+        long maxTime = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(attacking.getSiegeMomentum()) * 1000L;
+        Siege siege = new Siege(attacking.uuid, defending.uuid, defendingPos, maxTime);
+        siege.setBattleRadius(WarForgeConfig.SIEGE_BATTLE_RADIUS);
+        siege.campless = campless;
+        siege.attackingCamps.add(anchorPos);
+        sieges.put(defendingChunk, siege);
+        return siege;
+    }
+
+    // UI-declared, camp-less siege. The target chunk is picked in stage 1 and the start-from chunk in
+    // stage 2; this consumes one siege camp block item and anchors the siege logically at the
+    // start-from chunk. Mirrors requestStartSiege's validation but enforces the configurable range
+    // rule instead of camp adjacency and requires the target claim to permit being sieged.
+    public void requestDeclareSiege(EntityPlayerMP officer, DimChunkPos targetChunk, DimChunkPos fromChunk) {
+        if (!WarForgeConfig.SIEGE_ALLOW_UI_DECLARE) {
+            officer.sendMessage(new TextComponentString("Declaring sieges from the map is disabled on this server"));
+            return;
+        }
+        if (targetChunk == null || fromChunk == null) return;
+
+        Faction attacking = getFactionOfPlayer(officer.getUniqueID());
+        if (attacking == null) {
+            officer.sendMessage(new TextComponentString("You are not in a faction"));
+            return;
+        }
+        long currentTimeStamp = System.currentTimeMillis();
+        if (attacking.getSiegeMomentum() == 0 && attacking.lastSiegeTimestamp + WarForgeConfig.SIEGE_COOLDOWN_FAIL > currentTimeStamp) {
+            officer.sendMessage(new TextComponentString("Your faction is on cooldown on starting a new siege"));
+            officer.sendMessage(new TextComponentString("Cooldown remaining:" + TimeHelper.formatTime(attacking.lastSiegeTimestamp + WarForgeConfig.SIEGE_COOLDOWN_FAIL - currentTimeStamp)));
+            return;
+        }
+        if (!attacking.isPlayerRoleInFaction(officer.getUniqueID(), Faction.Role.OFFICER)) {
+            officer.sendMessage(new TextComponentString("You are not an officer of this faction"));
+            return;
+        }
+
+        // Same dimension only (the map data and the player are bound to one dimension) and a real,
+        // in-range separation between the start-from chunk and the target.
+        if (targetChunk.dim != fromChunk.dim || targetChunk.dim != officer.dimension) {
+            officer.sendMessage(new TextComponentString("The target and start chunk must be in your current dimension"));
+            return;
+        }
+        int chebyshev = Math.max(Math.abs(targetChunk.x - fromChunk.x), Math.abs(targetChunk.z - fromChunk.z));
+        if (chebyshev == 0) {
+            officer.sendMessage(new TextComponentString("Pick a start chunk other than the target"));
+            return;
+        }
+        if (chebyshev > WarForgeConfig.SIEGE_DECLARE_MAX_RANGE) {
+            officer.sendMessage(new TextComponentString("That target is too far from your chosen start chunk (max " + WarForgeConfig.SIEGE_DECLARE_MAX_RANGE + " chunks)"));
+            return;
+        }
+
+        UUID defendingFactionID = mClaims.get(targetChunk);
+        Faction defending = getFaction(defendingFactionID);
+        if (defending == null) {
+            officer.sendMessage(new TextComponentString("There is no faction claim to siege at that chunk"));
+            return;
+        }
+        if (defending.uuid.equals(attacking.uuid)) {
+            officer.sendMessage(new TextComponentString("You can't siege your own faction's claim"));
+            return;
+        }
+
+        String allianceBlock = getSiegeBlockReason(attacking, defending);
+        if (allianceBlock != null) {
+            officer.sendMessage(new TextComponentString(allianceBlock));
+            return;
+        }
+        if (isOfflineRaidProtected(defending)) {
+            officer.sendMessage(new TextComponentString("That faction is offline and protected until " + TimeHelper.formatTime(defending.offlineRaidProtectionUntil - System.currentTimeMillis())));
+            return;
+        }
+
+        DimBlockPos defendingPos = defending.getSpecificPosForClaim(targetChunk);
+        if (defendingPos == null) {
+            officer.sendMessage(new TextComponentString("Could not find a valid defending claim in that chunk"));
+            return;
+        }
+
+        // Respect claims that opt out of being sieged (island collectors, admin claims, ...).
+        TileEntity targetTe = MC_SERVER.getWorld(defendingPos.dim).getTileEntity(defendingPos.toRegularPos());
+        if (targetTe instanceof IClaim && !((IClaim) targetTe).canBeSieged()) {
+            officer.sendMessage(new TextComponentString("That claim cannot be sieged"));
+            return;
+        }
+
+        if (IsSiegeInProgress(targetChunk)) {
+            officer.sendMessage(new TextComponentString("That position is already under siege"));
+            return;
+        }
+        if (conqueredChunks.get(targetChunk) != null) {
+            officer.sendMessage(new TextComponentTranslation("warforge.info.chunk_is_conquered",
+                    defending.name, TimeHelper.formatTime(conqueredChunks.get(targetChunk).getInteger())));
+            return;
+        }
+
+        // Cost: consume one siege camp block item from the officer's inventory.
+        if (!consumeSiegeDeclarationItem(officer)) {
+            officer.sendMessage(new TextComponentString("You need a siege camp block to declare a siege"));
+            return;
+        }
+
+        DimBlockPos anchorPos = new DimBlockPos(fromChunk.dim, fromChunk.getXStart(), 0, fromChunk.getZStart());
+        Siege siege = createSiege(attacking, defending, defendingPos, targetChunk, anchorPos, true);
+        siege.start();
+        attacking.lastSiegeTimestamp = currentTimeStamp;
+    }
+
+    // Removes one siege camp block item from the player's main inventory. Returns false if they have
+    // none. If the item registry is somehow unavailable, fails open (does not block the declaration).
+    private boolean consumeSiegeDeclarationItem(EntityPlayerMP player) {
+        if (Content.siegeCampBlockItem == null) return true;
+        for (int i = 0; i < player.inventory.mainInventory.size(); i++) {
+            ItemStack stack = player.inventory.mainInventory.get(i);
+            if (!stack.isEmpty() && stack.getItem() == Content.siegeCampBlockItem) {
+                stack.shrink(1);
+                if (stack.isEmpty()) player.inventory.mainInventory.set(i, ItemStack.EMPTY);
+                player.inventoryContainer.detectAndSendChanges();
+                return true;
+            }
+        }
+        return false;
     }
 
     public void endSiege(DimBlockPos getPos) {
@@ -1957,6 +2373,59 @@ public class FactionStorage {
         WarForgeMod.NETWORK.sendTo(packet, player);
     }
 
+    // Samples per-block vanilla map colours + heights for a chunk region and ships them to the
+    // requesting client so the claim map can render real terrain for chunks the client hasn't loaded
+    // (e.g. a distant siege target). Only chunks currently loaded server-side are sampled; the rest
+    // fall back to the client's faction-tint / placeholder rendering. Sampling is intentionally
+    // limited (no force-loading) to avoid letting a client trigger chunk generation on demand.
+    public void sendTerrainColors(EntityPlayerMP player, DimChunkPos center, int radius) {
+        if (center == null) return;
+        radius = Math.max(1, Math.min(radius, WarForgeConfig.CLAIM_MANAGER_RADIUS));
+        // Match the claim-data constraint: only the player's current dimension.
+        if (center.dim != player.dimension) {
+            center = new DimChunkPos(player.dimension, player.getPosition());
+        }
+        World world = MC_SERVER.getWorld(center.dim);
+        if (world == null) return;
+
+        PacketTerrainColors packet = new PacketTerrainColors();
+        packet.dim = center.dim;
+        packet.centerX = center.x;
+        packet.centerZ = center.z;
+        packet.radius = radius;
+
+        for (int cx = center.x - radius; cx <= center.x + radius; cx++) {
+            for (int cz = center.z - radius; cz <= center.z + radius; cz++) {
+                net.minecraft.world.chunk.Chunk chunk = world.getChunkProvider().getLoadedChunk(cx, cz);
+                if (chunk == null) {
+                    continue; // not loaded server-side; client keeps its placeholder for this chunk
+                }
+                int[] colors = new int[256];
+                int[] heights = new int[256];
+                for (int lx = 0; lx < 16; lx++) {
+                    for (int lz = 0; lz < 16; lz++) {
+                        int idx = lx + lz * 16;
+                        int y = chunk.getHeightValue(lx, lz);
+                        heights[idx] = y;
+                        if (y <= 0) {
+                            colors[idx] = 0;
+                            continue;
+                        }
+                        BlockPos worldPos = new BlockPos((cx << 4) + lx, y - 1, (cz << 4) + lz);
+                        try {
+                            colors[idx] = chunk.getBlockState(lx, y - 1, lz).getMapColor(world, worldPos).colorValue & 0x00FFFFFF;
+                        } catch (Throwable ignored) {
+                            colors[idx] = 0;
+                        }
+                    }
+                }
+                packet.addChunk(cx, cz, colors, heights);
+            }
+        }
+
+        WarForgeMod.NETWORK.sendTo(packet, player);
+    }
+
     private ClaimedBlockSelection findFirstClaimBlock(InventoryPlayer inventory) {
         for (int slot = 0; slot < inventory.mainInventory.size(); slot++) {
             ItemStack stack = inventory.mainInventory.get(slot);
@@ -2025,7 +2494,7 @@ public class FactionStorage {
                 Content.dummyTranslusent
         );
 
-        faction.onClaimLost(pos);
+        faction.onClaimLost(pos, false, false);
         mClaims.remove(targetChunk);
         faction.forcedChunks.remove(targetChunk);
         ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
@@ -2107,7 +2576,7 @@ public class FactionStorage {
             }
         }
 
-        faction.onClaimLost(pos);
+        faction.onClaimLost(pos, false, false);
         mClaims.remove(targetChunk);
         faction.forcedChunks.remove(targetChunk);
         ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();

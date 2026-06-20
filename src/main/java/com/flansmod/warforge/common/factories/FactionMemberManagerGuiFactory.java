@@ -86,6 +86,8 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         packetBuffer.writeByte(guiData.viewerRole.ordinal());
         packetBuffer.writeBoolean(guiData.canManageMembers);
         packetBuffer.writeBoolean(guiData.canInvitePlayers);
+        packetBuffer.writeBoolean(guiData.canManageAlliances);
+        packetBuffer.writeBoolean(guiData.allowAllyInteraction);
 
         packetBuffer.writeShort(guiData.members.size());
         for (FactionMemberManagerGuiData.MemberEntry member : guiData.members) {
@@ -117,6 +119,16 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
             packetBuffer.writeBoolean(invite.canInvite);
             packetBuffer.writeBoolean(invite.canAccept);
         }
+
+        packetBuffer.writeShort(guiData.alliances.size());
+        for (FactionMemberManagerGuiData.AllianceEntry ally : guiData.alliances) {
+            packetBuffer.writeLong(ally.factionId.getMostSignificantBits());
+            packetBuffer.writeLong(ally.factionId.getLeastSignificantBits());
+            packetBuffer.writeString(ally.factionName);
+            packetBuffer.writeInt(ally.factionColor);
+            packetBuffer.writeShort(ally.onlineCount);
+            packetBuffer.writeByte(ally.kind);
+        }
     }
 
     @Override
@@ -134,6 +146,8 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         data.viewerRole = Faction.Role.values()[packetBuffer.readByte()];
         data.canManageMembers = packetBuffer.readBoolean();
         data.canInvitePlayers = packetBuffer.readBoolean();
+        data.canManageAlliances = packetBuffer.readBoolean();
+        data.allowAllyInteraction = packetBuffer.readBoolean();
 
         int memberCount = packetBuffer.readShort();
         for (int i = 0; i < memberCount; i++) {
@@ -164,6 +178,17 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
             invite.canInvite = packetBuffer.readBoolean();
             invite.canAccept = packetBuffer.readBoolean();
             data.inviteCandidates.add(invite);
+        }
+
+        int allianceCount = packetBuffer.readShort();
+        for (int i = 0; i < allianceCount; i++) {
+            FactionMemberManagerGuiData.AllianceEntry ally = new FactionMemberManagerGuiData.AllianceEntry();
+            ally.factionId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
+            ally.factionName = packetBuffer.readString(32767);
+            ally.factionColor = packetBuffer.readInt();
+            ally.onlineCount = packetBuffer.readShort();
+            ally.kind = packetBuffer.readByte();
+            data.alliances.add(ally);
         }
         return data;
     }
@@ -198,6 +223,8 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         data.viewerRole = determineViewerRole(faction, player.getUniqueID());
         data.canManageMembers = WarForgeMod.isOp(player) || data.viewerRole.ordinal() >= Faction.Role.OFFICER.ordinal();
         data.canInvitePlayers = data.canManageMembers;
+        data.canManageAlliances = data.canManageMembers;
+        data.allowAllyInteraction = faction.allowAllyInteraction;
 
         for (Map.Entry<UUID, Faction.PlayerData> entry : faction.members.entrySet()) {
             UUID memberId = entry.getKey();
@@ -235,7 +262,35 @@ public class FactionMemberManagerGuiFactory extends AbstractUIFactory<FactionMem
         }
 
         data.inviteCandidates.sort(Comparator.comparing(invite -> invite.username, String.CASE_INSENSITIVE_ORDER));
+
+        if (page == FactionMemberManagerGuiData.Page.ALLIANCES) {
+            for (UUID allyId : faction.allies) {
+                addAllianceEntry(data, WarForgeMod.FACTIONS.getFaction(allyId), FactionMemberManagerGuiData.AllianceEntry.KIND_ALLY);
+            }
+            for (UUID requesterId : faction.pendingAllianceRequests) {
+                addAllianceEntry(data, WarForgeMod.FACTIONS.getFaction(requesterId), FactionMemberManagerGuiData.AllianceEntry.KIND_PENDING);
+            }
+            for (Faction invitable : WarForgeMod.FACTIONS.getAlliableFactions(faction)) {
+                if (faction.pendingAllianceRequests.contains(invitable.uuid)) {
+                    continue; // already listed as an incoming request
+                }
+                addAllianceEntry(data, invitable, FactionMemberManagerGuiData.AllianceEntry.KIND_INVITABLE);
+            }
+        }
         return data;
+    }
+
+    private static void addAllianceEntry(FactionMemberManagerGuiData data, Faction faction, byte kind) {
+        if (faction == null) {
+            return;
+        }
+        FactionMemberManagerGuiData.AllianceEntry entry = new FactionMemberManagerGuiData.AllianceEntry();
+        entry.factionId = faction.uuid;
+        entry.factionName = faction.name;
+        entry.factionColor = faction.colour;
+        entry.onlineCount = faction.onlinePlayerCount;
+        entry.kind = kind;
+        data.alliances.add(entry);
     }
 
     private static Faction.Role determineViewerRole(Faction faction, UUID playerId) {

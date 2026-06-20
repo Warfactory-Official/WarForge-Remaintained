@@ -14,6 +14,7 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
 import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
+import com.flansmod.warforge.common.network.PacketFactionAllianceAction;
 import com.flansmod.warforge.common.network.PacketFactionMemberManagerAction;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.util.text.TextFormatting;
@@ -86,6 +87,10 @@ public final class GuiFactionMemberManager {
         Widget invitesTab = tabButton("Invites", data.page == FactionMemberManagerGuiData.Page.INVITES, FactionMemberManagerGuiData.Page.INVITES);
         invitesTab.margin(8, 0);
         tabRow.child(invitesTab);
+        if (data.hasFaction) {
+            Widget alliancesTab = tabButton("Alliances", data.page == FactionMemberManagerGuiData.Page.ALLIANCES, FactionMemberManagerGuiData.Page.ALLIANCES);
+            tabRow.child(alliancesTab);
+        }
         tabSection.child(tabRow);
 
         if (!data.hasFaction && data.page != FactionMemberManagerGuiData.Page.INVITES) {
@@ -95,14 +100,18 @@ public final class GuiFactionMemberManager {
             return panel;
         }
 
-        String sectionTitle = data.page == FactionMemberManagerGuiData.Page.MEMBERS
-                ? "Roster"
-                : data.hasFaction ? "Invite Console" : "Pending Invites";
-        String sectionDescription = data.page == FactionMemberManagerGuiData.Page.MEMBERS
-                ? "Faces, rank, presence, and direct faction actions."
-                : data.hasFaction
-                ? "Invite online unaffiliated players into the faction."
-                : "Accept one of your outstanding faction invites.";
+        String sectionTitle = switch (data.page) {
+            case MEMBERS -> "Roster";
+            case ALLIANCES -> "Alliances";
+            default -> data.hasFaction ? "Invite Console" : "Pending Invites";
+        };
+        String sectionDescription = switch (data.page) {
+            case MEMBERS -> "Faces, rank, presence, and direct faction actions.";
+            case ALLIANCES -> "Ally with factions to stop sieges between you. Toggle whether allies may use your land.";
+            default -> data.hasFaction
+                    ? "Invite online unaffiliated players into the faction."
+                    : "Accept one of your outstanding faction invites.";
+        };
 
         listSection.child(IKey.str(sectionTitle).color(ModularGuiStyle.TEXT_MUTED).asWidget()
                 .margin(0, 0, 0, 4)
@@ -112,12 +121,22 @@ public final class GuiFactionMemberManager {
                 .margin(0, 0, 0, 6)
                 .color(ModularGuiStyle.TEXT_MUTED));
 
+        boolean alliancePage = data.page == FactionMemberManagerGuiData.Page.ALLIANCES;
+        if (alliancePage) {
+            listSection.child(ModularGuiStyle.actionButton(
+                            "Ally Access: " + (data.allowAllyInteraction ? "ENABLED" : "DISABLED"),
+                            160, data.canManageAlliances,
+                            () -> sendAlliance(PacketFactionAllianceAction.Action.TOGGLE_ALLY_BUILD, data.factionId, data.page))
+                    .margin(0, 0, 0, 5));
+        }
+
         ListWidget list = new ListWidget<>()
-                .name(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "faction_member_roster_list" : "faction_member_invite_list")
+                .name(data.page == FactionMemberManagerGuiData.Page.MEMBERS ? "faction_member_roster_list"
+                        : alliancePage ? "faction_alliance_list" : "faction_member_invite_list")
                 .scrollDirection(GuiAxis.Y)
                 .background(ModularGuiStyle.insetBackdrop())
                 .width(sectionWidth - 10)
-                .height(listSectionHeight - 46);
+                .height(listSectionHeight - 46 - (alliancePage ? 22 : 0));
 
         if (data.page == FactionMemberManagerGuiData.Page.MEMBERS) {
             if (data.members.isEmpty()) {
@@ -126,6 +145,20 @@ public final class GuiFactionMemberManager {
                 int index = 0;
                 for (FactionMemberManagerGuiData.MemberEntry member : data.members) {
                     list.addChild(createMemberRow(member, data.page), index++);
+                }
+            }
+        } else if (alliancePage) {
+            if (data.alliances.isEmpty()) {
+                list.addChild(IKey.str("No factions available to ally with yet.").asWidget().pos(6, 6), 0);
+            } else {
+                int index = 0;
+                byte lastKind = -1;
+                for (FactionMemberManagerGuiData.AllianceEntry entry : data.alliances) {
+                    if (entry.kind != lastKind) {
+                        list.addChild(allianceHeaderRow(entry.kind), index++);
+                        lastKind = entry.kind;
+                    }
+                    list.addChild(createAllianceRow(entry, data.canManageAlliances, data.page), index++);
                 }
             }
         } else {
@@ -259,6 +292,69 @@ public final class GuiFactionMemberManager {
             packet.page = page;
             WarForgeMod.NETWORK.sendToServer(packet);
         });
+    }
+
+    private static Widget allianceHeaderRow(byte kind) {
+        String label = switch (kind) {
+            case FactionMemberManagerGuiData.AllianceEntry.KIND_ALLY -> "Current Allies";
+            case FactionMemberManagerGuiData.AllianceEntry.KIND_PENDING -> "Incoming Requests";
+            default -> "Invite a Faction";
+        };
+        return IKey.str(label).asWidget().color(ModularGuiStyle.TEXT_MUTED).margin(2, 0, 4, 2);
+    }
+
+    private static Widget createAllianceRow(FactionMemberManagerGuiData.AllianceEntry entry, boolean canManage, FactionMemberManagerGuiData.Page page) {
+        Flow row = new Flow(GuiAxis.X);
+        row.name(ModularGuiStyle.debugName("alliance_row", entry.factionName));
+        row.width(WIDTH - 44);
+        row.height(24);
+        row.mainAxisAlignment(Alignment.MainAxis.START);
+        row.padding(3, 3);
+        row.margin(0, 0, 0, 2);
+        row.background(ModularGuiStyle.insetBackdrop(0xFF232A30));
+
+        row.child(new IDrawable.DrawableWidget(swatch(entry.factionColor)).size(18, 18));
+        row.child(new ScrollingTextWidget(IKey.str(entry.factionName))
+                .margin(5, 0)
+                .width(128)
+                .color(entry.factionColor)
+                .tooltip(tooltip -> tooltip.addLine(entry.factionName)));
+
+        if (entry.kind == FactionMemberManagerGuiData.AllianceEntry.KIND_PENDING) {
+            row.child(IKey.str("Requested").color(0xFFAA00).asWidget().width(58));
+            row.child(allianceButton("Accept", 50, canManage, PacketFactionAllianceAction.Action.ACCEPT, entry.factionId, page));
+            Widget decline = allianceButton("Decline", 54, canManage, PacketFactionAllianceAction.Action.DECLINE, entry.factionId, page);
+            decline.margin(4, 0);
+            row.child(decline);
+        } else {
+            row.child(IKey.str(entry.onlineCount + " online").color(entry.onlineCount > 0 ? ModularGuiStyle.TEXT_SUCCESS : 0xAAAAAA).asWidget().width(58));
+            if (entry.kind == FactionMemberManagerGuiData.AllianceEntry.KIND_ALLY) {
+                if (canManage) {
+                    row.child(ModularGuiStyle.dangerButton("Break", 52, () -> sendAlliance(PacketFactionAllianceAction.Action.BREAK, entry.factionId, page)));
+                } else {
+                    row.child(IKey.str("-").asWidget().width(52).color(ModularGuiStyle.TEXT_MUTED));
+                }
+            } else {
+                row.child(allianceButton("Invite", 52, canManage, PacketFactionAllianceAction.Action.INVITE, entry.factionId, page));
+            }
+        }
+        return row;
+    }
+
+    private static Widget allianceButton(String label, int width, boolean enabled, PacketFactionAllianceAction.Action action, java.util.UUID target, FactionMemberManagerGuiData.Page page) {
+        return ModularGuiStyle.actionButton(label, width, enabled, () -> sendAlliance(action, target, page));
+    }
+
+    private static void sendAlliance(PacketFactionAllianceAction.Action action, java.util.UUID target, FactionMemberManagerGuiData.Page page) {
+        PacketFactionAllianceAction packet = new PacketFactionAllianceAction();
+        packet.action = action;
+        packet.target = target;
+        packet.page = page;
+        WarForgeMod.NETWORK.sendToServer(packet);
+    }
+
+    private static IDrawable swatch(int color) {
+        return (context, x, y, w, h, theme) -> net.minecraft.client.gui.Gui.drawRect(x, y, x + w, y + h, 0xFF000000 | (color & 0x00FFFFFF));
     }
 
     private static Widget tabButton(String label, boolean selected, FactionMemberManagerGuiData.Page page) {

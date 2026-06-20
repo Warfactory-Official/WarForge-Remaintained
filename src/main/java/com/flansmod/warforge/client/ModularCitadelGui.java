@@ -116,7 +116,7 @@ public final class ModularCitadelGui {
             flagPanel.child(IKey.str("Choose once. This cannot be changed later.").asWidget().setEnabledIf(_ -> citadel.factionFlagId.isEmpty())
                     .color(0xB8BDC3));
             if (!citadel.factionFlagId.isEmpty()) {
-                flagPanel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).margin(4).size(95, 54).relativeToParent().center());
+                flagPanel.child(new IDrawable.DrawableWidget(new FlagDrawable(citadel.factionFlagId)).margin(4,8).size(95, 54).relativeToParent().horizontalCenter().top(20));
 
             } else if (hasFaction) {
                 var chooseBtn = openButton("Choose", 228, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(citadel.getFaction()));

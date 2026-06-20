@@ -132,6 +132,8 @@ public class ClientTickHandler {
         ClientProxy.VEIN_ENTRIES.clear();
         WarForgeMod.NAMETAG_CACHE.purge(); //Purge to remove possible stale data
         ChunkMapTextureDaemon.releaseAll();
+        ServerTerrainCache.clear();
+        ClaimManagerGuiFactory.resetSiegeState();
         ClientFlagRegistry.clear();
         ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
         CLAIMS_DIRTY = true;
@@ -143,6 +145,8 @@ public class ClientTickHandler {
     public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         cleanupBorderRenderData();
         Minecraft.getMinecraft().addScheduledTask(ChunkMapTextureDaemon::releaseAll);
+        ServerTerrainCache.clear();
+        ClaimManagerGuiFactory.resetSiegeState();
         ClientFlagRegistry.clear();
     }
 
@@ -202,11 +206,15 @@ public class ClientTickHandler {
                     requestClaimChunkData(standing);
                     lastClaimSyncChunk = standing;
                 }
-            } else if (player.ticksExisted % 40 == 0 && lastClaimSyncChunk.dim == player.dimension) {
+            } else if (player.ticksExisted % 40 == 0 && lastClaimSyncChunk.dim == player.dimension
+                    && !ClaimManagerGuiFactory.isRemoteSiegeView()) {
+                // While a stage-2 siege picker is open on a remote target, don't clobber its
+                // target-centered claim window with a player-centered refresh.
                 requestClaimChunkData(lastClaimSyncChunk);
             }
 
             if (claimManagerKey.isPressed()) {
+                ClaimManagerGuiFactory.resetSiegeState();
                 ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
             }
 

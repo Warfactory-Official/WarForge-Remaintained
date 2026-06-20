@@ -39,6 +39,9 @@ public class WarForgeConfig {
     // Debug / diagnostics
     public static final String CATEGORY_DEBUG = "Debug";
 
+    // Alliances
+    public static final String CATEGORY_ALLIANCES = "Alliances";
+
     // Config
     public static Configuration configFile;
     public static boolean DO_FANCY_RENDERING = true;
@@ -112,6 +115,15 @@ public class WarForgeConfig {
     public static int SIEGE_BATTLE_RADIUS = 1;
     public static int SIEGE_ATTACKER_RADIUS = 1; // number of chunks player can be away from siege chunk in both directions
     public static int SIEGE_DEFENDER_RADIUS = 15;
+
+    // UI-declared (camp-less) sieges
+    public static boolean SIEGE_ALLOW_UI_DECLARE = true;
+    public static int SIEGE_DECLARE_MAX_RANGE = 4; // chunks (chebyshev) the target may be from the start-from chunk
+    public static boolean SIEGE_DECLARE_REQUIRE_PRESENCE = true;
+
+    // Alliances
+    public static int ALLIANCE_TRUCE_DURATION_MINUTES = 60; // truce length after a broken alliance (0 disables the truce)
+    public static int MAX_ALLIES = 10; // maximum simultaneous alliances per faction; -1 for unlimited
     public static int NOTORIETY_PER_PLAYER_KILL = 1;
     public static int NOTORIETY_KILL_CAP_PER_PLAYER = 3;
     //public static int NOTORIETY_PER_DRAGON_KILL = 9;
@@ -180,6 +192,7 @@ public class WarForgeConfig {
     public static ProtectionConfig CITADEL_FRIEND = new ProtectionConfig();
     public static ProtectionConfig CITADEL_FOE = new ProtectionConfig();
     public static ProtectionConfig CLAIM_FRIEND = new ProtectionConfig();
+    public static ProtectionConfig CLAIM_ALLY = new ProtectionConfig();
     public static ProtectionConfig CLAIM_FOE = new ProtectionConfig();
     public static ProtectionConfig SIEGECAMP_SIEGER = new ProtectionConfig();
     public static ProtectionConfig SIEGECAMP_OTHER = new ProtectionConfig();
@@ -231,6 +244,11 @@ public class WarForgeConfig {
         CITADEL_FOE.ALLOW_DISMOUNT_ENTITY = false;
         CLAIM_FOE.ALLOW_MOUNT_ENTITY = false;
         CLAIM_FOE.ALLOW_DISMOUNT_ENTITY = false;
+
+        // Allies (when the owning faction enables ally interaction): use & interact, but no build/place.
+        CLAIM_ALLY.BREAK_BLOCKS = false;
+        CLAIM_ALLY.PLACE_BLOCKS = false;
+
         UNCLAIMED.EXPLOSION_DAMAGE = true;
 
         SIEGECAMP_SIEGER.BREAK_BLOCKS = false;
@@ -258,6 +276,7 @@ public class WarForgeConfig {
         CITADEL_FRIEND.SyncConfig("CitadelFriend", "Citadels of their Faction");
         CITADEL_FOE.SyncConfig("CitadelFoe", "Citadels of other Factions");
         CLAIM_FRIEND.SyncConfig("ClaimFriend", "Claims of their Faction");
+        CLAIM_ALLY.SyncConfig("ClaimAlly", "Claims of allied Factions (only applies when the owning faction enables ally interaction)");
         CLAIM_FOE.SyncConfig("ClaimFoe", "Claims of other Factions");
         SIEGECAMP_SIEGER.SyncConfig("Sieger", "Sieges they started");
         SIEGECAMP_OTHER.SyncConfig("SiegeOther", "Other sieges, defending or neutral");
@@ -295,6 +314,12 @@ public class WarForgeConfig {
         DEFENDER_CONQUERED_CHUNK_PERIOD = configFile.getInt("Defender Conquered Chunk Grace Period [ms]", CATEGORY_SIEGES, DEFENDER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE, "The number of milliseconds to deny sieging or claiming in previously sieged chunk in which the siege was won by the defenders. Setting to 0 results in no grace period.");
         COMBAT_LOG_THRESHOLD = configFile.getInt("Time to Combat Log Action [ms]", CATEGORY_SIEGES, COMBAT_LOG_THRESHOLD, 0, Integer.MAX_VALUE, "The number of milliseconds before enforcement action is taken when a player leaves during a siege on any of their claims.");
         LIVE_QUIT_TIMER = configFile.getInt("Time to Live Quit Siege [ms]", CATEGORY_SIEGES, LIVE_QUIT_TIMER, 0, Integer.MAX_VALUE, "The number of milliseconds before a defending team which went offline after a siege against them has begun is considered to have quit, forfeiting the siege.");
+        SIEGE_ALLOW_UI_DECLARE = configFile.getBoolean("Allow UI Siege Declaration", CATEGORY_SIEGES, SIEGE_ALLOW_UI_DECLARE, "If enabled, officers can declare a siege directly from the claim map UI (consuming a siege camp block item) without physically placing a siege camp.");
+        SIEGE_DECLARE_MAX_RANGE = configFile.getInt("UI Siege Declaration Max Range", CATEGORY_SIEGES, SIEGE_DECLARE_MAX_RANGE, 1, 64, "When declaring a siege from the claim map UI, the maximum chunk distance (chebyshev) allowed between the chosen start-from chunk and the target chunk.");
+        SIEGE_DECLARE_REQUIRE_PRESENCE = configFile.getBoolean("UI Siege Requires Attacker Presence", CATEGORY_SIEGES, SIEGE_DECLARE_REQUIRE_PRESENCE, "If enabled, a UI-declared (camp-less) siege fails if no attacking faction member stays within the attacker radius of the start-from chunk for the attacker desertion timer, mirroring physical siege camps.");
+
+        ALLIANCE_TRUCE_DURATION_MINUTES = configFile.getInt("Alliance Truce Duration [min]", CATEGORY_ALLIANCES, ALLIANCE_TRUCE_DURATION_MINUTES, 0, 525600, "When an alliance is broken, both factions enter a truce during which they cannot siege or harm each other. Length in minutes; 0 disables the truce.");
+        MAX_ALLIES = configFile.getInt("Max Allies Per Faction", CATEGORY_ALLIANCES, MAX_ALLIES, -1, 1000, "Maximum number of simultaneous alliances a faction may hold. Set to -1 for unlimited.");
         QUITTER_FAIL_TIMER = configFile.getInt("Time to Quitters Failing Offline Siege [ms]", CATEGORY_SIEGES, QUITTER_FAIL_TIMER, 0, Integer.MAX_VALUE, "The number of milliseconds before a defending team which failed a siege defense due to quitting is failed for subsequent sieges, if still offline.");
         MAX_OFFLINE_PLAYER_COUNT_MINIMUM = configFile.getInt("Max Players Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_COUNT_MINIMUM, Integer.MIN_VALUE, Integer.MAX_VALUE, "A static minimum for the maximum number of players which can have been online at some point during a siege before the faction online player count dropping to 0 indicates a live quit. Negative values override the percent");
         MAX_OFFLINE_PLAYER_PERCENT = configFile.getFloat("Max Player % Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_PERCENT, 0, 1.0F, "The maximum percent of players in a faction which can be online at some point during a siege before the online count dropping to 0 indicates a live quit.");

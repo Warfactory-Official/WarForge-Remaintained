@@ -2,6 +2,7 @@ package com.flansmod.warforge.api.modularui;
 
 import com.flansmod.warforge.api.ChunkDynamicTextureThread;
 import com.flansmod.warforge.api.Color4i;
+import com.flansmod.warforge.client.ServerTerrainCache;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -50,6 +51,18 @@ public class ChunkMapTextureDaemon {
         }
         replaceActiveTextures(namespace, desired);
         EXECUTOR.submit(() -> buildTextures(namespace, generation, dim, centerX, centerZ, radius, tintCopy));
+    }
+
+    // Rebuilds the last map request for a namespace, bypassing the dedupe. Used when new data that
+    // doesn't change the request key (e.g. server-sampled terrain colours) arrives and the textures
+    // need to be regenerated to pick it up.
+    public static void rebuildLast(String namespace) {
+        MapRequest request = LAST_REQUEST.get(namespace);
+        if (request == null) {
+            return;
+        }
+        LAST_REQUEST.remove(namespace);
+        requestMapUpdate(namespace, request.dim(), request.centerX(), request.centerZ(), request.radius(), request.tints());
     }
 
     public static void flushTextureQueue() {
@@ -112,6 +125,17 @@ public class ChunkMapTextureDaemon {
             for (int z = centerZ - radius - 1; z <= centerZ + radius + 1; z++) {
                 Chunk chunk = world.getChunkProvider().getLoadedChunk(x, z);
                 if (chunk == null) {
+                    // Fold server-supplied heights (if any) into the relief range so remote terrain
+                    // shades against the same min/max as loaded chunks.
+                    for (int lx = 0; lx < 16; lx++) {
+                        for (int lz = 0; lz < 16; lz++) {
+                            int sh = ServerTerrainCache.heightAt(dim, (x << 4) + lx, (z << 4) + lz);
+                            if (sh != Integer.MIN_VALUE) {
+                                if (sh < minY) minY = sh;
+                                if (sh > maxY) maxY = sh;
+                            }
+                        }
+                    }
                     continue;
                 }
                 loadedChunks.put(chunk.getPos(), chunk);
@@ -163,12 +187,19 @@ public class ChunkMapTextureDaemon {
                             IBlockState state = neighbor.getBlockState(localX, y - 1, localZ);
                             int rgb = MapBlockColorSampler.sampleColor(world, state, new BlockPos(worldX, y - 1, worldZ));
                             rawChunk17[index] = 0xFF000000 | (rgb & 0x00FFFFFF);
-                        } else if (tint != null) {
-                            heightMap17[index] = minY;
-                            rawChunk17[index] = 0xFF000000 | (tint & 0x00FFFFFF);
                         } else {
-                            heightMap17[index] = minY;
-                            rawChunk17[index] = 0xFF2A2A2A;
+                            int serverColor = ServerTerrainCache.colorAt(dim, worldX, worldZ);
+                            if (serverColor != Integer.MIN_VALUE) {
+                                int serverHeight = ServerTerrainCache.heightAt(dim, worldX, worldZ);
+                                heightMap17[index] = serverHeight != Integer.MIN_VALUE ? serverHeight : minY;
+                                rawChunk17[index] = 0xFF000000 | (serverColor & 0x00FFFFFF);
+                            } else if (tint != null) {
+                                heightMap17[index] = minY;
+                                rawChunk17[index] = 0xFF000000 | (tint & 0x00FFFFFF);
+                            } else {
+                                heightMap17[index] = minY;
+                                rawChunk17[index] = 0xFF2A2A2A;
+                            }
                         }
                     }
                 }

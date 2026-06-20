@@ -73,7 +73,19 @@ public class ProtectionsModule {
             if (faction.citadelPos.toChunkPos().equals(pos))
                 return playerIsInFaction ? WarForgeConfig.CITADEL_FRIEND : WarForgeConfig.CITADEL_FOE;
 
-            return playerIsInFaction ? WarForgeConfig.CLAIM_FRIEND : WarForgeConfig.CLAIM_FOE;
+            if (playerIsInFaction)
+                return WarForgeConfig.CLAIM_FRIEND;
+
+            // Allies of the owning faction get the CLAIM_ALLY profile, but only when that faction has
+            // enabled ally interaction. Otherwise allies are treated like any other foreign player.
+            if (faction.allowAllyInteraction && playerID != null && !playerID.equals(Faction.nullUuid)) {
+                Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerID);
+                if (playerFaction != null && faction.isAllyOf(playerFaction.uuid)) {
+                    return WarForgeConfig.CLAIM_ALLY;
+                }
+            }
+
+            return WarForgeConfig.CLAIM_FOE;
         }
 
         return WarForgeConfig.UNCLAIMED;
@@ -158,6 +170,17 @@ public class ProtectionsModule {
         DamageSource source = event.getSource();
         if (source instanceof EntityDamageSource) {
             Entity attacker = source.getTrueSource();
+            if (attacker instanceof EntityPlayer && event.getEntity() instanceof EntityPlayer) {
+                // Factions in a post-alliance truce cannot harm each other for the truce's duration.
+                Faction attackerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(attacker.getUniqueID());
+                Faction victimFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(event.getEntity().getUniqueID());
+                if (attackerFaction != null && victimFaction != null
+                        && !attackerFaction.uuid.equals(victimFaction.uuid)
+                        && attackerFaction.isInTruceWith(victimFaction.uuid)) {
+                    event.setCanceled(true);
+                    return;
+                }
+            }
             if (attacker instanceof EntityPlayer) {
                 if (!damagedConfig.PLAYER_TAKE_DAMAGE_FROM_PLAYER) {
                     event.setCanceled(true);

@@ -12,13 +12,17 @@ import com.cleanroommc.modularui.widgets.layout.Flow;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapDrawable;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.util.SkinUtil;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.ClaimManagerGuiData;
 import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
 import com.flansmod.warforge.common.network.PacketClaimChunkAction;
+import com.flansmod.warforge.common.network.PacketDeclareSiege;
+import com.flansmod.warforge.common.network.PacketRequestTerrainColors;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
@@ -29,6 +33,7 @@ import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.ChunkPos;
 import net.minecraft.util.math.Vec3i;
+import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.translation.I18n;
 
 import java.util.Objects;
@@ -76,6 +81,17 @@ public final class GuiClaimManager {
         int mapTop = mapY + MAP_GUTTER;
         int accentColor = resolveAccentColor(data);
 
+        // Two-stage siege declaration state (client-side, see ClaimManagerGuiFactory).
+        DimChunkPos siegePickFor = ClaimManagerGuiFactory.siegeStartPickFor;
+        final boolean startPickMode = siegePickFor != null && siegePickFor.dim == data.dim
+                && siegePickFor.x == data.centerX && siegePickFor.z == data.centerZ;
+        if (siegePickFor != null && !startPickMode) {
+            ClaimManagerGuiFactory.siegeStartPickFor = null; // stale: centered somewhere other than the target
+        }
+        final boolean targetMode = ClaimManagerGuiFactory.siegeTargetMode && !startPickMode;
+        final boolean canDeclareSiege = WarForgeConfig.SIEGE_ALLOW_UI_DECLARE
+                && !ClientClaimChunkCache.playerFactionId.equals(Faction.nullUuid);
+
         ModularPanel panel = ModularPanel.defaultPanel("claim_manager")
                 .width(width)
                 .height(height)
@@ -92,7 +108,7 @@ public final class GuiClaimManager {
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(accentColor)).size(6, height));
         panel.child(ModularGuiStyle.panelCloseButton(width));
 
-        panel.child(IKey.str("Territory Map").asWidget()
+        panel.child(IKey.str(startPickMode ? "Choose Siege Origin" : targetMode ? "Select Siege Target" : "Territory Map").asWidget()
                 .name("claim_manager_title")
                 .pos(CONTENT_LEFT, 12)
                 .style(net.minecraft.util.text.TextFormatting.BOLD)
@@ -120,12 +136,33 @@ public final class GuiClaimManager {
                 .width(mapSectionWidth - 10)
                 .margin(0, 0, 0, 2)
                 .color(ModularGuiStyle.TEXT_MUTED));
-        legendSection.child(new ScrollingTextWidget(IKey.str("Left click claim or unclaim. Right click toggles force-loading. Use arrows to page the map."))
+        legendSection.child(new ScrollingTextWidget(IKey.str(startPickMode
+                        ? "Click a highlighted chunk to launch the siege from. This consumes one siege camp block."
+                        : targetMode
+                        ? "Click an enemy claim to target it, then pick where to attack from."
+                        : "Left click claim or unclaim. Right click toggles force-loading. Use arrows to page the map."))
                 .name("claim_manager_controls_text")
                 .width(mapSectionWidth - 10)
                 .color(ModularGuiStyle.TEXT_MUTED));
 
         addPanButtons(panel, data, viewport, CONTENT_LEFT, mapY, mapSectionWidth, mapSectionHeight);
+
+        if (canDeclareSiege && !targetMode && !startPickMode) {
+            panel.child(ModularGuiStyle.actionButton("Declare Siege", 84, () -> {
+                ClaimManagerGuiFactory.siegeTargetMode = true;
+                ClaimManagerGuiFactory.INSTANCE.openClient(data.getCenter(), data.radius, data.pageX, data.pageZ);
+            }).pos(width - 112, 9).height(16));
+        } else if (targetMode) {
+            panel.child(ModularGuiStyle.actionButton("Cancel", 60, () -> {
+                ClaimManagerGuiFactory.resetSiegeState();
+                ClaimManagerGuiFactory.INSTANCE.openClient(data.getCenter(), data.radius, data.pageX, data.pageZ);
+            }).pos(width - 86, 9).height(16));
+        } else if (startPickMode) {
+            panel.child(ModularGuiStyle.actionButton("Cancel", 60, () -> {
+                ClaimManagerGuiFactory.resetSiegeState();
+                Minecraft.getMinecraft().displayGuiScreen(null);
+            }).pos(width - 86, 9).height(16));
+        }
 
         for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
             for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
@@ -138,7 +175,13 @@ public final class GuiClaimManager {
                         .name("claim_chunk_" + data.dim + "_" + chunkX + "_" + chunkZ)
                         .overlay(liveChunkOverlay(data, chunkX, chunkZ))
                         .onMousePressed(mouseButton -> {
+                            if (startPickMode) {
+                                return handleStartPick(data, chunkX, chunkZ);
+                            }
                             ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
+                            if (targetMode) {
+                                return handleTargetPick(data, info, chunkX, chunkZ);
+                            }
                             byte action = determineAction(info, mouseButton);
                             if (action == -1) {
                                 return false;
@@ -154,6 +197,17 @@ public final class GuiClaimManager {
                         })
                         .tooltipDynamic(tooltip -> {
                             ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
+                            if (startPickMode) {
+                                if (chunkX == data.centerX && chunkZ == data.centerZ) {
+                                    tooltip.addLine("Siege target");
+                                } else {
+                                    tooltip.addLine("Click to launch the siege from here");
+                                }
+                            } else if (targetMode) {
+                                boolean enemy = !info.factionId.equals(Faction.nullUuid)
+                                        && !info.factionId.equals(ClientClaimChunkCache.playerFactionId);
+                                tooltip.addLine(enemy ? "Click to target this claim for a siege" : "Not a siege-able enemy claim");
+                            }
                             if (info.factionId.equals(Faction.nullUuid)) {
                                 tooltip.addLine("Wilderness");
                             } else {
@@ -252,17 +306,73 @@ public final class GuiClaimManager {
     private static IDrawable liveChunkOverlay(ClaimManagerGuiData data, int chunkX, int chunkZ) {
         return (GuiContext context, int x, int y, int width, int height, WidgetTheme theme) -> {
             ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
+            DimChunkPos pickFor = ClaimManagerGuiFactory.siegeStartPickFor;
+            boolean startPick = pickFor != null && pickFor.dim == data.dim
+                    && pickFor.x == data.centerX && pickFor.z == data.centerZ;
+            boolean isTarget = chunkX == data.centerX && chunkZ == data.centerZ;
+            // In stage 2 highlight every valid (in-view, non-target) launch chunk and mark the target;
+            // otherwise fall back to the normal battle-zone overlay / player-face center icon.
+            boolean highlight = startPick ? !isTarget : isBattleZoneChunk(data.dim, chunkX, chunkZ);
+            ResourceLocation centerIcon = startPick
+                    ? (isTarget ? new ResourceLocation(Tags.MODID, "gui/icon_siege_attack.png") : null)
+                    : getCenterIcon(data, chunkX, chunkZ);
             ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(
                     toMapState(info, data.centerX, data.centerZ),
                     info.claimType,
                     info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
                     info.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED,
-                    isBattleZoneChunk(data.dim, chunkX, chunkZ),
-                    getCenterIcon(data, chunkX, chunkZ)
+                    highlight,
+                    centerIcon
             );
             new MapDrawable(textureName(data.dim, chunkX, chunkZ), renderInfo, getLiveAdjacency(data, chunkX, chunkZ))
                     .draw(context, x, y, width, height, theme);
         };
+    }
+
+    // Stage 1: a chunk was clicked while choosing the siege target. Validates it is an enemy claim,
+    // then opens the stage-2 picker centered on it and requests server terrain for that region.
+    private static boolean handleTargetPick(ClaimManagerGuiData data, ClaimChunkInfo info, int chunkX, int chunkZ) {
+        if (info.factionId.equals(Faction.nullUuid) || info.factionId.equals(ClientClaimChunkCache.playerFactionId)) {
+            status("Pick an enemy faction claim to siege");
+            return false;
+        }
+        DimChunkPos target = new DimChunkPos(data.dim, chunkX, chunkZ);
+        ClaimManagerGuiFactory.siegeTargetMode = false;
+        ClaimManagerGuiFactory.siegeStartPickFor = target;
+        int range = Math.min(WarForgeConfig.SIEGE_DECLARE_MAX_RANGE, WarForgeConfig.CLAIM_MANAGER_RADIUS);
+        PacketRequestTerrainColors terrainReq = new PacketRequestTerrainColors();
+        terrainReq.center = target;
+        terrainReq.radius = range;
+        WarForgeMod.NETWORK.sendToServer(terrainReq);
+        ClaimManagerGuiFactory.INSTANCE.openClient(target, range, -1, -1);
+        return true;
+    }
+
+    // Stage 2: a chunk was clicked while choosing where to launch the siege from. Sends the declare
+    // packet (server re-validates range, ownership, sieg-ability, cooldown and the item cost).
+    private static boolean handleStartPick(ClaimManagerGuiData data, int chunkX, int chunkZ) {
+        DimChunkPos target = ClaimManagerGuiFactory.siegeStartPickFor;
+        if (target == null) {
+            return false;
+        }
+        if (chunkX == target.x && chunkZ == target.z && data.dim == target.dim) {
+            status("Pick a chunk other than the target to launch from");
+            return false;
+        }
+        PacketDeclareSiege packet = new PacketDeclareSiege();
+        packet.targetChunk = target;
+        packet.fromChunk = new DimChunkPos(data.dim, chunkX, chunkZ);
+        WarForgeMod.NETWORK.sendToServer(packet);
+        ClaimManagerGuiFactory.resetSiegeState();
+        Minecraft.getMinecraft().displayGuiScreen(null);
+        return true;
+    }
+
+    private static void status(String message) {
+        Minecraft mc = Minecraft.getMinecraft();
+        if (mc.player != null) {
+            mc.player.sendStatusMessage(new TextComponentString(message), true);
+        }
     }
 
     private static ClaimChunkInfo getLiveInfo(ClaimManagerGuiData data, int chunkX, int chunkZ) {

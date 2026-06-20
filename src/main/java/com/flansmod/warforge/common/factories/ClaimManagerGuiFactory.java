@@ -23,6 +23,19 @@ import net.minecraftforge.fml.relauncher.SideOnly;
 public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiData> {
     public static final ClaimManagerGuiFactory INSTANCE = new ClaimManagerGuiFactory();
 
+
+    public static boolean siegeTargetMode = false;
+    public static DimChunkPos siegeStartPickFor = null;
+
+    public static boolean isRemoteSiegeView() {
+        return siegeStartPickFor != null;
+    }
+
+    public static void resetSiegeState() {
+        siegeTargetMode = false;
+        siegeStartPickFor = null;
+    }
+
     private static final IGuiHolder<ClaimManagerGuiData> HOLDER = new IGuiHolder<>() {
         @Override
         public ModularPanel buildUI(ClaimManagerGuiData guiData, PanelSyncManager syncManager, UISettings settings) {

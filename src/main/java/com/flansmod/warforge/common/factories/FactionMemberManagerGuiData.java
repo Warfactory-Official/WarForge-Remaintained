@@ -11,7 +11,20 @@ import java.util.UUID;
 public class FactionMemberManagerGuiData extends GuiData {
     public enum Page {
         MEMBERS,
-        INVITES
+        INVITES,
+        ALLIANCES
+    }
+
+    public static class AllianceEntry {
+        public static final byte KIND_ALLY = 0;        // a current ally (offer Break)
+        public static final byte KIND_PENDING = 1;     // an incoming alliance request (offer Accept/Decline)
+        public static final byte KIND_INVITABLE = 2;   // a faction we could invite (offer Invite)
+
+        public UUID factionId = Faction.nullUuid;
+        public String factionName = "";
+        public int factionColor = 0x4E8E87;
+        public int onlineCount;
+        public byte kind = KIND_INVITABLE;
     }
 
     public static class MemberEntry {
@@ -47,8 +60,11 @@ public class FactionMemberManagerGuiData extends GuiData {
     public Faction.Role viewerRole = Faction.Role.MEMBER;
     public boolean canManageMembers;
     public boolean canInvitePlayers;
+    public boolean canManageAlliances;
+    public boolean allowAllyInteraction;
     public final List<MemberEntry> members = new ArrayList<MemberEntry>();
     public final List<InviteEntry> inviteCandidates = new ArrayList<InviteEntry>();
+    public final List<AllianceEntry> alliances = new ArrayList<AllianceEntry>();
 
     public FactionMemberManagerGuiData(EntityPlayer player, Page page) {
         super(player);

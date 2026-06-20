@@ -1,0 +1,162 @@
+name: Publish Platform Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: CurseForge/Modrinth release type
+        required: true
+        default: release
+        type: choice
+        options:
+          - release
+          - beta
+          - alpha
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and Publish Jars
+    runs-on: ubuntu-latest
+
+    env:
+      CURSEFORGE_PROJECT_ID: ${{ vars.CURSEFORGE_PROJECT_ID || '1340172' }}
+      MODRINTH_PROJECT_ID: ${{ vars.MODRINTH_PROJECT_ID || 'oKqJzTkl' }}
+      RELEASE_TYPE: ${{ github.event.inputs.release_type || vars.RELEASE_TYPE || 'release' }}
+      CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY || secrets.CF_API_TOKEN }}
+      MODRINTH_API_KEY: ${{ secrets.MODRINTH_API_KEY || secrets.MPR_TOKEN }}
+      CHANGELOG_LOCATION: build/platform-changelog.md
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: graalvm
+          java-version: '25'
+          cache: gradle
+          cache-dependency-path: |
+            **/*.gradle*
+            **/buildscript.properties
+            **/gradle-wrapper.properties
+            **/gradle.lockfile
+            src/main/resources/warforge_at.cfg
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      - name: Validate publishing configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${RELEASE_TYPE}" in
+            release|beta|alpha)
+              ;;
+            *)
+              echo "::error::RELEASE_TYPE must be release, beta, or alpha. Got: ${RELEASE_TYPE}"
+              exit 1
+              ;;
+          esac
+
+          if [[ -z "${CURSEFORGE_PROJECT_ID}" ]]; then
+            echo "::error::CURSEFORGE_PROJECT_ID is empty. Set a repository variable or keep the workflow default."
+            exit 1
+          fi
+
+          if [[ -z "${MODRINTH_PROJECT_ID}" ]]; then
+            echo "::error::MODRINTH_PROJECT_ID is empty. Set a repository variable or keep the workflow default."
+            exit 1
+          fi
+
+          if [[ -z "${CURSEFORGE_API_KEY}" ]]; then
+            echo "::error::Missing CurseForge token. Set CURSEFORGE_API_KEY or CF_API_TOKEN in repository secrets."
+            exit 1
+          fi
+
+          if [[ -z "${MODRINTH_API_KEY}" ]]; then
+            echo "::error::Missing Modrinth token. Set MODRINTH_API_KEY or MPR_TOKEN in repository secrets."
+            exit 1
+          fi
+
+      - name: Build with Gradle
+        run: ./gradlew releaseBuild --no-daemon --stacktrace
+
+      - name: Prepare artifact bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          OUT_DIR="build/artifact-upload"
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+
+          for file in build/libs/*; do
+            name=$(basename "$file")
+            case "$name" in
+              *-downgraded.jar|*-dev-shadow.jar)
+                continue
+                ;;
+            esac
+            cp "$file" "$OUT_DIR/$name"
+          done
+
+          for file in build/publication-libs/*.jar; do
+            name=$(basename "$file")
+            if [[ "$name" != *-java25-publish-* ]]; then
+              echo "::error::Unexpected publication artifact name: $name"
+              exit 1
+            fi
+
+            prefix="${name%%-java25-publish-*}"
+            rest="${name#*-java25-publish-}"
+
+            case "$rest" in
+              *-dev-compile.jar)
+                continue
+                ;;
+              *-api.jar)
+                continue
+                ;;
+              *.jar)
+                version="${rest%.jar}"
+                compat_name="${prefix}-${version}-java25.jar"
+                ;;
+            esac
+            cp "$file" "$OUT_DIR/$compat_name"
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: platform-release-jars
+          path: build/artifact-upload/**
+          if-no-files-found: error
+
+      - name: Create platform changelog
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build
+
+          {
+            printf 'Automated %s release from `%s`.\n' "${RELEASE_TYPE}" "${GITHUB_SHA}"
+            printf '\nBuilt by GitHub Actions workflow `%s`.\n' "${GITHUB_WORKFLOW}"
+          } > "${CHANGELOG_LOCATION}"
+
+      - name: Publish to CurseForge and Modrinth
+        run: ./gradlew curseforge modrinth --no-daemon --stacktrace

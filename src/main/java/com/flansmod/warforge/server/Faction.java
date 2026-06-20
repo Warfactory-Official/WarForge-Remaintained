@@ -64,6 +64,10 @@ public class Faction {
     public HashSet<UUID> pendingInvites;
     public HashMap<UUID, Integer> killCounter;
     public ArrayList<ItemStack> insuranceStacks;
+    public HashSet<UUID> allies;                 // mutually-allied faction UUIDs
+    public HashSet<UUID> pendingAllianceRequests; // incoming alliance requests from other factions
+    public boolean allowAllyInteraction = false;  // whether allies may interact in this faction's claims (CLAIM_ALLY)
+    public HashMap<UUID, Long> truces;            // factionId -> truce expiry (epoch ms) after a broken alliance
     public boolean loggedInToday;
     public int colour = 0xFF_FF_FF;
     public int notoriety = 0;
@@ -89,6 +93,9 @@ public class Faction {
         islandCollectors = new HashSet<DimBlockPos>();
         killCounter = new HashMap<UUID, Integer>();
         insuranceStacks = new ArrayList<ItemStack>();
+        allies = new HashSet<UUID>();
+        pendingAllianceRequests = new HashSet<UUID>();
+        truces = new HashMap<UUID, Long>();
     }
 
     public static UUID createUUID(String factionName) {
@@ -309,10 +316,38 @@ public class Faction {
         islandCollectors.clear();
         pendingInvites.clear();
         insuranceStacks.clear();
+        allies.clear();
+        pendingAllianceRequests.clear();
+        truces.clear();
     }
 
     public boolean isPlayerInFaction(UUID playerID) {
         return members.containsKey(playerID);
+    }
+
+    public boolean isAllyOf(UUID factionID) {
+        return factionID != null && allies.contains(factionID);
+    }
+
+    // True while a post-break truce with the given faction is still active. Expired truces are pruned lazily.
+    public boolean isInTruceWith(UUID factionID) {
+        if (factionID == null) {
+            return false;
+        }
+        Long expiry = truces.get(factionID);
+        if (expiry == null) {
+            return false;
+        }
+        if (expiry <= System.currentTimeMillis()) {
+            truces.remove(factionID);
+            return false;
+        }
+        return true;
+    }
+
+    public long getTruceRemainingMs(UUID factionID) {
+        Long expiry = truces.get(factionID);
+        return expiry == null ? 0L : Math.max(0L, expiry - System.currentTimeMillis());
     }
 
     public boolean canPlaceClaim() {
@@ -403,12 +438,16 @@ public class Faction {
 
     // for methods where claim block is actually being removed
     public void onClaimLost(DimBlockPos claimBlockPos) {
-        onClaimLost(claimBlockPos, false);
+        onClaimLost(claimBlockPos, false, true);
     }
 
     // avoids duplication of claim block on siege capture, as the way capture is done is
     // by losing the claim (this method) and then creating another in its place
     public void onClaimLost(DimBlockPos claimBlockPos, boolean captureAttempted) {
+        onClaimLost(claimBlockPos, captureAttempted, true);
+    }
+
+    public void onClaimLost(DimBlockPos claimBlockPos, boolean captureAttempted, boolean notifyLoss) {
         boolean removedForceLoad = forcedChunks.remove(claimBlockPos.toChunkPos());
         // Destroy our claim block if this claim has a physical block.
         World world = WarForgeMod.MC_SERVER.getWorld(claimBlockPos.dim);
@@ -432,14 +471,16 @@ public class Faction {
             WarForgeMod.FACTIONS.FactionDefeated(this);
             WarForgeMod.INSTANCE.messageAll(new TextComponentString(name + "'s citadel was destroyed. " + name + " is no more."), true);
         } else {
-            messageAll(new TextComponentString("Our faction lost a claim at " + claimBlockPos.toFancyString()));
-            WarForgeMod.FACTIONS.sendClaimChangedNotification(
-                    this,
-                    "claim_lost_" + claimBlockPos,
-                    "Claim Lost",
-                    "Your faction lost the claim at " + claimBlockPos.toFancyString(),
-                    0xB34747
-            );
+            if (notifyLoss) {
+                messageAll(new TextComponentString("Our faction lost a claim at " + claimBlockPos.toFancyString()));
+                WarForgeMod.FACTIONS.sendClaimChangedNotification(
+                        this,
+                        "claim_lost_" + claimBlockPos,
+                        "Claim Lost",
+                        "Your faction lost the claim at " + claimBlockPos.toFancyString(),
+                        0xB34747
+                );
+            }
 
             claims.remove(claimBlockPos);
             claimTypes.remove(claimBlockPos);
@@ -622,6 +663,9 @@ public class Faction {
         islandCollectors.clear();
         members.clear();
         pendingInvites.clear();
+        allies.clear();
+        pendingAllianceRequests.clear();
+        truces.clear();
 
         // Get citadel pos and defining params
         uuid = tags.getUniqueId("uuid");
@@ -715,6 +759,21 @@ public class Faction {
             pendingInvites.add(inviteTags.getUniqueId("uuid"));
         }
 
+        allowAllyInteraction = tags.getBoolean("allowAllyInteraction");
+        NBTTagList allyList = tags.getTagList("allies", 10);
+        for (NBTBase base : allyList) {
+            allies.add(((NBTTagCompound) base).getUniqueId("uuid"));
+        }
+        NBTTagList allyRequestList = tags.getTagList("pendingAllianceRequests", 10);
+        for (NBTBase base : allyRequestList) {
+            pendingAllianceRequests.add(((NBTTagCompound) base).getUniqueId("uuid"));
+        }
+        NBTTagList truceList = tags.getTagList("truces", 10);
+        for (NBTBase base : truceList) {
+            NBTTagCompound truceTag = (NBTTagCompound) base;
+            truces.put(truceTag.getUniqueId("uuid"), truceTag.getLong("expiry"));
+        }
+
         insuranceStacks.clear();
         NBTTagList insuranceList = tags.getTagList("insurance", 10);
         for (NBTBase base : insuranceList) {
@@ -800,6 +859,30 @@ public class Faction {
             inviteList.appendTag(inviteTags);
         }
         tags.setTag("pendingInvites", inviteList);
+
+        tags.setBoolean("allowAllyInteraction", allowAllyInteraction);
+        NBTTagList allyList = new NBTTagList();
+        for (UUID ally : allies) {
+            NBTTagCompound allyTag = new NBTTagCompound();
+            allyTag.setUniqueId("uuid", ally);
+            allyList.appendTag(allyTag);
+        }
+        tags.setTag("allies", allyList);
+        NBTTagList allyRequestList = new NBTTagList();
+        for (UUID requester : pendingAllianceRequests) {
+            NBTTagCompound requestTag = new NBTTagCompound();
+            requestTag.setUniqueId("uuid", requester);
+            allyRequestList.appendTag(requestTag);
+        }
+        tags.setTag("pendingAllianceRequests", allyRequestList);
+        NBTTagList truceList = new NBTTagList();
+        for (Map.Entry<UUID, Long> entry : truces.entrySet()) {
+            NBTTagCompound truceTag = new NBTTagCompound();
+            truceTag.setUniqueId("uuid", entry.getKey());
+            truceTag.setLong("expiry", entry.getValue());
+            truceList.appendTag(truceTag);
+        }
+        tags.setTag("truces", truceList);
 
         NBTTagList insuranceList = new NBTTagList();
         for (int i = 0; i < insuranceStacks.size(); i++) {
