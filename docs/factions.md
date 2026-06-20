@@ -4,7 +4,7 @@ This guide explains how to start a faction, claim territory, and upgrade your ci
 
 A faction is the central group entity in WarForge. It owns a **Citadel** (its core block), a set of claimed chunks, members with roles, and stats such as notoriety, wealth and legacy. Everything you do as a group flows through the Citadel and the `/faction` command.
 
-The command is `faction`, with aliases `f`, `factions`, `war` and `warforge`. All examples below use `/f`.
+The command is `faction`, with aliases `f`, `factions`, `war` and `warforge`. All examples below use `/f`. See the [Command Reference](commands.md) for the full command list.
 
 ## Quick start
 
@@ -162,7 +162,13 @@ Only the **Leader** (or an operator) can disband a faction. Use the **Disband** 
 
 Disbanding removes all of your claims, turns the citadel and every claim/collector block back into air, clears nameplates, releases force-loaded chunks, and announces the disband. Losing the citadel chunk in a siege is the other way a faction ends — it triggers the same defeat/cleanup, and unlocks insurance to the leader.
 
+## Alliances
+
+Factions can ally with one another. Allies cannot siege each other and can optionally use each other's land, and breaking an alliance starts a cooling-off **truce** that briefly blocks sieges and PVP between the former allies. Alliances are managed from the **Alliances** tab of the Faction Members GUI — there is no chat command for them. See [Alliances](alliances.md) for the full flow.
+
 ## Useful player commands
+
+The most common commands are below; the [Command Reference](commands.md) documents every subcommand.
 
 | Command | Purpose |
 |---|---|

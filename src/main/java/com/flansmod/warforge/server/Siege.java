@@ -1,6 +1,6 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.api.interfaces.IClaimStrengthModifier;
+import com.flansmod.warforge.api.WarforgeAPI;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
@@ -17,8 +17,6 @@ import net.minecraft.nbt.NBTTagIntArray;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.Vec3i;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.TextComponentString;
 import net.minecraft.util.text.TextComponentTranslation;
@@ -369,25 +367,8 @@ public class Siege {
             }
         }
 
-        chunkCheck:
-        for (DimBlockPos blockPos : defenders.claims.keySet()) {
-            if (defendingClaim.dim != blockPos.dim) continue;
-            var teMap = WarForgeMod.MC_SERVER.getWorld(defendingClaim.dim).getChunk(blockPos).getTileEntityMap();
-            for (TileEntity te : teMap.values()) {
-                if (te instanceof IClaimStrengthModifier claimModifier && claimModifier.isActive()) {
-                    ChunkPos pos = new ChunkPos(te.getPos());
-                    for (Vec3i vec : claimModifier.getEffectArea()) {
-                        ChunkPos affectedChunk = new ChunkPos(pos.x + vec.getX(), pos.z + vec.getZ());
-                        if (affectedChunk.equals((ChunkPos) blockPos.toChunkPos())) {
-                            mExtraDifficulty += claimModifier.getClaimContribution();
-                            if (!claimModifier.canStack())
-                                break chunkCheck;
-                        }
-                    }
-
-                }
-            }
-        }
+        // Reinforcement from chunk-reinforcer tiles in the defender's loaded claimed chunks (WarForge 2.1.0 API).
+        mExtraDifficulty += WarforgeAPI.getReinforcementBonus(defendingFaction, defendingClaim.toChunkPos());
     }
 
     // called when siege is ended for any reason and not detected as completed normally

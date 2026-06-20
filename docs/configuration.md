@@ -75,6 +75,8 @@ The important categories and sections are:
 - `Legacy`
 - `Warps`
 - `Client`
+- `Alliances`
+- `Debug`
 - Protection sections:
   - `Unclaimed`
   - `SafeZone`
@@ -82,6 +84,7 @@ The important categories and sections are:
   - `CitadelFriend`
   - `CitadelFoe`
   - `ClaimFriend`
+  - `ClaimAlly`
   - `ClaimFoe`
   - `Sieger`
   - `SiegeOther`
@@ -122,6 +125,21 @@ These are the settings server owners usually touch first.
   - Time values per momentum level, written as `level=time`.
 - `Cooldown between sieges after failure`
   - Cooldown in minutes.
+- `Allow UI Siege Declaration`
+  - Allow officers to declare a camp-less siege from the Territory Map, consuming a Siege Camp block. Default on.
+- `UI Siege Declaration Max Range`
+  - Maximum chunk distance between the chosen launch chunk and the target. Default 4.
+- `UI Siege Requires Attacker Presence`
+  - Whether a camp-less siege still requires an attacker near the launch chunk to avoid desertion. Default on.
+
+### Alliances
+
+- `Alliance Truce Duration [min]`
+  - After an alliance is broken, how many minutes the two factions are blocked from sieging or damaging each other. `0` disables the truce. Default 60.
+- `Max Allies Per Faction`
+  - Maximum number of simultaneous alliances per faction. `-1` for unlimited. Default 10.
+
+See the [Alliances guide](alliances.md) for how these behave in-game. The `ClaimAlly` protection section (below) controls what allies may do in a faction that has enabled ally access.
 
 ### Yields
 
@@ -143,6 +161,11 @@ These three are the fallback multipliers for vein qualities when a specific vein
 - `Siege status position`
 
 These mostly affect local presentation. Server owners should still document expected values for players if they rely on a standard pack or shared screenshots.
+
+### Debug
+
+- `Trace setBlockState In Claimed Chunks`
+  - Diagnostic logging only. When enabled, every server-side block change inside a claimed chunk is logged with its position, the owning claim, the block placed, and the calling code. It is meant for tracking down mods that mutate protected terrain outside the normal explosion-protection path. **Very spammy — leave off in production.** Default off.
 
 ### Protection Sections
 

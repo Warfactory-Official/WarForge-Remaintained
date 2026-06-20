@@ -51,9 +51,31 @@ The server then checks, among other things, that:
 - the target chunk has a defending faction with a real claim block,
 - the defender is **not offline-protected** (offline raid protection, default on, default 24 hours),
 - the target is not already under siege,
-- the target is not inside a **conquered-chunk grace period**.
+- the target is not inside a **conquered-chunk grace period**,
+- the target faction is **not an ally**, and you are not in an active **truce** with them (see [Alliances](alliances.md)).
 
 If all checks pass, the siege starts and a server-wide message announces "X started a siege against Y."
+
+## Declaring a siege from the map (no camp)
+
+Placing a physical camp is no longer the only way to start a siege. You can also **declare** one straight from the **Territory Map**, which consumes a Siege Camp block from your inventory instead of placing it. Both methods coexist; this one is handy when you'd rather not haul a camp to the front line.
+
+1. Open the Territory Map and click **Declare Siege**. The map enters target-selection mode.
+2. **Click an enemy claim** to choose the chunk you want to siege. A second map opens, **centered on that target**.
+3. On the second map, **click the chunk you want to launch the siege from**. Valid launch chunks are highlighted; they must be within a configurable range of the target (**UI Siege Declaration Max Range**, default **4** chunks).
+4. One **Siege Camp block** is consumed from your inventory and the siege begins, anchored logically at your chosen launch chunk — no block is placed in the world.
+
+A declared siege runs through the **same checks** as a camp siege (faction ownership, offline protection, already-sieged, conquered grace, ally/truce immunity) and the target must be a sieg-able claim. Its **battle zone** is centered on the launch chunk, and progress works exactly like a camp siege (timer + PVP).
+
+Because the second map can be centered on terrain you have never visited, the server streams the surrounding terrain colours to you so the map is still readable for distant targets.
+
+A few server toggles shape this flow:
+
+- **Allow UI Siege Declaration** (default **on**) — turn the whole feature off to force physical camps.
+- **UI Siege Declaration Max Range** (default **4**) — how far the launch chunk may be from the target, in chunks.
+- **UI Siege Requires Attacker Presence** (default **on**) — when on, a declared siege still needs an attacker to stay near the launch chunk; if the area is abandoned for the attacker desertion timer, the siege fails, just like a camp.
+
+> A camp-less siege has no physical camp to defend, so the attacker-presence rule above is what keeps "fire-and-forget" sieges in check. Tune it (and the range) to taste.
 
 ## Fighting the siege
 
@@ -188,7 +210,10 @@ All in `config/warforge.cfg`, category **Sieges** (full list in the [Configurati
 | `Siege Captures` | off | Whether an attacker win converts the chunk into their claim. |
 | `Siege momentum duration` | 60 min | How long momentum lasts. |
 | Offline raid protection | on, 24 h | Blocks sieges against fully-offline factions. |
+| `Allow UI Siege Declaration` | on | Allow declaring camp-less sieges from the map. |
+| `UI Siege Declaration Max Range` | 4 | Max chunks between the launch chunk and the target. |
+| `UI Siege Requires Attacker Presence` | on | Camp-less sieges still need an attacker near the launch chunk. |
 
 Sieges interact heavily with the protection config sections (`Sieger`, `ClaimDefended`, etc.), which control exactly what each side can break, place, and interact with inside the battle zone. Restart the server after changing any of these.
 
-See also: [Factions, Citadels and Upgrades](factions.md) and [The Vein System](veins.md).
+See also: [Factions, Citadels and Upgrades](factions.md), [Alliances](alliances.md), [Command Reference](commands.md), and [The Vein System](veins.md).

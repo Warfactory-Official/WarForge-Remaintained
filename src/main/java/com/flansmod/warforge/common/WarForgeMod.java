@@ -212,6 +212,7 @@ public class WarForgeMod implements ILateMixinLoader {
         MinecraftForge.EVENT_BUS.register(MODEL_EVENT_HANDLER);
         proxy.preInit(event);
         EffectRegistry.init();
+        com.flansmod.warforge.api.WarForgeCapabilities.register();
         CHUNK_LOADING_MANAGER.initialize();
     }
 
