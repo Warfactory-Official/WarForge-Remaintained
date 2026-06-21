@@ -1,24 +1,30 @@
 package com.flansmod.warforge.common.blocks;
 
-import com.cleanroommc.modularui.api.IGuiHolder;
-import com.cleanroommc.modularui.factory.PosGuiData;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.api.IUIHolder;
+import brachy.modularui.factory.PosGuiData;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.ModularScreen;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.GuiIslandCollector;
+import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.util.PullOnlyItemHandler;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
-import net.minecraft.util.EnumFacing;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.util.Constants;
-import net.minecraftforge.items.CapabilityItemHandler;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.IItemHandlerModifiable;
 import net.minecraftforge.items.ItemHandlerHelper;
@@ -28,7 +34,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
 
-public class TileEntityIslandCollector extends TileEntityYieldCollector implements IGuiHolder<PosGuiData> {
+public class TileEntityIslandCollector extends TileEntityYieldCollector implements IUIHolder<PosGuiData> {
     /** Slot count for the faction yield collector, configurable via {@link WarForgeConfig#ISLAND_COLLECTOR_SLOTS}. */
     private static int slotCount() {
         return Math.max(1, WarForgeConfig.ISLAND_COLLECTOR_SLOTS);
@@ -38,12 +44,17 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
     private final ItemStackHandler storage = new ItemStackHandler(slotCount()) {
         @Override
         protected void onContentsChanged(int slot) {
-            TileEntityIslandCollector.this.markDirty();
+            TileEntityIslandCollector.this.setChanged();
         }
     };
 
     // The view exposed to automation: pull-only, available from every side.
     private final IItemHandler pullOnlyView = new PullOnlyItemHandler(storage);
+    private LazyOptional<IItemHandler> pullOnlyCap = LazyOptional.of(() -> pullOnlyView);
+
+    public TileEntityIslandCollector(BlockPos pos, BlockState state) {
+        super(Content.TE_ISLAND_COLLECTOR.get(), pos, state);
+    }
 
     @Override
     public int getDefenceStrength() {
@@ -80,21 +91,16 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
         return getClaimDisplayName();
     }
 
-    @Override
-    public boolean hasCustomName() {
-        return true;
-    }
-
     public IItemHandlerModifiable getStorageHandler() {
         return storage;
     }
 
     public void processIslandYields(Faction faction) {
-        if (world == null || world.isRemote || faction == null) {
+        if (level == null || level.isClientSide || faction == null) {
             return;
         }
 
-        DimChunkPos collectorChunk = new DimChunkPos(world.provider.getDimension(), pos);
+        DimChunkPos collectorChunk = new DimChunkPos(level.dimension(), worldPosition);
         Set<DimChunkPos> island = WarForgeMod.FACTIONS.collectFactionIsland(faction.uuid, collectorChunk);
         if (island.isEmpty()) {
             return;
@@ -109,7 +115,7 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
 
     @Override
     public void onLoad() {
-        if (world == null || world.isRemote) {
+        if (level == null || level.isClientSide) {
             return;
         }
 
@@ -122,26 +128,24 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
     // ----------------------------------------------------------
     // Capability: expose the storage as a pull-only item handler on every side.
     @Override
-    public boolean hasCapability(@Nonnull Capability<?> capability, @Nullable EnumFacing facing) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return true;
-        }
-        return super.hasCapability(capability, facing);
-    }
-
-    @Override
-    public <T> T getCapability(@Nonnull Capability<T> capability, @Nullable EnumFacing facing) {
-        if (capability == CapabilityItemHandler.ITEM_HANDLER_CAPABILITY) {
-            return CapabilityItemHandler.ITEM_HANDLER_CAPABILITY.cast(pullOnlyView);
+    public <T> LazyOptional<T> getCapability(@Nonnull Capability<T> capability, @Nullable Direction facing) {
+        if (capability == ForgeCapabilities.ITEM_HANDLER) {
+            return pullOnlyCap.cast();
         }
         return super.getCapability(capability, facing);
     }
 
-    // ----------------------------------------------------------
-    // IInventory delegates to the 100-slot storage so yield deposits, break-drops and the GUI all
-    // share one backing store. Insertion is refused (isItemValidForSlot) so nothing can be put in.
     @Override
-    public int getSizeInventory() {
+    public void setRemoved() {
+        super.setRemoved();
+        pullOnlyCap.invalidate();
+    }
+
+    // ----------------------------------------------------------
+    // IItemHandler delegates to the config-sized storage so yield deposits, break-drops and the GUI
+    // all share one backing store. Insertion is refused (isItemValid) so nothing can be put in.
+    @Override
+    public int getSlots() {
         return storage.getSlots();
     }
 
@@ -161,34 +165,29 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
     }
 
     @Override
-    public ItemStack decrStackSize(int index, int count) {
-        return (index >= 0 && index < storage.getSlots()) ? storage.extractItem(index, count, false) : ItemStack.EMPTY;
-    }
-
-    @Override
-    public ItemStack removeStackFromSlot(int index) {
-        if (index < 0 || index >= storage.getSlots()) {
-            return ItemStack.EMPTY;
-        }
-        ItemStack stack = storage.getStackInSlot(index);
-        storage.setStackInSlot(index, ItemStack.EMPTY);
-        return stack;
-    }
-
-    @Override
-    public void setInventorySlotContents(int index, ItemStack stack) {
+    public void setStackInSlot(int index, ItemStack stack) {
         if (index >= 0 && index < storage.getSlots()) {
             storage.setStackInSlot(index, stack);
         }
     }
 
     @Override
-    public int getInventoryStackLimit() {
-        return 64;
+    public ItemStack insertItem(int index, ItemStack stack, boolean simulate) {
+        return storage.insertItem(index, stack, simulate);
     }
 
     @Override
-    public boolean isItemValidForSlot(int index, ItemStack stack) {
+    public ItemStack extractItem(int index, int count, boolean simulate) {
+        return storage.extractItem(index, count, simulate);
+    }
+
+    @Override
+    public int getSlotLimit(int index) {
+        return storage.getSlotLimit(index);
+    }
+
+    @Override
+    public boolean isItemValid(int index, ItemStack stack) {
         return false;
     }
 
@@ -201,25 +200,24 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
 
     // ----------------------------------------------------------
     @Override
-    public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
-        super.writeToNBT(nbt);
-        nbt.setTag("storage", storage.serializeNBT());
-        return nbt;
+    public void saveAdditional(CompoundTag nbt) {
+        super.saveAdditional(nbt);
+        nbt.put("storage", storage.serializeNBT());
     }
 
     @Override
-    public void readFromNBT(NBTTagCompound nbt) {
-        super.readFromNBT(nbt);
+    public void load(CompoundTag nbt) {
+        super.load(nbt);
 
         // Load the saved items into the (config-sized) handler manually, rather than via
         // deserializeNBT, so that the configured slot count always wins. Items whose saved slot no
         // longer exists are relocated into any remaining free space instead of being dropped.
-        if (nbt.hasKey("storage")) {
-            NBTTagList items = nbt.getCompoundTag("storage").getTagList("Items", Constants.NBT.TAG_COMPOUND);
-            for (int i = 0; i < items.tagCount(); i++) {
-                NBTTagCompound itemTags = items.getCompoundTagAt(i);
-                int slot = itemTags.getInteger("Slot");
-                ItemStack stack = new ItemStack(itemTags);
+        if (nbt.contains("storage")) {
+            ListTag items = nbt.getCompound("storage").getList("Items", Tag.TAG_COMPOUND);
+            for (int i = 0; i < items.size(); i++) {
+                CompoundTag itemTags = items.getCompound(i);
+                int slot = itemTags.getInt("Slot");
+                ItemStack stack = ItemStack.of(itemTags);
                 if (stack.isEmpty()) {
                     continue;
                 }
@@ -242,7 +240,12 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector implemen
     }
 
     @Override
-    public ModularPanel buildUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
+    public ModularPanel<?> buildUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
         return GuiIslandCollector.buildUI(guiData, syncManager, settings, this);
+    }
+
+    @Override
+    public ModularScreen createScreen(PosGuiData guiData, ModularPanel<?> mainPanel) {
+        return new ModularScreen(Tags.MODID, mainPanel);
     }
 }

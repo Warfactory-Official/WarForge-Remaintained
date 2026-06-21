@@ -4,8 +4,10 @@ import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketJourneyMapClaims;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -107,7 +109,7 @@ public class JourneyMapClaimSync {
     }
 
     /** AUTO: hand a joining player the full current claim set immediately. PLAYER: wait for observation. */
-    public void onPlayerJoin(EntityPlayerMP player) {
+    public void onPlayerJoin(ServerPlayer player) {
         if (mode() != WarForgeConfig.JM_MODE_AUTO) {
             return;
         }
@@ -152,12 +154,12 @@ public class JourneyMapClaimSync {
         }
     }
 
-    public void onPlayerLogout(EntityPlayerMP player) {
-        playerViews.remove(player.getUniqueID());
+    public void onPlayerLogout(ServerPlayer player) {
+        playerViews.remove(player.getUUID());
     }
 
     /** PLAYER mode: a client just started watching this chunk, so bring its view of that chunk up to date. */
-    public void onChunkObserved(EntityPlayerMP player, int dim, int chunkX, int chunkZ) {
+    public void onChunkObserved(ServerPlayer player, ResourceKey<Level> dim, int chunkX, int chunkZ) {
         if (mode() != WarForgeConfig.JM_MODE_PLAYER) {
             return;
         }
@@ -171,20 +173,20 @@ public class JourneyMapClaimSync {
             return;
         }
         int viewDistance = server.getPlayerList().getViewDistance();
-        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
-            if (player.dimension != chunk.dim) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!player.level().dimension().equals(chunk.dim)) {
                 continue;
             }
-            int dx = Math.abs(player.chunkCoordX - chunk.x);
-            int dz = Math.abs(player.chunkCoordZ - chunk.z);
+            int dx = Math.abs(player.chunkPosition().x - chunk.x);
+            int dz = Math.abs(player.chunkPosition().z - chunk.z);
             if (Math.max(dx, dz) <= viewDistance) { // within view => actually observing the chunk
                 syncChunkToPlayer(player, chunk, colour);
             }
         }
     }
 
-    private void syncChunkToPlayer(EntityPlayerMP player, DimChunkPos chunk, Integer colour) {
-        Map<DimChunkPos, Integer> view = playerViews.computeIfAbsent(player.getUniqueID(), id -> new HashMap<>());
+    private void syncChunkToPlayer(ServerPlayer player, DimChunkPos chunk, Integer colour) {
+        Map<DimChunkPos, Integer> view = playerViews.computeIfAbsent(player.getUUID(), id -> new HashMap<>());
         Integer sent = view.get(chunk);
         PacketJourneyMapClaims packet = new PacketJourneyMapClaims();
         if (colour != null) {

@@ -1,31 +1,33 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.server.Faction.Role;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
-public class PacketFactionInfo extends PacketBase 
+public class PacketFactionInfo extends PacketBase
 {
 	// Cheeky hack to make it available to the GUI
 	public static FactionDisplayInfo latestInfo = null;
-	
+
 	public FactionDisplayInfo info;
-	
+
 	@Override
-	public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void encodeInto(FriendlyByteBuf data)
 	{
 		if(info != null)
 		{
 			data.writeBoolean(true);
 			writeUUID(data, info.factionId);
 			writeUTF(data, info.factionName);
-			
+
 			data.writeInt(info.notoriety);
 			data.writeInt(info.wealth);
 			data.writeInt(info.legacy);
@@ -35,14 +37,14 @@ public class PacketFactionInfo extends PacketBase
 			data.writeInt(info.wealthRank);
 			data.writeInt(info.legacyRank);
 			data.writeInt(info.totalRank);
-			
+
 			data.writeInt(info.mNumClaims);
-			
-			data.writeInt(info.mCitadelPos.dim);
+
+			writeUTF(data, info.mCitadelPos.dim.location().toString());
 			data.writeInt(info.mCitadelPos.getX());
 			data.writeInt(info.mCitadelPos.getY());
 			data.writeInt(info.mCitadelPos.getZ());
-			
+
 			// Member list
 			data.writeInt(info.members.size());
 			for(int i = 0; i < info.members.size(); i++)
@@ -57,39 +59,39 @@ public class PacketFactionInfo extends PacketBase
 		{
 			data.writeBoolean(false);
 		}
-		
+
 	}
 
 	@Override
-	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void decodeInto(FriendlyByteBuf data)
 	{
 		boolean hasInfo = data.readBoolean();
-		
+
 		if(hasInfo)
 		{
 			info = new FactionDisplayInfo();
-			
+
 			info.factionId = readUUID(data);
 			info.factionName = readUTF(data);
-			
+
 			info.notoriety = data.readInt();
 			info.wealth = data.readInt();
 			info.legacy = data.readInt();
 			info.lvl = data.readInt();
-			
+
 			info.notorietyRank = data.readInt();
 			info.wealthRank = data.readInt();
 			info.legacyRank = data.readInt();
 			info.totalRank = data.readInt();
-			
+
 			info.mNumClaims = data.readInt();
-			
-			int dim =	data.readInt();
+
+			ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(readUTF(data)));
 			int x =	data.readInt();
 			int y =	data.readInt();
 			int z =	data.readInt();
 			info.mCitadelPos = new DimBlockPos(dim, x, y, z);
-			
+
 			// Member list
 			int count = data.readInt();
 			for(int i = 0; i < count; i++)
@@ -107,22 +109,19 @@ public class PacketFactionInfo extends PacketBase
 	}
 
 	@Override
-	public void handleServerSide(EntityPlayerMP playerEntity) 
+	public void handleServerSide(ServerPlayer playerEntity)
 	{
 		WarForgeMod.LOGGER.error("Received FactionInfo on server");
 	}
 
 	@Override
-	public void handleClientSide(EntityPlayer clientPlayer) 
+	public void handleClientSide(Player clientPlayer)
 	{
 		latestInfo = info;
-		clientPlayer.openGui(
-				WarForgeMod.INSTANCE, 
-				CommonProxy.GUI_TYPE_FACTION_INFO, 
-				clientPlayer.world, 
-				clientPlayer.getPosition().getX(),
-				clientPlayer.getPosition().getY(),
-				clientPlayer.getPosition().getZ());
+		if(info != null)
+		{
+			FactionStatsGuiFactory.INSTANCE.openClient(info.factionId);
+		}
 	}
 
 }

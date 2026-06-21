@@ -2,20 +2,22 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.Vec3i;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 public class PacketStartSiege extends PacketBase {
     public DimBlockPos mSiegeCampPos;
     public Vec3i mOffset;
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        data.writeInt(mSiegeCampPos.dim);
+    public void encodeInto(FriendlyByteBuf data) {
+        data.writeUtf(mSiegeCampPos.dim.location().toString());
         data.writeInt(mSiegeCampPos.getX());
         data.writeInt(mSiegeCampPos.getY());
         data.writeInt(mSiegeCampPos.getZ());
@@ -25,8 +27,8 @@ public class PacketStartSiege extends PacketBase {
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        int dim = data.readInt();
+    public void decodeInto(FriendlyByteBuf data) {
+        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
@@ -37,12 +39,12 @@ public class PacketStartSiege extends PacketBase {
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         WarForgeMod.FACTIONS.requestStartSiege(playerEntity, mSiegeCampPos, mOffset);
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         WarForgeMod.LOGGER.error("Received start siege packet client side");
     }
 

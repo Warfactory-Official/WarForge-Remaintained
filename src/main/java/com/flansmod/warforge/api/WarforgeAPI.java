@@ -6,12 +6,12 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
+import net.minecraft.core.Vec3i;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.World;
-import net.minecraft.world.chunk.Chunk;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -36,8 +36,8 @@ public final class WarforgeAPI {
         for (DimBlockPos claim : faction.claims.keySet()) {
             DimChunkPos cpos = claim.toChunkPos();
             if (out.contains(cpos)) continue;
-            World world = server.getWorld(cpos.dim);
-            if (world != null && world.getChunkProvider().getLoadedChunk(cpos.x, cpos.z) != null) {
+            ServerLevel level = server.getLevel(cpos.dim);
+            if (level != null && level.getChunkSource().getChunkNow(cpos.x, cpos.z) != null) {
                 out.add(cpos);
             }
         }
@@ -45,10 +45,10 @@ public final class WarforgeAPI {
     }
 
     /**
-     * Tests {@code predicate} against every {@link TileEntity} in the faction's loaded, claimed chunks,
+     * Tests {@code predicate} against every {@link BlockEntity} in the faction's loaded, claimed chunks,
      * short-circuiting on the first match. Useful for "does this faction have X somewhere in its territory".
      */
-    public static boolean anyLoadedClaimedTile(UUID factionId, Predicate<TileEntity> predicate) {
+    public static boolean anyLoadedClaimedTile(UUID factionId, Predicate<BlockEntity> predicate) {
         Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
         MinecraftServer server = WarForgeMod.MC_SERVER;
         if (faction == null || server == null) return false;
@@ -56,12 +56,12 @@ public final class WarforgeAPI {
         for (DimBlockPos claim : faction.claims.keySet()) {
             DimChunkPos cpos = claim.toChunkPos();
             if (!seen.add(cpos)) continue;
-            World world = server.getWorld(cpos.dim);
-            if (world == null) continue;
-            Chunk chunk = world.getChunkProvider().getLoadedChunk(cpos.x, cpos.z);
+            ServerLevel level = server.getLevel(cpos.dim);
+            if (level == null) continue;
+            LevelChunk chunk = level.getChunkSource().getChunkNow(cpos.x, cpos.z);
             if (chunk == null) continue;
-            for (TileEntity te : chunk.getTileEntityMap().values()) {
-                if (te != null && !te.isInvalid() && predicate.test(te)) return true;
+            for (BlockEntity be : chunk.getBlockEntities().values()) {
+                if (be != null && !be.isRemoved() && predicate.test(be)) return true;
             }
         }
         return false;
@@ -83,30 +83,28 @@ public final class WarforgeAPI {
         Set<DimChunkPos> seen = new HashSet<>();
         for (DimBlockPos claim : faction.claims.keySet()) {
             DimChunkPos cpos = claim.toChunkPos();
-            if (cpos.dim != besieged.dim || !seen.add(cpos)) continue;
-            World world = server.getWorld(cpos.dim);
-            if (world == null) continue;
-            Chunk chunk = world.getChunkProvider().getLoadedChunk(cpos.x, cpos.z);
+            if (!cpos.dim.equals(besieged.dim) || !seen.add(cpos)) continue;
+            ServerLevel level = server.getLevel(cpos.dim);
+            if (level == null) continue;
+            LevelChunk chunk = level.getChunkSource().getChunkNow(cpos.x, cpos.z);
             if (chunk == null) continue;
 
-            for (TileEntity te : chunk.getTileEntityMap().values()) {
-                if (te == null || te.isInvalid()) continue;
+            for (BlockEntity be : chunk.getBlockEntities().values()) {
+                if (be == null || be.isRemoved()) continue;
                 int bonus = 0;
                 boolean stacks = false;
 
-                IChunkReinforcer reinforcer = WarForgeCapabilities.CHUNK_REINFORCER == null ? null
-                        : te.getCapability(WarForgeCapabilities.CHUNK_REINFORCER, null);
+                IChunkReinforcer reinforcer = be.getCapability(WarForgeCapabilities.CHUNK_REINFORCER).resolve().orElse(null);
                 if (reinforcer != null) {
                     if (!reinforcer.isReinforcementActive()) continue;
-                    ChunkPos rc = new ChunkPos(te.getPos());
+                    ChunkPos rc = new ChunkPos(be.getBlockPos());
                     int dist = Math.max(Math.abs(rc.x - besieged.x), Math.abs(rc.z - besieged.z));
                     if (dist > reinforcer.getReinforcementRadius()) continue;
                     bonus = reinforcer.getReinforcementBonus();
                     stacks = reinforcer.stacksWithOthers();
-                } else if (te instanceof IClaimStrengthModifier) {
-                    IClaimStrengthModifier legacy = (IClaimStrengthModifier) te;
+                } else if (be instanceof IClaimStrengthModifier legacy) {
                     if (!legacy.isActive()) continue;
-                    ChunkPos rc = new ChunkPos(te.getPos());
+                    ChunkPos rc = new ChunkPos(be.getBlockPos());
                     boolean covers = false;
                     for (Vec3i vec : legacy.getEffectArea()) {
                         if (rc.x + vec.getX() == besieged.x && rc.z + vec.getZ() == besieged.z) {

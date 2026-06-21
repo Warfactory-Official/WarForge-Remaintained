@@ -1,30 +1,26 @@
 package com.flansmod.warforge.common.blocks;
 
-import com.cleanroommc.modularui.api.IGuiHolder;
-import com.cleanroommc.modularui.factory.PosGuiData;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.init.SoundEvents;
-import net.minecraft.item.ItemBanner;
-import net.minecraft.item.ItemShield;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.SoundCategory;
-import net.minecraft.world.WorldServer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.item.BannerItem;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ShieldItem;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.UUID;
 
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 
-public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim, IGuiHolder<PosGuiData> {
+public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim {
     public static final int BANNER_SLOT_INDEX = NUM_BASE_SLOTS;
     public static final int NUM_SLOTS = NUM_BASE_SLOTS + 1;
 
@@ -33,16 +29,17 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     // The banner stack is an optional slot that sets all banners in owned chunks to copy the design
     protected ItemStack bannerStack;
 
-    public TileEntityCitadel() {
+    public TileEntityCitadel(BlockPos pos, BlockState state) {
+        super(Content.TE_CITADEL.get(), pos, state);
         bannerStack = ItemStack.EMPTY;
     }
 
     //TODO: This needs to be handled with enums and not array indexes
-    public void onPlacedBy(EntityLivingBase placer) {
+    @Override
+    public void onPlacedBy(LivingEntity placer) {
         // This locks in the placer as the only person who can create a faction using the interface on this citadel
-        this.placer = placer.getUniqueID();
+        this.placer = placer.getUUID();
         super.onPlacedBy(placer);
-
     }
 
     // IClaim
@@ -77,9 +74,9 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
 
 
 
-    // IInventory Overrides for banner stack
+    // Inventory overrides for banner stack (IItemHandlerModifiable surface from TileEntityYieldCollector)
     @Override
-    public int getSizeInventory() {
+    public int getSlots() {
         return NUM_SLOTS;
     }
 
@@ -96,41 +93,67 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     }
 
     @Override
-    public ItemStack decrStackSize(int index, int count) {
-        if (index == BANNER_SLOT_INDEX) {
-            int numToTake = Math.max(count, bannerStack.getCount());
-            ItemStack result = bannerStack.copy();
-            result.setCount(numToTake);
-            bannerStack.setCount(bannerStack.getCount() - numToTake);
-            return result;
-        }
-        return super.decrStackSize(index, count);
-    }
-
-    @Override
-    public ItemStack removeStackFromSlot(int index) {
-        if (index == BANNER_SLOT_INDEX) {
-            ItemStack result = bannerStack;
-            bannerStack = ItemStack.EMPTY;
-            return result;
-        }
-        return super.removeStackFromSlot(index);
-    }
-
-    @Override
-    public void setInventorySlotContents(int index, ItemStack stack) {
+    public void setStackInSlot(int index, ItemStack stack) {
         if (index == BANNER_SLOT_INDEX) {
             bannerStack = stack;
+            setChanged();
         } else
-            super.setInventorySlotContents(index, stack);
+            super.setStackInSlot(index, stack);
     }
 
     @Override
-    public boolean isItemValidForSlot(int index, ItemStack stack) {
+    public ItemStack insertItem(int index, ItemStack stack, boolean simulate) {
         if (index == BANNER_SLOT_INDEX) {
-            return stack.getItem() instanceof ItemBanner || stack.getItem() instanceof ItemShield;
+            if (stack.isEmpty() || !bannerStack.isEmpty() || !isItemValid(index, stack))
+                return stack;
+            if (!simulate) {
+                ItemStack inserted = stack.copy();
+                inserted.setCount(1);
+                bannerStack = inserted;
+                setChanged();
+            }
+            if (stack.getCount() == 1)
+                return ItemStack.EMPTY;
+            ItemStack remainder = stack.copy();
+            remainder.shrink(1);
+            return remainder;
         }
-        return super.isItemValidForSlot(index, stack);
+        return super.insertItem(index, stack, simulate);
+    }
+
+    @Override
+    public ItemStack extractItem(int index, int count, boolean simulate) {
+        if (index == BANNER_SLOT_INDEX) {
+            if (count <= 0 || bannerStack.isEmpty())
+                return ItemStack.EMPTY;
+            int toExtract = Math.min(count, bannerStack.getCount());
+            ItemStack result = bannerStack.copy();
+            result.setCount(toExtract);
+            if (!simulate) {
+                if (toExtract >= bannerStack.getCount())
+                    bannerStack = ItemStack.EMPTY;
+                else
+                    bannerStack.shrink(toExtract);
+                setChanged();
+            }
+            return result;
+        }
+        return super.extractItem(index, count, simulate);
+    }
+
+    @Override
+    public int getSlotLimit(int index) {
+        if (index == BANNER_SLOT_INDEX)
+            return 1;
+        return super.getSlotLimit(index);
+    }
+
+    @Override
+    public boolean isItemValid(int index, ItemStack stack) {
+        if (index == BANNER_SLOT_INDEX) {
+            return stack.getItem() instanceof BannerItem || stack.getItem() instanceof ShieldItem;
+        }
+        return super.isItemValid(index, stack);
     }
 
     @Override
@@ -144,7 +167,7 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
             yieldStacks[i] = other.yieldStacks[i].copy();
         }
         bannerStack = other.bannerStack.copy();
-        markDirty();
+        setChanged();
     }
 
     /**
@@ -156,26 +179,26 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     public void onServerSetFaction(Faction faction) {
 
         //To do: save rotation to NBT
-        IBlockState state = world.getBlockState(pos);
-        world.setBlockState(pos.up(), Content.statue.getDefaultState().withProperty(MODEL, BlockDummy.modelEnum.KNIGHT), 3);
-        world.notifyBlockUpdate(pos.up(), state, state, 3);
+        BlockState state = level.getBlockState(worldPosition);
+        level.setBlock(worldPosition.above(), Content.statue.defaultBlockState().setValue(MODEL, BlockDummy.modelEnum.KNIGHT), 3);
+        level.sendBlockUpdated(worldPosition.above(), state, state, 3);
 
 
-        TileEntity teMiddle = world.getTileEntity(pos.up());
+        BlockEntity teMiddle = level.getBlockEntity(worldPosition.above());
         if (teMiddle instanceof TileEntityDummy) {
-            ((TileEntityDummy) teMiddle).setMaster(pos);
+            ((TileEntityDummy) teMiddle).setMaster(worldPosition);
         }
 
-        world.setBlockState(pos.up(2), Content.dummyTranslusent.getDefaultState().withProperty(MODEL, BlockDummy.modelEnum.TRANSLUCENT), 3);
-        world.notifyBlockUpdate(pos.up(2), state, state, 3);
+        level.setBlock(worldPosition.above(2), Content.dummyTranslusent.defaultBlockState().setValue(MODEL, BlockDummy.modelEnum.TRANSLUCENT), 3);
+        level.sendBlockUpdated(worldPosition.above(2), state, state, 3);
 
-        TileEntity teTop = world.getTileEntity(pos.up(2));
+        BlockEntity teTop = level.getBlockEntity(worldPosition.above(2));
         if (teTop instanceof TileEntityDummy) {
-            ((TileEntityDummy) teMiddle).setMaster(pos);
+            ((TileEntityDummy) teTop).setMaster(worldPosition);
         }
 
         super.onServerSetFaction(faction);
-        TileEntity te = world.getTileEntity(pos.up(2));
+        BlockEntity te = level.getBlockEntity(worldPosition.above(2));
         if (te instanceof TileEntityDummy)
             ((TileEntityDummy) te).setLaserRender(true);
 
@@ -185,11 +208,11 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
 
     public void onServerCreateFaction(Faction faction) {
 
-        world.playSound(null, pos, SoundEvents.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 1.0F, 1.0F);
-        world.playSound(null, pos, SoundEvents.BLOCK_ANVIL_USE, SoundCategory.PLAYERS, 1.0F, 1.2F);
-        ((WorldServer) world).spawnParticle(
-                EnumParticleTypes.EXPLOSION_LARGE,
-                pos.getX(), pos.getY(), pos.getZ(),
+        level.playSound(null, worldPosition, SoundEvents.GENERIC_EXPLODE, SoundSource.PLAYERS, 1.0F, 1.0F);
+        level.playSound(null, worldPosition, SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 1.0F, 1.2F);
+        ((ServerLevel) level).sendParticles(
+                ParticleTypes.EXPLOSION_EMITTER,
+                worldPosition.getX(), worldPosition.getY(), worldPosition.getZ(),
                 32,
                 0.0D, 2.5D, 0.0D,
                 1.0D
@@ -198,31 +221,21 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     }
 
     @Override
-    public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
-        super.writeToNBT(nbt);
+    public void saveAdditional(CompoundTag nbt) {
+        super.saveAdditional(nbt);
 
-        nbt.setUniqueId("placer", placer);
-        nbt.setFloat("rotation", rotation);
+        nbt.putUUID("placer", placer);
 
-        NBTTagCompound bannerStackTags = new NBTTagCompound();
-        bannerStack.writeToNBT(bannerStackTags);
-        nbt.setTag("banner", bannerStackTags);
-
-        return nbt;
+        CompoundTag bannerStackTags = new CompoundTag();
+        bannerStack.save(bannerStackTags);
+        nbt.put("banner", bannerStackTags);
     }
 
     @Override
-    public void readFromNBT(NBTTagCompound nbt) {
-        super.readFromNBT(nbt);
-        rotation = nbt.getByte("rotation");
+    public void load(CompoundTag nbt) {
+        super.load(nbt);
 
-        bannerStack = new ItemStack(nbt.getCompoundTag("banner"));
-        placer = nbt.getUniqueId("placer");
+        bannerStack = ItemStack.of(nbt.getCompound("banner"));
+        placer = nbt.getUUID("placer");
     }
-
-    @Override
-    public ModularPanel buildUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
-        return com.flansmod.warforge.common.WarForgeMod.proxy.buildCitadelUI(guiData, syncManager, settings, this);
-    }
-
 }

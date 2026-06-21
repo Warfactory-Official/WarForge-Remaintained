@@ -2,65 +2,75 @@ package com.flansmod.warforge.common.blocks;
 
 import java.util.ArrayList;
 
+import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
 
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.tileentity.TileEntity;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.Packet;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.network.protocol.game.ClientGamePacketListener;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
-public class TileEntityLeaderboard extends TileEntity
+public class TileEntityLeaderboard extends BlockEntity
 {
-	public static final int NUM_ENTRIES = 6;	
+	public static final int NUM_ENTRIES = 6;
 	// Client only really
 	public String[] topNames = new String[NUM_ENTRIES];
-	
-	// Does nothing, just for TileEntityRenderer
-	
-	@Override
-	public SPacketUpdateTileEntity getUpdatePacket()
+
+	public TileEntityLeaderboard(BlockPos pos, BlockState state)
 	{
-		return new SPacketUpdateTileEntity(getPos(), getBlockMetadata(), getUpdateTag());
+		super(Content.TE_LEADERBOARD.get(), pos, state);
 	}
-	
+
+	// Does nothing, just for the BlockEntityRenderer
+
 	@Override
-	public void onDataPacket(net.minecraft.network.NetworkManager net, SPacketUpdateTileEntity packet)
+	public Packet<ClientGamePacketListener> getUpdatePacket()
 	{
-		NBTTagCompound tags = packet.getNbtCompound();
-		
+		return ClientboundBlockEntityDataPacket.create(this);
+	}
+
+	@Override
+	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet)
+	{
+		CompoundTag tags = packet.getTag();
+
 		for(int i = 0; i < NUM_ENTRIES; i++)
 		{
 			topNames[i] = tags.getString("#" + i);
 		}
 	}
-	
+
 	@Override
-	public NBTTagCompound getUpdateTag()
+	public CompoundTag getUpdateTag()
 	{
 		// You have to get parent tags so that x, y, z are added.
-		NBTTagCompound tags = super.getUpdateTag();
+		CompoundTag tags = super.getUpdateTag();
 
 		ArrayList<Faction> tempList = new ArrayList<Faction>();
-		WarForgeMod.LEADERBOARD.GetSortedList(((BlockLeaderboard)getBlockType()).stat, tempList);
-		
+		WarForgeMod.LEADERBOARD.GetSortedList(((BlockLeaderboard)getBlockState().getBlock()).stat, tempList);
+
 		for(int i = 0; i < NUM_ENTRIES; i++)
 		{
 			if(tempList.size() > i)
 			{
-				tags.setString("#" + i, tempList.get(i).name);
+				tags.putString("#" + i, tempList.get(i).name);
 			}
 			else
 			{
-				tags.setString("#" + i, "");
+				tags.putString("#" + i, "");
 			}
 		}
-		
+
 		return tags;
 	}
-	
+
 	@Override
-	public void handleUpdateTag(NBTTagCompound tags)
+	public void handleUpdateTag(CompoundTag tags)
 	{
 		for(int i = 0; i < NUM_ENTRIES; i++)
 		{

@@ -1,8 +1,8 @@
 {
     "variants": {
-        "facing=north": { "model": "warforge:basicclaimblock" },
-        "facing=south": { "model": "warforge:basicclaimblock", "y": 180 },
-        "facing=west": { "model": "warforge:basicclaimblock", "y": 270 },
-        "facing=east": { "model": "warforge:basicclaimblock", "y": 90 }
+        "facing=north": { "model": "warforge:block/basicclaimblock" },
+        "facing=south": { "model": "warforge:block/basicclaimblock", "y": 180 },
+        "facing=west": { "model": "warforge:block/basicclaimblock", "y": 270 },
+        "facing=east": { "model": "warforge:block/basicclaimblock", "y": 90 }
     }
 }

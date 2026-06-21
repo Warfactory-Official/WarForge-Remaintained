@@ -1,35 +1,38 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.api.IGuiHolder;
-import com.cleanroommc.modularui.factory.AbstractUIFactory;
-import com.cleanroommc.modularui.factory.GuiManager;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.ModularScreen;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.utils.Platform;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.api.IUIHolder;
+import brachy.modularui.api.MCHelper;
+import brachy.modularui.factory.AbstractUIFactory;
+import brachy.modularui.factory.GuiManager;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.ModularScreen;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.GuiFactionInsurance;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.FactionInsuranceItemHandler;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.PacketBuffer;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.UUID;
 
 public class FactionInsuranceGuiFactory extends AbstractUIFactory<FactionInsuranceGuiData> {
     public static final FactionInsuranceGuiFactory INSTANCE = new FactionInsuranceGuiFactory();
 
-    private static final IGuiHolder<FactionInsuranceGuiData> HOLDER = new IGuiHolder<FactionInsuranceGuiData>() {
+    private static final IUIHolder<FactionInsuranceGuiData> HOLDER = new IUIHolder<>() {
         @Override
         public ModularPanel buildUI(FactionInsuranceGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
-            return GuiFactionInsurance.buildPanel(guiData);
+            return GuiFactionInsurance.buildPanel(guiData, syncManager);
         }
 
         @Override
@@ -39,7 +42,7 @@ public class FactionInsuranceGuiFactory extends AbstractUIFactory<FactionInsuran
     };
 
     private FactionInsuranceGuiFactory() {
-        super("warforge:faction_insurance");
+        super(new ResourceLocation(Tags.MODID, "faction_insurance"));
     }
 
     public static void init() {
@@ -48,67 +51,80 @@ public class FactionInsuranceGuiFactory extends AbstractUIFactory<FactionInsuran
         }
     }
 
-    @SideOnly(Side.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public void openClient(UUID factionId) {
-        GuiManager.openFromClient(this, new FactionInsuranceGuiData(verifyClientSide(Platform.getClientPlayer()), factionId));
+        com.flansmod.warforge.client.DeferredGuiOpen.open(() ->
+                GuiManager.openFromClient(this, new FactionInsuranceGuiData(verifyClientSide(MCHelper.getPlayer()), factionId)));
     }
 
-    public void open(EntityPlayer player, UUID factionId) {
-        EntityPlayerMP serverPlayer = verifyServerSide(player);
+    @OnlyIn(Dist.CLIENT)
+    public void openClientChild(Runnable reopenParent, UUID factionId) {
+        com.flansmod.warforge.client.DeferredGuiOpen.openChild(reopenParent, () ->
+                GuiManager.openFromClient(this, new FactionInsuranceGuiData(verifyClientSide(MCHelper.getPlayer()), factionId)));
+    }
+
+    @OnlyIn(Dist.CLIENT)
+    public void openClientSibling(UUID factionId) {
+        com.flansmod.warforge.client.DeferredGuiOpen.openSibling(() ->
+                GuiManager.openFromClient(this, new FactionInsuranceGuiData(verifyClientSide(MCHelper.getPlayer()), factionId)));
+    }
+
+    public void open(Player player, UUID factionId) {
+        ServerPlayer serverPlayer = verifyServerSide(player);
         GuiManager.open(this, createServerData(serverPlayer, factionId), serverPlayer);
     }
 
     @Override
-    public @NotNull IGuiHolder<FactionInsuranceGuiData> getGuiHolder(FactionInsuranceGuiData guiData) {
+    public @NotNull IUIHolder<FactionInsuranceGuiData> getGuiHolder(FactionInsuranceGuiData guiData) {
         return HOLDER;
     }
 
     @Override
-    public void writeGuiData(FactionInsuranceGuiData guiData, PacketBuffer packetBuffer) {
+    public void writeGuiData(FactionInsuranceGuiData guiData, FriendlyByteBuf buffer) {
         if (guiData.isClient()) {
-            packetBuffer.writeLong(guiData.requestedFactionId.getMostSignificantBits());
-            packetBuffer.writeLong(guiData.requestedFactionId.getLeastSignificantBits());
+            buffer.writeLong(guiData.requestedFactionId.getMostSignificantBits());
+            buffer.writeLong(guiData.requestedFactionId.getLeastSignificantBits());
             return;
         }
 
-        packetBuffer.writeBoolean(guiData.hasFaction);
-        packetBuffer.writeLong(guiData.factionId.getMostSignificantBits());
-        packetBuffer.writeLong(guiData.factionId.getLeastSignificantBits());
-        packetBuffer.writeString(guiData.factionName);
-        packetBuffer.writeInt(guiData.factionColor);
-        packetBuffer.writeBoolean(guiData.canDeposit);
-        packetBuffer.writeBoolean(guiData.canVoid);
-        packetBuffer.writeInt(guiData.slotCount);
+        buffer.writeBoolean(guiData.hasFaction);
+        buffer.writeLong(guiData.factionId.getMostSignificantBits());
+        buffer.writeLong(guiData.factionId.getLeastSignificantBits());
+        buffer.writeUtf(guiData.factionName);
+        buffer.writeInt(guiData.factionColor);
+        buffer.writeBoolean(guiData.canDeposit);
+        buffer.writeBoolean(guiData.canVoid);
+        buffer.writeInt(guiData.slotCount);
     }
 
     @Override
-    public @NotNull FactionInsuranceGuiData readGuiData(EntityPlayer entityPlayer, PacketBuffer packetBuffer) {
-        if (!entityPlayer.world.isRemote) {
-            UUID requestedFactionId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
-            return createServerData((EntityPlayerMP) entityPlayer, requestedFactionId);
+    public @NotNull FactionInsuranceGuiData readGuiData(Player player, FriendlyByteBuf buffer) {
+        if (!player.level().isClientSide) {
+            UUID requestedFactionId = new UUID(buffer.readLong(), buffer.readLong());
+            return createServerData((ServerPlayer) player, requestedFactionId);
         }
 
-        FactionInsuranceGuiData data = new FactionInsuranceGuiData(entityPlayer, Faction.nullUuid);
-        data.hasFaction = packetBuffer.readBoolean();
-        data.factionId = new UUID(packetBuffer.readLong(), packetBuffer.readLong());
-        data.factionName = packetBuffer.readString(32767);
-        data.factionColor = packetBuffer.readInt();
-        data.canDeposit = packetBuffer.readBoolean();
-        data.canVoid = packetBuffer.readBoolean();
-        data.slotCount = packetBuffer.readInt();
+        FactionInsuranceGuiData data = new FactionInsuranceGuiData(player, Faction.nullUuid);
+        data.hasFaction = buffer.readBoolean();
+        data.factionId = new UUID(buffer.readLong(), buffer.readLong());
+        data.factionName = buffer.readUtf(32767);
+        data.factionColor = buffer.readInt();
+        data.canDeposit = buffer.readBoolean();
+        data.canVoid = buffer.readBoolean();
+        data.slotCount = buffer.readInt();
         data.insuranceHandler = new ItemStackHandler(data.slotCount) {
             @Override
-            public boolean isItemValid(int slot, net.minecraft.item.ItemStack stack) {
-                return !com.flansmod.warforge.common.WarForgeConfig.isInsuranceBlacklisted(stack);
+            public boolean isItemValid(int slot, @NotNull ItemStack stack) {
+                return !WarForgeConfig.isInsuranceBlacklisted(stack);
             }
         };
         return data;
     }
 
-    private FactionInsuranceGuiData createServerData(EntityPlayerMP player, UUID requestedFactionId) {
+    private FactionInsuranceGuiData createServerData(ServerPlayer player, UUID requestedFactionId) {
         UUID effectiveFactionId = requestedFactionId;
         if (effectiveFactionId.equals(Faction.nullUuid)) {
-            Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUniqueID());
+            Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
             effectiveFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
         }
 
@@ -122,8 +138,8 @@ public class FactionInsuranceGuiFactory extends AbstractUIFactory<FactionInsuran
         data.factionId = faction.uuid;
         data.factionName = faction.name;
         data.factionColor = faction.colour;
-        data.canDeposit = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER);
-        data.canVoid = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.LEADER);
+        data.canDeposit = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER);
+        data.canVoid = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.LEADER);
         data.slotCount = faction.getInsuranceSlotCount();
         data.insuranceHandler = new FactionInsuranceItemHandler(faction);
         return data;

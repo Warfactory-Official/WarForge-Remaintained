@@ -1,52 +1,39 @@
 package com.flansmod.warforge.client.util;
 
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.network.chat.Component;
+import org.joml.Matrix4f;
 
 public class FullColorNameplate {
 
-    public static void drawNameplate(FontRenderer fontRendererIn, String str, float x, float y, float z, int verticalShift, float viewerYaw, float viewerPitch, boolean isThirdPersonFrontal, boolean isSneaking, int color, int darker) {
-        GlStateManager.pushMatrix();
-        GlStateManager.translate(x, y, z);
-        GlStateManager.glNormal3f(0.0F, 1.0F, 0.0F);
-        GlStateManager.rotate(-viewerYaw, 0.0F, 1.0F, 0.0F);
-        GlStateManager.rotate((float) (isThirdPersonFrontal ? -1 : 1) * viewerPitch, 1.0F, 0.0F, 0.0F);
-        GlStateManager.scale(-0.025F, -0.025F, 0.025F);
-        GlStateManager.disableLighting();
-        GlStateManager.depthMask(false);
+    /**
+     * Draws a faction nameplate using the modern batched-text pipeline, mirroring vanilla
+     * {@link net.minecraft.client.renderer.entity.EntityRenderer}'s name-tag rendering. The
+     * caller is expected to have already oriented {@code pose} to face the camera (as vanilla
+     * does in renderNameTag before invoking the renderer's name pass).
+     */
+    public static void drawNameplate(Font font, Component name, PoseStack pose, MultiBufferSource buffers, int verticalShift, boolean isSneaking, int color, int darker, int packedLight) {
+        pose.pushPose();
+        pose.scale(-0.025F, -0.025F, 0.025F);
 
-        if (!isSneaking) {
-            GlStateManager.disableDepth();
+        Matrix4f matrix = pose.last().pose();
+        float backgroundOpacity = Minecraft.getInstance().options.getBackgroundOpacity(0.25F);
+        int bgColor = (int) (backgroundOpacity * 255.0F) << 24;
+        float xOffset = -font.width(name) / 2.0F;
+        // Apply the vertical offset in the scaled text frame (post-scale) instead of in block units.
+        float yOffset = verticalShift;
+
+        if (isSneaking) {
+            font.drawInBatch(name, xOffset, yOffset, darker, false, matrix, buffers, Font.DisplayMode.NORMAL, bgColor, packedLight);
+        } else {
+            // First pass behind blocks (see-through), second pass on top, matching vanilla.
+            font.drawInBatch(name, xOffset, yOffset, darker, false, matrix, buffers, Font.DisplayMode.SEE_THROUGH, bgColor, packedLight);
+            font.drawInBatch(name, xOffset, yOffset, color, false, matrix, buffers, Font.DisplayMode.NORMAL, 0, packedLight);
         }
 
-        GlStateManager.enableBlend();
-        GlStateManager.tryBlendFuncSeparate(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA, GlStateManager.SourceFactor.ONE, GlStateManager.DestFactor.ZERO);
-        int i = fontRendererIn.getStringWidth(str) / 2;
-        GlStateManager.disableTexture2D();
-        Tessellator tessellator = Tessellator.getInstance();
-        BufferBuilder bufferbuilder = tessellator.getBuffer();
-        bufferbuilder.begin(7, DefaultVertexFormats.POSITION_COLOR);
-        bufferbuilder.pos((double) (-i - 1), (double) (-1 + verticalShift), 0.0D).color(0.0F, 0.0F, 0.0F, 0.25F).endVertex();
-        bufferbuilder.pos((double) (-i - 1), (double) (8 + verticalShift), 0.0D).color(0.0F, 0.0F, 0.0F, 0.25F).endVertex();
-        bufferbuilder.pos((double) (i + 1), (double) (8 + verticalShift), 0.0D).color(0.0F, 0.0F, 0.0F, 0.25F).endVertex();
-        bufferbuilder.pos((double) (i + 1), (double) (-1 + verticalShift), 0.0D).color(0.0F, 0.0F, 0.0F, 0.25F).endVertex();
-        tessellator.draw();
-        GlStateManager.enableTexture2D();
-
-        if (!isSneaking) {
-            fontRendererIn.drawString(str, -fontRendererIn.getStringWidth(str) / 2, verticalShift, darker);
-            GlStateManager.enableDepth();
-        }
-
-
-        GlStateManager.depthMask(true);
-        fontRendererIn.drawString(str, -fontRendererIn.getStringWidth(str) / 2, verticalShift, isSneaking ? darker : color);
-        GlStateManager.enableLighting();
-        GlStateManager.disableBlend();
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.popMatrix();
+        pose.popPose();
     }
 }

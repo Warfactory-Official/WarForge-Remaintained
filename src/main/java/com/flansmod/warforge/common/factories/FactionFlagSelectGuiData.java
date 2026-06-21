@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,9 +14,9 @@ public class FactionFlagSelectGuiData extends GuiData {
     public int factionColor = 0xFFFFFF;
     public String currentFlagId = "";
     public boolean canChoose;
-    public final List<String> availableFlags = new ArrayList<String>();
+    public final List<String> availableFlags = new ArrayList<>();
 
-    public FactionFlagSelectGuiData(EntityPlayer player, UUID factionId) {
+    public FactionFlagSelectGuiData(Player player, UUID factionId) {
         super(player);
         this.factionId = factionId;
     }

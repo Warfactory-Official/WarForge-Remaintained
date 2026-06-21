@@ -5,6 +5,8 @@ public final class WarForgeGuiFactories {
     }
 
     public static void init() {
+        BasicClaimGuiFactory.init();
+        CitadelGuiFactory.init();
         ClaimManagerGuiFactory.init();
         FactionFlagSelectGuiFactory.init();
         FactionInsuranceGuiFactory.init();

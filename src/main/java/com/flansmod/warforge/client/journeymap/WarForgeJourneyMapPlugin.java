@@ -1,39 +1,50 @@
 package com.flansmod.warforge.client.journeymap;
 
 import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.client.JourneyMapClaimCache;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import journeymap.client.api.ClientPlugin;
 import journeymap.client.api.IClientAPI;
 import journeymap.client.api.IClientPlugin;
+import journeymap.client.api.display.DisplayType;
 import journeymap.client.api.display.PolygonOverlay;
 import journeymap.client.api.event.ClientEvent;
+import journeymap.client.api.model.MapPolygon;
 import journeymap.client.api.model.ShapeProperties;
+import journeymap.client.api.model.TextProperties;
 import journeymap.client.api.util.PolygonHelper;
 import net.minecraft.client.Minecraft;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Optional JourneyMap integration: draws a faction-coloured fill over each claimed chunk.
+ * JourneyMap integration drawing a faction-coloured fill over each claimed chunk.
  * <p>
- * This class is only ever loaded by JourneyMap's {@code @ClientPlugin} discovery, so when JourneyMap
- * is absent it is never referenced and nothing here runs — keeping the dependency soft. It only
- * consumes {@link JourneyMapClaimCache} (colour + position); faction identity is never available here.
+ * Consumes {@link JourneyMapClaimCache} only (packed colour + chunk position); faction identity is never
+ * available here, matching the deliberately minimal claim payload.
  */
+@ParametersAreNonnullByDefault
 @ClientPlugin
-@SuppressWarnings("unused")
 public class WarForgeJourneyMapPlugin implements IClientPlugin, JourneyMapClaimCache.Listener {
-    private IClientAPI api;
+    private static final Logger LOGGER = LogManager.getLogger(Tags.MODNAME);
+    private static final int CLAIM_OVERLAY_Y = 70;
+
     private final Map<DimChunkPos, PolygonOverlay> overlays = new HashMap<>();
+    private IClientAPI jmAPI;
 
     @Override
-    public void initialize(IClientAPI jmAPI) {
-        this.api = jmAPI;
-        jmAPI.subscribe(getModId(), EnumSet.of(ClientEvent.Type.MAPPING_STARTED));
-        // Registering replays any claims already received so we catch up on late init.
+    public void initialize(final IClientAPI jmClientApi) {
+        this.jmAPI = jmClientApi;
+        jmClientApi.subscribe(getModId(), EnumSet.noneOf(ClientEvent.Type.class));
+        // Register last so the cache replay (inside setListener) sees a live API reference.
         JourneyMapClaimCache.setListener(this);
     }
 
@@ -43,78 +54,68 @@ public class WarForgeJourneyMapPlugin implements IClientPlugin, JourneyMapClaimC
     }
 
     @Override
-    public void onEvent(ClientEvent event) {
-        if (event.type == ClientEvent.Type.MAPPING_STARTED) {
-            runOnClient(() -> {
-                for (Map.Entry<DimChunkPos, PolygonOverlay> entry : overlays.entrySet()) {
-                    if (entry.getKey().dim == event.dimension) {
-                        showSafely(entry.getValue());
-                    }
-                }
-            });
-        }
+    public void onEvent(final ClientEvent event) {
     }
 
     @Override
-    public void onClaimSet(int dim, int x, int z, int colour) {
-        runOnClient(() -> {
+    public void onClaimSet(ResourceKey<Level> dim, int x, int z, int colour) {
+        Minecraft.getInstance().execute(() -> {
             DimChunkPos key = new DimChunkPos(dim, x, z);
             PolygonOverlay existing = overlays.remove(key);
             if (existing != null) {
-                api.remove(existing);
+                jmAPI.remove(existing);
             }
-            PolygonOverlay overlay = buildOverlay(dim, x, z, colour);
-            overlays.put(key, overlay);
-            showSafely(overlay);
+            PolygonOverlay overlay = buildOverlay(key, colour);
+            try {
+                jmAPI.show(overlay);
+                overlays.put(key, overlay);
+            } catch (Exception e) {
+                LOGGER.error("Failed to show claim overlay for {}", key, e);
+            }
         });
     }
 
     @Override
-    public void onClaimRemoved(int dim, int x, int z) {
-        runOnClient(() -> {
+    public void onClaimRemoved(ResourceKey<Level> dim, int x, int z) {
+        Minecraft.getInstance().execute(() -> {
             PolygonOverlay overlay = overlays.remove(new DimChunkPos(dim, x, z));
             if (overlay != null) {
-                api.remove(overlay);
+                jmAPI.remove(overlay);
             }
         });
     }
 
     @Override
     public void onCleared() {
-        runOnClient(() -> {
-            api.removeAll(getModId());
+        Minecraft.getInstance().execute(() -> {
             overlays.clear();
+            jmAPI.removeAll(getModId(), DisplayType.Polygon);
         });
     }
 
-    private void showSafely(PolygonOverlay overlay) {
-        try {
-            if (!api.exists(overlay)) {
-                api.show(overlay);
-            }
-        } catch (Exception e) {
-            // JourneyMap refuses overlays in some states; it will be re-shown on the next MAPPING_STARTED.
-        }
-    }
+    private PolygonOverlay buildOverlay(DimChunkPos key, int colour) {
+        Color4i color = new Color4i(colour);
+        int rgb = (color.getRed() << 16) | (color.getGreen() << 8) | color.getBlue();
+        float fillOpacity = (color.getAlpha() & 0xFF) / 255.0f;
 
-    private PolygonOverlay buildOverlay(int dim, int x, int z, int colour) {
-        ShapeProperties shape = new ShapeProperties()
-                .setStrokeColor(colour)
-                .setStrokeWidth(3.0f)
-                .setStrokeOpacity(1.0f)
-                .setFillColor(colour)
-                .setFillOpacity(0.4f);
+        ShapeProperties shapeProps = new ShapeProperties()
+                .setStrokeWidth(2)
+                .setStrokeColor(rgb).setStrokeOpacity(Math.max(fillOpacity, 0.7f))
+                .setFillColor(rgb).setFillOpacity(Math.min(fillOpacity, 0.4f));
 
-        String id = "warforge_claim_" + dim + "_" + x + "_" + z;
-        PolygonOverlay overlay = new PolygonOverlay(getModId(), id, dim, shape, PolygonHelper.createChunkPolygon(x, 0, z));
-        overlay.setOverlayGroupName("WarForge Claims");
+        TextProperties textProps = new TextProperties()
+                .setColor(rgb)
+                .setOpacity(1f)
+                .setMinZoom(2)
+                .setFontShadow(true);
+
+        MapPolygon polygon = PolygonHelper.createChunkPolygon(key.x, CLAIM_OVERLAY_Y, key.z);
+
+        String displayId = "claim_" + key.dim.location() + "_" + key.x + "_" + key.z;
+        PolygonOverlay overlay = new PolygonOverlay(getModId(), displayId, key.dim, shapeProps, polygon);
+        overlay.setOverlayGroupName("WarForge Claims")
+                .setLabel(String.format("Claim [%s, %s]", key.x, key.z))
+                .setTextProperties(textProps);
         return overlay;
-    }
-
-    private static void runOnClient(Runnable task) {
-        Minecraft mc = Minecraft.getMinecraft();
-        if (mc != null) {
-            mc.addScheduledTask(task);
-        }
     }
 }

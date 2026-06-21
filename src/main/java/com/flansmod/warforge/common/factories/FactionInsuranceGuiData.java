@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 import net.minecraftforge.items.IItemHandlerModifiable;
 
 import java.util.UUID;
@@ -18,7 +18,7 @@ public class FactionInsuranceGuiData extends GuiData {
     public int slotCount;
     public IItemHandlerModifiable insuranceHandler;
 
-    public FactionInsuranceGuiData(EntityPlayer player, UUID requestedFactionId) {
+    public FactionInsuranceGuiData(Player player, UUID requestedFactionId) {
         super(player);
         this.requestedFactionId = requestedFactionId;
     }

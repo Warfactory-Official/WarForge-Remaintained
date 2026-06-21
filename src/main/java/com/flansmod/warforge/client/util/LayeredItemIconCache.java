@@ -3,14 +3,19 @@ package com.flansmod.warforge.client.util;
 import com.flansmod.warforge.Tags;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.block.model.BakedQuad;
-import net.minecraft.client.renderer.block.model.IBakedModel;
-import net.minecraft.client.renderer.color.ItemColors;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.RandomSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.model.data.ModelData;
 
 import javax.annotation.Nullable;
 import java.awt.Graphics2D;
@@ -22,9 +27,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
+@OnlyIn(Dist.CLIENT)
 public final class LayeredItemIconCache {
-    private static final Minecraft MC = Minecraft.getMinecraft();
-    private static final ConcurrentHashMap<String, ResourceLocation> CACHE = new ConcurrentHashMap<String, ResourceLocation>();
+    private static final ConcurrentHashMap<String, ResourceLocation> CACHE = new ConcurrentHashMap<>();
 
     private LayeredItemIconCache() {
     }
@@ -46,22 +51,26 @@ public final class LayeredItemIconCache {
             return null;
         }
 
+        NativeImage native_ = toNativeImage(baked);
+        Minecraft mc = Minecraft.getInstance();
         ResourceLocation location = new ResourceLocation(Tags.MODID, "generated/vein/" + Integer.toUnsignedString(key.hashCode()));
-        MC.getTextureManager().loadTexture(location, new DynamicTexture(baked));
+        mc.getTextureManager().register(location, new DynamicTexture(native_));
         CACHE.put(key, location);
         return location;
     }
 
     public static void clear() {
+        Minecraft mc = Minecraft.getInstance();
         for (ResourceLocation location : CACHE.values()) {
-            MC.getTextureManager().deleteTexture(location);
+            mc.getTextureManager().release(location);
         }
         CACHE.clear();
     }
 
     @Nullable
     private static BufferedImage bakeIcon(ItemStack stack) {
-        IBakedModel model = MC.getRenderItem().getItemModelWithOverrides(stack, null, null);
+        Minecraft mc = Minecraft.getInstance();
+        BakedModel model = mc.getItemRenderer().getModel(stack, null, null, 0);
         List<Layer> layers = extractLayers(model, stack);
         if (layers.isEmpty()) {
             return null;
@@ -70,9 +79,6 @@ public final class LayeredItemIconCache {
         int width = 16;
         int height = 16;
         BufferedImage combined = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = combined.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-        graphics.dispose();
 
         for (Layer layer : layers) {
             BufferedImage spriteImage = spriteToImage(layer.sprite);
@@ -86,32 +92,34 @@ public final class LayeredItemIconCache {
         return combined;
     }
 
-    private static List<Layer> extractLayers(IBakedModel model, ItemStack stack) {
-        ItemColors itemColors = MC.getItemColors();
-        List<Layer> ordered = new ArrayList<Layer>();
-        Set<String> seen = new LinkedHashSet<String>();
+    private static List<Layer> extractLayers(BakedModel model, ItemStack stack) {
+        Minecraft mc = Minecraft.getInstance();
+        RandomSource rand = RandomSource.create();
+        List<Layer> ordered = new ArrayList<>();
+        Set<String> seen = new LinkedHashSet<>();
 
-        collectLayers(ordered, seen, model.getQuads(null, null, 0L), stack, itemColors);
-        for (EnumFacing facing : EnumFacing.values()) {
-            collectLayers(ordered, seen, model.getQuads(null, facing, 0L), stack, itemColors);
+        collectLayers(ordered, seen, model.getQuads(null, null, rand, ModelData.EMPTY, null), stack, mc);
+        for (Direction facing : Direction.values()) {
+            collectLayers(ordered, seen, model.getQuads(null, facing, rand, ModelData.EMPTY, null), stack, mc);
         }
 
-        if (ordered.isEmpty() && model.getParticleTexture() != null) {
-            ordered.add(new Layer(model.getParticleTexture(), 0xFFFFFFFF));
+        TextureAtlasSprite particle = model.getParticleIcon();
+        if (ordered.isEmpty() && particle != null) {
+            ordered.add(new Layer(particle, 0xFFFFFFFF));
         }
         return ordered;
     }
 
-    private static void collectLayers(List<Layer> ordered, Set<String> seen, List<BakedQuad> quads, ItemStack stack, ItemColors itemColors) {
+    private static void collectLayers(List<Layer> ordered, Set<String> seen, List<BakedQuad> quads, ItemStack stack, Minecraft mc) {
         for (BakedQuad quad : quads) {
             if (quad == null || quad.getSprite() == null) {
                 continue;
             }
-            int tint = quad.hasTintIndex() ? itemColors.colorMultiplier(stack, quad.getTintIndex()) : 0xFFFFFFFF;
+            int tint = (quad.getTintIndex() != -1) ? mc.getItemColors().getColor(stack, quad.getTintIndex()) : 0xFFFFFFFF;
             if ((tint >>> 24) == 0) {
                 tint |= 0xFF000000;
             }
-            String key = quad.getSprite().getIconName() + "|" + Integer.toUnsignedString(tint);
+            String key = quad.getSprite().contents().name().toString() + "|" + Integer.toUnsignedString(tint);
             if (seen.add(key)) {
                 ordered.add(new Layer(quad.getSprite(), tint));
             }
@@ -120,19 +128,31 @@ public final class LayeredItemIconCache {
 
     @Nullable
     private static BufferedImage spriteToImage(TextureAtlasSprite sprite) {
-        if (sprite.getFrameCount() <= 0) {
-            return null;
-        }
-        int[][] frameData = sprite.getFrameTextureData(0);
-        if (frameData == null || frameData.length == 0 || frameData[0] == null) {
+        SpriteContents contents = sprite.contents();
+        int width = contents.width();
+        int height = contents.height();
+        if (width <= 0 || height <= 0) {
             return null;
         }
 
-        int width = sprite.getIconWidth();
-        int height = sprite.getIconHeight();
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, width, height, frameData[0], 0, width);
-        return image;
+        NativeImage image = contents.getOriginalImage();
+        if (image == null) {
+            return null;
+        }
+
+        BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // NativeImage stores pixels as ABGR; convert to ARGB for BufferedImage
+                int abgr = image.getPixelRGBA(x, y);
+                int a = (abgr >>> 24) & 0xFF;
+                int b = (abgr >>> 16) & 0xFF;
+                int g = (abgr >>> 8) & 0xFF;
+                int r = abgr & 0xFF;
+                buffered.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+        return buffered;
     }
 
     private static BufferedImage scaleToIcon(BufferedImage image, int width, int height) {
@@ -146,6 +166,24 @@ public final class LayeredItemIconCache {
         graphics.drawImage(image, 0, 0, width, height, null);
         graphics.dispose();
         return scaled;
+    }
+
+    private static NativeImage toNativeImage(BufferedImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        NativeImage native_ = new NativeImage(NativeImage.Format.RGBA, width, height, false);
+        for (int y = 0; y < height; y++) {
+            for (int x = 0; x < width; x++) {
+                // BufferedImage is ARGB; NativeImage.setPixelRGBA expects ABGR
+                int argb = image.getRGB(x, y);
+                int a = (argb >>> 24) & 0xFF;
+                int r = (argb >>> 16) & 0xFF;
+                int g = (argb >>> 8) & 0xFF;
+                int b = argb & 0xFF;
+                native_.setPixelRGBA(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+            }
+        }
+        return native_;
     }
 
     private static void composite(BufferedImage target, BufferedImage layer, int tint) {
@@ -191,10 +229,8 @@ public final class LayeredItemIconCache {
 
     private static String makeKey(ItemStack stack) {
         StringBuilder builder = new StringBuilder();
-        ResourceLocation registryName = stack.getItem().getRegistryName();
-        builder.append(registryName == null ? "unknown" : registryName.toString());
-        builder.append('#').append(stack.getMetadata());
-        NBTTagCompound tag = stack.getTagCompound();
+        builder.append(stack.getItem().builtInRegistryHolder().key().location());
+        CompoundTag tag = stack.getTag();
         if (tag != null) {
             builder.append('#').append(tag);
         }

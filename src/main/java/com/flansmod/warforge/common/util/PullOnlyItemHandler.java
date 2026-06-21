@@ -1,6 +1,6 @@
 package com.flansmod.warforge.common.util;
 
-import net.minecraft.item.ItemStack;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.items.IItemHandler;
 
 /**
@@ -41,5 +41,10 @@ public class PullOnlyItemHandler implements IItemHandler {
     @Override
     public int getSlotLimit(int slot) {
         return delegate.getSlotLimit(slot);
+    }
+
+    @Override
+    public boolean isItemValid(int slot, ItemStack stack) {
+        return false;
     }
 }

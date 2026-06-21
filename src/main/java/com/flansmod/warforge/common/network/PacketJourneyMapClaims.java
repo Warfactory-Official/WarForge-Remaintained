@@ -1,10 +1,13 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.client.JourneyMapClaimCache;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,19 +20,29 @@ import java.util.List;
  * learn about claims it is not entitled to see.
  */
 public class PacketJourneyMapClaims extends PacketBase {
-    /** When true the client wipes its claim cache before applying this packet (used for a full snapshot). */
-    public boolean clear = false;
-    /** Each entry: {dim, chunkX, chunkZ, colour}. */
-    public final List<int[]> sets = new ArrayList<>();
-    /** Each entry: {dim, chunkX, chunkZ}. */
-    public final List<int[]> removes = new ArrayList<>();
-
-    public void addSet(int dim, int x, int z, int colour) {
-        sets.add(new int[]{dim, x, z, colour});
+    public static final class Set {
+        public final ResourceKey<Level> dim;
+        public final int x, z, colour;
+        public Set(ResourceKey<Level> dim, int x, int z, int colour) { this.dim = dim; this.x = x; this.z = z; this.colour = colour; }
     }
 
-    public void addRemove(int dim, int x, int z) {
-        removes.add(new int[]{dim, x, z});
+    public static final class Remove {
+        public final ResourceKey<Level> dim;
+        public final int x, z;
+        public Remove(ResourceKey<Level> dim, int x, int z) { this.dim = dim; this.x = x; this.z = z; }
+    }
+
+    /** When true the client wipes its claim cache before applying this packet (used for a full snapshot). */
+    public boolean clear = false;
+    public final List<Set> sets = new ArrayList<>();
+    public final List<Remove> removes = new ArrayList<>();
+
+    public void addSet(ResourceKey<Level> dim, int x, int z, int colour) {
+        sets.add(new Set(dim, x, z, colour));
+    }
+
+    public void addRemove(ResourceKey<Level> dim, int x, int z) {
+        removes.add(new Remove(dim, x, z));
     }
 
     public boolean isEmpty() {
@@ -37,51 +50,53 @@ public class PacketJourneyMapClaims extends PacketBase {
     }
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeBoolean(clear);
         data.writeInt(sets.size());
-        for (int[] s : sets) {
-            data.writeInt(s[0]);
-            data.writeInt(s[1]);
-            data.writeInt(s[2]);
-            data.writeInt(s[3]);
+        for (Set s : sets) {
+            data.writeUtf(s.dim.location().toString());
+            data.writeInt(s.x);
+            data.writeInt(s.z);
+            data.writeInt(s.colour);
         }
         data.writeInt(removes.size());
-        for (int[] r : removes) {
-            data.writeInt(r[0]);
-            data.writeInt(r[1]);
-            data.writeInt(r[2]);
+        for (Remove r : removes) {
+            data.writeUtf(r.dim.location().toString());
+            data.writeInt(r.x);
+            data.writeInt(r.z);
         }
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         clear = data.readBoolean();
         int setCount = data.readInt();
         for (int i = 0; i < setCount; i++) {
-            sets.add(new int[]{data.readInt(), data.readInt(), data.readInt(), data.readInt()});
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
+            sets.add(new Set(dim, data.readInt(), data.readInt(), data.readInt()));
         }
         int removeCount = data.readInt();
         for (int i = 0; i < removeCount; i++) {
-            removes.add(new int[]{data.readInt(), data.readInt(), data.readInt()});
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
+            removes.add(new Remove(dim, data.readInt(), data.readInt()));
         }
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         // client-bound only
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         if (clear) {
             JourneyMapClaimCache.applyClear();
         }
-        for (int[] s : sets) {
-            JourneyMapClaimCache.set(s[0], s[1], s[2], s[3]);
+        for (Set s : sets) {
+            JourneyMapClaimCache.set(s.dim, s.x, s.z, s.colour);
         }
-        for (int[] r : removes) {
-            JourneyMapClaimCache.remove(r[0], r[1], r[2]);
+        for (Remove r : removes) {
+            JourneyMapClaimCache.remove(r.dim, r.x, r.z);
         }
     }
 }

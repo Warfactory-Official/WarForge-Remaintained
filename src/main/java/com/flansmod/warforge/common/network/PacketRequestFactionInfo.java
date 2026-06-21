@@ -1,36 +1,34 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
-public class PacketRequestFactionInfo extends PacketBase 
+public class PacketRequestFactionInfo extends PacketBase
 {
 	public UUID mFactionIDRequest = Faction.nullUuid;
 	public String mFactionNameRequest = "";
-	
+
 	@Override
-	public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void encodeInto(FriendlyByteBuf data)
 	{
 		writeUUID(data, mFactionIDRequest);
 		writeUTF(data, mFactionNameRequest);
 	}
 
 	@Override
-	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void decodeInto(FriendlyByteBuf data)
 	{
 		mFactionIDRequest = readUUID(data);
 		mFactionNameRequest = readUTF(data);
 	}
 
 	@Override
-	public void handleServerSide(EntityPlayerMP playerEntity) 
+	public void handleServerSide(ServerPlayer playerEntity)
 	{
 		Faction faction = null;
 		if(!mFactionIDRequest.equals(Faction.nullUuid))
@@ -43,14 +41,14 @@ public class PacketRequestFactionInfo extends PacketBase
 		}
 		else
 		{
-			WarForgeMod.LOGGER.error("Player " + playerEntity.getName() + " made a request for faction info with no valid key");
+			WarForgeMod.LOGGER.error("Player " + playerEntity.getName().getString() + " made a request for faction info with no valid key");
 		}
-		
+
 		if(faction != null)
 		{
 			PacketFactionInfo packet = new PacketFactionInfo();
 			packet.info = faction.createInfo();
-			WarForgeMod.INSTANCE.NETWORK.sendTo(packet, playerEntity);
+			WarForgeMod.NETWORK.sendTo(packet, playerEntity);
 		}
 		else
 		{
@@ -59,7 +57,7 @@ public class PacketRequestFactionInfo extends PacketBase
 	}
 
 	@Override
-	public void handleClientSide(EntityPlayer clientPlayer) 
+	public void handleClientSide(Player clientPlayer)
 	{
 		WarForgeMod.LOGGER.error("Received a faction info request client side");
 	}

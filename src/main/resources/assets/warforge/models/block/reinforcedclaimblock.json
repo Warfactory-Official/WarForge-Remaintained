@@ -1,10 +1,10 @@
 {   "parent": "block/block",
     "ambientocclusion": false,
     "textures": {
-        "particle": "blocks/glass",
-        "glass": "blocks/glass",
-        "obsidian": "blocks/obsidian",
-        "beacon": "warforge:blocks/reinforcedclaimblock"
+        "particle": "block/glass",
+        "glass": "block/glass",
+        "obsidian": "block/obsidian",
+        "beacon": "warforge:block/reinforcedclaimblock"
     },
     "elements": [
         {   "__comment": "Glass shell",

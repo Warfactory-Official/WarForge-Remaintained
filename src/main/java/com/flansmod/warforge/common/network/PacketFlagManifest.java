@@ -1,10 +1,9 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.client.ClientFlagRegistry;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,7 +12,7 @@ public class PacketFlagManifest extends PacketBase {
     public List<String> flagIds = new ArrayList<String>();
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeShort(flagIds.size());
         for (String flagId : flagIds) {
             writeUTF(data, flagId);
@@ -21,7 +20,7 @@ public class PacketFlagManifest extends PacketBase {
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         flagIds.clear();
         int size = data.readShort();
         for (int i = 0; i < size; i++) {
@@ -30,11 +29,11 @@ public class PacketFlagManifest extends PacketBase {
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer player) {
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         ClientFlagRegistry.setAvailableFlags(flagIds);
     }
 }

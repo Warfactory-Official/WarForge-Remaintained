@@ -3,37 +3,30 @@ package com.flansmod.warforge.common.blocks;
 import java.util.Objects;
 import java.util.UUID;
 
+import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.server.Faction;
 
 import com.flansmod.warforge.server.Siege;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.init.Blocks;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ITickable;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextComponentTranslation;
-import net.minecraft.world.World;
-import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
 
 import static com.flansmod.warforge.common.WarForgeConfig.SIEGE_ATTACKER_RADIUS;
 import static com.flansmod.warforge.common.WarForgeConfig.SIEGE_DEFENDER_RADIUS;
 
-public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
+public class TileEntitySiegeCamp extends TileEntityClaim
 {
 	private UUID placer = Faction.nullUuid;
 	private DimBlockPos siegeTarget = null;
@@ -49,10 +42,12 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 	private int largestSeenDefenderCount;
 	private int lastSeenDefenderCount;
 
-	// tile entity constructor should be default
+	public TileEntitySiegeCamp(BlockPos pos, BlockState state) {
+		super(Content.TE_SIEGE_CAMP.get(), pos, state);
+	}
 
-	public void onPlacedBy(EntityLivingBase placer) {
-		this.placer = placer.getUniqueID();
+	public void onPlacedBy(LivingEntity placer) {
+		this.placer = placer.getUUID();
         super.onPlacedBy(placer);
 	}
 
@@ -87,7 +82,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		}
 		largestSeenDefenderCount = defenders.onlinePlayerCount;
 		siegeStatus = SiegeStatus.ACTIVE;
-		markDirty();
+		setChanged();
 	}
 
     public DimBlockPos getSiegeTarget() {
@@ -141,7 +136,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 	// kills siege block and tile entity
 	private void concludeSiege() {
 		// do any client side logic, then return
-		if (world.isRemote) {
+		if (level.isClientSide) {
 			return;
 		}
 
@@ -160,10 +155,10 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 			PacketSiegeCampProgressUpdate packet = new PacketSiegeCampProgressUpdate();
 			packet.info = info;
 
-			for (EntityPlayer attacker : getAttacking().getOnlinePlayers(Objects::nonNull))
-				WarForgeMod.NETWORK.sendTo(packet, (EntityPlayerMP) attacker);
-			for (EntityPlayer defender : defenders.getOnlinePlayers(Objects::nonNull))
-				WarForgeMod.NETWORK.sendTo(packet, (EntityPlayerMP) defender);
+			for (Player attacker : getAttacking().getOnlinePlayers(Objects::nonNull))
+				WarForgeMod.NETWORK.sendTo(packet, (ServerPlayer) attacker);
+			for (Player defender : defenders.getOnlinePlayers(Objects::nonNull))
+				WarForgeMod.NETWORK.sendTo(packet, (ServerPlayer) defender);
 
 			// attempt to actually modify siege information, now that all nearby have been updated
 			try {
@@ -177,7 +172,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 			for (DimBlockPos siegeCampPos : siege.attackingCamps) {
 				if (siegeCampPos == null || getClaimPos().equals(siegeCampPos.toRegularPos())) continue;
 
-				TileEntity siegeCamp = world.getTileEntity(siegeCampPos);
+				BlockEntity siegeCamp = level.getBlockEntity(siegeCampPos.toRegularPos());
 				if (!(siegeCamp instanceof TileEntitySiegeCamp)) continue;
 
 				if (siegeStatus.isFailed()) ((TileEntitySiegeCamp) siegeCamp).cleanupFailedSiege();
@@ -195,19 +190,12 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
         WarForgeMod.FACTIONS.requestRemoveClaimServer(getClaimPos());
 	}
 
-	// allows client side to also receive block events (not used currently)
-	@Override
-	public boolean receiveClientEvent(int id, int type) {
-		return true;
-	}
-
-	@Override
-	public void update() {
+	public void tick() {
 		// do not do logic on client (somehow this got accessed by the client)
-		if (world.isRemote || FMLCommonHandler.instance().getEffectiveSide() == Side.CLIENT) return;
+		if (level.isClientSide) return;
 
 		// clear out ghost sieges for debugging
-		if (!(world.getBlockState(pos).getBlock() instanceof BlockSiegeCamp)) {
+		if (!(level.getBlockState(worldPosition).getBlock() instanceof BlockSiegeCamp)) {
 			destroy();
 			return;
 		}
@@ -221,7 +209,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		if (doCheckPerTick || tickTimer % 20 == 0) {
 			// send message to all players on defending team with necessary information to defend every 5 minutes
 			if (tickTimer % 6000 == 0) {
-				messageAllDefenders("warforge.info.siege_defense_info", new DimBlockPos(world.provider.getDimension(), getClaimPos()).toFancyString());
+				messageAllDefenders("warforge.info.siege_defense_info", new DimBlockPos(level.dimension(), getClaimPos()).toFancyString());
 			}
 
 			// --- ATTACKER HANDLING ---
@@ -237,7 +225,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 				} else {
 					// if going to overshoot/ hit zero and not already 0
 					if (attackerAbandonTickTimer != 0) {
-						getAttacking().messageAll(new TextComponentString("Your faction's [" + getAttacking().name + "] siege abandon timer is now 0."));
+						getAttacking().messageAll(Component.literal("Your faction's [" + getAttacking().name + "] siege abandon timer is now 0."));
 						attackerAbandonTickTimer = 0;
 					}
 				}
@@ -246,7 +234,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 
 			// --- DEFENDER HANDLING ---
 			if (lastSeenDefenderCount == 0 && defenders.onlinePlayerCount > 0 && defenderOfflineTimerMs > 0) {
-				defenders.messageAll(new TextComponentString("Your faction [" + defenders.name + "] has an offline timer of " + TimeHelper.formatTime(defenderOfflineTimerMs) + " for the siege camp at " + getClaimPos()));
+				defenders.messageAll(Component.literal("Your faction [" + defenders.name + "] has an offline timer of " + TimeHelper.formatTime(defenderOfflineTimerMs) + " for the siege camp at " + getClaimPos()));
 			}
 
 			lastSeenDefenderCount = defenders.onlinePlayerCount;
@@ -259,7 +247,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 			if (haveDefendersQuit) {
 				incrementOfflineTimer(WarForgeMod.currTickTimestamp - previousTimestamp); // if defenders have quit, tick up the offline timer
 				if (defenderOfflineTimerMs >= WarForgeConfig.LIVE_QUIT_TIMER) {
-					getAttacking().messageAll(new TextComponentString("The defenders have fled from their posts for " + TimeHelper.formatTime(defenderOfflineTimerMs)));
+					getAttacking().messageAll(Component.literal("The defenders have fled from their posts for " + TimeHelper.formatTime(defenderOfflineTimerMs)));
 					defenderOfflineTimerMs = -1; // mark as having live quit for any future increments of this timer and reset if already have quit
 					passSiege(); // end siege as attacker success
 					return; // do not update a concluded siege
@@ -279,7 +267,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 					} else {
 						// if going to overshoot/ hit zero and not already 0
 						if (defenderAbandonTickTimer != 0) {
-							defenders.messageAll(new TextComponentString("Your faction's [" + defenders.name + "] siege abandon timer is now 0."));
+							defenders.messageAll(Component.literal("Your faction's [" + defenders.name + "] siege abandon timer is now 0."));
 							defenderAbandonTickTimer = 0;
 						}
 					}
@@ -292,7 +280,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		}
 
 		++tickTimer;
-		markDirty(); // notifies chunk of changes in value
+		setChanged(); // notifies chunk of changes in value
 	}
 
 	private boolean haveDefendersLiveQuit() {
@@ -321,7 +309,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		long newTimer = defenderOfflineTimerMs + (defenderOfflineTimerMs < 0 ? msPassed : -msPassed);
 		if (defenderOfflineTimerMs < 0 && newTimer >= 0 || defenderOfflineTimerMs > 0 && newTimer <= 0) {
 			defenderOfflineTimerMs = 0;
-			defenders.messageAll(new TextComponentString("Your faction's [" + defenders.name + "] offline timer is now 0."));
+			defenders.messageAll(Component.literal("Your faction's [" + defenders.name + "] offline timer is now 0."));
 			return;
 		}
 
@@ -374,30 +362,30 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 		return false;
 	}
 
-	private boolean isAttackerInWarzone(EntityPlayer player) {
+	private boolean isAttackerInWarzone(Player player) {
 		return isPlayerInRadius(player, SIEGE_ATTACKER_RADIUS);
 	}
 
-	private boolean isDefenderInWarzone(EntityPlayer player) {
+	private boolean isDefenderInWarzone(Player player) {
 		return isPlayerInRadius(player, SIEGE_DEFENDER_RADIUS);
 	}
 
-	private boolean isPlayerInRadius(EntityPlayer player, int radius) {
+	private boolean isPlayerInRadius(Player player, int radius) {
 		if(player == null) return false;
-		DimChunkPos playerChunk = new DimChunkPos(player.dimension, player.getPosition());
-		DimChunkPos blockChunk = new DimChunkPos(world.provider.getDimension(), getClaimPos());
-		return !player.isDead && Siege.isPlayerInRadius(blockChunk, playerChunk, radius);
+		DimChunkPos playerChunk = new DimChunkPos(player.level().dimension(), player.blockPosition());
+		DimChunkPos blockChunk = new DimChunkPos(level.dimension(), getClaimPos());
+		return !player.isRemoved() && Siege.isPlayerInRadius(blockChunk, playerChunk, radius);
 	}
 
 	private void messageAllAttackers(String translateKey, Object... args) {
 		Faction attackerFaction = WarForgeMod.FACTIONS.getFaction(factionUUID);
 		if (attackerFaction == null) return;
-		attackerFaction.messageAll(new TextComponentTranslation(translateKey, args));
+		attackerFaction.messageAll(Component.translatable(translateKey, args));
 	}
 
 	private void messageAllDefenders(String translateKey, Object... args) {
 		if (defenders == null) return;
-		defenders.messageAll(new TextComponentTranslation(translateKey, args));
+		defenders.messageAll(Component.translatable(translateKey, args));
 	}
 
 	private Faction getAttacking() {
@@ -405,65 +393,51 @@ public class TileEntitySiegeCamp extends TileEntityClaim implements ITickable
 	}
 
 	@Override
-	public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
-		super.writeToNBT(nbt);
+	public void saveAdditional(CompoundTag nbt) {
+		super.saveAdditional(nbt);
 
-		nbt.setUniqueId("placer", placer);
-		nbt.setBoolean("started", siegeTarget != null);
-		nbt.setBoolean("doCheckPerTick", doCheckPerTick);
-		nbt.setInteger("siegeStatus", siegeStatus.ordinal());
-		nbt.setInteger("tickTimer", tickTimer);
+		nbt.putUUID("placer", placer);
+		nbt.putBoolean("started", siegeTarget != null);
+		nbt.putBoolean("doCheckPerTick", doCheckPerTick);
+		nbt.putInt("siegeStatus", siegeStatus.ordinal());
+		nbt.putInt("tickTimer", tickTimer);
 		if(siegeTarget != null) {
-			nbt.setInteger("attackDim", siegeTarget.dim);
-			nbt.setInteger("attackX", siegeTarget.getX());
-			nbt.setInteger("attackY", siegeTarget.getY());
-			nbt.setInteger("attackZ", siegeTarget.getZ());
+			siegeTarget.writeToNBT(nbt, "siegeTarget");
 		}
-
-		return nbt;
 	}
 
 	@Override
-	public void readFromNBT(NBTTagCompound nbt) {
-		super.readFromNBT(nbt);
+	public void load(CompoundTag nbt) {
+		super.load(nbt);
 
-		placer = nbt.getUniqueId("placer");
+		placer = nbt.getUUID("placer");
 
 		boolean started = nbt.getBoolean("started");
 		doCheckPerTick = nbt.getBoolean("doCheckPerTick");
 
-		siegeStatus = SiegeStatus.values()[nbt.getInteger("siegeStatus")];
-		tickTimer = nbt.getInteger("tickTimer");
+		siegeStatus = SiegeStatus.values()[nbt.getInt("siegeStatus")];
+		tickTimer = nbt.getInt("tickTimer");
 		previousTimestamp = WarForgeMod.currTickTimestamp;
 		if(started) {
-			siegeTarget = new DimBlockPos(
-					nbt.getInteger("attackDim"),
-					nbt.getInteger("attackX"),
-					nbt.getInteger("attackY"),
-					nbt.getInteger("attackZ"));
+			siegeTarget = DimBlockPos.readFromNBT(nbt, "siegeTarget");
 
 			defenders = getDefenders(siegeTarget);
 			if (defenders != null) {
 				largestSeenDefenderCount = defenders.onlinePlayerCount;
 				lastSeenDefenderCount = defenders.onlinePlayerCount;
 			} else {
-				WarForgeMod.LOGGER.warn("Siege camp at " + pos + " loaded with target " + siegeTarget + " but no defending faction; clearing target.");
+				WarForgeMod.LOGGER.warn("Siege camp at " + worldPosition + " loaded with target " + siegeTarget + " but no defending faction; clearing target.");
 				siegeTarget = null;
 			}
 		} else siegeTarget = null;
 
-		if(FMLCommonHandler.instance().getEffectiveSide() == Side.SERVER) {
-			Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
-			if(!factionUUID.equals(Faction.nullUuid) && faction == null) {
-				WarForgeMod.LOGGER.error("Faction " + factionUUID + " could not be found for citadel at " + pos);
-				//world.setBlockState(getPos(), Blocks.AIR.getDefaultState());
-			}
-			if(faction != null) {
-				colour = faction.colour;
-				factionName = faction.name;
-			}
-		} else {
-			WarForgeMod.LOGGER.error("Loaded TileEntity from NBT on client?");
+		Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
+		if(!factionUUID.equals(Faction.nullUuid) && faction == null) {
+			WarForgeMod.LOGGER.error("Faction " + factionUUID + " could not be found for citadel at " + worldPosition);
+		}
+		if(faction != null) {
+			colour = faction.colour;
+			factionName = faction.name;
 		}
 	}
 }

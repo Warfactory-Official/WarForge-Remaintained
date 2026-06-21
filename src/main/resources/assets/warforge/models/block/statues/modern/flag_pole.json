@@ -3,19 +3,19 @@
 	"credit": "Made with Blockbench",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "warforge:blocks/statues/modern/flagpole/ammoboxbase",
-		"2": "warforge:blocks/statues/modern/flagpole/drawer",
-		"3": "warforge:blocks/statues/modern/flagpole/closing",
-		"4": "warforge:blocks/statues/modern/flagpole/handles",
-		"5": "warforge:blocks/statues/modern/flagpole/woodbase",
-		"6": "warforge:blocks/statues/modern/flagpole/woodstrip1and2",
-		"7": "warforge:blocks/statues/modern/flagpole/bpbase",
-		"8": "warforge:blocks/statues/modern/flagpole/plankwithshield1and2",
-		"9": "warforge:blocks/statues/modern/flagpole/bphood",
-		"10": "warforge:blocks/statues/modern/flagpole/closingthing1and2",
-		"11": "warforge:blocks/statues/modern/flagpole/extension1to3",
-		"12": "warforge:blocks/statues/modern/flagpole/strip",
-		"particle": "warforge:blocks/statues/modern/flagpole/ammoboxbase"
+		"0": "warforge:block/statues/modern/flagpole/ammoboxbase",
+		"2": "warforge:block/statues/modern/flagpole/drawer",
+		"3": "warforge:block/statues/modern/flagpole/closing",
+		"4": "warforge:block/statues/modern/flagpole/handles",
+		"5": "warforge:block/statues/modern/flagpole/woodbase",
+		"6": "warforge:block/statues/modern/flagpole/woodstrip1and2",
+		"7": "warforge:block/statues/modern/flagpole/bpbase",
+		"8": "warforge:block/statues/modern/flagpole/plankwithshield1and2",
+		"9": "warforge:block/statues/modern/flagpole/bphood",
+		"10": "warforge:block/statues/modern/flagpole/closingthing1and2",
+		"11": "warforge:block/statues/modern/flagpole/extension1to3",
+		"12": "warforge:block/statues/modern/flagpole/strip",
+		"particle": "warforge:block/statues/modern/flagpole/ammoboxbase"
 	},
 	"elements": [
 		{

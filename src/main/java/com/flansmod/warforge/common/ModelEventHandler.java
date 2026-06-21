@@ -1,40 +1,23 @@
 package com.flansmod.warforge.common;
 
-import com.flansmod.warforge.common.util.IDynamicModels;
-import net.minecraftforge.client.event.ColorHandlerEvent;
-import net.minecraftforge.client.event.ModelBakeEvent;
-import net.minecraftforge.client.event.ModelRegistryEvent;
-import net.minecraftforge.client.event.TextureStitchEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import com.flansmod.warforge.common.blocks.models.ClaimModels;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.ModelEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-@Mod.EventBusSubscriber
+// Mod-bus listener: ModelEvent.RegisterAdditional is fired on the mod event bus in 1.20.1, so this
+// instance must be registered on the mod bus (FMLJavaModLoadingContext.get().getModEventBus()).
+// Registering the statue locations here makes Forge bake them into the ModelManager natively;
+// RenderTileEntityClaim then fetches the baked model per-frame.
+@OnlyIn(Dist.CLIENT)
 public class ModelEventHandler {
-    @SubscribeEvent
-    @SideOnly(Side.CLIENT)
-    public static void onModelBake(ModelBakeEvent event) {
-        IDynamicModels.bakeModels(event);
-    }
 
     @SubscribeEvent
-    @SideOnly(Side.CLIENT)
-    public static void onPreTextureStitch(TextureStitchEvent.Pre event) {
-        IDynamicModels.registerSprites(event.getMap());
-    }
-
-    @SubscribeEvent
-    @SideOnly(Side.CLIENT)
-    public static void onRegisterModels(ModelRegistryEvent event) {
-        IDynamicModels.registerModels();
-        IDynamicModels.registerCustomStateMappers();
-    }
-
-    @SubscribeEvent
-    @SideOnly(Side.CLIENT)
-    public static void onItemColors(ColorHandlerEvent.Item event) {
-        IDynamicModels.registerColorHandlers(event);
+    public void onRegisterAdditional(ModelEvent.RegisterAdditional event) {
+        for (ResourceLocation rl : ClaimModels.ADDITIONAL_MODELS) {
+            event.register(rl);
+        }
     }
 }
-

@@ -1,20 +1,22 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.api.GuiAxis;
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiTextures;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.widget.ParentWidget;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ListWidget;
-import com.cleanroommc.modularui.widgets.SlotGroupWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.cleanroommc.modularui.widgets.slot.ItemSlot;
-import com.cleanroommc.modularui.widgets.slot.ModularSlot;
+import brachy.modularui.api.GuiAxis;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.GuiTextures;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.ListWidget;
+import brachy.modularui.widgets.SlotGroupWidget;
+import brachy.modularui.widgets.layout.Flow;
+import brachy.modularui.widgets.slot.ItemSlot;
+import brachy.modularui.widgets.slot.ModularSlot;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionInsuranceGuiData;
 import com.flansmod.warforge.common.network.PacketFactionInsuranceAction;
-import net.minecraft.util.text.TextFormatting;
+import net.minecraft.ChatFormatting;
 
 public final class GuiFactionInsurance {
     private static final int WIDTH = 356;
@@ -30,7 +32,8 @@ public final class GuiFactionInsurance {
     private GuiFactionInsurance() {
     }
 
-    public static ModularPanel buildPanel(FactionInsuranceGuiData data) {
+    public static ModularPanel buildPanel(FactionInsuranceGuiData data, PanelSyncManager syncManager) {
+        syncManager.bindPlayerInventory(data.getPlayer());
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
 
         ModularPanel panel = ModularPanel.defaultPanel("faction_insurance")
@@ -44,45 +47,46 @@ public final class GuiFactionInsurance {
                 .padding(5)
                 .margin(5).name("insurance_inventory_section").pos(CONTENT_LEFT, INVENTORY_Y);
 
-        panel.child(new com.cleanroommc.modularui.api.drawable.IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(WIDTH, 40));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).size(WIDTH, 40));
         panel.child(bodySection);
         panel.child(inventorySection);
-        panel.child(new com.cleanroommc.modularui.api.drawable.IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(data.hasFaction ? data.factionColor : 0x4A4A4A)).size(6, HEIGHT));
-        panel.child(ModularGuiStyle.panelCloseButton(WIDTH));
+        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(data.hasFaction ? data.factionColor : 0x4A4A4A)).size(6, HEIGHT));
+        panel.child(ModularGuiStyle.subPanelCloseButton(WIDTH));
 
-        panel.child(IKey.str("Insurance Stash").asWidget()
+        panel.child(Text.str("Insurance Stash").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .shadow(true)
                 .color(ModularGuiStyle.TEXT_PRIMARY)
                 .scale(1.15f));
-        panel.child(IKey.str(data.hasFaction ? data.factionName : "No faction selected").asWidget()
+        panel.child(Text.str(data.hasFaction ? data.factionName : "No faction selected").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y + 15)
                 .color(data.hasFaction ? data.factionColor : ModularGuiStyle.TEXT_SECONDARY)
-                .style(TextFormatting.BOLD));
+                .style(ChatFormatting.BOLD));
 
         if (!data.hasFaction) {
-            bodySection.child(IKey.str("No insurance stash is available.").asWidget()
+            bodySection.child(Text.str("No insurance stash is available.").asWidget()
                     .margin(0, 6)
                     .color(0xD5D9DE));
             return panel;
         }
 
-        bodySection.child(IKey.str("Protected Reserve").asWidget()
+        bodySection.child(Text.str("Protected Reserve").asWidget()
                 .margin(0, 0, 0, 4)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .color(ModularGuiStyle.TEXT_PRIMARY));
-        bodySection.child(IKey.str(data.canDeposit ? "Officers and leaders may deposit. Stored items cannot be withdrawn." : "Only officers and leaders may deposit into the stash.").asWidget()
+        bodySection.child(Text.str(data.canDeposit ? "Officers and leaders may deposit. Stored items cannot be withdrawn." : "Only officers and leaders may deposit into the stash.").asWidget()
                 .margin(0, 0, 0, 2)
                 .color(ModularGuiStyle.TEXT_MUTED));
-        bodySection.child(IKey.str(data.canVoid ? "Leader actions: use the red X to permanently void a slot." : "Only the leader can void stored items to free space.").asWidget()
+        bodySection.child(Text.str(data.canVoid ? "Leader actions: use the red X to permanently void a slot." : "Only the leader can void stored items to free space.").asWidget()
                 .margin(0, 0, 0, 4)
                 .color(data.canVoid ? 0xFFCC88 : ModularGuiStyle.TEXT_MUTED));
 
         int stashListWidth = sectionWidth - 10;
         int stashColumns = Math.max(1, stashListWidth / STASH_CELL_SIZE);
 
-        ListWidget stashList = new ListWidget();
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        ListWidget<ParentWidget<?>, ?> stashList = new ListWidget();
         stashList.scrollDirection(GuiAxis.Y)
                 .name("insurance_stash_list")
                 .background(ModularGuiStyle.insetBackdrop())
@@ -124,8 +128,8 @@ public final class GuiFactionInsurance {
         cell.name("insurance_cell_" + slot);
         cell.size(STASH_CELL_SIZE, STASH_CELL_SIZE);
         cell.child(new ItemSlot()
-                .name("insurance_slot_" + slot)
                 .slot(new ModularSlot(data.insuranceHandler, slot).accessibility(data.canDeposit, false))
+                .name("insurance_slot_" + slot)
                 .size(STASH_CELL_SIZE));
         if (data.canVoid) {
             ButtonWidget<?> voidButton = ModularGuiStyle.smallDangerButton("x", 8, 8, () -> {

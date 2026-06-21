@@ -1,10 +1,8 @@
 package com.flansmod.warforge.common.blocks;
 
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.core.BlockPos;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,11 +13,7 @@ public interface IMultiBlockInit {
         INSTANCES.forEach(IMultiBlockInit::initMap);
     }
 
-    default void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
-        setUpMultiblock(world, pos, state);
-    }
-
-    public void setUpMultiblock(World world, BlockPos pos, IBlockState state);
+    public void setUpMultiblock(Level world, BlockPos pos, BlockState state);
 
     public void initMap();
 

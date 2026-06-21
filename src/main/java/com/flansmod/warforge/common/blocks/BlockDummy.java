@@ -1,143 +1,128 @@
 package com.flansmod.warforge.common.blocks;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.ITileEntityProvider;
-import net.minecraft.block.material.EnumPushReaction;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.properties.PropertyEnum;
-import net.minecraft.block.state.BlockStateContainer;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumBlockRenderType;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.IStringSerializable;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.util.StringRepresentable;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
+import net.minecraft.world.level.material.PushReaction;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.Shapes;
+import net.minecraft.world.phys.shapes.VoxelShape;
 
 import javax.annotation.Nullable;
 
-public class BlockDummy extends Block implements ITileEntityProvider {
-    public static final PropertyEnum<modelEnum> MODEL = PropertyEnum.create("model", modelEnum.class);
+public class BlockDummy extends Block implements EntityBlock {
+    public static final EnumProperty<modelEnum> MODEL = EnumProperty.create("model", modelEnum.class);
 
     public BlockDummy() {
-        super(Material.ROCK);
-        this.setBlockUnbreakable();
-        this.setResistance(30000000f);
-        this.setCreativeTab(CreativeTabs.COMBAT);
+        super(Properties.of()
+                .strength(-1.0F, 30000000.0F)
+                .sound(SoundType.STONE)
+                .noLootTable()
+                // Invisible structural placeholder above the citadel/claim base: it must not occlude
+                // the base block's adjacent (top) face and must not block skylight, otherwise the
+                // statue position renders dark and the base's top face is culled into a black hole.
+                .noOcclusion());
+        this.registerDefaultState(this.stateDefinition.any().setValue(MODEL, modelEnum.TRANSLUCENT));
     }
 
     @Override
-    public int getMetaFromState(IBlockState state) {
-        return state.getValue(MODEL).ordinal();
-    }
-
-    @Override
-    public IBlockState getStateFromMeta(int meta) {
-        return getDefaultState().withProperty(MODEL, modelEnum.values()[meta]);
-    }
-
-    @Override
-    protected BlockStateContainer createBlockState() {
-        return new BlockStateContainer(this, MODEL);
-    }
-
-    public boolean isOpaqueCube(IBlockState state) {
-        return false;
-    }
-
-    @Override
-    public boolean isFullCube(IBlockState state) {
-        return false;
-    }
-
-
-//    @Override
-//    public EnumBlockRenderType getRenderType(IBlockState state) {
-//        return EnumBlockRenderType.MODEL;
-//    }
-
-    @Override
-    public EnumBlockRenderType getRenderType(IBlockState state) {
-        return EnumBlockRenderType.INVISIBLE;
-    }
-
-    @Override
-    public IBlockState getActualState(IBlockState state, IBlockAccess worldIn, BlockPos pos) {
-            return state.withProperty(MODEL, modelEnum.TRANSLUCENT);
-    }
-
-//    @Override
-//    public void neighborChanged(IBlockState state, World worldIn, BlockPos pos,
-//                                Block blockIn, BlockPos fromPos) {
-//        modelEnum stateEnum = state.getValue(MODEL);
-//        BlockPos below = pos.down();
-//        IBlockState stateBelow = worldIn.getBlockState(below);
-//
-//        if (stateEnum == modelEnum.TRANSLUCENT) {
-//            if (!(stateBelow.getBlock() instanceof BlockDummy))
-//                worldIn.destroyBlock(pos, false);
-//        } else {
-//            if (!(stateBelow.getBlock() instanceof IClaim)) worldIn.destroyBlock(pos, false);
-//        }
-//    }
-
-    @Override
-    public boolean canEntityDestroy(IBlockState state, IBlockAccess world, BlockPos pos, Entity entity) {
-        return false;
-    }
-
-    @Override
-    public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state,
-                                    EntityPlayer playerIn, EnumHand hand, EnumFacing facing,
-                                    float hitX, float hitY, float hitZ) {
-        TileEntity tileEntity = worldIn.getTileEntity(pos);
-        if (!(tileEntity instanceof IBlockDummy dummy)) return false;
-
-        BlockPos masterPos = dummy.getMasterTile();
-        if (masterPos == null) return false;
-
-        if (playerIn.isSneaking()) {
-            TileEntity masterTile = worldIn.getTileEntity(masterPos);
-            if (masterTile instanceof TileEntityClaim claim) {
-                claim.increaseRotation();
-                return true;
-            }
-            return false;
-        }
-
-        if (!worldIn.isAirBlock(masterPos)) {
-            return worldIn.getBlockState(masterPos).getBlock().onBlockActivated(
-                    worldIn, masterPos, state, playerIn, hand, facing, hitX, hitY, hitZ
-            );
-        }
-
-        return false;
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(MODEL);
     }
 
     @Nullable
     @Override
-    public TileEntity createNewTileEntity(World worldIn, int meta) {
-        return new TileEntityDummy();
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(MODEL, modelEnum.TRANSLUCENT);
     }
 
     @Override
-    public EnumPushReaction getPushReaction(IBlockState state) {
-        return EnumPushReaction.BLOCK;
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.INVISIBLE;
     }
 
     @Override
-    public AxisAlignedBB getBoundingBox(IBlockState state, IBlockAccess source, BlockPos pos) {
-        return FULL_BLOCK_AABB;
+    public boolean canEntityDestroy(BlockState state, BlockGetter level, BlockPos pos, Entity entity) {
+        return false;
+    }
+
+    @Override
+    public InteractionResult use(BlockState state, Level level, BlockPos pos, Player player,
+                                 InteractionHand hand, BlockHitResult hit) {
+        BlockEntity tileEntity = level.getBlockEntity(pos);
+        if (!(tileEntity instanceof IBlockDummy dummy)) return InteractionResult.PASS;
+
+        BlockPos masterPos = dummy.getMasterTile();
+        if (masterPos == null) return InteractionResult.PASS;
+
+        if (player.isShiftKeyDown()) {
+            BlockEntity masterTile = level.getBlockEntity(masterPos);
+            if (masterTile instanceof TileEntityClaim claim) {
+                claim.increaseRotation();
+                return InteractionResult.SUCCESS;
+            }
+            return InteractionResult.PASS;
+        }
+
+        if (!level.isEmptyBlock(masterPos)) {
+            return level.getBlockState(masterPos).use(level, player, hand, new BlockHitResult(
+                    hit.getLocation(), hit.getDirection(), masterPos, hit.isInside()));
+        }
+
+        return InteractionResult.PASS;
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new TileEntityDummy(pos, state);
+    }
+
+    @Override
+    public PushReaction getPistonPushReaction(BlockState state) {
+        return PushReaction.BLOCK;
+    }
+
+    @Override
+    public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        return Shapes.block();
+    }
+
+    // Invisible placeholder: present no occlusion shape so it never culls the neighbouring claim
+    // base's top face (the dark "hole" symptom).
+    @Override
+    public VoxelShape getOcclusionShape(BlockState state, BlockGetter level, BlockPos pos) {
+        return Shapes.empty();
+    }
+
+    // Let skylight pass straight through so the statue rendered above the base is lit.
+    @Override
+    public boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
+        return true;
+    }
+
+    @Override
+    public int getLightBlock(BlockState state, BlockGetter level, BlockPos pos) {
+        return 0;
     }
 
     @Deprecated
-    public enum modelEnum implements IStringSerializable {
+    public enum modelEnum implements StringRepresentable {
         TRANSLUCENT,
         KING,
         KNIGHT,
@@ -145,10 +130,8 @@ public class BlockDummy extends Block implements ITileEntityProvider {
         ;
 
         @Override
-        public String getName() {
+        public String getSerializedName() {
             return name().toLowerCase();
         }
     }
-
-
 }

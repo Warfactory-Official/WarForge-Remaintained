@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
+import net.minecraft.util.FastColor;
+
 import java.awt.*;
 
 
@@ -34,18 +36,18 @@ public class Color4i {
     }
 
     public Color4i(int color) {
-        alpha = (color >>> 24) & 0xFF;
-        red = (color >>> 16) & 0xFF;
-        green = (color >>> 8) & 0xFF;
-        blue = color & 0xFF;
+        alpha = FastColor.ARGB32.alpha(color);
+        red = FastColor.ARGB32.red(color);
+        green = FastColor.ARGB32.green(color);
+        blue = FastColor.ARGB32.blue(color);
     }
 
     public static Color4i fromRGB(int rgb) {
         return new Color4i(
                 255,
-                (rgb >> 16) & 0xFF,
-                (rgb >> 8) & 0xFF,
-                rgb & 0xFF
+                FastColor.ARGB32.red(rgb),
+                FastColor.ARGB32.green(rgb),
+                FastColor.ARGB32.blue(rgb)
         );
     }
 
@@ -70,12 +72,11 @@ public class Color4i {
     }
 
     public int toARGB() {
-        return (alpha << 24) | (red << 16) | (green << 8) | blue;
+        return FastColor.ARGB32.color(alpha, red, green, blue);
     }
 
     public int toRGB() {
-        return (255<<24)| (red << 16) | (green << 8) | blue;
-
+        return FastColor.ARGB32.color(255, red, green, blue);
     }
 
     public Color4i withBrightness(float factor) {

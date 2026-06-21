@@ -1,38 +1,36 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 public class PacketSetFactionColour extends PacketBase
 {
 	public int mColour = 0xffffff;
-	
+
 	@Override
-	public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void encodeInto(FriendlyByteBuf data)
 	{
 		data.writeInt(mColour);
 	}
 
 	@Override
-	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void decodeInto(FriendlyByteBuf data)
 	{
 		mColour = data.readInt();
 	}
 
 	@Override
-	public void handleServerSide(EntityPlayerMP playerEntity) 
+	public void handleServerSide(ServerPlayer playerEntity)
 	{
 		WarForgeMod.FACTIONS.requestSetFactionColour(playerEntity, mColour);
 	}
 
 	@Override
-	public void handleClientSide(EntityPlayer clientPlayer) 
+	public void handleClientSide(Player clientPlayer)
 	{
-		
+
 	}
 
 }

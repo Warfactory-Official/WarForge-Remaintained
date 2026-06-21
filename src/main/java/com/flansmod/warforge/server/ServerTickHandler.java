@@ -4,11 +4,11 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
 
 import com.flansmod.warforge.common.network.SyncQueueHandler;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent.ServerTickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.event.TickEvent.ServerTickEvent;
 
-public class ServerTickHandler 
-{	
+public class ServerTickHandler
+{
 	@SubscribeEvent
 	public void OnTick(ServerTickEvent tick) {
 		// for some reason, ticks may occur with 0ms between them. A tick timer is more useful for distinguishing whether an update has occurred

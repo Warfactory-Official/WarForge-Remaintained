@@ -4,17 +4,19 @@ import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.network.PacketBase;
-import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.Int2ShortOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ShortOpenHashMap;
 import lombok.AllArgsConstructor;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.Level;
 import org.yaml.snakeyaml.Yaml;
-import scala.Tuple3;
-import scala.Tuple4;
 
 import javax.naming.ConfigurationException;
 import java.io.FileInputStream;
@@ -33,6 +35,8 @@ import static com.flansmod.warforge.api.vein.init.VeinUtils.NULL_VEIN_ID;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 
 public class VeinConfigHandler {
+    public record Tuple4<A, B, C, D>(A _1, B _2, C _3, D _4) {}
+
     static Yaml yaml;
 
     static {
@@ -59,16 +63,16 @@ public class VeinConfigHandler {
             "# - quals: A list of quality overrides for this vein, with ommitted qualities using the global default in cfg",
             "#     - <Qual Name>: <float multiplier>",
             "# - dims: A list of dimension weights, where:",
-            "#     - id: The dimension ID (e.g. -1 for Nether, 0 for Overworld, 1 for End or custom).",
+            "#     - id: The dimension ResourceLocation (e.g. minecraft:overworld, minecraft:the_nether, minecraft:the_end, or a modded dim).",
             "#       weight: A float between 0.0 and 1.0 indicating the relative generation chance in that dimension.",
             "#       mult: A float between 0.0 and 1.0 which scales the yield of a vein based on the dimension; omission => 1.",
             "# - components: A list of ore components for the vein, where:",
             "#     - item: The item ID (e.g. minecraft:iron_ore) to generate in the vein.",
             "#       yield: How many of this item the vein yields when selected. [float w/ decimal value contributed to bonus chance]",
             "#       weights: A list of chances to appear on any given harvest of this vein for this component in each dim (omitted dimensions assume a weight of 1.0)",
-            "#          - id [dimension id as int] : weight [chance to appear as float between 0 and 1]",
+            "#          - id [dimension ResourceLocation] : weight [chance to appear as float between 0 and 1]",
             "#       mults: A list of multipliers for this comp in each dim (omitted dimensions use the vein dim multiplier)",
-            "#          - id [dimension id as int] : mult [yield multiplier as float >= 0.0]",
+            "#          - id [dimension ResourceLocation] : mult [yield multiplier as float >= 0.0]",
             "#     NOTE: If component weights are omitted or empty, all are assumed to have a weight of 1.0.",
             "#",
             "# All fields are mandatory unless otherwise specified.",
@@ -84,24 +88,24 @@ public class VeinConfigHandler {
             "#       - RICH: 10",
             "#         POOR: 0.1",
             "#     dims:",
-            "#       - id: -1",
+            "#       - id: minecraft:the_nether",
             "#         weight: 0.5",
             "#         mult: 2",
-            "#       - id: 0",
+            "#       - id: minecraft:overworld",
             "#         weight: 0.4215",
-            "#       - id: 1",
+            "#       - id: minecraft:the_end",
             "#         weight: 1.0",
             "#     components:",
             "#       - item: minecraft:iron_ore",
             "#         yield: 2",
             "#         weights: ",
-            "#           - -1 : 0.75",
-            "#           - 0 : 1.0",
-            "#           [implicit 1.0 weight for dim with id not listed (1, 2, etc)]",
+            "#           - \"minecraft:the_nether\" : 0.75",
+            "#           - \"minecraft:overworld\" : 1.0",
+            "#           [implicit 1.0 weight for any dim not listed]",
             "#       - item: minecraft:coal_ore",
             "#         yield: 1",
             "#         mults: ",
-            "#           - -1: 4",
+            "#           - \"minecraft:the_nether\": 4",
             "#           [implicit 1.0 multiplier for the remaining dimension(s)]",
             "#    - id: ~",
             "#..."
@@ -148,7 +152,7 @@ public class VeinConfigHandler {
         }
 
         List<VeinEntry> entries = new ArrayList<>();
-        Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>, Int2ObjectOpenHashMap<DimWeight>, List<Component>>> noIdEntries = new Int2ObjectOpenHashMap<>();
+        Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>>> noIdEntries = new Int2ObjectOpenHashMap<>();
 
         // we need this for further id processing
         short[] occupiedIds = new short[allVeinData.size()];
@@ -238,10 +242,15 @@ public class VeinConfigHandler {
         return Pair.of(globalVeinData, rawVeins);
     }
 
+    // dimension ids are modern ResourceLocation strings (e.g. minecraft:the_nether).
+    private static ResourceLocation parseDimId(Object raw) {
+        return new ResourceLocation((String) raw);
+    }
+
     // returns the number of occupiedIds found
     private static int parseVeinEntries(List<LinkedHashMap<String, Object>> rawVeins, List<VeinEntry> entries,
                                         Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>,
-                                            Int2ObjectOpenHashMap<DimWeight>, List<Component>>> noIdEntries,
+                                            Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>>> noIdEntries,
                                         short[] occupiedIds) {
         int numIds = 0;
         int veinIndex = -1;
@@ -283,14 +292,16 @@ public class VeinConfigHandler {
                 List<Map<String, Object>> dimsRaw = (List<Map<String, Object>>) veinData.get("dims");
 
                 // lack of dash on weight indicates singular id, weight object in .cfg yml file
-                Int2ObjectOpenHashMap<DimWeight> dims = new Int2ObjectOpenHashMap(dimsRaw.stream().map(dim -> {
-                        float multiplier = 1;
-                        if (dim.containsKey("mult")) { multiplier = ((Number) dim.get("mult")).floatValue(); }
-                        return new DimWeight(
-                                ((Number) dim.get("id")).intValue(),
-                                VeinUtils.percentToShort(((Number) dim.get("weight")).floatValue()),
-                                multiplier);
-                }).collect(Collectors.toMap(dimWeight -> dimWeight.id, dimWeight -> dimWeight)) );
+                Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dims = new Object2ObjectOpenHashMap<>(dimsRaw.size());
+                for (Map<String, Object> dimRaw : dimsRaw) {
+                    float multiplier = 1;
+                    if (dimRaw.containsKey("mult")) { multiplier = ((Number) dimRaw.get("mult")).floatValue(); }
+                    ResourceKey<Level> dimKey = ResourceKey.create(Registries.DIMENSION,
+                            parseDimId(dimRaw.get("id")));
+                    dims.put(dimKey, new DimWeight(dimKey,
+                            VeinUtils.percentToShort(((Number) dimRaw.get("weight")).floatValue()),
+                            multiplier));
+                }
 
                 // read the component data
                 List<Map<String, Object>> componentsRaw = (List<Map<String, Object>>) veinData.get("components");
@@ -337,10 +348,10 @@ public class VeinConfigHandler {
         public float[] qualMults;
         public final byte qualOverrideCount;
 
-        final public Int2ObjectOpenHashMap<DimWeight> dimWeights;
+        final public Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights;
         final public List<Component> components;
 
-        public VeinEntry(short id, String translationKey, Object2FloatOpenHashMap<Quality> qualMults, Int2ObjectOpenHashMap<DimWeight> dimWeights, List<Component> components) {
+        public VeinEntry(short id, String translationKey, Object2FloatOpenHashMap<Quality> qualMults, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights, List<Component> components) {
             this.id = id;
             this.translationKey = translationKey;
             this.dimWeights = dimWeights;
@@ -365,23 +376,21 @@ public class VeinConfigHandler {
             this.qualOverrideCount = qualOverrideCount;
         }
 
-        public ByteBuf serialize() {
+        public FriendlyByteBuf serialize() {
             // collect all the components together to know the size
-            final int[] compBufBytes = {0};  // this way we make the byte buf with the exact size needed
-            ArrayList<ByteBuf> compBufs = new ArrayList<>(components.size());
+            final int[] compBufBytes = {0};
+            ArrayList<FriendlyByteBuf> compBufs = new ArrayList<>(components.size());
             components.forEach(comp -> {
-                ByteBuf compSerialized = comp.serialize();
+                FriendlyByteBuf compSerialized = comp.serialize();
                 compBufBytes[0] += compSerialized.readableBytes();
                 compBufs.add(compSerialized);
             });
 
-            // calculate size ahead of time
-            ByteBuf entryByteBuf = Unpooled.directBuffer(2 + (2 + translationKey.length()) +
-                    (1 + 5 * qualOverrideCount) + (DimWeight.byteCount * dimWeights.size()) + compBufBytes[0]);
+            FriendlyByteBuf entryByteBuf = new FriendlyByteBuf(Unpooled.buffer());
 
-            // write translation key
+            // write id and translation key
             entryByteBuf.writeShort(id);
-            PacketBase.writeUTF(entryByteBuf, translationKey);
+            entryByteBuf.writeUtf(translationKey);
 
             // store qual overrides
             entryByteBuf.writeByte(qualOverrideCount);
@@ -396,7 +405,7 @@ public class VeinConfigHandler {
 
             // store dim weights
             entryByteBuf.writeInt(dimWeights.size());
-            dimWeights.forEach((dimId, dimWeight) -> entryByteBuf.writeInt(dimId).writeBytes(dimWeight.serialize()));
+            dimWeights.forEach((dimKey, dimWeight) -> dimWeight.serialize(entryByteBuf));
 
             // store component details
             entryByteBuf.writeInt(components.size());
@@ -405,9 +414,9 @@ public class VeinConfigHandler {
             return entryByteBuf;
         }
 
-        public static VeinEntry deserialize(ByteBuf buf) {
+        public static VeinEntry deserialize(FriendlyByteBuf buf) {
             short id = buf.readShort();
-            String translationKey = PacketBase.readUTF(buf);
+            String translationKey = buf.readUtf();
 
             // prepare to read quality overrides
             int numQualOverrides = buf.readByte();
@@ -419,11 +428,12 @@ public class VeinConfigHandler {
                 qualMappings.put(Quality.getQuality(buf.readByte()), buf.readFloat());
             }
 
-            // read dims first
+            // read dims
             int numDims = buf.readInt();
-            Int2ObjectOpenHashMap<DimWeight> dimWeights = new Int2ObjectOpenHashMap<>(numDims);
+            Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights = new Object2ObjectOpenHashMap<>(numDims);
             for (int i = 0; i < numDims; ++i) {
-                dimWeights.put(buf.readInt(), DimWeight.deserialize(buf));
+                DimWeight dw = DimWeight.deserialize(buf);
+                dimWeights.put(dw.dim, dw);
             }
 
             // read components
@@ -439,21 +449,19 @@ public class VeinConfigHandler {
 
     @AllArgsConstructor
     public static class DimWeight {
-        final public int id;
+        final public ResourceKey<Level> dim;
         final public short weight;
         final public float multiplier;
-        public static final int byteCount = 10;
 
-        public ByteBuf serialize() {
-            ByteBuf result = Unpooled.directBuffer(byteCount);
-            result.writeInt(id);
-            result.writeShort(weight);
-            result.writeFloat(multiplier);
-            return result;
+        public void serialize(FriendlyByteBuf buf) {
+            buf.writeUtf(dim.location().toString());
+            buf.writeShort(weight);
+            buf.writeFloat(multiplier);
         }
 
-        public static DimWeight deserialize(ByteBuf buf) {
-            return new DimWeight(buf.readInt(), buf.readShort(), buf.readFloat());
+        public static DimWeight deserialize(FriendlyByteBuf buf) {
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(buf.readUtf()));
+            return new DimWeight(dim, buf.readShort(), buf.readFloat());
         }
     }
 
@@ -461,65 +469,69 @@ public class VeinConfigHandler {
     public static class Component {
         final public String item;
         final public float yield;
-        final public Int2ShortOpenHashMap weights;
-        final public Int2FloatOpenHashMap multipliers;
+        final public Object2ShortOpenHashMap<ResourceKey<Level>> weights;
+        final public Object2FloatOpenHashMap<ResourceKey<Level>> multipliers;
 
-        public static Int2FloatOpenHashMap parseFloatMap(List<Map<Object, Object>> floatEntries) {
-            return floatEntries == null ? new Int2FloatOpenHashMap() : new Int2FloatOpenHashMap(
-                    floatEntries.stream()
-                            .map(dimEntry -> dimEntry.entrySet().iterator().next())
-                            .collect(Collectors.toMap(
-                                    firstEntry -> ((Number) firstEntry.getKey()).intValue(),
-                                    firstEntry -> ((Number) firstEntry.getValue()).floatValue())));
+        public static Object2FloatOpenHashMap<ResourceKey<Level>> parseFloatMap(List<Map<Object, Object>> floatEntries) {
+            Object2FloatOpenHashMap<ResourceKey<Level>> result = new Object2FloatOpenHashMap<>();
+            if (floatEntries == null) { return result; }
+            for (Map<Object, Object> dimEntry : floatEntries) {
+                var e = dimEntry.entrySet().iterator().next();
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(e.getKey()));
+                result.put(key, ((Number) e.getValue()).floatValue());
+            }
+            return result;
         }
 
-        public static Int2ShortOpenHashMap parseMapF2S(List<Map<Object, Object>> floatEntries) {
-            return floatEntries == null ? new Int2ShortOpenHashMap() : new Int2ShortOpenHashMap(
-                            floatEntries.stream()
-                            .map(dimEntry -> dimEntry.entrySet().iterator().next())
-                            .collect(Collectors.toMap(
-                                    firstEntry -> ((Number) firstEntry.getKey()).intValue(),
-                                    firstEntry -> VeinUtils.percentToShort(((Number) firstEntry.getValue()).floatValue()))));
+        public static Object2ShortOpenHashMap<ResourceKey<Level>> parseMapF2S(List<Map<Object, Object>> floatEntries) {
+            Object2ShortOpenHashMap<ResourceKey<Level>> result = new Object2ShortOpenHashMap<>();
+            if (floatEntries == null) { return result; }
+            for (Map<Object, Object> dimEntry : floatEntries) {
+                var e = dimEntry.entrySet().iterator().next();
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(e.getKey()));
+                result.put(key, VeinUtils.percentToShort(((Number) e.getValue()).floatValue()));
+            }
+            return result;
         }
 
-        public ByteBuf serialize() {
-            int numBytes = (2 + item.length()) + 4 + (weights.size() * 6) + (multipliers.size() * 8);  // map each member to its size in bytes
-            ByteBuf serialData = Unpooled.directBuffer(numBytes);
-            PacketBase.writeUTF(serialData, item);
+        public FriendlyByteBuf serialize() {
+            FriendlyByteBuf serialData = new FriendlyByteBuf(Unpooled.buffer());
+            serialData.writeUtf(item);
             serialData.writeFloat(yield);
 
             serialData.writeInt(weights.size());
-            for (var entry : weights.int2ShortEntrySet()) {
-                serialData.writeInt(entry.getIntKey());
+            for (var entry : weights.object2ShortEntrySet()) {
+                serialData.writeUtf(entry.getKey().location().toString());
                 serialData.writeShort(entry.getShortValue());
             }
 
-            // write the size and then the data for the multipliers
             serialData.writeInt(multipliers.size());
-            for (var entry : multipliers.int2FloatEntrySet()) {
-                serialData.writeInt(entry.getIntKey());
+            for (var entry : multipliers.object2FloatEntrySet()) {
+                serialData.writeUtf(entry.getKey().location().toString());
                 serialData.writeFloat(entry.getFloatValue());
             }
 
             return serialData;
         }
 
-        public static Component deserialize(ByteBuf buf) {
-            String item = PacketBase.readUTF(buf);
+        public static Component deserialize(FriendlyByteBuf buf) {
+            String item = buf.readUtf();
             float yield = buf.readFloat();
 
             // read weights which are stored first
             int numWeights = buf.readInt();
-            Int2ShortOpenHashMap weights = new Int2ShortOpenHashMap(numWeights);
+            Object2ShortOpenHashMap<ResourceKey<Level>> weights = new Object2ShortOpenHashMap<>(numWeights);
             for (int i = 0; i < numWeights; ++i) {
-                weights.put(buf.readInt(), buf.readShort());
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(buf.readUtf()));
+                weights.put(key, buf.readShort());
             }
 
             // read multipliers which are stored next
             int numMults = buf.readInt();
-            Int2FloatOpenHashMap multipliers = new Int2FloatOpenHashMap(numMults);
+            Object2FloatOpenHashMap<ResourceKey<Level>> multipliers = new Object2FloatOpenHashMap<>(numMults);
             for (int i = 0; i < numMults; ++i) {
-                multipliers.put(buf.readInt(), buf.readFloat());
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(buf.readUtf()));
+                multipliers.put(key, buf.readFloat());
             }
 
             return new Component(item, yield, weights, multipliers);

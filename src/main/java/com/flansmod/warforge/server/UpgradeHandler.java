@@ -1,8 +1,6 @@
 package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
@@ -34,7 +32,7 @@ public class UpgradeHandler {
                 insurance_slots: 9
                 requirements:
                   - type: ore
-                    id: ingotIron
+                    id: forge:ingots/iron
                     count: 64
                   - type: item
                     id: minecraft:diamond
@@ -45,11 +43,11 @@ public class UpgradeHandler {
                 insurance_slots: 18
                 requirements:
                   - type: item
-                    id: modid:custom_item:3
+                    id: minecraft:netherite_ingot
                     count: 1
             """;
 
-    protected HashMap<StackComparable, Integer>[] LEVELS;
+    protected HashMap<ItemMatcher, Integer>[] LEVELS;
     protected int[] LIMITS;
     protected int[] INSURANCE_SLOTS;
 
@@ -63,7 +61,7 @@ public class UpgradeHandler {
         return LIMITS;
     }
 
-    public HashMap<StackComparable, Integer>[] getLEVELS() {
+    public HashMap<ItemMatcher, Integer>[] getLEVELS() {
         return LEVELS;
     }
 
@@ -71,7 +69,7 @@ public class UpgradeHandler {
         return INSURANCE_SLOTS;
     }
 
-    public void setLevelAndLimits(int level, HashMap<StackComparable, Integer> requirements, int limit, int insuranceSlots) {
+    public void setLevelAndLimits(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots) {
         if (level >= LEVELS.length) {
             int newSize = Math.max(level + 1, Math.max(LEVELS.length * 2, 1));
             LEVELS = Arrays.copyOf(LEVELS, newSize);
@@ -115,7 +113,7 @@ public class UpgradeHandler {
             throw new IllegalStateException("Upgrade config must contain a 'levels' list");
         }
 
-        List<Map<StackComparable, Integer>> levels = new ArrayList<>();
+        List<Map<ItemMatcher, Integer>> levels = new ArrayList<>();
         List<Integer> claims = new ArrayList<>();
         List<Integer> insuranceSlots = new ArrayList<>();
 
@@ -140,7 +138,7 @@ public class UpgradeHandler {
                 insuranceSlots.add(0);
             }
 
-            HashMap<StackComparable, Integer> requirements = new HashMap<>();
+            HashMap<ItemMatcher, Integer> requirements = new HashMap<>();
             Object rawRequirements = levelMap.get("requirements");
             if (rawRequirements instanceof List<?> requirementList) {
                 for (Object rawRequirement : requirementList) {
@@ -151,27 +149,23 @@ public class UpgradeHandler {
                     String id = String.valueOf(requirementMap.get("id"));
                     int count = readOptionalInt(requirementMap, "count", 1);
 
-                    StackComparable stackComparable;
+                    ItemMatcher matcher;
                     if ("ore".equals(type)) {
-                        stackComparable = new StackComparable().toOredict(id);
+                        matcher = ItemMatcher.ofTag(id);
                     } else if ("item".equals(type)) {
                         String[] parts = id.split(":");
-                        if (parts.length == 2) {
-                            stackComparable = new StackComparable(parts[0] + ":" + parts[1]);
-                        } else if (parts.length == 3) {
-                            stackComparable = new StackComparable(parts[0] + ":" + parts[1], Integer.parseInt(parts[2]));
-                        } else {
+                        if (parts.length != 2 && parts.length != 3) {
                             throw new IllegalArgumentException("Invalid item id format: " + id);
                         }
-
-                        ResourceLocation resourceLocation = new ResourceLocation(stackComparable.getRegistryName());
-                        if (!ForgeRegistries.ITEMS.containsKey(resourceLocation)) {
-                            WarForgeMod.LOGGER.warn("UpgradeHandler config: Item {} does not exist. Level {} may become inaccessible.", resourceLocation, level);
-                        }
+                        matcher = ItemMatcher.ofItem(id);
                     } else {
                         throw new IllegalArgumentException("Unknown requirement type: " + type);
                     }
-                    requirements.put(stackComparable, count);
+                    if (matcher == null) {
+                        WarForgeMod.LOGGER.warn("UpgradeHandler config: requirement '{}' (type {}) at level {} does not resolve to a known item/tag; skipping.", id, type, level);
+                        continue;
+                    }
+                    requirements.put(matcher, count);
                 }
             }
 
@@ -184,7 +178,7 @@ public class UpgradeHandler {
         applyParsedData(levels, claims, insuranceSlots);
     }
 
-    public HashMap<StackComparable, Integer> getRequirementsFor(int level) {
+    public HashMap<ItemMatcher, Integer> getRequirementsFor(int level) {
         if (level >= LEVELS.length) {
             return null;
         }
@@ -205,7 +199,7 @@ public class UpgradeHandler {
         return INSURANCE_SLOTS[level];
     }
 
-    private static void applyParsedData(List<Map<StackComparable, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
+    private static void applyParsedData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
         int size = levels.size();
         WarForgeMod.UPGRADE_HANDLER.LEVELS = new HashMap[size];
         WarForgeMod.UPGRADE_HANDLER.LIMITS = new int[size];
@@ -238,7 +232,7 @@ public class UpgradeHandler {
         return value == null ? fallback : Integer.parseInt(String.valueOf(value));
     }
 
-    private static void writeYamlConfig(Path path, List<Map<StackComparable, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) throws IOException {
+    private static void writeYamlConfig(Path path, List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) throws IOException {
         List<Map<String, Object>> yamlLevels = new ArrayList<>();
         for (int i = 0; i < levels.size(); i++) {
             Map<String, Object> levelMap = new LinkedHashMap<>();
@@ -247,19 +241,14 @@ public class UpgradeHandler {
             levelMap.put("insurance_slots", insuranceSlots.get(i));
 
             List<Map<String, Object>> requirements = new ArrayList<>();
-            for (Map.Entry<StackComparable, Integer> entry : levels.get(i).entrySet()) {
+            for (Map.Entry<ItemMatcher, Integer> entry : levels.get(i).entrySet()) {
                 Map<String, Object> requirementMap = new LinkedHashMap<>();
-                if (entry.getKey().getOredict() != null) {
+                if (entry.getKey().isTag()) {
                     requirementMap.put("type", "ore");
-                    requirementMap.put("id", entry.getKey().getOredict());
                 } else {
                     requirementMap.put("type", "item");
-                    String id = entry.getKey().getRegistryName();
-                    if (entry.getKey().getMeta() != -1) {
-                        id = id + ":" + entry.getKey().getMeta();
-                    }
-                    requirementMap.put("id", id);
                 }
+                requirementMap.put("id", entry.getKey().id());
                 requirementMap.put("count", entry.getValue());
                 requirements.add(requirementMap);
             }
@@ -276,7 +265,7 @@ public class UpgradeHandler {
     }
 
     private static LegacyConfigData parseLegacyConfig(Path path) throws IOException {
-        List<Map<StackComparable, Integer>> levels = new ArrayList<>();
+        List<Map<ItemMatcher, Integer>> levels = new ArrayList<>();
         List<Integer> claims = new ArrayList<>();
         List<Integer> insuranceSlots = new ArrayList<>();
 
@@ -284,7 +273,7 @@ public class UpgradeHandler {
         claims.add(-1);
         insuranceSlots.add(0);
 
-        Map<StackComparable, Integer> current = null;
+        Map<ItemMatcher, Integer> current = null;
         int currentLevel = 0;
 
         for (String line : Files.readAllLines(path)) {
@@ -338,20 +327,21 @@ public class UpgradeHandler {
             String rawEntry = matcher.group(1);
             int count = matcher.group(3) != null ? Integer.parseInt(matcher.group(3)) : 1;
 
-            StackComparable stackComparable;
+            ItemMatcher itemMatcher;
             if ("ore".equals(type)) {
-                stackComparable = new StackComparable().toOredict(rawEntry);
+                itemMatcher = ItemMatcher.ofTag(rawEntry);
             } else {
                 String[] parts = rawEntry.split(":");
-                if (parts.length == 2) {
-                    stackComparable = new StackComparable(parts[0] + ":" + parts[1]);
-                } else if (parts.length == 3) {
-                    stackComparable = new StackComparable(parts[0] + ":" + parts[1], Integer.parseInt(parts[2]));
-                } else {
+                if (parts.length != 2 && parts.length != 3) {
                     throw new IllegalArgumentException("Invalid item format: " + rawEntry);
                 }
+                itemMatcher = ItemMatcher.ofItem(rawEntry);
             }
-            current.put(stackComparable, count);
+            if (itemMatcher == null) {
+                WarForgeMod.LOGGER.warn("UpgradeHandler legacy config: '{}' did not resolve to a known item/tag; skipping.", rawEntry);
+                continue;
+            }
+            current.put(itemMatcher, count);
         }
 
         validateMonotonicClaims(claims);
@@ -359,11 +349,11 @@ public class UpgradeHandler {
     }
 
     private static final class LegacyConfigData {
-        private final List<Map<StackComparable, Integer>> levels;
+        private final List<Map<ItemMatcher, Integer>> levels;
         private final List<Integer> claims;
         private final List<Integer> insuranceSlots;
 
-        private LegacyConfigData(List<Map<StackComparable, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
+        private LegacyConfigData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
             this.levels = levels;
             this.claims = claims;
             this.insuranceSlots = insuranceSlots;

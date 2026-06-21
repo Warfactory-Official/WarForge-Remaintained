@@ -2,115 +2,165 @@ package com.flansmod.warforge.common;
 
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.*;
-import com.flansmod.warforge.common.blocks.models.ClaimModels;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegistryEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.registry.GameRegistry;
-import net.minecraftforge.registries.IForgeRegistry;
+import net.minecraft.core.particles.ParticleType;
+import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.CreativeModeTab;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
-public class Content 
+public class Content
 {
-	static public Block citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, statue, dummyTranslusent;
-	static public Item citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem;
-    static public Block islandCollectorBlock;
-    static public Item islandCollectorItem;
-	
-	static public Block adminClaimBlock;
-	static public Item adminClaimBlockItem;
-	
-	static public Block topLeaderboardBlock, notorietyLeaderboardBlock, wealthLeaderboardBlock, legacyLeaderboardBlock;
-	static public Item topLeaderboardItem, notorietyLeaderboardItem, wealthLeaderboardItem, legacyLeaderboardItem;
-	
-	
-	public void preInit()
+	private static final DeferredRegister<Block> BLOCKS =
+			DeferredRegister.create(ForgeRegistries.BLOCKS, Tags.MODID);
+	private static final DeferredRegister<Item> ITEMS =
+			DeferredRegister.create(ForgeRegistries.ITEMS, Tags.MODID);
+	private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
+			DeferredRegister.create(ForgeRegistries.BLOCK_ENTITY_TYPES, Tags.MODID);
+	private static final DeferredRegister<CreativeModeTab> CREATIVE_TABS =
+			DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Tags.MODID);
+	private static final DeferredRegister<ParticleType<?>> PARTICLE_TYPES =
+			DeferredRegister.create(ForgeRegistries.PARTICLE_TYPES, Tags.MODID);
+
+	// Particles
+	public static final RegistryObject<SimpleParticleType> STAR_CIRCLE_PARTICLE =
+			PARTICLE_TYPES.register("star_circle", () -> new SimpleParticleType(false));
+
+	// Blocks
+	public static final RegistryObject<Block> CITADEL_BLOCK = BLOCKS.register("citadelblock", BlockCitadel::new);
+	public static final RegistryObject<Block> BASIC_CLAIM_BLOCK = BLOCKS.register("basicclaimblock", BlockBasicClaim::new);
+	public static final RegistryObject<Block> REINFORCED_CLAIM_BLOCK = BLOCKS.register("reinforcedclaimblock", BlockBasicClaim::new);
+	public static final RegistryObject<Block> SIEGE_CAMP_BLOCK = BLOCKS.register("siegecampblock", BlockSiegeCamp::new);
+	public static final RegistryObject<Block> ADMIN_CLAIM_BLOCK = BLOCKS.register("adminclaimblock", BlockAdminClaim::new);
+	public static final RegistryObject<Block> ISLAND_COLLECTOR_BLOCK = BLOCKS.register("islandcollector", BlockIslandCollector::new);
+	public static final RegistryObject<Block> STATUE = BLOCKS.register("dummy", BlockDummy::new);
+	public static final RegistryObject<Block> DUMMY_TRANSLUSENT = BLOCKS.register("dummy_translusent", BlockDummyTransparent::new);
+	public static final RegistryObject<Block> TOP_LEADERBOARD_BLOCK = BLOCKS.register("topleaderboard", () -> new BlockLeaderboard(FactionStat.TOTAL));
+	public static final RegistryObject<Block> WEALTH_LEADERBOARD_BLOCK = BLOCKS.register("wealthleaderboard", () -> new BlockLeaderboard(FactionStat.WEALTH));
+	public static final RegistryObject<Block> NOTORIETY_LEADERBOARD_BLOCK = BLOCKS.register("notorietyleaderboard", () -> new BlockLeaderboard(FactionStat.NOTORIETY));
+	public static final RegistryObject<Block> LEGACY_LEADERBOARD_BLOCK = BLOCKS.register("legacyleaderboard", () -> new BlockLeaderboard(FactionStat.LEGACY));
+
+	// Block items (statue/dummyTranslusent intentionally have no item)
+	public static final RegistryObject<Item> CITADEL_BLOCK_ITEM = ITEMS.register("citadelblock", () -> new BlockItem(CITADEL_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> BASIC_CLAIM_BLOCK_ITEM = ITEMS.register("basicclaimblock", () -> new BlockItem(BASIC_CLAIM_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> REINFORCED_CLAIM_BLOCK_ITEM = ITEMS.register("reinforcedclaimblock", () -> new BlockItem(REINFORCED_CLAIM_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> SIEGE_CAMP_BLOCK_ITEM = ITEMS.register("siegecampblock", () -> new BlockItem(SIEGE_CAMP_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> ADMIN_CLAIM_BLOCK_ITEM = ITEMS.register("adminclaimblock", () -> new BlockItem(ADMIN_CLAIM_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> ISLAND_COLLECTOR_ITEM = ITEMS.register("islandcollector", () -> new BlockItem(ISLAND_COLLECTOR_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> TOP_LEADERBOARD_ITEM = ITEMS.register("topleaderboard", () -> new BlockItem(TOP_LEADERBOARD_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> WEALTH_LEADERBOARD_ITEM = ITEMS.register("wealthleaderboard", () -> new BlockItem(WEALTH_LEADERBOARD_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> NOTORIETY_LEADERBOARD_ITEM = ITEMS.register("notorietyleaderboard", () -> new BlockItem(NOTORIETY_LEADERBOARD_BLOCK.get(), new Item.Properties()));
+	public static final RegistryObject<Item> LEGACY_LEADERBOARD_ITEM = ITEMS.register("legacyleaderboard", () -> new BlockItem(LEGACY_LEADERBOARD_BLOCK.get(), new Item.Properties()));
+
+	// Block entities. Names referenced by the BlockEntity classes via Content.TE_*.get().
+	public static final RegistryObject<BlockEntityType<TileEntityCitadel>> TE_CITADEL =
+			BLOCK_ENTITIES.register("citadel",
+					() -> BlockEntityType.Builder.of(TileEntityCitadel::new, CITADEL_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityBasicClaim>> TE_BASIC_CLAIM =
+			BLOCK_ENTITIES.register("basicclaim",
+					() -> BlockEntityType.Builder.of(TileEntityBasicClaim::new, BASIC_CLAIM_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityReinforcedClaim>> TE_REINFORCED_CLAIM =
+			BLOCK_ENTITIES.register("reinforcedclaim",
+					() -> BlockEntityType.Builder.of(TileEntityReinforcedClaim::new, REINFORCED_CLAIM_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntitySiegeCamp>> TE_SIEGE_CAMP =
+			BLOCK_ENTITIES.register("siegecamp",
+					() -> BlockEntityType.Builder.of(TileEntitySiegeCamp::new, SIEGE_CAMP_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityIslandCollector>> TE_ISLAND_COLLECTOR =
+			BLOCK_ENTITIES.register("islandcollector",
+					() -> BlockEntityType.Builder.of(TileEntityIslandCollector::new, ISLAND_COLLECTOR_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityAdminClaim>> TE_ADMIN_CLAIM =
+			BLOCK_ENTITIES.register("adminclaim",
+					() -> BlockEntityType.Builder.of(TileEntityAdminClaim::new, ADMIN_CLAIM_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityLeaderboard>> TE_LEADERBOARD =
+			BLOCK_ENTITIES.register("leaderboard",
+					() -> BlockEntityType.Builder.of(TileEntityLeaderboard::new,
+							TOP_LEADERBOARD_BLOCK.get(), WEALTH_LEADERBOARD_BLOCK.get(),
+							NOTORIETY_LEADERBOARD_BLOCK.get(), LEGACY_LEADERBOARD_BLOCK.get()).build(null));
+	public static final RegistryObject<BlockEntityType<TileEntityDummy>> TE_DUMMY =
+			BLOCK_ENTITIES.register("tileentity_dummy",
+					() -> BlockEntityType.Builder.of(TileEntityDummy::new, STATUE.get(), DUMMY_TRANSLUSENT.get()).build(null));
+
+	// Creative tab
+	public static final RegistryObject<CreativeModeTab> TAB = CREATIVE_TABS.register("main",
+			() -> CreativeModeTab.builder()
+					.title(Component.translatable("itemGroup." + Tags.MODID))
+					.icon(() -> new ItemStack(CITADEL_BLOCK.get()))
+					.displayItems((params, output) -> {
+						output.accept(CITADEL_BLOCK_ITEM.get());
+						output.accept(BASIC_CLAIM_BLOCK_ITEM.get());
+						output.accept(REINFORCED_CLAIM_BLOCK_ITEM.get());
+						output.accept(SIEGE_CAMP_BLOCK_ITEM.get());
+						output.accept(ADMIN_CLAIM_BLOCK_ITEM.get());
+						output.accept(ISLAND_COLLECTOR_ITEM.get());
+						output.accept(TOP_LEADERBOARD_ITEM.get());
+						output.accept(WEALTH_LEADERBOARD_ITEM.get());
+						output.accept(NOTORIETY_LEADERBOARD_ITEM.get());
+						output.accept(LEGACY_LEADERBOARD_ITEM.get());
+					})
+					.build());
+
+	// Plain fields the rest of the mod reads directly. Populated by bake() after registration.
+	public static Block citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, statue, dummyTranslusent;
+	public static Item citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem;
+	public static Block islandCollectorBlock;
+	public static Item islandCollectorItem;
+
+	public static Block adminClaimBlock;
+	public static Item adminClaimBlockItem;
+
+	public static Block topLeaderboardBlock, notorietyLeaderboardBlock, wealthLeaderboardBlock, legacyLeaderboardBlock;
+	public static Item topLeaderboardItem, notorietyLeaderboardItem, wealthLeaderboardItem, legacyLeaderboardItem;
+
+	public static void register(IEventBus modBus)
 	{
-        var models = new ClaimModels();
-        citadelBlock = new BlockCitadel(Material.ROCK).setRegistryName("citadelblock").setTranslationKey("citadelblock");
-        citadelBlockItem = new ItemBlock(citadelBlock).setRegistryName("citadelblock").setTranslationKey("citadelblock");
-        GameRegistry.registerTileEntity(TileEntityCitadel.class, new ResourceLocation(Tags.MODID, "citadel"));
-        
-        // Basic and reinforced claims, they share a tile entity
-        basicClaimBlock = new BlockBasicClaim(Material.ROCK).setRegistryName("basicclaimblock").setTranslationKey("basicclaimblock");
-        basicClaimBlockItem = new ItemBlock(basicClaimBlock).setRegistryName("basicclaimblock").setTranslationKey("basicclaimblock");
-        GameRegistry.registerTileEntity(TileEntityBasicClaim.class, new ResourceLocation(Tags.MODID, "basicclaim"));
-        reinforcedClaimBlock = new BlockBasicClaim(Material.ROCK).setRegistryName("reinforcedclaimblock").setTranslationKey("reinforcedclaimblock");
-        reinforcedClaimBlockItem = new ItemBlock(reinforcedClaimBlock).setRegistryName("reinforcedclaimblock").setTranslationKey("reinforcedclaimblock");
-        GameRegistry.registerTileEntity(TileEntityReinforcedClaim.class, new ResourceLocation(Tags.MODID, "reinforcedclaim"));
-        
-        // Siege camp
-        siegeCampBlock = new BlockSiegeCamp(Material.ROCK).setRegistryName("siegecampblock").setTranslationKey("siegecampblock");
-        siegeCampBlockItem = new ItemBlock(siegeCampBlock).setRegistryName("siegecampblock").setTranslationKey("siegecampblock");
-        GameRegistry.registerTileEntity(TileEntitySiegeCamp.class, new ResourceLocation(Tags.MODID, "siegecamp"));
-
-        islandCollectorBlock = new BlockIslandCollector(Material.ROCK).setRegistryName("islandcollector").setTranslationKey("islandcollector");
-        islandCollectorItem = new ItemBlock(islandCollectorBlock).setRegistryName("islandcollector").setTranslationKey("islandcollector");
-        GameRegistry.registerTileEntity(TileEntityIslandCollector.class, new ResourceLocation(Tags.MODID, "islandcollector"));
-
-		//Dummy Block
-		statue = new BlockDummy().setRegistryName("dummy").setTranslationKey("dummy");
-		dummyTranslusent = new BlockDummyTransparent().setRegistryName("dummy_translusent").setTranslationKey("dummy_translusent");
-		GameRegistry.registerTileEntity(TileEntityDummy.class, new ResourceLocation(Tags.MODID, "tileentity_dummy"));
-
-
- 
-        // Admin claim block
-        adminClaimBlock = new BlockAdminClaim().setRegistryName("adminclaimblock").setTranslationKey("adminclaimblock");
-        adminClaimBlockItem = new ItemBlock(adminClaimBlock).setRegistryName("adminclaimblock").setTranslationKey("adminclaimblock");
-        GameRegistry.registerTileEntity(TileEntityAdminClaim.class, new ResourceLocation(Tags.MODID, "adminclaim"));
- 
-
-        topLeaderboardBlock = new BlockLeaderboard(Material.ROCK, FactionStat.TOTAL).setRegistryName("topleaderboard").setTranslationKey("topleaderboard");
-        wealthLeaderboardBlock = new BlockLeaderboard(Material.ROCK, FactionStat.WEALTH).setRegistryName("wealthleaderboard").setTranslationKey("wealthleaderboard");
-        notorietyLeaderboardBlock = new BlockLeaderboard(Material.ROCK, FactionStat.NOTORIETY).setRegistryName("notorietyleaderboard").setTranslationKey("notorietyleaderboard");
-        legacyLeaderboardBlock = new BlockLeaderboard(Material.ROCK, FactionStat.LEGACY).setRegistryName("legacyleaderboard").setTranslationKey("legacyleaderboard");
-        
-        topLeaderboardItem = new ItemBlock(topLeaderboardBlock).setRegistryName("topleaderboard").setTranslationKey("topleaderboard");
-        wealthLeaderboardItem = new ItemBlock(wealthLeaderboardBlock).setRegistryName("wealthleaderboard").setTranslationKey("wealthleaderboard");
-        notorietyLeaderboardItem = new ItemBlock(notorietyLeaderboardBlock).setRegistryName("notorietyleaderboard").setTranslationKey("notorietyleaderboard");
-        legacyLeaderboardItem = new ItemBlock(legacyLeaderboardBlock).setRegistryName("legacyleaderboard").setTranslationKey("legacyleaderboard");
-        GameRegistry.registerTileEntity(TileEntityLeaderboard.class, new ResourceLocation(Tags.MODID, "leaderboard"));
-        
-        MinecraftForge.EVENT_BUS.register(this);
+		BLOCKS.register(modBus);
+		ITEMS.register(modBus);
+		BLOCK_ENTITIES.register(modBus);
+		CREATIVE_TABS.register(modBus);
+		PARTICLE_TYPES.register(modBus);
 	}
 
-
-	@SubscribeEvent
-	public void registerItems(RegistryEvent.Register<Item> event)
+	// Resolve the plain fields from the RegistryObjects once registration has run.
+	public static void bake()
 	{
-		final Item[] items = {
-				citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem, adminClaimBlockItem,
-                islandCollectorItem,
-				topLeaderboardItem, wealthLeaderboardItem, notorietyLeaderboardItem,
-				legacyLeaderboardItem,
-		};
-		IForgeRegistry<Item> registry = event.getRegistry();
-		for(Item item : items) {
-			registry.register(item);
-		}
-		WarForgeMod.LOGGER.info("Registered items");
-	}
-	
-	@SubscribeEvent
-	public void registerBlocks(RegistryEvent.Register<Block> event)
-	{
-		final Block[] blocks = {
-			citadelBlock, basicClaimBlock, reinforcedClaimBlock, siegeCampBlock, adminClaimBlock, islandCollectorBlock,
-			topLeaderboardBlock, wealthLeaderboardBlock, notorietyLeaderboardBlock,
-			legacyLeaderboardBlock, statue, dummyTranslusent
-		};
-		IForgeRegistry<Block> registry = event.getRegistry();
-		for(Block block : blocks) {
-			registry.register(block);
-		}
+		citadelBlock = CITADEL_BLOCK.get();
+		basicClaimBlock = BASIC_CLAIM_BLOCK.get();
+		reinforcedClaimBlock = REINFORCED_CLAIM_BLOCK.get();
+		siegeCampBlock = SIEGE_CAMP_BLOCK.get();
+		adminClaimBlock = ADMIN_CLAIM_BLOCK.get();
+		islandCollectorBlock = ISLAND_COLLECTOR_BLOCK.get();
+		statue = STATUE.get();
+		dummyTranslusent = DUMMY_TRANSLUSENT.get();
+		topLeaderboardBlock = TOP_LEADERBOARD_BLOCK.get();
+		wealthLeaderboardBlock = WEALTH_LEADERBOARD_BLOCK.get();
+		notorietyLeaderboardBlock = NOTORIETY_LEADERBOARD_BLOCK.get();
+		legacyLeaderboardBlock = LEGACY_LEADERBOARD_BLOCK.get();
 
-		WarForgeMod.LOGGER.info("Registered blocks");
+		citadelBlockItem = CITADEL_BLOCK_ITEM.get();
+		basicClaimBlockItem = BASIC_CLAIM_BLOCK_ITEM.get();
+		reinforcedClaimBlockItem = REINFORCED_CLAIM_BLOCK_ITEM.get();
+		siegeCampBlockItem = SIEGE_CAMP_BLOCK_ITEM.get();
+		adminClaimBlockItem = ADMIN_CLAIM_BLOCK_ITEM.get();
+		islandCollectorItem = ISLAND_COLLECTOR_ITEM.get();
+		topLeaderboardItem = TOP_LEADERBOARD_ITEM.get();
+		wealthLeaderboardItem = WEALTH_LEADERBOARD_ITEM.get();
+		notorietyLeaderboardItem = NOTORIETY_LEADERBOARD_ITEM.get();
+		legacyLeaderboardItem = LEGACY_LEADERBOARD_ITEM.get();
+
+		WarForgeMod.LOGGER.info("Registered WarForge content");
 	}
+
+	// Retained for the existing CONTENT.preInit() call site in WarForgeMod.
+	public void preInit() {}
 }

@@ -1,11 +1,10 @@
 package com.flansmod.warforge.api;
 
 import com.flansmod.warforge.api.interfaces.IChunkReinforcer;
-import net.minecraft.nbt.NBTBase;
-import net.minecraft.util.EnumFacing;
 import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.CapabilityInject;
 import net.minecraftforge.common.capabilities.CapabilityManager;
+import net.minecraftforge.common.capabilities.CapabilityToken;
+import net.minecraftforge.common.capabilities.RegisterCapabilitiesEvent;
 
 /**
  * WarForge-provided Forge capabilities. Addons (e.g. WFCore) expose these from their tiles so WarForge can
@@ -13,27 +12,13 @@ import net.minecraftforge.common.capabilities.CapabilityManager;
  */
 public final class WarForgeCapabilities {
 
-    @CapabilityInject(IChunkReinforcer.class)
-    public static Capability<IChunkReinforcer> CHUNK_REINFORCER = null;
+    public static final Capability<IChunkReinforcer> CHUNK_REINFORCER =
+            CapabilityManager.get(new CapabilityToken<>() {});
 
     private WarForgeCapabilities() {}
 
-    /** Registered from {@code WarForgeMod.preInit}. */
-    public static void register() {
-        CapabilityManager.INSTANCE.register(IChunkReinforcer.class, new Capability.IStorage<IChunkReinforcer>() {
-            @Override
-            public NBTBase writeNBT(Capability<IChunkReinforcer> capability, IChunkReinforcer instance, EnumFacing side) {
-                return null;
-            }
-
-            @Override
-            public void readNBT(Capability<IChunkReinforcer> capability, IChunkReinforcer instance, EnumFacing side, NBTBase nbt) {}
-        }, DefaultChunkReinforcer::new);
-    }
-
-    private static final class DefaultChunkReinforcer implements IChunkReinforcer {
-        @Override public boolean isReinforcementActive() { return false; }
-        @Override public int getReinforcementRadius() { return 0; }
-        @Override public int getReinforcementBonus() { return 0; }
+    /** Registered from a {@link RegisterCapabilitiesEvent} handler. */
+    public static void register(RegisterCapabilitiesEvent event) {
+        event.register(IChunkReinforcer.class);
     }
 }

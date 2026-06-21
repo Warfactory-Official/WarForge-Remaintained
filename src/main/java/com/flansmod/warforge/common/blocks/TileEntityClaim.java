@@ -2,25 +2,24 @@ package com.flansmod.warforge.common.blocks;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
-import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
 import java.util.UUID;
 
 import static com.flansmod.warforge.common.blocks.BlockCitadel.FACING;
 
-public abstract class TileEntityClaim extends TileEntity implements IClaim {
+public abstract class TileEntityClaim extends BlockEntity implements IClaim {
     public int colour = 0xFF_FF_FF;
     public String factionName = "";
     public String factionFlagId = "";
@@ -28,7 +27,11 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     public byte rotation;
 
     // This is so weird
-    private World worldCreate;
+    private Level worldCreate;
+
+    public TileEntityClaim(BlockEntityType<?> type, BlockPos pos, BlockState state) {
+        super(type, pos, state);
+    }
 
     // IClaim
     @Override
@@ -43,10 +46,10 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     }
 
     //TODO: This needs to be handled with enums and not array indexes
-    public void onPlacedBy(EntityLivingBase placer) {
+    public void onPlacedBy(LivingEntity placer) {
         // This locks in the placer as the only person who can create a faction using the interface on this citadel
         rotation = 0;
-        EnumFacing blockRotation = world.getBlockState(new BlockPos(pos.getX(), pos.getY(), pos.getZ())).getValue(FACING);
+        Direction blockRotation = level.getBlockState(worldPosition).getValue(FACING);
         switch (blockRotation) {
             case NORTH: //WORKING
                 rotation = 0;
@@ -68,7 +71,7 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     @Override
     public void updateColour(int colour) {
         this.colour = colour;
-        TileEntity te = world.getTileEntity(pos.up(2));
+        BlockEntity te = level.getBlockEntity(worldPosition.above(2));
         if (te instanceof TileEntityDummy) {
             ((TileEntityDummy) te).setLaserRGB(colour);
         }
@@ -81,19 +84,19 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     }
 
     @Override
-    public TileEntity getAsTileEntity() {
+    public BlockEntity getAsTileEntity() {
         return this;
     }
 
     @Override
     public DimBlockPos getClaimPos() {
-        if (world == null) {
+        if (level == null) {
             if (worldCreate == null)
                 return DimBlockPos.ZERO;
             else
-                return new DimBlockPos(worldCreate.provider.getDimension(), getPos());
+                return new DimBlockPos(worldCreate.dimension(), getBlockPos());
         }
-        return new DimBlockPos(world.provider.getDimension(), getPos());
+        return new DimBlockPos(level.dimension(), getBlockPos());
     }
 
     @Override
@@ -118,9 +121,8 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
             factionFlagId = faction.flagId;
         }
 
-        if(world.getBlockState(this.pos).getBlock() instanceof MultiBlockColumn) {
-            MultiBlockColumn b = (MultiBlockColumn) world.getBlockState(this.pos).getBlock();
-            b.setUpMultiblock(world, pos, b.getDefaultState());
+        if (level.getBlockState(worldPosition).getBlock() instanceof MultiBlockColumn b) {
+            b.setUpMultiblock(level, worldPosition, b.defaultBlockState());
         }
 
         updateTileEntity();
@@ -137,42 +139,36 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
     }
 
     private void updateTileEntity() {
-        if(world.isRemote) return;
-        world.markBlockRangeForRenderUpdate(pos, pos);
-        world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-        world.scheduleBlockUpdate(pos, this.getBlockType(), 0, 0);
-        markDirty();
+        if (level.isClientSide) return;
+        BlockState state = level.getBlockState(worldPosition);
+        level.sendBlockUpdated(worldPosition, state, state, 3);
+        setChanged();
     }
 
-    @Override
-    public void setWorldCreate(World world) {
+    public void setWorldCreate(Level world) {
         worldCreate = world;
     }
 
     @Override
-    public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
-        super.writeToNBT(nbt);
+    public void saveAdditional(CompoundTag nbt) {
+        super.saveAdditional(nbt);
 
-        nbt.setUniqueId("faction", factionUUID);
-        nbt.setFloat("rotation", rotation);
-
-
-        return nbt;
+        nbt.putUUID("faction", factionUUID);
+        nbt.putByte("rotation", rotation);
     }
 
     @Override
-    public void readFromNBT(NBTTagCompound nbt) {
-        super.readFromNBT(nbt);
+    public void load(CompoundTag nbt) {
+        super.load(nbt);
 
-        factionUUID = nbt.getUniqueId("faction");
+        factionUUID = nbt.getUUID("faction");
         rotation = nbt.getByte("rotation");
 
         // Verifications
-        if (FMLCommonHandler.instance().getEffectiveSide() == Side.SERVER) {
+        if (level != null && !level.isClientSide) {
             Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
             if (!factionUUID.equals(Faction.nullUuid) && faction == null) {
-                WarForgeMod.LOGGER.error("Faction " + factionUUID + " could not be found for citadel at " + pos);
-                //world.setBlockState(getPos(), Blocks.AIR.getDefaultState());
+                WarForgeMod.LOGGER.error("Faction " + factionUUID + " could not be found for citadel at " + worldPosition);
             }
             if (faction != null) {
                 colour = faction.colour;
@@ -180,51 +176,46 @@ public abstract class TileEntityClaim extends TileEntity implements IClaim {
                 factionFlagId = faction.flagId;
             }
         } else {
-            WarForgeMod.LOGGER.error("Loaded TileEntity from NBT on client?");
+            WarForgeMod.LOGGER.error("Loaded TileEntity from NBT on logical client?");
         }
-
     }
 
     @Override
-    public SPacketUpdateTileEntity getUpdatePacket() {
-        return new SPacketUpdateTileEntity(getPos(), getBlockMetadata(), getUpdateTag());
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override
-    public void onDataPacket(net.minecraft.network.NetworkManager net, SPacketUpdateTileEntity packet) {
-        NBTTagCompound tags = packet.getNbtCompound();
-
-        handleUpdateTag(tags);
+    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+        handleUpdateTag(packet.getTag());
     }
 
     @Override
-    public NBTTagCompound getUpdateTag() {
+    public CompoundTag getUpdateTag() {
         // You have to get parent tags so that x, y, z are added.
-        NBTTagCompound tags = super.getUpdateTag();
+        CompoundTag tags = super.getUpdateTag();
 
         // Custom partial nbt write method
-        tags.setUniqueId("faction", factionUUID);
-        tags.setInteger("colour", colour);
-        tags.setString("name", factionName);
-        tags.setString("flagId", factionFlagId);
-        tags.setByte("rotation", rotation);
+        tags.putUUID("faction", factionUUID);
+        tags.putInt("colour", colour);
+        tags.putString("name", factionName);
+        tags.putString("flagId", factionFlagId);
+        tags.putByte("rotation", rotation);
         return tags;
     }
 
     @Override
-    public void handleUpdateTag(NBTTagCompound tags) {
-        factionUUID = tags.getUniqueId("faction");
-        colour = tags.getInteger("colour");
+    public void handleUpdateTag(CompoundTag tags) {
+        factionUUID = tags.getUUID("faction");
+        colour = tags.getInt("colour");
         factionName = tags.getString("name");
         factionFlagId = tags.getString("flagId");
         rotation = tags.getByte("rotation");
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
-    public AxisAlignedBB getRenderBoundingBox() {
-        BlockPos pos = this.getPos();
-        return new AxisAlignedBB(pos.add(-1, 0, -1), pos.add(2, 16, 2));
-
+    public AABB getRenderBoundingBox() {
+        BlockPos pos = getBlockPos();
+        return new AABB(pos.offset(-1, 0, -1), pos.offset(2, 16, 2));
     }
 }

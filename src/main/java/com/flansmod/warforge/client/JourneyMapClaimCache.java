@@ -1,6 +1,8 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.util.DimChunkPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -18,9 +20,9 @@ import java.util.Map;
  */
 public final class JourneyMapClaimCache {
     public interface Listener {
-        void onClaimSet(int dim, int x, int z, int colour);
+        void onClaimSet(ResourceKey<Level> dim, int x, int z, int colour);
 
-        void onClaimRemoved(int dim, int x, int z);
+        void onClaimRemoved(ResourceKey<Level> dim, int x, int z);
 
         void onCleared();
     }
@@ -49,14 +51,14 @@ public final class JourneyMapClaimCache {
         }
     }
 
-    public static synchronized void set(int dim, int x, int z, int colour) {
+    public static synchronized void set(ResourceKey<Level> dim, int x, int z, int colour) {
         CLAIMS.put(new DimChunkPos(dim, x, z), colour);
         if (listener != null) {
             listener.onClaimSet(dim, x, z, colour);
         }
     }
 
-    public static synchronized void remove(int dim, int x, int z) {
+    public static synchronized void remove(ResourceKey<Level> dim, int x, int z) {
         if (CLAIMS.remove(new DimChunkPos(dim, x, z)) != null && listener != null) {
             listener.onClaimRemoved(dim, x, z);
         }

@@ -1,27 +1,22 @@
 package com.flansmod.warforge.common;
 
 import com.flansmod.warforge.Tags;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.SoundEvent;
-import net.minecraftforge.registries.IForgeRegistry;
-
-import java.util.ArrayList;
-import java.util.List;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.registries.DeferredRegister;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.registries.RegistryObject;
 
 public class Sounds {
-    public static List<SoundEvent> SOUNDS = new ArrayList<>();
+    private static final DeferredRegister<SoundEvent> SOUND_EVENTS =
+            DeferredRegister.create(ForgeRegistries.SOUND_EVENTS, Tags.MODID);
 
-    public static final SoundEvent sfxUpgrade = createSoundEvent("sfx.upgrade");
+    public static final RegistryObject<SoundEvent> SFX_UPGRADE =
+            SOUND_EVENTS.register("sfx.upgrade",
+                    () -> SoundEvent.createVariableRangeEvent(new ResourceLocation(Tags.MODID, "sfx.upgrade")));
 
-    private static SoundEvent createSoundEvent(String name) {
-        ResourceLocation loc = new ResourceLocation(Tags.MODID, name);
-        SoundEvent event = new SoundEvent(loc).setRegistryName(loc);
-        SOUNDS.add(event);
-        return event;
+    public static void register(IEventBus modBus) {
+        SOUND_EVENTS.register(modBus);
     }
-
-    public static void register(IForgeRegistry<SoundEvent> registry) {
-        SOUNDS.stream().forEach(sound -> registry.register(sound));
-    }
-
 }

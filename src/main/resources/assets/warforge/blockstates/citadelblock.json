@@ -1,8 +1,8 @@
 {
     "variants": {
-        "facing=north": { "model": "warforge:citadelblock" },
-        "facing=south": { "model": "warforge:citadelblock", "y": 180 },
-        "facing=west": { "model": "warforge:citadelblock", "y": 270 },
-        "facing=east": { "model": "warforge:citadelblock", "y": 90 }
+        "facing=north": { "model": "warforge:block/citadelblock" },
+        "facing=south": { "model": "warforge:block/citadelblock", "y": 180 },
+        "facing=west": { "model": "warforge:block/citadelblock", "y": 270 },
+        "facing=east": { "model": "warforge:block/citadelblock", "y": 90 }
     }
 }

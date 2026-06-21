@@ -1,167 +1,132 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.LeaderboardInfo;
 import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
 import com.flansmod.warforge.common.network.PacketRequestLeaderboardInfo;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.util.ResourceLocation;
 
-public class GuiLeaderboard extends GuiScreen
-{
-	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/leaderboard.png");
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 
-	private FactionStat currentStat = FactionStat.TOTAL;
-	private int lookingAtIndex = 0;
-	private final int xSize;
-    private final int ySize;
-	private LeaderboardInfo info;
-	
-	public GuiLeaderboard()
-	{
-		info = PacketLeaderboardInfo.sLatestInfo;
-		currentStat = info.stat;
-    	xSize = 256;
-    	ySize = 191;
-	}
-	
-	@Override
-	public void initGui()
-	{
-		super.initGui();
-		
-		int j = (width - xSize) / 2;
-		int k = (height - ySize) / 2;
-		
-		// Total button - this is the default tab, always accessible
-		GuiButton totalButton = new GuiButton(FactionStat.TOTAL.ordinal(), j + 6, k + 18, 58, 20, "Total");
-		buttonList.add(totalButton);
-		totalButton.enabled = currentStat != FactionStat.TOTAL;
-		
-		GuiButton notorietyButton = new GuiButton(FactionStat.NOTORIETY.ordinal(), j + 6 + 62, k + 18, 58, 20, "Notoriety");
-		buttonList.add(notorietyButton);
-		notorietyButton.enabled = currentStat != FactionStat.NOTORIETY;
-		
-		GuiButton legacyButton = new GuiButton(FactionStat.LEGACY.ordinal(), j + 6 + 124, k + 18, 58, 20, "Legacy");
-		buttonList.add(legacyButton);
-		legacyButton.enabled = currentStat != FactionStat.LEGACY;
-		
-		GuiButton wealthButton = new GuiButton(FactionStat.WEALTH.ordinal(), j + 6 + 186, k + 18, 58, 20, "Wealth");
-		buttonList.add(wealthButton);
-		wealthButton.enabled = currentStat != FactionStat.WEALTH;
-		
-	}
-	
-	@Override
-	protected void actionPerformed(GuiButton button)
-	{
-		FactionStat stat = FactionStat.values()[button.id];
-		currentStat = stat;
-		info = null;
-		
-		// TODO: Next page buttons
-		
-		PacketRequestLeaderboardInfo packet = new PacketRequestLeaderboardInfo();
-		packet.firstIndex = 0;
-		packet.stat = stat;
-		WarForgeMod.NETWORK.sendToServer(packet);
-	}
-	
-	@Override
-	public void drawScreen(int mouseX, int mouseY, float partialTicks)
-	{
-		// Draw background
-		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-		mc.renderEngine.bindTexture(texture);
-		int j = (width - xSize) / 2;
-		int k = (height - ySize) / 2;
-		drawTexturedModalRect(j, k, 0, 0, xSize, ySize);
-		
-		// Then draw overlay
-		super.drawScreen(mouseX, mouseY, partialTicks);
-		
-		String line = switch (currentStat) {
+public class GuiLeaderboard extends Screen {
+
+    private static final ResourceLocation TEXTURE = new ResourceLocation(Tags.MODID, "gui/leaderboard.png");
+
+    private FactionStat currentStat;
+    private LeaderboardInfo info;
+    private final int xSize = 256;
+    private final int ySize = 191;
+
+    private int guiLeft;
+    private int guiTop;
+
+    public GuiLeaderboard() {
+        super(Component.literal("Leaderboard"));
+        this.info = PacketLeaderboardInfo.sLatestInfo;
+        this.currentStat = this.info != null ? this.info.stat : FactionStat.TOTAL;
+    }
+
+    @Override
+    protected void init() {
+        this.guiLeft = (this.width - this.xSize) / 2;
+        this.guiTop = (this.height - this.ySize) / 2;
+
+        statButton("Total", FactionStat.TOTAL, this.guiLeft + 6);
+        statButton("Notoriety", FactionStat.NOTORIETY, this.guiLeft + 6 + 62);
+        statButton("Legacy", FactionStat.LEGACY, this.guiLeft + 6 + 124);
+        statButton("Wealth", FactionStat.WEALTH, this.guiLeft + 6 + 186);
+    }
+
+    private void statButton(String label, FactionStat stat, int x) {
+        Button button = Button.builder(Component.literal(label), b -> selectStat(stat))
+                .bounds(x, this.guiTop + 18, 58, 20).build();
+        button.active = this.currentStat != stat;
+        addRenderableWidget(button);
+    }
+
+    private void selectStat(FactionStat stat) {
+        this.currentStat = stat;
+        this.info = null;
+
+        PacketRequestLeaderboardInfo packet = new PacketRequestLeaderboardInfo();
+        packet.firstIndex = 0;
+        packet.stat = stat;
+        WarForgeMod.NETWORK.sendToServer(packet);
+
+        rebuildWidgets();
+    }
+
+    @Override
+    public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+        renderBackground(graphics);
+
+        int j = this.guiLeft;
+        int k = this.guiTop;
+        graphics.blit(TEXTURE, j, k, 0, 0, this.xSize, this.ySize);
+
+        super.render(graphics, mouseX, mouseY, partialTicks);
+
+        String title = switch (this.currentStat) {
             case LEGACY -> "Legacy Leaderboard";
             case NOTORIETY -> "Notoriety Leaderboard";
             case TOTAL -> "Top Leaderboard";
             case WEALTH -> "Wealth Leaderboard";
         };
-        fontRenderer.drawStringWithShadow(line, j + xSize / 2 - fontRenderer.getStringWidth(line) / 2, k + 6, 0xffffff);
+        graphics.drawString(this.font, title, j + this.xSize / 2 - this.font.width(title) / 2, k + 6, 0xFFFFFF, true);
 
-        line = switch (currentStat) {
+        String subtitle = switch (this.currentStat) {
             case LEGACY -> "Factions that have been active longest";
             case NOTORIETY -> "Factions that are top in PvP and Siegeing";
             case TOTAL -> "Top Factions, with combined scores";
             case WEALTH -> "Factions with the most wealth in their citadel";
-			default -> "";
         };
-		fontRenderer.drawStringWithShadow(line, j + 8, k + 40, 0xf0f0f0);
-			
-		if(info == null)
-		{
-			String text = "Waiting for server...";
-			fontRenderer.drawStringWithShadow(text, j + xSize / 2 - fontRenderer.getStringWidth(text) / 2, k + 80, 0xa0a0a0);
-		}
-		else
-		{
-			if(info.myFaction != null)
-			{
-				int rank = switch (currentStat) {
-                    case LEGACY -> info.myFaction.legacyRank;
-                    case NOTORIETY -> info.myFaction.notorietyRank;
-                    case WEALTH -> info.myFaction.wealthRank;
-					case TOTAL -> info.myFaction.totalRank;
-				};
-                RenderFactionInfo(j + 7, k + 55, info.myFaction, info.myFaction.legacyRank);
-			}
-			
-			for(int i = 0; i < LeaderboardInfo.NUM_LEADERBOARD_ENTRIES_PER_PAGE; i++)
-			{
-				if(info.factionInfos[i] != null)
-				{
-					RenderFactionInfo(j + 7, k + 72 + 12 * i, info.factionInfos[i], info.firstIndex + i + 1);
-				}
-			}
-		}
-	}
-	
-	private void RenderFactionInfo(int x, int y, FactionDisplayInfo faction, int oneIndexedRank)
-	{
-		int stat = switch (currentStat) {
+        graphics.drawString(this.font, subtitle, j + 8, k + 40, 0xF0F0F0, true);
+
+        if (this.info == null) {
+            String text = "Waiting for server...";
+            graphics.drawString(this.font, text, j + this.xSize / 2 - this.font.width(text) / 2, k + 80, 0xA0A0A0, true);
+            return;
+        }
+
+        if (this.info.myFaction != null) {
+            renderFactionInfo(graphics, j + 7, k + 55, this.info.myFaction, this.info.myFaction.legacyRank);
+        }
+
+        for (int i = 0; i < LeaderboardInfo.NUM_LEADERBOARD_ENTRIES_PER_PAGE; i++) {
+            if (this.info.factionInfos[i] != null) {
+                renderFactionInfo(graphics, j + 7, k + 72 + 12 * i, this.info.factionInfos[i], this.info.firstIndex + i + 1);
+            }
+        }
+    }
+
+    private void renderFactionInfo(GuiGraphics graphics, int x, int y, FactionDisplayInfo faction, int oneIndexedRank) {
+        int stat = switch (this.currentStat) {
             case LEGACY -> faction.legacy;
             case NOTORIETY -> faction.notoriety;
             case WEALTH -> faction.wealth;
-			case TOTAL -> faction.legacy + faction.notoriety + faction.wealth;
-		};
+            case TOTAL -> faction.legacy + faction.notoriety + faction.wealth;
+        };
 
-        if(oneIndexedRank <= 3)
-		{
-			int colour = switch (oneIndexedRank) {
-                case 1 -> 0xFFD700;
-                case 2 -> 0xC0C0C0;
-                case 3 -> 0xcd7f32;
-                default -> 0xffffff;
-            };
-            fontRenderer.drawStringWithShadow(faction.factionName, x + 2, y + 1, colour);
-			fontRenderer.drawStringWithShadow("" + stat, x + 150, y + 1, colour);
-			fontRenderer.drawStringWithShadow("#" + oneIndexedRank, x + 200, y + 1, colour);
-		}
-		else	
-		{
-			fontRenderer.drawString(faction.factionName, x + 2, y + 1, 0xffffff);
-			fontRenderer.drawString("" + stat, x + 150, y + 1, 0xffffff);
-			fontRenderer.drawString("#" + oneIndexedRank, x + 200, y + 1, 0xffffff);
-		}
-	}
-	
-	@Override
-	public boolean doesGuiPauseGame()
-	{
-		return false;
-	}
+        int colour = switch (oneIndexedRank) {
+            case 1 -> 0xFFD700;
+            case 2 -> 0xC0C0C0;
+            case 3 -> 0xCD7F32;
+            default -> 0xFFFFFF;
+        };
+        boolean shadow = oneIndexedRank <= 3;
+        graphics.drawString(this.font, faction.factionName, x + 2, y + 1, colour, shadow);
+        graphics.drawString(this.font, "" + stat, x + 150, y + 1, colour, shadow);
+        graphics.drawString(this.font, "#" + oneIndexedRank, x + 200, y + 1, colour, shadow);
+    }
+
+    @Override
+    public boolean isPauseScreen() {
+        return false;
+    }
 }

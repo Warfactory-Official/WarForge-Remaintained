@@ -1,6 +1,6 @@
 package com.flansmod.warforge.api.interfaces;
 
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.Vec3i;
 
 /**
  * @deprecated since 2.1.0. Use {@link IChunkReinforcer} exposed through

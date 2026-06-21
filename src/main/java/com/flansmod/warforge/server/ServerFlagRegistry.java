@@ -5,7 +5,7 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketFlagChunk;
 import com.flansmod.warforge.common.network.PacketFlagManifest;
 import com.flansmod.warforge.common.network.SyncQueueHandler;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.server.level.ServerPlayer;
 
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -83,7 +83,7 @@ public class ServerFlagRegistry {
         return result;
     }
 
-    public void syncToPlayer(EntityPlayerMP player) {
+    public void syncToPlayer(ServerPlayer player) {
         PacketFlagManifest manifest = new PacketFlagManifest();
         manifest.flagIds.addAll(getAvailableFlagIds());
         WarForgeMod.NETWORK.sendTo(manifest, player);
@@ -97,7 +97,7 @@ public class ServerFlagRegistry {
         syncExecutor.shutdownNow();
     }
 
-    private void enqueueCustomFlagPackets(EntityPlayerMP player, CustomFlagData data) {
+    private void enqueueCustomFlagPackets(ServerPlayer player, CustomFlagData data) {
         int totalChunks = Math.max(1, (int) Math.ceil(data.bytes.length / (double) CHUNK_SIZE));
         for (int index = 0; index < totalChunks; index++) {
             final int start = index * CHUNK_SIZE;
@@ -112,7 +112,7 @@ public class ServerFlagRegistry {
             packet.totalParts = totalChunks;
             packet.data = chunk;
             SyncQueueHandler.enqueue(player, () -> {
-                if (WarForgeMod.MC_SERVER.getPlayerList().getPlayerByUUID(player.getUniqueID()) != null) {
+                if (WarForgeMod.MC_SERVER.getPlayerList().getPlayer(player.getUUID()) != null) {
                     WarForgeMod.NETWORK.sendTo(packet, player);
                 }
             });

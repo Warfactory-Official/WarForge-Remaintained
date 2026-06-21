@@ -3,6 +3,8 @@ package com.flansmod.warforge.client;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -17,12 +19,12 @@ public class ClientClaimChunkCache {
     public static int forceLoadedMax = 0;
     public static int claimCount = 0;
     public static int claimMax = 0;
-    public static int centerDim = 0;
+    public static ResourceKey<Level> centerDim = Level.OVERWORLD;
     public static int centerX = 0;
     public static int centerZ = 0;
     public static int radius = 0;
 
-    public static void replaceAll(int dim, int x, int z, int newRadius, UUID factionId, int forced, int forcedMax, int numClaims, int maxClaims, Collection<ClaimChunkInfo> chunks) {
+    public static void replaceAll(ResourceKey<Level> dim, int x, int z, int newRadius, UUID factionId, int forced, int forcedMax, int numClaims, int maxClaims, Collection<ClaimChunkInfo> chunks) {
         CHUNKS.clear();
         for (ClaimChunkInfo info : chunks) {
             CHUNKS.put(new DimChunkPos(dim, info.x, info.z), info);

@@ -2,7 +2,7 @@ package com.flansmod.warforge.common.blocks.models;
 
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.resources.ResourceLocation;
 
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -17,7 +17,7 @@ public class DataRetrivalUtil {
     public static List<ResourceLocation> getResourcesFromPath(String dir) {
         var list = new ArrayList<ResourceLocation>();
         String modid = Tags.MODID;
-        URI uri = null;
+        URI uri;
         try {
             uri = WarForgeMod.class.getProtectionDomain().getCodeSource().getLocation().toURI();
         } catch (URISyntaxException e) {
@@ -26,17 +26,15 @@ public class DataRetrivalUtil {
 
         if (uri.getScheme().equals("jar")) {
             try (FileSystem fs = FileSystems.newFileSystem(uri, Collections.emptyMap())) {
-                String path = "assets/" + modid +   "/" + dir;
+                String path = "assets/" + modid + "/" + dir;
                 var resources = fs.getPath(path);
                 Files.walk(resources).forEach(p -> {
                     if (p.toString().endsWith(".png")) {
-                        String rel = p.toString().replaceFirst("^/assets/"+modid+"/textures/", "").replaceFirst(".png$", "");
+                        String rel = p.toString().replaceFirst("^/assets/" + modid + "/textures/", "").replaceFirst("\\.png$", "");
                         ResourceLocation rl = new ResourceLocation(modid, rel);
                         list.add(rl);
                     }
                 });
-
-
             } catch (Exception e) {
                 e.printStackTrace();
             }

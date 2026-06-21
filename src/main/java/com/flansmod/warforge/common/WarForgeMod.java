@@ -2,15 +2,16 @@ package com.flansmod.warforge.common;
 
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.ObjectIntPair;
+import com.flansmod.warforge.api.WarForgeCapabilities;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinConfigHandler;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
+import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.PlayerNametagCache;
 import com.flansmod.warforge.common.factories.WarForgeGuiFactories;
 import com.flansmod.warforge.common.blocks.BlockBasicClaim;
 import com.flansmod.warforge.common.blocks.IMultiBlockInit;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;
-import com.flansmod.warforge.common.effect.EffectRegistry;
 import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.potions.PotionsModule;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -19,65 +20,70 @@ import com.flansmod.warforge.common.util.FactionDisplay;
 import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.server.*;
 import com.flansmod.warforge.server.Faction.Role;
-import net.minecraft.block.Block;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.command.CommandHandler;
-import net.minecraft.command.ICommandSender;
-import net.minecraft.entity.item.EntityItem;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.init.Blocks;
-import net.minecraft.init.Items;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.SoundEvent;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextComponentTranslation;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegistryEvent;
+import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.ServerChatEvent;
 import net.minecraftforge.event.entity.living.LivingDeathEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedOutEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent.RightClickBlock;
-import net.minecraftforge.event.world.BlockEvent;
-import net.minecraftforge.event.world.ChunkWatchEvent;
-import net.minecraftforge.event.world.WorldEvent;
-import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.ChunkWatchEvent;
+import net.minecraftforge.event.level.LevelEvent;
+import net.minecraftforge.event.server.ServerAboutToStartEvent;
+import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.DistExecutor;
+import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.common.Mod.EventHandler;
-import net.minecraftforge.fml.common.Mod.Instance;
-import net.minecraftforge.fml.common.SidedProxy;
-import net.minecraftforge.fml.common.event.*;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent;
-import net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent;
-import net.minecraftforge.fml.common.network.NetworkRegistry;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
+import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraftforge.server.ServerLifecycleHooks;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import zone.rong.mixinbooter.ILateMixinLoader;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Random;
+import java.util.UUID;
 
-@Mod(modid = Tags.MODID, name = Tags.MODNAME, version = Tags.VERSION,
-        dependencies = "after:modularui"
-)
-@Mod.EventBusSubscriber(modid = Tags.MODID)
-public class WarForgeMod implements ILateMixinLoader {
+@Mod(Tags.MODID)
+public class WarForgeMod {
     public static final boolean PACKET_DEBUG = false;
     public static final PacketHandler NETWORK = new PacketHandler();
     public static final Leaderboard LEADERBOARD = new Leaderboard();
@@ -91,198 +97,199 @@ public class WarForgeMod implements ILateMixinLoader {
     public static final UpgradeHandler UPGRADE_HANDLER = new UpgradeHandler();
     public static final FactionChunkLoadingManager CHUNK_LOADING_MANAGER = new FactionChunkLoadingManager();
     public static final ServerFlagRegistry FLAG_REGISTRY = new ServerFlagRegistry();
-	  public static VeinUtils VEIN_HANDLER = null;
-	  public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
+    public static VeinUtils VEIN_HANDLER = null;
+    public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
 
-	// Discord integration
-    private static final String DISCORD_MODID = "discordintegration";
-    private static final HashMap<String, UUID> discordUserIdMap = new HashMap<String, UUID>();
+    private static final HashMap<String, UUID> discordUserIdMap = new HashMap<>();
 
-    @SideOnly(Side.CLIENT)
     public static PlayerNametagCache NAMETAG_CACHE;
-    @Instance(Tags.MODID)
-
     public static WarForgeMod INSTANCE;
-    @SidedProxy(clientSide = "com.flansmod.warforge.client.ClientProxy", serverSide = "com.flansmod.warforge.common.CommonProxy")
     public static CommonProxy proxy;
 
-	// Instances of component parts of the mod
     public static Logger LOGGER;
     public static MinecraftServer MC_SERVER = null;
 
-	//public static CombatLogHandler COMBAT_LOG = new CombatLogHandler();
     public static Random rand = new Random();
     public static long numberOfSiegeDaysTicked = 0L;
     public static long numberOfYieldDaysTicked = 0L;
     public static long timestampOfFirstDay = 0L;
     public static long previousUpdateTimestamp = 0L;
 
-	// Timers
     public static long serverTick = 0L;
     public static long currTickTimestamp = 0L;
     public static long serverStopTimestamp = 0L;
 
-	// Border toggle
     public static boolean showBorders = true;
     public static TimeHelper timeHelper = new TimeHelper();
 
+    public WarForgeMod() {
+        ModuleBridge.bridge("org.yaml.snakeyaml.Yaml");
+        INSTANCE = this;
+        LOGGER = LogManager.getLogger(Tags.MODID);
+        proxy = DistExecutor.safeRunForDist(
+                () -> ClientProxy::new,
+                () -> CommonProxy::new
+        );
+
+        timestampOfFirstDay = System.currentTimeMillis();
+        numberOfSiegeDaysTicked = 0L;
+        numberOfYieldDaysTicked = 0L;
+
+        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        Content.register(modBus);
+        Sounds.register(modBus);
+        POTIONS.register(modBus);
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, WarForgeConfig.SPEC);
+        modBus.addListener(this::commonSetup);
+        modBus.addListener((ModConfigEvent event) -> WarForgeConfig.bake());
+        modBus.addListener(WarForgeCapabilities::register);
+        modBus.register(MODEL_EVENT_HANDLER);
+
+        DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
+            NAMETAG_CACHE = new PlayerNametagCache(60_000, 200);
+            modBus.addListener(((ClientProxy) proxy)::clientSetup);
+            modBus.addListener(((ClientProxy) proxy)::registerRenderers);
+            modBus.addListener(((ClientProxy) proxy)::registerKeyMappings);
+        });
+
+        MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(new ServerTickHandler());
+        MinecraftForge.EVENT_BUS.register(PROTECTIONS);
+
+        NETWORK.initialise();
+    }
+
+    private void commonSetup(FMLCommonSetupEvent event) {
+        event.enqueueWork(() -> {
+            // Register MUI factories on BOTH sides: the server must resolve the factory by name when it
+            // decodes the OpenGuiPacket a client sends via GuiManager.openFromClient(factory, data).
+            WarForgeGuiFactories.init();
+            POTIONS.registerBrewingRecipes();
+            findVaultBlocks();
+            Content.bake();
+            IMultiBlockInit.registerMaps();
+            loadUpgradeConfig();
+            WarForgeConfig.UNCLAIMED.findBlocks();
+            WarForgeConfig.SAFE_ZONE.findBlocks();
+            WarForgeConfig.WAR_ZONE.findBlocks();
+            WarForgeConfig.CITADEL_FRIEND.findBlocks();
+            WarForgeConfig.CITADEL_FOE.findBlocks();
+            WarForgeConfig.CLAIM_FRIEND.findBlocks();
+            WarForgeConfig.CLAIM_FOE.findBlocks();
+            WarForgeConfig.SIEGECAMP_SIEGER.findBlocks();
+            WarForgeConfig.SIEGECAMP_OTHER.findBlocks();
+        });
+    }
+
+    private static void findVaultBlocks() {
+        WarForgeConfig.VAULT_BLOCKS.clear();
+        for (String blockID : WarForgeConfig.VAULT_BLOCK_IDS) {
+            Block block = ForgeRegistries.BLOCKS.getValue(new ResourceLocation(blockID));
+            if (block != null) {
+                WarForgeConfig.VAULT_BLOCKS.add(block);
+                LOGGER.info("Found block with ID " + blockID + " as a valuable block for the vault");
+            } else {
+                LOGGER.error("Could not find block with ID " + blockID + " as a valuable block for the vault");
+            }
+        }
+    }
+
+    private static void loadUpgradeConfig() {
+        if (!WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
+            return;
+        }
+
+        Path configFile = Paths.get("config", Tags.MODID, "upgrade_levels.yml");
+        try {
+            UpgradeHandler.writeStubIfEmpty(configFile);
+            UpgradeHandler.parseConfig(configFile);
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load citadel upgrade config", e);
+        }
+    }
+
     public static boolean containsInt(final int[] base, int compare) {
-        return Arrays.stream(base).anyMatch(i -> i == compare);
+        for (int value : base) {
+            if (value == compare) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsDimension(final String[] base, ResourceKey<Level> compare) {
+        String dimension = compare.location().toString();
+        for (String value : base) {
+            if (value.equals(dimension)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsDimension(final ResourceLocation[] base, ResourceKey<Level> compare) {
+        ResourceLocation dimension = compare.location();
+        for (ResourceLocation value : base) {
+            if (value.equals(dimension)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsDimension(final ResourceKey<Level>[] base, ResourceKey<Level> compare) {
+        for (ResourceKey<Level> value : base) {
+            if (value.equals(compare)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static boolean isClaim(Item item) {
-        return item != null && (item.equals(Content.citadelBlockItem)
+        return item.equals(Content.citadelBlockItem)
                 || item.equals(Content.basicClaimBlockItem)
                 || item.equals(Content.reinforcedClaimBlockItem)
-                || item.equals(Content.siegeCampBlockItem));
+                || item.equals(Content.siegeCampBlockItem);
     }
 
     public static boolean isClaim(Block block, Block... notEquals) {
-        if (block == null) return false;
-
-        boolean matchesAnyInvalidBlocks = false;
-        if(notEquals != null) {
-            for (Block invalidBlock : notEquals) {
-                if (block.equals(invalidBlock)) {
-                    matchesAnyInvalidBlocks = true;
-                    break;
-                }
+        for (Block invalidBlock : notEquals) {
+            if (block.equals(invalidBlock)) {
+                return false;
             }
         }
 
-        return !matchesAnyInvalidBlocks && (block.equals(Content.citadelBlock)
+        return block.equals(Content.citadelBlock)
                 || block.equals(Content.basicClaimBlock)
                 || block.equals(Content.reinforcedClaimBlock)
                 || block.equals(Content.siegeCampBlock)
                 || block.equals(Content.statue)
-                || block.equals(Content.dummyTranslusent));
+                || block.equals(Content.dummyTranslusent);
     }
 
-    private static File getFactionsFile() {
-        if (MC_SERVER.isDedicatedServer()) {
-            return new File(MC_SERVER.getFolderName() + "/warforgefactions.dat");
-        }
-
-        return new File("saves/" + MC_SERVER.getFolderName() + "/warforgefactions.dat");
+    private static Path getFactionsFile() {
+        return MC_SERVER.getWorldPath(LevelResource.ROOT).resolve("warforgefactions.dat");
     }
 
-    private static File getFactionsFileBackup() {
-        if (MC_SERVER.isDedicatedServer()) {
-            return new File(MC_SERVER.getFolderName() + "/warforgefactions.dat.bak");
-        }
-        return new File("saves/" + MC_SERVER.getFolderName() + "/warforgefactions.dat.bak");
-
-        //return new File(MC_SERVER.getWorld(0).getSaveHandler().getWorldDirectory() + "/warforgefactions.dat.bak");
+    private static Path getFactionsFileBackup() {
+        return MC_SERVER.getWorldPath(LevelResource.ROOT).resolve("warforgefactions.dat.bak");
     }
 
-    public static UUID getUUID(ICommandSender sender) {
-        if (sender instanceof EntityPlayer)
-            return ((EntityPlayer) sender).getUniqueID();
-        return UUID.fromString("Unknown");
+    public static UUID getUUID(Player sender) {
+        return sender.getUUID();
     }
 
-    public static boolean isOp(ICommandSender sender) {
-        if (sender instanceof EntityPlayer)
-            return MC_SERVER.getPlayerList().canSendCommands(((EntityPlayer) sender).getGameProfile());
-        return sender instanceof MinecraftServer;
-    }
-
-    @SubscribeEvent
-    public static void onRegisterSounds(RegistryEvent.Register<SoundEvent> event) {
-        Sounds.register(event.getRegistry());
-    }
-
-
-    @EventHandler
-    public void preInit(FMLPreInitializationEvent event) {
-        LOGGER = event.getModLog();
-		//Load config
-        WarForgeConfig.syncConfig(event.getSuggestedConfigurationFile());
-		
-		timestampOfFirstDay = System.currentTimeMillis();
-		numberOfSiegeDaysTicked = 0L;
-		numberOfYieldDaysTicked = 0L;
-        
-		CONTENT.preInit();
-		POTIONS.preInit();
-        
-        MinecraftForge.EVENT_BUS.register(new ServerTickHandler());
-        MinecraftForge.EVENT_BUS.register(this);
-        MinecraftForge.EVENT_BUS.register(PROTECTIONS);
-        MinecraftForge.EVENT_BUS.register(MODEL_EVENT_HANDLER);
-        proxy.preInit(event);
-        EffectRegistry.init();
-        com.flansmod.warforge.api.WarForgeCapabilities.register();
-        CHUNK_LOADING_MANAGER.initialize();
-    }
-
-    @EventHandler
-    public void init(FMLInitializationEvent event) {
-        NetworkRegistry.INSTANCE.registerGuiHandler(this, proxy);
-        NETWORK.initialise();
-        WarForgeGuiFactories.init();
-        proxy.Init(event);
-    }
-
-    @EventHandler
-    public void postInit(FMLPostInitializationEvent event) {
-        NETWORK.postInitialise();
-        proxy.PostInit(event);
-
-        WarForgeConfig.VAULT_BLOCKS.clear();
-        for (String blockID : WarForgeConfig.VAULT_BLOCK_IDS) {
-            Block block = Block.getBlockFromName(blockID);
-            if (block != null) {
-                WarForgeConfig.VAULT_BLOCKS.add(block);
-                LOGGER.info("Found block with ID " + blockID + " as a valuable block for the vault");
-            } else
-                LOGGER.error("Could not find block with ID " + blockID + " as a valuable block for the vault");
-
-        }
-
-        FMLInterModComms.sendRuntimeMessage(this, DISCORD_MODID, "registerListener", "");
-
-        IMultiBlockInit.registerMaps();
-        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-            Path configFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.yml");
-            Path legacyConfigFile = Paths.get("config/" + Tags.MODID + "/upgrade_levels.cfg");
-            try {
-                UpgradeHandler.migrateLegacyConfigIfNeeded(legacyConfigFile, configFile);
-                UpgradeHandler.writeStubIfEmpty(configFile);
-                UpgradeHandler.parseConfig(configFile);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-		// THIS ACTUALLY CHECKS THE PHYSICAL SIDE, NOT THE LOGICAL SERVER/ CLIENT SIDE
-        if (FMLCommonHandler.instance().getSide() == Side.CLIENT) {
-            NAMETAG_CACHE = new PlayerNametagCache(60_000, 200);
-        }
-
-
-    }
-
-    @EventHandler
-    public void onLoadComplete(FMLLoadCompleteEvent event){
-        WarForgeConfig.UNCLAIMED.findBlocks();
-        WarForgeConfig.SAFE_ZONE.findBlocks();
-        WarForgeConfig.WAR_ZONE.findBlocks();
-        WarForgeConfig.CITADEL_FRIEND.findBlocks();
-        WarForgeConfig.CITADEL_FOE.findBlocks();
-        WarForgeConfig.CLAIM_FRIEND.findBlocks();
-        WarForgeConfig.CLAIM_FOE.findBlocks();
-        WarForgeConfig.SIEGECAMP_SIEGER.findBlocks();
-        WarForgeConfig.SIEGECAMP_OTHER.findBlocks();
+    public static boolean isOp(Player player) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        return server != null && server.getPlayerList().isOp(player.getGameProfile());
     }
 
     public long getTimeToNextSiegeAdvanceMs() {
-
         return timeHelper.getTimeToNextSiegeAdvanceMs();
     }
 
     public long getTimeToNextYieldMs() {
-
         return timeHelper.getTimeToNextYieldMs();
     }
 
@@ -302,22 +309,20 @@ public class WarForgeMod implements ILateMixinLoader {
 
             if (siegeDayNumber > numberOfSiegeDaysTicked) {
                 numberOfSiegeDaysTicked = siegeDayNumber;
-                messageAll(new TextComponentString("Battle takes its toll, all sieges have advanced."), true);
+                messageAll(Component.literal("Battle takes its toll, all sieges have advanced."), true);
                 FACTIONS.advanceSiegeDay();
                 shouldUpdate = true;
             }
-        } else  {
+        } else {
             FACTIONS.updateSiegeTimers();
-            //shouldUpdate = true;
         }
 
-        //Yield timer
         long yieldDayLength = TimeHelper.getYieldDayLengthMs();
         long yieldDayNumber = (currTickTimestamp - timestampOfFirstDay) / yieldDayLength;
 
         if (yieldDayNumber > numberOfYieldDaysTicked) {
             numberOfYieldDaysTicked = yieldDayNumber;
-            messageAll(new TextComponentString("All passive yields have been awarded."), true);
+            messageAll(Component.literal("All passive yields have been awarded."), true);
             FACTIONS.advanceYieldDay();
             shouldUpdate = true;
         }
@@ -325,8 +330,9 @@ public class WarForgeMod implements ILateMixinLoader {
         if (shouldUpdate) {
             PacketTimeUpdates packet = new PacketTimeUpdates();
 
-            if (!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER)
+            if (!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER) {
                 packet.msTimeOfNextSiegeDay = System.currentTimeMillis() + timeHelper.getTimeToNextSiegeAdvanceMs();
+            }
 
             packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
 
@@ -336,34 +342,40 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @SubscribeEvent
     public void playerInteractBlock(RightClickBlock event) {
-        if (WarForgeConfig.BLOCK_ENDER_CHEST) {
-            if (!event.getWorld().isRemote) {
-                if (event.getWorld().getBlockState(event.getPos()).getBlock() == Blocks.ENDER_CHEST) {
-                    event.getEntityPlayer().sendMessage(new TextComponentString("WarForge has disabled Ender Chests"));
-                    event.setCanceled(true);
+        if (!WarForgeConfig.BLOCK_ENDER_CHEST) {
+            return;
+        }
 
-                    event.getWorld().spawnEntity(new EntityItem(event.getWorld(), event.getPos().getX() + 0.5d, event.getPos().getY() + 1.0d, event.getPos().getZ() + 0.5d, new ItemStack(Items.ENDER_EYE)));
-                    event.getWorld().spawnEntity(new EntityItem(event.getWorld(), event.getPos().getX() + 0.5d, event.getPos().getY() + 1.0d, event.getPos().getZ() + 0.5d, new ItemStack(Blocks.OBSIDIAN)));
-                    event.getWorld().setBlockToAir(event.getPos());
-                }
-            }
+        Level level = event.getLevel();
+        if (level.isClientSide) {
+            return;
+        }
+
+        if (level.getBlockState(event.getPos()).getBlock() == Blocks.ENDER_CHEST) {
+            event.getEntity().sendSystemMessage(Component.literal("WarForge has disabled Ender Chests"));
+            event.setCanceled(true);
+
+            level.addFreshEntity(new ItemEntity(level, event.getPos().getX() + 0.5d, event.getPos().getY() + 1.0d, event.getPos().getZ() + 0.5d, new ItemStack(Items.ENDER_EYE)));
+            level.addFreshEntity(new ItemEntity(level, event.getPos().getX() + 0.5d, event.getPos().getY() + 1.0d, event.getPos().getZ() + 0.5d, new ItemStack(Blocks.OBSIDIAN)));
+            level.removeBlock(event.getPos(), false);
         }
     }
 
     @SubscribeEvent
     public void playerDied(LivingDeathEvent event) {
-        if (event.getEntity().world.isRemote)
+        if (event.getEntity().level().isClientSide) {
             return;
+        }
 
-        if (event.getEntityLiving() instanceof EntityPlayerMP) {
-            FACTIONS.playerDied((EntityPlayerMP) event.getEntityLiving(), event.getSource());
+        if (event.getEntity() instanceof ServerPlayer player) {
+            FACTIONS.playerDied(player, event.getSource());
         }
     }
 
-    private void blockPlacedOrRemoved(BlockEvent event, IBlockState state) {
-        // Check for vault value
+    private void blockPlacedOrRemoved(BlockEvent event, BlockState state) {
         if (WarForgeConfig.VAULT_BLOCKS.contains(state.getBlock())) {
-            DimChunkPos chunkPos = new DimBlockPos(event.getWorld().provider.getDimension(), event.getPos()).toChunkPos();
+            Level level = (Level) event.getLevel();
+            DimChunkPos chunkPos = new DimBlockPos(level.dimension(), event.getPos()).toChunkPos();
             UUID factionID = FACTIONS.getClaim(chunkPos);
             if (!factionID.equals(Faction.nullUuid)) {
                 Faction faction = FACTIONS.getFaction(factionID);
@@ -378,62 +390,57 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @SubscribeEvent
     public void blockPlaced(BlockEvent.EntityPlaceEvent event) {
-        if (!event.getWorld().isRemote) {
+        Level level = (Level) event.getLevel();
+        if (!level.isClientSide) {
             blockPlacedOrRemoved(event, event.getPlacedBlock());
         }
     }
 
     @SubscribeEvent
     public void blockRemoved(BlockEvent.BreakEvent event) {
-        IBlockState state = event.getState();
+        BlockState state = event.getState();
         if (isClaim(state.getBlock())) {
-            if (event.getWorld().getTileEntity(event.getPos()) instanceof TileEntityClaim te && te.getFaction().equals(Faction.nullUuid))
+            Level level = (Level) event.getLevel();
+            if (level.getBlockEntity(event.getPos()) instanceof TileEntityClaim te && te.getFaction().equals(Faction.nullUuid)) {
                 return;
+            }
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public void PreBlockPlaced(RightClickBlock event) {
-        if (event.getWorld().isRemote) {
-            // This is a server op
+        Level level = event.getLevel();
+        if (level.isClientSide) {
             return;
         }
 
         Item item = event.getItemStack().getItem();
         if (!isClaim(item)) {
-            // We don't care if its not one of ours
             return;
         }
 
-        Block block = ((ItemBlock) item).getBlock();
-        BlockPos placementPos = event.getPos().offset(event.getFace() != null ? event.getFace() : EnumFacing.UP);
+        Block block = ((BlockItem) item).getBlock();
+        Direction face = event.getFace() != null ? event.getFace() : Direction.UP;
+        BlockPos placementPos = event.getPos().relative(face);
+        Player player = event.getEntity();
 
-        // Only players can place these blocks
-        if (!(event.getEntity() instanceof EntityPlayer player)) {
-            event.setCanceled(true);
-            return;
-        }
+        Faction playerFaction = FACTIONS.getFactionOfPlayer(player.getUUID());
 
-        Faction playerFaction = FACTIONS.getFactionOfPlayer(player.getUniqueID());
-        // TODO : Op override
-
-        // All block placements are cancelled if there is already a block from this mod in that chunk
-        DimChunkPos pos = new DimBlockPos(event.getWorld().provider.getDimension(), placementPos).toChunkPos();
+        DimChunkPos pos = new DimBlockPos(level.dimension(), placementPos).toChunkPos();
         if (!FACTIONS.getClaim(pos).equals(Faction.nullUuid)) {
-            // validate stored claim record and reject placement if the claim exists.
             Faction claimingFaction = FACTIONS.getFaction(FACTIONS.getClaim(pos));
             if (claimingFaction == null || claimingFaction.getSpecificPosForClaim(pos) == null) {
                 FACTIONS.getClaims().remove(pos);
             } else {
-                player.sendMessage(new TextComponentString("This chunk already has a claim"));
+                player.sendSystemMessage(Component.literal("This chunk already has a claim"));
                 event.setCanceled(true);
                 return;
             }
         }
 
         if (FACTIONS.isChunkContested(pos)) {
-            player.sendMessage(new TextComponentString("This chunk is contested by an active siege"));
+            player.sendSystemMessage(Component.literal("This chunk is contested by an active siege"));
             event.setCanceled(true);
             return;
         }
@@ -441,12 +448,11 @@ public class WarForgeMod implements ILateMixinLoader {
         ObjectIntPair<UUID> conqueredChunkInfo = FACTIONS.conqueredChunks.get(pos);
         if (conqueredChunkInfo != null) {
             UUID playerFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
-            // remove invalid entries if necessary, and if not then do actual comparison
             if (conqueredChunkInfo.getObj() == null || conqueredChunkInfo.getObj().equals(Faction.nullUuid) || FACTIONS.getFaction(conqueredChunkInfo.getObj()) == null) {
                 WarForgeMod.LOGGER.atError().log("Found invalid conquered chunk at " + pos + "; removing and permitting placement.");
                 FACTIONS.conqueredChunks.remove(pos);
             } else if (!conqueredChunkInfo.getObj().equals(playerFactionId)) {
-                player.sendMessage(new TextComponentTranslation("warforge.info.chunk_is_conquered",
+                player.sendSystemMessage(Component.translatable("warforge.info.chunk_is_conquered",
                         WarForgeMod.FACTIONS.getFaction(FACTIONS.conqueredChunks.get(pos).getObj()).name,
                         TimeHelper.formatTime(FACTIONS.conqueredChunks.get(pos).getInteger())));
                 event.setCanceled(true);
@@ -454,97 +460,86 @@ public class WarForgeMod implements ILateMixinLoader {
             }
         }
 
-        if (!containsInt(WarForgeConfig.CLAIM_DIM_WHITELIST, pos.dim)) {
-            player.sendMessage(new TextComponentString("You cannot claim chunks in this dimension"));
+        if (!containsDimension(WarForgeConfig.CLAIM_DIM_WHITELIST, pos.dim)) {
+            player.sendSystemMessage(Component.literal("You cannot claim chunks in this dimension"));
             event.setCanceled(true);
             return;
         }
 
-        // Cancel block placement for a couple of reasons
         if (block == Content.citadelBlock) {
-            if (playerFaction != null) // Can't place a second citadel
-            {
-                player.sendMessage(new TextComponentString("You are already in a faction"));
+            if (playerFaction != null) {
+                player.sendSystemMessage(Component.literal("You are already in a faction"));
                 event.setCanceled(true);
             }
         } else if (block == Content.basicClaimBlock
                 || block == Content.reinforcedClaimBlock) {
-            if (playerFaction == null) // Can't expand your claims if you aren't in a faction
-            {
-                player.sendMessage(new TextComponentString("You aren't in a faction. Craft a citadel or join a faction"));
+            if (playerFaction == null) {
+                player.sendSystemMessage(Component.literal("You aren't in a faction. Craft a citadel or join a faction"));
                 event.setCanceled(true);
                 return;
             }
 
-            if (!playerFaction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER)) {
-                player.sendMessage(new TextComponentString("You are not an officer of your faction"));
+            if (!playerFaction.isPlayerRoleInFaction(player.getUUID(), Role.OFFICER)) {
+                player.sendSystemMessage(Component.literal("You are not an officer of your faction"));
                 event.setCanceled(true);
                 return;
             }
 
             if (!playerFaction.canPlaceClaim()) {
-                player.sendMessage(new TextComponentString(WarForgeConfig.ENABLE_CITADEL_UPGRADES
+                player.sendSystemMessage(Component.literal(WarForgeConfig.ENABLE_CITADEL_UPGRADES
                         ? "Your faction reached it's level's claim limit, upgrade the level to incrase the limit"
                         : "Your faction has reached its claim limit"));
                 event.setCanceled(true);
             }
 
             if (!WarForgeConfig.ENABLE_ISOLATED_CLAIMS && BlockBasicClaim.hasAdjacent(pos, playerFaction) == null) {
-                player.sendMessage(new TextComponentString("Isolated claims are disabled; you cannot put a claim here with no adjacent claims"));
+                player.sendSystemMessage(Component.literal("Isolated claims are disabled; you cannot put a claim here with no adjacent claims"));
                 event.setCanceled(true);
             }
-        } else { // Must be siege block
-            if (playerFaction == null) // Can't start sieges if you aren't in a faction
-            {
-                player.sendMessage(new TextComponentString("You aren't in a faction. Craft a citadel or join a faction"));
+        } else {
+            if (playerFaction == null) {
+                player.sendSystemMessage(Component.literal("You aren't in a faction. Craft a citadel or join a faction"));
                 event.setCanceled(true);
                 return;
             }
 
-            if (!playerFaction.isPlayerRoleInFaction(player.getUniqueID(), Role.OFFICER)) {
-                player.sendMessage(new TextComponentString("You are not an officer of your faction"));
+            if (!playerFaction.isPlayerRoleInFaction(player.getUUID(), Role.OFFICER)) {
+                player.sendSystemMessage(Component.literal("You are not an officer of your faction"));
                 event.setCanceled(true);
                 return;
             }
 
             if (playerFaction.calcNumSieges() >= WarForgeConfig.MAX_SIEGES) {
-                player.sendMessage(new TextComponentTranslation("warforge.info.too_many_siege_blocks"));
+                player.sendSystemMessage(Component.translatable("warforge.info.too_many_siege_blocks"));
                 event.setCanceled(true);
                 return;
             }
 
             ArrayList<DimChunkPos> validTargets = new ArrayList<>(Arrays.asList(new DimChunkPos[4]));
-            int numTargets = FACTIONS.getAdjacentClaims(playerFaction.uuid, new DimBlockPos(event.getWorld().provider.getDimension(), event.getPos()), validTargets);
+            int numTargets = FACTIONS.getAdjacentClaims(playerFaction.uuid, new DimBlockPos(level.dimension(), event.getPos()), validTargets);
             if (numTargets == 0) {
-                player.sendMessage(new TextComponentString("There are no adjacent claims to siege; Siege camp Y level must be w/in " + WarForgeConfig.VERTICAL_SIEGE_DIST + " of target."));
+                player.sendSystemMessage(Component.literal("There are no adjacent claims to siege; Siege camp Y level must be w/in " + WarForgeConfig.VERTICAL_SIEGE_DIST + " of target."));
                 event.setCanceled(true);
             }
-
-            // TODO: Check for alliances with those claims
         }
-
     }
 
     @SubscribeEvent
-    public void playerLeftGame(PlayerEvent.PlayerLoggedOutEvent event) {
-        if (!event.player.world.isRemote) {
-            FACTIONS.onFactionMemberLoggedOut(event.player.getUniqueID());
-            if (event.player instanceof EntityPlayerMP) {
-                JOURNEYMAP_SYNC.onPlayerLogout((EntityPlayerMP) event.player);
-                JOURNEYMAP_VEIN_SYNC.onPlayerLogout((EntityPlayerMP) event.player);
-            }
+    public void playerLeftGame(PlayerLoggedOutEvent event) {
+        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide) {
+            FACTIONS.onFactionMemberLoggedOut(player.getUUID());
+            JOURNEYMAP_SYNC.onPlayerLogout(player);
+            JOURNEYMAP_VEIN_SYNC.onPlayerLogout(player);
         }
     }
 
     @SubscribeEvent
     public void onChunkObserved(ChunkWatchEvent.Watch event) {
-        // A chunk just entered this player's view; in PLAYER mode this is the moment we are allowed to
-        // reveal that chunk's claim border / vein to them.
-        EntityPlayerMP player = event.getPlayer();
-        if (player != null) {
-            JOURNEYMAP_SYNC.onChunkObserved(player, player.dimension, event.getChunk().x, event.getChunk().z);
-            JOURNEYMAP_VEIN_SYNC.onChunkObserved(player, player.dimension, event.getChunk().x, event.getChunk().z);
-        }
+        ServerPlayer player = event.getPlayer();
+        ChunkPos chunkPos = event.getPos();
+        ResourceKey<Level> dim = event.getLevel().dimension();
+        JOURNEYMAP_SYNC.onChunkObserved(player, dim, chunkPos.x, chunkPos.z);
+        JOURNEYMAP_VEIN_SYNC.onChunkObserved(player, dim, chunkPos.x, chunkPos.z);
     }
 
     @SubscribeEvent
@@ -552,97 +547,87 @@ public class WarForgeMod implements ILateMixinLoader {
         if (!WarForgeConfig.FACTION_PREFIX_IN_CHAT) {
             return;
         }
-        Faction faction = FACTIONS.getFactionOfPlayer(event.getPlayer().getUniqueID());
+        Faction faction = FACTIONS.getFactionOfPlayer(event.getPlayer().getUUID());
         if (faction == null) {
             return;
         }
-        event.setComponent(FactionDisplay.withChatPrefix(faction, event.getComponent()));
+        event.setMessage(FactionDisplay.withChatPrefix(faction, event.getMessage()));
     }
 
     @SubscribeEvent
     public void playerJoinedGame(PlayerLoggedInEvent event) {
-        NETWORK.sendTo(WarForgeConfig.createConfigSyncPacket(), (EntityPlayerMP) event.player);
-        if (!event.player.world.isRemote) {
-            if (Double.isNaN(event.player.posX) || Double.isInfinite(event.player.posX)
-                    || Double.isNaN(event.player.posY) || Double.isInfinite(event.player.posY)
-                    || Double.isNaN(event.player.posZ) || Double.isInfinite(event.player.posZ)) {
-                event.player.posX = 0d;
-                event.player.posY = 256d;
-                event.player.posZ = 0d;
-                event.player.attemptTeleport(0d, 256d, 0d);
-                event.player.setDead();
-                event.player.world.getSaveHandler().getPlayerNBTManager().writePlayerData(event.player);
-                LOGGER.info("Player moved from the void to 0,256,0");
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide) {
+            return;
+        }
+
+        NETWORK.sendTo(WarForgeConfig.createConfigSyncPacket(), player);
+
+        if (Double.isNaN(player.getX()) || Double.isInfinite(player.getX())
+                || Double.isNaN(player.getY()) || Double.isInfinite(player.getY())
+                || Double.isNaN(player.getZ()) || Double.isInfinite(player.getZ())) {
+            player.teleportTo(0d, 256d, 0d);
+            player.discard();
+            LOGGER.info("Player moved from the void to 0,256,0");
+        }
+
+        FACTIONS.onFactionMemberLoggedIn(player.getUUID());
+
+        PacketTimeUpdates packet = new PacketTimeUpdates();
+
+        packet.msTimeOfNextSiegeDay = System.currentTimeMillis() + timeHelper.getTimeToNextSiegeAdvanceMs();
+        packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
+
+        NETWORK.sendTo(packet, player);
+        FACTIONS.sendClaimChunks(player, new DimChunkPos(player.level().dimension(), player.blockPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
+
+        NETWORK.sendTo(Siege.clearSiegeData(), player);
+        FACTIONS.sendAllSiegeInfoToNearby();
+        FLAG_REGISTRY.syncToPlayer(player);
+        JOURNEYMAP_SYNC.onPlayerJoin(player);
+        JOURNEYMAP_VEIN_SYNC.onPlayerJoin(player);
+
+        if (UPGRADE_HANDLER.getLEVELS() != null) {
+            for (int i = 0; i < UPGRADE_HANDLER.getLEVELS().length; i++) {
+                final int level = i;
+                final HashMap<ItemMatcher, Integer> requirements = UPGRADE_HANDLER.getLEVELS()[i];
+                final int limit = UPGRADE_HANDLER.getLIMITS()[i];
+                final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
+
+                SyncQueueHandler.enqueue(player, () ->
+                        NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), player)
+                );
             }
+        }
 
-            FACTIONS.onFactionMemberLoggedIn(event.player.getUniqueID());
-
-            PacketTimeUpdates packet = new PacketTimeUpdates();
-
-            packet.msTimeOfNextSiegeDay = System.currentTimeMillis() + timeHelper.getTimeToNextSiegeAdvanceMs();
-            packet.msTimeOfNextYieldDay = System.currentTimeMillis() + timeHelper.getTimeToNextYieldMs();
-
-            NETWORK.sendTo(packet, (EntityPlayerMP) event.player);
-            FACTIONS.sendClaimChunks((EntityPlayerMP) event.player, new DimChunkPos(event.player.dimension, event.player.getPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
-
-            // sends packet to client which clears all previously remembered sieges; identical attacking and def names = clear packet
-
-            NETWORK.sendTo(Siege.clearSiegeData(), (EntityPlayerMP) event.player);
-            FACTIONS.sendAllSiegeInfoToNearby();
-            FLAG_REGISTRY.syncToPlayer((EntityPlayerMP) event.player);
-            JOURNEYMAP_SYNC.onPlayerJoin((EntityPlayerMP) event.player);
-            JOURNEYMAP_VEIN_SYNC.onPlayerJoin((EntityPlayerMP) event.player);
-
-            // begin queued sync info
-            // don't sync if the upgrade info doesn't exist
-            if (UPGRADE_HANDLER.getLEVELS() != null) {
-
-                for (int i = 0; i < UPGRADE_HANDLER.getLEVELS().length; i++) {
-                    final int level = i;
-                    final HashMap<StackComparable, Integer> requirements = UPGRADE_HANDLER.getLEVELS()[i];
-                    final int limit = UPGRADE_HANDLER.getLIMITS()[i];
-                    final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
-
-                    SyncQueueHandler.enqueue((EntityPlayerMP) event.player, () ->
-                            NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), (EntityPlayerMP) event.player)
-                    );
-                }
-            }
-
-			// go over all ordered veins that the server has and send them to the client
-			int veinIndex = 0;
-			ArrayList<Vein> veins = new ArrayList<>(VEIN_HANDLER.ID_TO_VEINS.values());
-			while (veinIndex < veins.size()) {
-				PacketVeinEntries currPacket = new PacketVeinEntries();
-				veinIndex = currPacket.fillFrom(veins, veinIndex);
-				SyncQueueHandler.enqueue((EntityPlayerMP) event.player, () -> NETWORK.sendTo(currPacket, (EntityPlayerMP) event.player));
-			}
+        int veinIndex = 0;
+        ArrayList<Vein> veins = new ArrayList<>(VEIN_HANDLER.ID_TO_VEINS.values());
+        while (veinIndex < veins.size()) {
+            PacketVeinEntries currPacket = new PacketVeinEntries();
+            veinIndex = currPacket.fillFrom(veins, veinIndex);
+            SyncQueueHandler.enqueue(player, () -> NETWORK.sendTo(currPacket, player));
         }
     }
 
     public UUID getPlayerIDOfDiscordUser(String discordUserID) {
-        if (discordUserIdMap.containsKey(discordUserID))
+        if (discordUserIdMap.containsKey(discordUserID)) {
             return discordUserIdMap.get(discordUserID);
+        }
         return Faction.nullUuid;
     }
 
-    public void messageAll(ITextComponent msg, boolean sendToDiscord) // TODO: optional list of pings
-    {
+    public void messageAll(Component msg, boolean sendToDiscord) {
         if (MC_SERVER != null) {
-            for (EntityPlayerMP player : MC_SERVER.getPlayerList().getPlayers()) {
-                player.sendMessage(msg);
+            for (ServerPlayer player : MC_SERVER.getPlayerList().getPlayers()) {
+                player.sendSystemMessage(msg);
             }
         }
-
-        NBTTagCompound sendDiscordMessageTagCompound = new NBTTagCompound();
-        sendDiscordMessageTagCompound.setString("message", msg.getFormattedText());
-        sendDiscordMessageTagCompound.setLong("channel", WarForgeConfig.FACTIONS_BOT_CHANNEL_ID);
-        FMLInterModComms.sendRuntimeMessage(this, DISCORD_MODID, "sendMessage", sendDiscordMessageTagCompound);
     }
 
-    private void readFromNBT(NBTTagCompound tags) {
+    private void readFromNBT(CompoundTag tags) {
         FACTIONS.readFromNBT(tags);
-		if (VEIN_HANDLER != null) VEIN_HANDLER.readFromNBT(tags);
+        if (VEIN_HANDLER != null) {
+            VEIN_HANDLER.readFromNBT(tags);
+        }
 
         timestampOfFirstDay = tags.getLong("zero-timestamp");
         numberOfSiegeDaysTicked = tags.getLong("num-days-elapsed");
@@ -650,114 +635,94 @@ public class WarForgeMod implements ILateMixinLoader {
         serverStopTimestamp = tags.getLong("shutdown-timestamp");
     }
 
-    private void WriteToNBT(NBTTagCompound tags) {
+    private void WriteToNBT(CompoundTag tags) {
         FACTIONS.WriteToNBT(tags);
-		if (VEIN_HANDLER != null) VEIN_HANDLER.WriteToNBT(tags);
+        if (VEIN_HANDLER != null) {
+            VEIN_HANDLER.WriteToNBT(tags);
+        }
 
-        tags.setLong("zero-timestamp", timestampOfFirstDay);
-        tags.setLong("num-days-elapsed", numberOfSiegeDaysTicked);
-        tags.setLong("num-yields-awarded", numberOfYieldDaysTicked);
-        tags.setLong("shutdown-timestamp", serverStopTimestamp);
+        tags.putLong("zero-timestamp", timestampOfFirstDay);
+        tags.putLong("num-days-elapsed", numberOfSiegeDaysTicked);
+        tags.putLong("num-yields-awarded", numberOfYieldDaysTicked);
+        tags.putLong("shutdown-timestamp", serverStopTimestamp);
     }
 
-    // Always goes before player join/ leave events; joining when server is loading will not call those events b4 this
-    @EventHandler
-    public void serverAboutToStart(FMLServerAboutToStartEvent event) {
+    @SubscribeEvent
+    public void serverAboutToStart(ServerAboutToStartEvent event) {
         MC_SERVER = event.getServer();
         FLAG_REGISTRY.reload();
-        CommandHandler handler = ((CommandHandler) MC_SERVER.getCommandManager());
-        handler.registerCommand(new CommandFactions());
-
-		// initialize the vein data, but only on the server; we will only update from nbt after this init step
-		try {
-			VeinConfigHandler.writeStubIfEmpty();
-			VeinConfigHandler.loadVeins();
-		} catch (Exception e) {
-			throw new RuntimeException(e);
-		}
 
         try {
-            // try to read from data or backup, then generates a new file if both fail
-            File dataFile = getFactionsFile();
-            if (!dataFile.isFile()) {
-                // try to read from faction backup
-                dataFile = getFactionsFileBackup();
-                if (!dataFile.isFile()) {
-                    dataFile = getFactionsFile(); // ensure path is correct
+            VeinConfigHandler.writeStubIfEmpty();
+            VeinConfigHandler.loadVeins();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
 
-                    if (!dataFile.getParentFile().exists())
-                        return; // only make new file to read from if world folder has been made
-                    dataFile.createNewFile(); // create new data file
-
-                    // puts file in correct format with empty tags
-                    CompressedStreamTools.writeCompressed(new NBTTagCompound(), new FileOutputStream(dataFile));
+        try {
+            Path dataFile = getFactionsFile();
+            if (!Files.isRegularFile(dataFile)) {
+                Files.createDirectories(dataFile.getParent());
+                try (OutputStream output = Files.newOutputStream(dataFile)) {
+                    NbtIo.writeCompressed(new CompoundTag(), output);
                 }
             }
 
-            NBTTagCompound tags = CompressedStreamTools.readCompressed(new FileInputStream(dataFile));
+            CompoundTag tags;
+            try (InputStream input = Files.newInputStream(dataFile)) {
+                tags = NbtIo.readCompressed(input);
+            }
+
             readFromNBT(tags);
             CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.getAllFactions());
-            LOGGER.info("Successfully loaded " + dataFile.getName());
+            LOGGER.info("Successfully loaded " + dataFile.getFileName());
         } catch (Exception e) {
-            LOGGER.error("Failed to load data from warforgefactions.dat and backup; restart strongly recommended");
-            e.printStackTrace();
+            throw new RuntimeException("Failed to load data from warforgefactions.dat", e);
         }
 
-        currTickTimestamp = System.currentTimeMillis(); // will cause some update time to be registered immediately
+        currTickTimestamp = System.currentTimeMillis();
+    }
+
+    @SubscribeEvent
+    public void registerCommands(RegisterCommandsEvent event) {
+        CommandFactions.register(event.getDispatcher());
     }
 
     private void save(String event) {
+        if (MC_SERVER == null) {
+            return;
+        }
+
         try {
-            if (MC_SERVER != null) {
-                NBTTagCompound tags = new NBTTagCompound();
-                WriteToNBT(tags);
+            CompoundTag tags = new CompoundTag();
+            WriteToNBT(tags);
 
-                File factionsFile = getFactionsFile();
-                if (factionsFile.exists()) {
-                    Files.copy(factionsFile.toPath(), getFactionsFileBackup().toPath(), StandardCopyOption.REPLACE_EXISTING);
-                } else {
-                    factionsFile.createNewFile();
-                }
-
-                CompressedStreamTools.writeCompressed(tags, new FileOutputStream(factionsFile));
-                LOGGER.info("Successfully saved warforgefactions.dat on event - " + event);
+            Path factionsFile = getFactionsFile();
+            Files.createDirectories(factionsFile.getParent());
+            if (Files.exists(factionsFile)) {
+                Files.copy(factionsFile, getFactionsFileBackup(), StandardCopyOption.REPLACE_EXISTING);
             }
+
+            try (OutputStream output = Files.newOutputStream(factionsFile)) {
+                NbtIo.writeCompressed(tags, output);
+            }
+            LOGGER.info("Successfully saved warforgefactions.dat on event - " + event);
         } catch (Exception e) {
-            LOGGER.error("Failed to save warforgefactions.dat");
-            e.printStackTrace();
+            throw new RuntimeException("Failed to save warforgefactions.dat", e);
         }
     }
-
-//	@EventHandler
-//	public static void onPlayerLogout(PlayerEvent.PlayerLoggedOutEvent event) {
-//		/*
-//		EntityPlayer player = event.player;
-//		DimBlockPos playerPos = new DimBlockPos(player);
-//		if(FACTIONS.isPlayerDefending(player.getUniqueID())){
-//			COMBAT_LOG.add(playerPos, player.getUniqueID(), System.currentTimeMillis());
-//		}
-//		*/
-//	}
-
-    // Helpers
 
     @SubscribeEvent
-    public void saveEvent(WorldEvent.Save event) {
-        if (!event.getWorld().isRemote) {
-            int dimensionID = event.getWorld().provider.getDimension();
-            save("World Save - DIM " + dimensionID);
+    public void saveEvent(LevelEvent.Save event) {
+        if (event.getLevel() instanceof ServerLevel level) {
+            save("Level Save - DIM " + level.dimension().location());
         }
     }
 
-    @EventHandler
-    public void serverStopped(FMLServerStoppingEvent event) {
+    @SubscribeEvent
+    public void serverStopped(ServerStoppingEvent event) {
         save("Server Stop");
         CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;
-    }
-
-    @Override
-    public List<String> getMixinConfigs() {
-        return Arrays.asList("mixins.warforge.json", "mixins.warforge.hbm.json", "mixins.warforge.debug.json");
     }
 }

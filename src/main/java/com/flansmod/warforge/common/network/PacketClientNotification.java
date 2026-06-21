@@ -1,12 +1,11 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.client.util.WarForgeNotifications;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.UUID;
 
@@ -31,7 +30,7 @@ public class PacketClientNotification extends PacketBase {
     }
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         writeUTF(data, token);
         writeUTF(data, title);
         writeUTF(data, subtitle);
@@ -44,7 +43,7 @@ public class PacketClientNotification extends PacketBase {
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         token = readUTF(data);
         title = readUTF(data);
         subtitle = readUTF(data);
@@ -54,12 +53,12 @@ public class PacketClientNotification extends PacketBase {
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    @OnlyIn(Dist.CLIENT)
+    public void handleClientSide(Player clientPlayer) {
         WarForgeNotifications.show(token, title, subtitle.isEmpty() ? null : subtitle, accentColor, durationMs, playerId);
     }
 }

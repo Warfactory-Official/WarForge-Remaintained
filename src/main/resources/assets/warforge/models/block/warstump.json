@@ -1,13 +1,13 @@
 {
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "warforge:blocks/statues/classic/warstump/stump_top",
-		"1": "warforge:blocks/statues/classic/warstump/stump_base_top",
-		"2": "warforge:blocks/statues/classic/warstump/stump_side_front",
-		"3": "warforge:blocks/statues/classic/warstump/stump_edge",
-		"4": "warforge:blocks/statues/classic/warstump/stump_side_rotated",
-		"6": "warforge:blocks/statues/classic/warstump/iron_axe",
-		"particle": "warforge:blocks/statues/classic/warstump/stump_top"
+		"0": "warforge:block/statues/classic/warstump/stump_top",
+		"1": "warforge:block/statues/classic/warstump/stump_base_top",
+		"2": "warforge:block/statues/classic/warstump/stump_side_front",
+		"3": "warforge:block/statues/classic/warstump/stump_edge",
+		"4": "warforge:block/statues/classic/warstump/stump_side_rotated",
+		"6": "warforge:block/statues/classic/warstump/iron_axe",
+		"particle": "warforge:block/statues/classic/warstump/stump_top"
 	},
 	"elements": [
 		{

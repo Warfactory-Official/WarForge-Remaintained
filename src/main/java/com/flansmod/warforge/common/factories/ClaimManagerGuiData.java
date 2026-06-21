@@ -1,18 +1,20 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.PacketClaimChunksData;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 public class ClaimManagerGuiData extends GuiData {
-    public final int dim;
+    public final ResourceKey<Level> dim;
     public final int centerX;
     public final int centerZ;
     public final int radius;
@@ -25,7 +27,7 @@ public class ClaimManagerGuiData extends GuiData {
     public final int claimMax;
     public final List<ClaimChunkInfo> chunks;
 
-    public ClaimManagerGuiData(EntityPlayer player, DimChunkPos center, int radius, int pageX, int pageZ) {
+    public ClaimManagerGuiData(Player player, DimChunkPos center, int radius, int pageX, int pageZ) {
         super(player);
         this.dim = center.dim;
         this.centerX = center.x;
@@ -38,10 +40,10 @@ public class ClaimManagerGuiData extends GuiData {
         this.forceLoadedMax = 0;
         this.claimCount = 0;
         this.claimMax = 0;
-        this.chunks = new ArrayList<ClaimChunkInfo>();
+        this.chunks = new ArrayList<>();
     }
 
-    public ClaimManagerGuiData(EntityPlayer player, PacketClaimChunksData packet, int pageX, int pageZ) {
+    public ClaimManagerGuiData(Player player, PacketClaimChunksData packet, int pageX, int pageZ) {
         super(player);
         this.dim = packet.dim;
         this.centerX = packet.centerX;
@@ -54,7 +56,7 @@ public class ClaimManagerGuiData extends GuiData {
         this.forceLoadedMax = packet.forceLoadedMax;
         this.claimCount = packet.claimCount;
         this.claimMax = packet.claimMax;
-        this.chunks = new ArrayList<ClaimChunkInfo>(packet.chunks);
+        this.chunks = new ArrayList<>(packet.chunks);
     }
 
     public DimChunkPos getCenter() {

@@ -5,231 +5,181 @@ import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.SiegeCampGuiFactory;
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.blocks.models.RotatableStateMapper;
 import com.flansmod.warforge.common.network.PacketRemoveClaim;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.common.util.IDynamicModels;
 import com.flansmod.warforge.server.Faction;
-import lombok.SneakyThrows;
-import net.minecraft.block.BlockHorizontal;
-import net.minecraft.block.ITileEntityProvider;
-import net.minecraft.block.material.EnumPushReaction;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.properties.PropertyDirection;
-import net.minecraft.block.state.BlockStateContainer;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.client.renderer.block.model.ModelResourceLocation;
-import net.minecraft.client.renderer.block.statemap.StateMapperBase;
-import net.minecraft.client.renderer.texture.TextureMap;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.*;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.World;
-import net.minecraftforge.client.event.ModelBakeEvent;
-import net.minecraftforge.client.model.IModel;
-import net.minecraftforge.client.model.ModelLoader;
-import net.minecraftforge.client.model.ModelLoaderRegistry;
-import net.minecraftforge.fml.common.FMLCommonHandler;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.context.BlockPlaceContext;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.entity.BlockEntityTicker;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.StateDefinition;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.material.PushReaction;
+import net.minecraft.world.phys.BlockHitResult;
 
-import java.util.*;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.UUID;
 
-import static com.flansmod.warforge.client.models.BakingUtil.registerFacingModels;
+import com.flansmod.warforge.common.Content;
 import static com.flansmod.warforge.common.Content.dummyTranslusent;
 import static com.flansmod.warforge.common.Content.statue;
-import static com.flansmod.warforge.common.WarForgeMod.*;
+import static com.flansmod.warforge.common.WarForgeMod.FACTIONS;
+import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.BERSERKER;
 import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.TRANSLUCENT;
 
-public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvider, IDynamicModels {
+public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
     //25s break time, no effective tool.
-    public static final PropertyDirection FACING = BlockHorizontal.FACING;
-    public BlockSiegeCamp(Material materialIn) {
-        super(materialIn);
-        this.setCreativeTab(CreativeTabs.COMBAT);
-        this.setBlockUnbreakable();
-        this.setResistance(30000000f); //Makes sense. We probably don't wanna let people bomb it
-        IDynamicModels.INSTANCES.add(this);
+    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+
+    public BlockSiegeCamp() {
+        super(Properties.of()
+                .strength(-1.0F, 30000000.0F) //Makes sense. We probably don't wanna let people bomb it
+                .noLootTable()
+                .noOcclusion());
+        this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
     }
 
     @Override
-    protected BlockStateContainer createBlockState() {
-        return new BlockStateContainer(this, FACING);
+    protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
+        builder.add(FACING);
     }
 
     @Override
-    public IBlockState getStateFromMeta(int meta) {
-        return this.getDefaultState().withProperty(FACING, EnumFacing.HORIZONTALS[meta]);
+    @Nullable
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
+        return this.defaultBlockState().setValue(FACING, context.getHorizontalDirection().getOpposite());
     }
 
     @Override
-    public int getMetaFromState(IBlockState state) {
-        return state.getValue(FACING).getHorizontalIndex();
-    }
-
-    // these are likely redundant, as the default is no tool, but I guess it doesnt hurt
-    @Override
-    public boolean isToolEffective(String type, IBlockState state) {
-        return false;
+    public RenderShape getRenderShape(BlockState state) {
+        return RenderShape.MODEL;
     }
 
     @Override
-    public String getHarvestTool(IBlockState state) {
-        return null;
-    }
-
-    // we want to give the siege block back
-    @Override
-    public boolean canHarvestBlock(IBlockAccess world, BlockPos pos, EntityPlayer player) {
-        return true;
+    @Nullable
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new TileEntitySiegeCamp(pos, state);
     }
 
     @Override
-    public boolean isOpaqueCube(IBlockState state) {
-        return true;
+    @Nullable
+    public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
+        if (level.isClientSide || type != Content.TE_SIEGE_CAMP.get()) return null;
+        return (lvl, pos, st, be) -> ((TileEntitySiegeCamp) be).tick();
     }
 
     @Override
-    public boolean isFullCube(IBlockState state) {
-        return false;
-    }
-
-    @Override
-    public EnumBlockRenderType getRenderType(IBlockState state) {
-        return EnumBlockRenderType.MODEL;
-    }
-
-    @Override
-    public boolean canRenderInLayer(IBlockState state, BlockRenderLayer layer) {
-        return layer == BlockRenderLayer.CUTOUT;
-    }
-
-
-    // vanilla hasTileEntity check
-    @Override
-    public boolean hasTileEntity() {
-        return true;
-    }
-
-    // forge version which is state dependent (apparently for extending vanilla blocks)
-    @Override
-    public boolean hasTileEntity(IBlockState blockState) {
-        return true;
-    }
-
-    // called on block place
-    @Override
-    public TileEntity createNewTileEntity(World worldIn, int meta) {
-        return new TileEntitySiegeCamp();
-    }
-
-    // called before block place
-    @Override
-    public boolean canPlaceBlockAt(World world, BlockPos pos) {
-        if (!world.isRemote) {
-            if (FACTIONS.isChunkContested(new DimChunkPos(world.provider.getDimension(), pos)))
+    public boolean canSurvive(BlockState state, LevelReader world, BlockPos pos) {
+        if (world instanceof Level level && !level.isClientSide) {
+            if (FACTIONS.isChunkContested(new DimChunkPos(level.dimension(), pos)))
                 return false;
 
             // Can't claim a chunk claimed by another faction
-            UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(world.provider.getDimension(), pos));
+            UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(level.dimension(), pos));
             if (!existingClaim.equals(Faction.nullUuid))
                 return false;
         }
 
         // Can only place on a solid surface
-        if (!world.getBlockState(pos.add(0, -1, 0)).isSideSolid(world, pos.add(0, -1, 0), EnumFacing.UP))
+        if (!world.getBlockState(pos.below()).isFaceSturdy(world, pos.below(), Direction.UP))
             return false;
 
-        return super.canPlaceBlockAt(world, pos);
+        return super.canSurvive(state, world, pos);
     }
 
     // called after block place
     @Override
-    public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
-        if (!world.isRemote) {
-            TileEntity te = world.getTileEntity(pos);
-            if ( te instanceof TileEntitySiegeCamp siegeCamp) {
+    public void setPlacedBy(Level world, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
+        if (!world.isClientSide) {
+            BlockEntity te = world.getBlockEntity(pos);
+            if (te instanceof TileEntitySiegeCamp siegeCamp) {
                 FACTIONS.onNonCitadelClaimPlaced(siegeCamp, placer);
                 siegeCamp.onPlacedBy(placer);
-                super.onBlockPlacedBy(world, pos, state, placer, stack);
+                super.setPlacedBy(world, pos, state, placer, stack);
             }
         }
     }
 
     @Override
-    public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing side, float par7, float par8, float par9) {
-        if (player.isSneaking()) {
-            if (!world.isRemote) return true;
-            TileEntityClaim te = (TileEntityClaim) world.getTileEntity(pos);
+    public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        if (player.isShiftKeyDown()) {
+            if (!world.isClientSide) return InteractionResult.SUCCESS;
+            TileEntityClaim te = (TileEntityClaim) world.getBlockEntity(pos);
             PacketRemoveClaim packet = new PacketRemoveClaim();
 
             packet.pos = te.getClaimPos();
 
             WarForgeMod.NETWORK.sendToServer(packet);
 
-            return true;
+            return InteractionResult.CONSUME;
         }
 
 
-        if (!world.isRemote) {
-            TileEntityClaim te = (TileEntityClaim) world.getTileEntity(pos);
+        if (!world.isClientSide) {
+            TileEntityClaim te = (TileEntityClaim) world.getBlockEntity(pos);
             Faction faction = FACTIONS.getFaction(te.getFaction());
             if (faction == null) {
-                player.sendMessage(new TextComponentString("This siege camp is not bound to a valid faction"));
-                return false;
+                player.sendSystemMessage(Component.literal("This siege camp is not bound to a valid faction"));
+                return InteractionResult.SUCCESS;
             }
 
-            if (!faction.isPlayerRoleInFaction(player.getUniqueID(), Faction.Role.OFFICER)) {
-                player.sendMessage(new TextComponentString("You are not an officer of the faction"));
-                return false;
+            if (!faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER)) {
+                player.sendSystemMessage(Component.literal("You are not an officer of the faction"));
+                return InteractionResult.SUCCESS;
             }
 
-            DimChunkPos chunkPos = new DimChunkPos(world.provider.getDimension(), pos);
+            DimChunkPos chunkPos = new DimChunkPos(world.dimension(), pos);
             if (FACTIONS.IsSiegeInProgress(chunkPos)) FACTIONS.sendAllSiegeInfoToNearby();
             SiegeCampGuiFactory.INSTANCE.open(
                     player,
-                    new DimBlockPos(world.provider.getDimension(), pos),
+                    new DimBlockPos(world.dimension(), pos),
                     CalculatePossibleAttackDirections(world, pos, player),
                     faction.getSiegeMomentum(),
                     faction.colour
             );
         }
 
-        return true;
+        return world.isClientSide ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
     }
 
-    private List<SiegeCampAttackInfo> CalculatePossibleAttackDirections(World world, BlockPos pos, EntityPlayer player) {
+    private List<SiegeCampAttackInfo> CalculatePossibleAttackDirections(Level world, BlockPos pos, Player player) {
         List<SiegeCampAttackInfo> list = new ArrayList<>();
 
-        TileEntitySiegeCamp siegeCamp = (TileEntitySiegeCamp) world.getTileEntity(pos);
+        TileEntitySiegeCamp siegeCamp = (TileEntitySiegeCamp) world.getBlockEntity(pos);
         if (siegeCamp == null) return list;
 
         int RADIUS = 2;
-        int BORDER_SIZE = 2 * RADIUS + 1; // odd-sized grid including center
 
-        UUID factionUUID = FACTIONS.getFactionOfPlayer(player.getUniqueID()).uuid;
-        DimBlockPos siegePos = new DimBlockPos(world.provider.getDimension(), pos);
+        UUID factionUUID = FACTIONS.getFactionOfPlayer(player.getUUID()).uuid;
+        DimBlockPos siegePos = new DimBlockPos(world.dimension(), pos);
         var validTargets = FACTIONS.getClaimRadiusAround(factionUUID, siegePos, RADIUS);
 
-        int centerIndexX = BORDER_SIZE / 2;
-        int centerIndexZ = BORDER_SIZE / 2;
-
-        int index = 0;
         DimChunkPos siegeChunkPos = siegePos.toChunkPos();
         for (DimChunkPos chunk : new ArrayList<>(validTargets.keySet())) {
             int dx = chunk.x - siegeChunkPos.x;
@@ -248,14 +198,13 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
             info.mFactionColour = claimedBy == null ? 0 : claimedBy.colour;
             info.claimType = claimedBy == null ? Faction.ClaimType.NONE : claimedBy.getClaimType(chunk);
             Pair<Vein, Quality> veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z,
-                    FMLCommonHandler.instance().getMinecraftServerInstance().worlds[0].getSeed());
+                    WarForgeMod.MC_SERVER.overworld().getSeed());
             if (veinInfo != null) {
                 info.mWarforgeVein = veinInfo.getLeft();
                 info.mOreQuality =  veinInfo.getRight();
             }
 
             list.add(info);
-            index++;
         }
 
         return list;
@@ -263,62 +212,26 @@ public class BlockSiegeCamp extends MultiBlockColumn implements ITileEntityProvi
 
 
     @Override
-    public EnumPushReaction getPushReaction(IBlockState state) {
-        return EnumPushReaction.IGNORE;
+    public PushReaction getPistonPushReaction(BlockState state) {
+        return PushReaction.IGNORE;
     }
 
-    @Deprecated
-    public boolean eventReceived(IBlockState state, World worldIn, BlockPos pos, int id, int param) {
+    @Override
+    public boolean triggerEvent(BlockState state, Level worldIn, BlockPos pos, int id, int param) {
         return true;
     }
 
     @Override
-    public boolean canEntityDestroy(IBlockState state, IBlockAccess world, BlockPos pos, Entity entity) {
+    public boolean canEntityDestroy(BlockState state, BlockGetter world, BlockPos pos, Entity entity) {
         return false;
-    }
-
-    // called before te is updated and does not necessarily mean block is being removed by player
-    @Override
-    public void breakBlock(World worldIn, BlockPos pos, IBlockState state) {
-        super.breakBlock(worldIn, pos, state);
     }
 
     @Override
     public void initMap() {
         multiBlockMap = Collections.unmodifiableMap(new HashMap<>() {{
-            put(statue.getDefaultState().withProperty(MODEL, BERSERKER), new Vec3i(0, 1, 0));
-            put(dummyTranslusent.getDefaultState().withProperty(MODEL, TRANSLUCENT), new Vec3i(0, 2, 0));
+            put(statue.defaultBlockState().setValue(MODEL, BERSERKER), new Vec3i(0, 1, 0));
+            put(dummyTranslusent.defaultBlockState().setValue(MODEL, TRANSLUCENT), new Vec3i(0, 2, 0));
         }});
 
-    }
-
-    @Override
-    @SideOnly(Side.CLIENT)
-    public StateMapperBase getStateMapper(ResourceLocation loc) {
-        return new RotatableStateMapper(getRegistryName());
-    }
-
-    @Override
-    @SneakyThrows
-    public void bakeModel(ModelBakeEvent event) {
-        IModel medieval = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(Tags.MODID, "block/warstump"));
-        IModel modern = ModelLoaderRegistry.getModelOrMissing(
-                new ResourceLocation(Tags.MODID, "block/statues/modern/flag_pole"));
-        registerFacingModels(medieval, modern, event.getModelRegistry(), getRegistryName());
-    }
-
-    @Override
-    public void registerModel() {
-        ModelLoader.setCustomModelResourceLocation(
-                Item.getItemFromBlock(this),
-                0,
-                new ModelResourceLocation(Objects.requireNonNull(getRegistryName()), "inventory")
-        );
-    }
-
-    @Override
-    public void registerSprite(TextureMap map) {
-        //Already registered via ClaimModels's recursive register
     }
 }

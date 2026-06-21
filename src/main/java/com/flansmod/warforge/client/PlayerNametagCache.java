@@ -3,22 +3,18 @@ package com.flansmod.warforge.client;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.api.WarforgeCache;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketRequestNamePlate;
 import lombok.RequiredArgsConstructor;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import javax.annotation.Nullable;
 
 public class PlayerNametagCache {
     protected WarforgeCache<String, NamePlateData> cache;
 
-    @SideOnly(Side.CLIENT)
     public PlayerNametagCache(long l, int i) {
         cache = new WarforgeCache<>(l, i);
     }
-    @SideOnly(Side.CLIENT)
+
     public void purge(){
         cache.clear();
     }

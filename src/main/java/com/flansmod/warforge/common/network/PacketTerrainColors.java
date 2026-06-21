@@ -2,12 +2,13 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.client.ServerTerrainCache;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,7 +18,7 @@ import java.util.List;
 // caches these and the chunk-map texture daemon uses them for chunks it has not loaded, so a distant
 // siege target region shows real terrain instead of a flat placeholder.
 public class PacketTerrainColors extends PacketBase {
-    public int dim;
+    public ResourceKey<Level> dim = Level.OVERWORLD;
     public int centerX;
     public int centerZ;
     public int radius;
@@ -32,8 +33,8 @@ public class PacketTerrainColors extends PacketBase {
     }
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        data.writeInt(dim);
+    public void encodeInto(FriendlyByteBuf data) {
+        data.writeUtf(dim.location().toString());
         data.writeInt(centerX);
         data.writeInt(centerZ);
         data.writeByte(radius);
@@ -48,14 +49,14 @@ public class PacketTerrainColors extends PacketBase {
                 data.writeMedium(chunkColors[c] & 0x00FFFFFF); // 3 bytes RGB
             }
             for (int h = 0; h < 256; h++) {
-                data.writeByte(chunkHeights[h] & 0xFF);
+                data.writeShort(chunkHeights[h]);
             }
         }
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        dim = data.readInt();
+    public void decodeInto(FriendlyByteBuf data) {
+        dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
@@ -69,20 +70,19 @@ public class PacketTerrainColors extends PacketBase {
                 chunkColors[c] = data.readUnsignedMedium();
             }
             for (int h = 0; h < 256; h++) {
-                chunkHeights[h] = data.readUnsignedByte();
+                chunkHeights[h] = data.readShort();
             }
             addChunk(cx, cz, chunkColors, chunkHeights);
         }
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         // noop
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         for (int i = 0; i < chunkCoords.size(); i++) {
             int[] coord = chunkCoords.get(i);
             ServerTerrainCache.put(dim, coord[0], coord[1], colors.get(i), heights.get(i));
@@ -90,10 +90,5 @@ public class PacketTerrainColors extends PacketBase {
         // Terrain arriving doesn't change the map-request key, so force the claim map to rebuild its
         // textures now that the server colours are available.
         ChunkMapTextureDaemon.rebuildLast("claimmap");
-    }
-
-    @Override
-    public boolean canUseCompression() {
-        return true;
     }
 }

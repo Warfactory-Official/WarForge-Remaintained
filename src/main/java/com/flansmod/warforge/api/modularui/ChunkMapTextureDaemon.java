@@ -1,15 +1,19 @@
 package com.flansmod.warforge.api.modularui;
 
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.ChunkDynamicTextureThread;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.client.ServerTerrainCache;
-import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.WorldClient;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.chunk.Chunk;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
+import net.minecraft.world.level.levelgen.Heightmap;
+import net.minecraft.resources.ResourceKey;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -19,22 +23,20 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class ChunkMapTextureDaemon {
-    private static final ConcurrentHashMap<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<String, AtomicInteger>();
-    private static final ConcurrentHashMap<String, Set<String>> ACTIVE_TEXTURES = new ConcurrentHashMap<String, Set<String>>();
-    private static final ConcurrentHashMap<String, MapRequest> LAST_REQUEST = new ConcurrentHashMap<String, MapRequest>();
+    private static final ConcurrentHashMap<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Set<String>> ACTIVE_TEXTURES = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, MapRequest> LAST_REQUEST = new ConcurrentHashMap<>();
     private static final ExecutorService EXECUTOR = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "WarForge-ChunkMapTextureDaemon");
         thread.setDaemon(true);
         return thread;
     });
 
-    public static void requestMapUpdate(String namespace, int dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
-        final HashMap<Long, Integer> tintCopy = new HashMap<Long, Integer>(tintByChunk);
-
+    public static void requestMapUpdate(String namespace, ResourceKey<Level> dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
+        final HashMap<Long, Integer> tintCopy = new HashMap<>(tintByChunk);
 
         MapRequest request = new MapRequest(dim, centerX, centerZ, radius, tintCopy);
         if (request.equals(LAST_REQUEST.get(namespace))) {
@@ -43,7 +45,7 @@ public class ChunkMapTextureDaemon {
         LAST_REQUEST.put(namespace, request);
 
         final int generation = GENERATIONS.computeIfAbsent(namespace, ignored -> new AtomicInteger(0)).incrementAndGet();
-        HashSet<String> desired = new HashSet<String>();
+        HashSet<String> desired = new HashSet<>();
         for (int x = centerX - radius; x <= centerX + radius; x++) {
             for (int z = centerZ - radius; z <= centerZ + radius; z++) {
                 desired.add(getTextureName(namespace, dim, x, z));
@@ -74,8 +76,8 @@ public class ChunkMapTextureDaemon {
         }
     }
 
-    public static String getTextureName(String namespace, int dim, int x, int z) {
-        return namespace + "/" + dim + "_" + x + "_" + z;
+    public static String getTextureName(String namespace, ResourceKey<Level> dim, int x, int z) {
+        return namespace + "/" + dim.location().getPath() + "_" + x + "_" + z;
     }
 
     public static void releaseNamespace(String namespace) {
@@ -84,14 +86,14 @@ public class ChunkMapTextureDaemon {
         if (active == null) {
             return;
         }
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         for (String name : active) {
-            mc.getTextureManager().deleteTexture(new ResourceLocation(com.flansmod.warforge.Tags.MODID, name));
+            mc.getTextureManager().release(new ResourceLocation(Tags.MODID, name));
         }
     }
 
     public static void releaseAll() {
-        HashSet<String> namespaces = new HashSet<String>(ACTIVE_TEXTURES.keySet());
+        HashSet<String> namespaces = new HashSet<>(ACTIVE_TEXTURES.keySet());
         for (String namespace : namespaces) {
             releaseNamespace(namespace);
         }
@@ -100,30 +102,30 @@ public class ChunkMapTextureDaemon {
     }
 
     private static void replaceActiveTextures(String namespace, Set<String> desired) {
-        Set<String> current = ACTIVE_TEXTURES.getOrDefault(namespace, Collections.<String>emptySet());
-        Minecraft mc = Minecraft.getMinecraft();
+        Set<String> current = ACTIVE_TEXTURES.getOrDefault(namespace, Collections.emptySet());
+        Minecraft mc = Minecraft.getInstance();
         for (String old : current) {
             if (!desired.contains(old)) {
-                mc.getTextureManager().deleteTexture(new ResourceLocation(com.flansmod.warforge.Tags.MODID, old));
+                mc.getTextureManager().release(new ResourceLocation(Tags.MODID, old));
             }
         }
         ACTIVE_TEXTURES.put(namespace, desired);
     }
 
-    private static void buildTextures(String namespace, int generation, int dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
-        Minecraft mc = Minecraft.getMinecraft();
-        WorldClient world = mc.world;
-        if (world == null || world.provider.getDimension() != dim) {
+    private static void buildTextures(String namespace, int generation, ResourceKey<Level> dim, int centerX, int centerZ, int radius, Map<Long, Integer> tintByChunk) {
+        Minecraft mc = Minecraft.getInstance();
+        ClientLevel world = mc.level;
+        if (world == null || world.dimension() != dim) {
             return;
         }
 
-        HashMap<ChunkPos, Chunk> loadedChunks = new HashMap<ChunkPos, Chunk>();
+        HashMap<ChunkPos, LevelChunk> loadedChunks = new HashMap<>();
         int minY = Integer.MAX_VALUE;
         int maxY = Integer.MIN_VALUE;
 
         for (int x = centerX - radius - 1; x <= centerX + radius + 1; x++) {
             for (int z = centerZ - radius - 1; z <= centerZ + radius + 1; z++) {
-                Chunk chunk = world.getChunkProvider().getLoadedChunk(x, z);
+                LevelChunk chunk = world.getChunkSource().getChunkNow(x, z);
                 if (chunk == null) {
                     // Fold server-supplied heights (if any) into the relief range so remote terrain
                     // shades against the same min/max as loaded chunks.
@@ -142,7 +144,7 @@ public class ChunkMapTextureDaemon {
 
                 for (int lx = 0; lx < 16; lx++) {
                     for (int lz = 0; lz < 16; lz++) {
-                        int y = chunk.getHeightValue(lx, lz);
+                        int y = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
                         if (y < minY) {
                             minY = y;
                         }
@@ -180,11 +182,11 @@ public class ChunkMapTextureDaemon {
                         int localZ = worldZ & 15;
                         int index = (dx + 1) + (dz + 1) * 17;
 
-                        Chunk neighbor = loadedChunks.get(new ChunkPos(neighborCX, neighborCZ));
+                        LevelChunk neighbor = loadedChunks.get(new ChunkPos(neighborCX, neighborCZ));
                         if (neighbor != null) {
-                            int y = neighbor.getHeightValue(localX, localZ);
+                            int y = neighbor.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
                             heightMap17[index] = y;
-                            IBlockState state = neighbor.getBlockState(localX, y - 1, localZ);
+                            BlockState state = neighbor.getBlockState(new BlockPos(worldX, y - 1, worldZ));
                             int rgb = MapBlockColorSampler.sampleColor(world, state, new BlockPos(worldX, y - 1, worldZ));
                             rawChunk17[index] = 0xFF000000 | (rgb & 0x00FFFFFF);
                         } else {
@@ -233,23 +235,21 @@ public class ChunkMapTextureDaemon {
     /**
      * Identifies a map build request so identical re-evaluations can be skipped.
      */
-        private record MapRequest(int dim, int centerX, int centerZ, int radius, HashMap<Long, Integer> tints) {
+    private record MapRequest(ResourceKey<Level> dim, int centerX, int centerZ, int radius, HashMap<Long, Integer> tints) {
 
         @Override
-            public boolean equals(Object o) {
-                if (this == o) {
-                    return true;
-                }
-                if (!(o instanceof MapRequest)) {
-                    return false;
-                }
-                MapRequest other = (MapRequest) o;
-                return dim == other.dim
-                        && centerX == other.centerX
-                        && centerZ == other.centerZ
-                        && radius == other.radius
-                        && tints.equals(other.tints);
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
             }
-
+            if (!(o instanceof MapRequest other)) {
+                return false;
+            }
+            return dim == other.dim
+                    && centerX == other.centerX
+                    && centerZ == other.centerZ
+                    && radius == other.radius
+                    && tints.equals(other.tints);
+        }
     }
 }

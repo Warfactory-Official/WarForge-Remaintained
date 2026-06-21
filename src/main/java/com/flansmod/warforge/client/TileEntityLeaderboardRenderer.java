@@ -1,63 +1,72 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.TileEntityLeaderboard;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
+import net.minecraft.network.chat.Component;
 
-public class TileEntityLeaderboardRenderer extends TileEntitySpecialRenderer<TileEntityLeaderboard>
+public class TileEntityLeaderboardRenderer implements BlockEntityRenderer<TileEntityLeaderboard>
 {
-	@Override
-	public void render(TileEntityLeaderboard te, double x, double y, double z, float partialTicks, int destroyStage, float f)
+	private final Font font;
+
+	public TileEntityLeaderboardRenderer(BlockEntityRendererProvider.Context context)
 	{
-		GlStateManager.pushMatrix();
-        GlStateManager.translate((float)x, (float)y + 1.0F, (float)z + 1.0F);
-        GlStateManager.scale(1.0F, -1.0F, -1.0F);
-        GlStateManager.translate(0.0F, 0.0F, 0.0F);
-        
-        FontRenderer font = Minecraft.getMinecraft().fontRenderer;
-        
-        float mcScale = 1f / 16f;
-        GlStateManager.scale(mcScale, mcScale, mcScale);
-        
-        // x=3 to x=13
-        // y=3 to y=13
-        GlStateManager.translate(3, 3, 6.25f);
-        int fontArea = 13 - 3;
-        
-        // Font allowed area is now 0-80 font px
-        float fontPxPerMcPx = 8;
-        fontArea *= fontPxPerMcPx;
-        float textScale = 1f / fontPxPerMcPx;
-        GlStateManager.scale(textScale, textScale, textScale);
-        
-        GlStateManager.enableAlpha();
-        GlStateManager.enableTexture2D();
-        GlStateManager.disableLighting();
-        
-        String type = "Bah";
-		if(te.getBlockType() == WarForgeMod.CONTENT.topLeaderboardBlock)
+		this.font = context.getFont();
+	}
+
+	@Override
+	public void render(TileEntityLeaderboard te, float partialTicks, PoseStack pose, MultiBufferSource buffers,
+	                   int packedLight, int packedOverlay)
+	{
+		pose.pushPose();
+		pose.translate(0.0F, 1.0F, 1.0F);
+		pose.scale(1.0F, -1.0F, -1.0F);
+
+		float mcScale = 1f / 16f;
+		pose.scale(mcScale, mcScale, mcScale);
+
+		// x=3 to x=13
+		// y=3 to y=13
+		pose.translate(3, 3, 6.25f);
+		int fontArea = 13 - 3;
+
+		// Font allowed area is now 0-80 font px
+		float fontPxPerMcPx = 8;
+		fontArea *= fontPxPerMcPx;
+		float textScale = 1f / fontPxPerMcPx;
+		pose.scale(textScale, textScale, textScale);
+
+		String type = "Bah";
+		if(te.getBlockState().getBlock() == WarForgeMod.CONTENT.topLeaderboardBlock)
 			type = "Top";
-		else if(te.getBlockType() == WarForgeMod.CONTENT.wealthLeaderboardBlock)
+		else if(te.getBlockState().getBlock() == WarForgeMod.CONTENT.wealthLeaderboardBlock)
 			type = "Wealth";
-		else if(te.getBlockType() == WarForgeMod.CONTENT.notorietyLeaderboardBlock)
+		else if(te.getBlockState().getBlock() == WarForgeMod.CONTENT.notorietyLeaderboardBlock)
 			type = "Notoriety";
-		else if(te.getBlockType() == WarForgeMod.CONTENT.legacyLeaderboardBlock)
+		else if(te.getBlockState().getBlock() == WarForgeMod.CONTENT.legacyLeaderboardBlock)
 			type = "Legacy";
-		
-		font.drawStringWithShadow(type, fontArea / 2 - font.getStringWidth(type) / 2, 0, 0xffffff);
-		font.drawStringWithShadow("Leaderboard", fontArea / 2 - font.getStringWidth("Leaderboard") / 2, 8, 0xffffff);
-				
+
+		drawString(pose, buffers, packedLight, type, fontArea / 2 - font.width(type) / 2, 0, true);
+		drawString(pose, buffers, packedLight, "Leaderboard", fontArea / 2 - font.width("Leaderboard") / 2, 8, true);
+
 		for(int i = 0; i < TileEntityLeaderboard.NUM_ENTRIES - 1; i++)
 		{
-			font.drawString("#" + (i + 1), 0, 20 + 10 * i, 0xffffff);
-			font.drawString(te.topNames[i], fontArea - font.getStringWidth(te.topNames[i]), 20 + 10 * i, 0xffffff);
+			drawString(pose, buffers, packedLight, "#" + (i + 1), 0, 20 + 10 * i, false);
+			String name = te.topNames[i] != null ? te.topNames[i] : "";
+			drawString(pose, buffers, packedLight, name, fontArea - font.width(name), 20 + 10 * i, false);
 		}
-		
-		GlStateManager.depthFunc(515);
-		GlStateManager.popMatrix();
+
+		pose.popPose();
+	}
+
+	private void drawString(PoseStack pose, MultiBufferSource buffers, int packedLight, String text, float x, float y, boolean shadow)
+	{
+		font.drawInBatch(Component.literal(text), x, y, 0xffffff, shadow, pose.last().pose(), buffers,
+				Font.DisplayMode.NORMAL, 0, packedLight);
 	}
 }

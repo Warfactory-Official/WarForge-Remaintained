@@ -1,134 +1,56 @@
 package com.flansmod.warforge.common.blocks.models;
 
-import com.flansmod.warforge.client.models.ThemableBakedModel;
-import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.util.IDynamicModels;
-import com.google.common.collect.ImmutableMap;
-import lombok.SneakyThrows;
-import net.minecraft.client.renderer.block.model.IBakedModel;
-import net.minecraft.client.renderer.block.statemap.StateMapperBase;
-import net.minecraft.client.renderer.texture.TextureMap;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.client.event.ModelBakeEvent;
-import net.minecraftforge.client.model.IModel;
-import net.minecraftforge.client.model.ModelLoader;
-import net.minecraftforge.client.model.ModelLoaderRegistry;
-import net.minecraftforge.common.model.TRSRTransformation;
+import com.flansmod.warforge.common.WarForgeConfig;
+import net.minecraft.resources.ResourceLocation;
 
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
+/**
+ * Statue model registry for claim/citadel/siege block-entity rendering.
+ *
+ * <p>The classic statues ({@code block/dummy/king|knight|berserker}) are already loaded by the
+ * {@code dummy} blockstate variants; the modern statues ({@code block/statues/modern/*}) are not
+ * referenced by any blockstate, so all five locations are registered as additional models on
+ * {@link net.minecraftforge.client.event.ModelEvent.RegisterAdditional} (see
+ * {@link com.flansmod.warforge.common.ModelEventHandler}). Forge then bakes them into the
+ * {@link net.minecraft.client.resources.model.ModelManager}, from which
+ * {@link com.flansmod.warforge.client.RenderTileEntityClaim} fetches them per-frame.
+ */
+public final class ClaimModels {
 
+    // Classic (medieval) statues — also referenced by the `dummy` blockstate variants.
+    public static final ResourceLocation STATUE_KING = new ResourceLocation(Tags.MODID, "block/dummy/king");
+    public static final ResourceLocation STATUE_KNIGHT = new ResourceLocation(Tags.MODID, "block/dummy/knight");
+    public static final ResourceLocation STATUE_BERSERKER = new ResourceLocation(Tags.MODID, "block/dummy/berserker");
 
-public class ClaimModels implements IDynamicModels {
+    // Modern statues — not referenced by any blockstate, must be registered as additional models.
+    public static final ResourceLocation MODERN_FLAG_POLE = new ResourceLocation(Tags.MODID, "block/statues/modern/flag_pole");
+    public static final ResourceLocation MODERN_RADIO = new ResourceLocation(Tags.MODID, "block/statues/modern/radio");
 
-    public static final String texturePath = "textures/blocks/statues/";
-    public static final Map<ModelType, IBakedModel[]> MODEL_MAP = new EnumMap<>(ModelType.class);
-    public static ResourceLocation BASE_STATUE = new ResourceLocation(Tags.MODID, "block/dummy/statue_base");
+    /** All locations Forge must bake; passed to {@code ModelEvent.RegisterAdditional}. */
+    public static final ResourceLocation[] ADDITIONAL_MODELS = {
+            STATUE_KING, STATUE_KNIGHT, STATUE_BERSERKER, MODERN_FLAG_POLE, MODERN_RADIO,
+    };
 
-    public ClaimModels() {
-        INSTANCES.add(this);
+    private ClaimModels() {
     }
 
-    private static ThemableBakedModel[] bakeTheamableModels(Map<THEME, IModel> modelMap) {
-        return bakeTheamableModels(modelMap, 8);
-    }
-
-    private static ThemableBakedModel[] bakeTheamableModels(Map<THEME, IModel> modelMap, int steps) {
-        var array = new ThemableBakedModel[steps];
-        for (int i = 0; i < steps; i++) {
-            float angle = i * (360f / steps);
-            Map<THEME, IBakedModel> bakedModelMap = new HashMap<>();
-            for (THEME theme : modelMap.keySet()) {
-                var model = modelMap.get(theme);
-                TRSRTransformation rotation = TRSRTransformation.blockCenterToCorner(
-                        new TRSRTransformation(
-                                null,
-                                TRSRTransformation.quatFromXYZ(0, (float) Math.toRadians(angle), 0),
-                                null,
-                                null
-                        )
-                );
-                bakedModelMap.put(theme,
-                        model.bake(rotation, DefaultVertexFormats.BLOCK, ModelLoader.defaultTextureGetter()
-                        ));
-
-            }
-            array[i] = new ThemableBakedModel(bakedModelMap);
-        }
-
-        return array;
-    }
-
-
-    @SneakyThrows
-    @Override
-    public void bakeModel(ModelBakeEvent event) {
-        IModel baseStatueModel = ModelLoaderRegistry.getModel(BASE_STATUE);
-        String classicTexturePath = "blocks/statues/classic";
-        String modernModelPath = "block/statues/modern";
-
-        Map<THEME, IModel> citadelModels = ImmutableMap.of(
-                THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_king").toString())
-                ),
-                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(Tags.MODID, modernModelPath + "/flag_pole"))
-        );
-
-        // Use your themable baking for CITADEL
-        MODEL_MAP.put(ModelType.CITADEL, bakeTheamableModels(citadelModels));
-
-        Map<THEME, IModel> basicClaimModels = ImmutableMap.of(
-                THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_knight").toString())
-                ),
-                THEME.MODERN, ModelLoaderRegistry.getModelOrMissing(new ResourceLocation(Tags.MODID, modernModelPath + "/radio"))
-        );
-        MODEL_MAP.put(ModelType.BASIC_CLAIM, bakeTheamableModels(basicClaimModels));
-
-        // SIEGE using same placeholder models
-        Map<THEME, IModel> siegeModels = ImmutableMap.of(
-                THEME.MEDIVAL, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_berserker").toString())
-                ),
-                THEME.MODERN, baseStatueModel.retexture(
-                        ImmutableMap.of("0", new ResourceLocation(Tags.MODID, classicTexturePath + "/statue_berserker").toString())
-                )
-        );
-        MODEL_MAP.put(ModelType.SIEGE, bakeTheamableModels(siegeModels));
-    }
-
-    @Override
-    public void registerModel() {
-
-    }
-
-    @Override
-    public void registerSprite(TextureMap map) {
-        var spriteList = DataRetrivalUtil.getResourcesFromPath(texturePath);
-        spriteList.forEach(map::registerSprite);
+    /**
+     * Resolves the statue model location for a renderer type, honouring the runtime
+     * {@link WarForgeConfig#MODERN_WARFARE_MODELS} theme toggle. There is no modern siege statue,
+     * so siege always uses the classic berserker (matching the original behaviour).
+     */
+    public static ResourceLocation modelFor(ModelType type) {
+        boolean modern = WarForgeConfig.MODERN_WARFARE_MODELS;
+        return switch (type) {
+            case CITADEL -> modern ? MODERN_FLAG_POLE : STATUE_KING;
+            case BASIC_CLAIM -> modern ? MODERN_RADIO : STATUE_KNIGHT;
+            case SIEGE -> STATUE_BERSERKER;
+        };
     }
 
     public enum ModelType {
-        CITADEL("citadel"),
-        BASIC_CLAIM("basic_claim"),
-        SIEGE("siege");
-
-        private final String id;
-
-        ModelType(String id) {
-            this.id = id;
-        }
-
-        public String id() {
-            return id;
-        }
+        CITADEL,
+        BASIC_CLAIM,
+        SIEGE,
     }
-
-    public enum THEME {
-        MEDIVAL, MODERN;
-    }
-
 }

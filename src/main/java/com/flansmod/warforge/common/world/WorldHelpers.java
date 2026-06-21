@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.world;
 
-import net.minecraft.block.Block;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 
 public final class WorldHelpers {
     static final int OFFSET = 8;
@@ -10,8 +10,8 @@ public final class WorldHelpers {
     private WorldHelpers() {
     }
 
-    public static boolean isAnyBlock(World world, BlockPos pos, Block... blocks) {
-        final Block foundBlock = world.getBlockState(pos).getBlock();
+    public static boolean isAnyBlock(Level level, BlockPos pos, Block... blocks) {
+        final Block foundBlock = level.getBlockState(pos).getBlock();
         for (Block block : blocks) {
             if (foundBlock == block) {
                 return true;

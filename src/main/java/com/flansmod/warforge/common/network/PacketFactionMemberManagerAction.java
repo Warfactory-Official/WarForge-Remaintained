@@ -4,10 +4,10 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
 import com.flansmod.warforge.server.Faction;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -26,46 +26,46 @@ public class PacketFactionMemberManagerAction extends PacketBase {
     public FactionMemberManagerGuiData.Page page = FactionMemberManagerGuiData.Page.MEMBERS;
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeByte(action.ordinal());
         writeUUID(data, target);
         data.writeByte(page.ordinal());
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         action = Action.values()[data.readByte()];
         target = readUUID(data);
         page = FactionMemberManagerGuiData.Page.values()[data.readByte()];
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         switch (action) {
             case PROMOTE -> {
-                EntityPlayerMP promoteTarget = WarForgeMod.MC_SERVER.getPlayerList().getPlayerByUUID(target);
+                ServerPlayer promoteTarget = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(target);
                 if (promoteTarget == null) {
-                    playerEntity.sendMessage(new net.minecraft.util.text.TextComponentString("That player must be online to be promoted"));
+                    playerEntity.sendSystemMessage(Component.literal("That player must be online to be promoted"));
                 } else {
                     WarForgeMod.FACTIONS.requestPromote(playerEntity, promoteTarget);
                 }
             }
             case DEMOTE -> {
-                EntityPlayerMP demoteTarget = WarForgeMod.MC_SERVER.getPlayerList().getPlayerByUUID(target);
+                ServerPlayer demoteTarget = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(target);
                 if (demoteTarget == null) {
-                    playerEntity.sendMessage(new net.minecraft.util.text.TextComponentString("That player must be online to be demoted"));
+                    playerEntity.sendSystemMessage(Component.literal("That player must be online to be demoted"));
                 } else {
                     WarForgeMod.FACTIONS.requestDemote(playerEntity, demoteTarget);
                 }
             }
             case KICK_OR_LEAVE -> {
-                Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUniqueID());
+                Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUUID());
                 if (faction != null) {
-                    WarForgeMod.FACTIONS.requestRemovePlayerFromFaction(playerEntity, faction.uuid, target);
+                    WarForgeMod.FACTIONS.requestRemovePlayerFromFaction(playerEntity.createCommandSourceStack(), faction.uuid, target);
                 }
             }
             case TRANSFER_LEADER -> {
-                Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUniqueID());
+                Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUUID());
                 if (faction != null) {
                     WarForgeMod.FACTIONS.RequestTransferLeadership(playerEntity, faction.uuid, target);
                 }
@@ -78,6 +78,6 @@ public class PacketFactionMemberManagerAction extends PacketBase {
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
     }
 }

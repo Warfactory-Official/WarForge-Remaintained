@@ -2,79 +2,63 @@ package com.flansmod.warforge.common.blocks;
 
 import java.util.UUID;
 
+import javax.annotation.Nullable;
+
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.ITileEntityProvider;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumBlockRenderType;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.phys.BlockHitResult;
 
-public class BlockLeaderboard extends Block implements ITileEntityProvider
+public class BlockLeaderboard extends Block implements EntityBlock
 {
-	public FactionStat stat;
-	
-	public BlockLeaderboard(Material materialIn, FactionStat stat) 
+	public final FactionStat stat;
+
+	public BlockLeaderboard(FactionStat stat)
 	{
-		super(materialIn);
-		
-		this.setCreativeTab(CreativeTabs.COMBAT);
-		
-		this.setBlockUnbreakable();
-		this.setHardness(300000000F);
-		
+		super(BlockBehaviour.Properties.of()
+				.strength(-1.0F, 3600000.0F)
+				.noLootTable()
+				.noOcclusion());
+
 		this.stat = stat;
 	}
-	
-	@Override
-    public boolean isOpaqueCube(IBlockState state) { return false; }
-	@Override
-    public boolean isFullCube(IBlockState state) { return false; }
-	@Override
-    public EnumBlockRenderType getRenderType(IBlockState state) { return EnumBlockRenderType.MODEL; }
 
-	/* Unused code that errors #4
-	@SideOnly(Side.CLIENT)
-    @Override
-    public BlockRenderLayer getBlockLayer() { return BlockRenderLayer.CUTOUT; }
-	*/
-    @Override
-	public boolean onBlockActivated(World world, BlockPos pos, IBlockState state, EntityPlayer player, EnumHand hand, EnumFacing side, float par7, float par8, float par9)
+	@Override
+	public RenderShape getRenderShape(BlockState state) { return RenderShape.MODEL; }
+
+	@Override
+	public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit)
 	{
-		if(player.isSneaking())
-			return false;
-		if(!world.isRemote)
+		if(player.isShiftKeyDown())
+			return InteractionResult.PASS;
+		if(!world.isClientSide)
 		{
-			UUID uuid = player.getUniqueID();
+			UUID uuid = player.getUUID();
 			PacketLeaderboardInfo packet = new PacketLeaderboardInfo();
 			packet.info = WarForgeMod.LEADERBOARD.CreateInfo(0, stat, uuid);
-			WarForgeMod.NETWORK.sendTo(packet, (EntityPlayerMP)player);
+			WarForgeMod.NETWORK.sendTo(packet, (ServerPlayer)player);
+			return InteractionResult.SUCCESS;
 		}
-		return true;
+		return InteractionResult.CONSUME;
 	}
 
+	@Nullable
 	@Override
-	public TileEntity createNewTileEntity(World worldIn, int meta) 
+	public BlockEntity newBlockEntity(BlockPos pos, BlockState state)
 	{
-		return new TileEntityLeaderboard();
+		return new TileEntityLeaderboard(pos, state);
 	}
-	
-	@Override
-    public boolean canEntityDestroy(IBlockState state, IBlockAccess world, BlockPos pos, Entity entity)
-    {
-        return false;
-    }
 }

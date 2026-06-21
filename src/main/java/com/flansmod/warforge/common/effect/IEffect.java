@@ -1,20 +1,17 @@
 package com.flansmod.warforge.common.effect;
 
 import net.minecraft.client.renderer.texture.TextureManager;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.world.World;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.Random;
 
 public interface IEffect {
 
-    @SideOnly(Side.CLIENT)
-    public void runEffect(World world, EntityPlayer player, TextureManager man, Random rand, double x, double y, double z, NBTTagCompound data);
-
-
-
+    @OnlyIn(Dist.CLIENT)
+    void runEffect(Level world, Player player, TextureManager man, Random rand, double x, double y, double z, CompoundTag data);
 
 }

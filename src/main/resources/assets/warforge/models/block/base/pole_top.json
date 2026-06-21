@@ -1,7 +1,7 @@
 {
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "warforge:blocks/flagpole_basicclaim_top"
+		"0": "warforge:block/flagpole_basicclaim_top"
 	},
 	"elements": [
 		{

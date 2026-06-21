@@ -1,28 +1,29 @@
 package com.flansmod.warforge.server;
 
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.WorldServer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 
 public class TeleportUtil {
 
-    public static void teleportPlayer(EntityPlayerMP player, int targetDimension, BlockPos targetPosition) {
+    public static void teleportPlayer(ServerPlayer player, ResourceKey<Level> targetDimension, BlockPos targetPosition) {
         // Ensure the target dimension is different from the current dimension
-        if (player.dimension != targetDimension) {
-            // Create a new instance of the WorldServer for the target dimension
-            WorldServer targetWorld = player.getServerWorld().getMinecraftServer().getWorld(targetDimension);
+        if (player.level().dimension() != targetDimension) {
+            ServerLevel targetWorld = player.server.getLevel(targetDimension);
 
             // Change the player's dimension and teleport them
-            player.changeDimension(targetDimension, new WfTeleporter(targetWorld));
+            player.changeDimension(targetWorld, new WfTeleporter());
         }
 
         // Set the player's location in the target dimension
-        player.connection.setPlayerLocation(
+        player.connection.teleport(
                 targetPosition.getX() + 0.5D,
                 targetPosition.getY() + 1.5D,
                 targetPosition.getZ() + 0.5D,
-                player.rotationYaw,
-                player.rotationPitch
+                player.getYRot(),
+                player.getXRot()
         );
     }
 }

@@ -1,14 +1,15 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.api.GuiAxis;
-import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.GuiTextures;
-import com.cleanroommc.modularui.widget.ParentWidget;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.SlotGroupWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
-import net.minecraft.client.gui.Gui;
+import brachy.modularui.api.GuiAxis;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.GuiDraw;
+import brachy.modularui.drawable.GuiTextures;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.SlotGroupWidget;
+import brachy.modularui.widgets.layout.Flow;
+import net.minecraft.client.gui.GuiGraphics;
 
 public final class ModularGuiStyle {
     public static final int HEADER_FILL = 0xFF171B1F;
@@ -48,7 +49,7 @@ public final class ModularGuiStyle {
 
     public static IDrawable colorStripe(int color) {
         return (context, drawX, drawY, drawWidth, drawHeight, theme) ->
-                Gui.drawRect(drawX, drawY, drawX + drawWidth, drawY + drawHeight, 0xFF000000 | (color & 0x00FFFFFF));
+                GuiDraw.drawRect(context.getGraphics(), drawX, drawY, drawWidth, drawHeight, 0xFF000000 | (color & 0x00FFFFFF));
     }
 
     public static Flow section(int width, int height) {
@@ -75,6 +76,26 @@ public final class ModularGuiStyle {
         return ButtonWidget.panelCloseButton().name("panel_close_button").pos(panelWidth - 18, 8).size(10);
     }
 
+    /**
+     * Close button for a sub-GUI: returns to the parent menu (e.g. the citadel) when this menu was opened
+     * as a child, otherwise closes to the world. See {@link DeferredGuiOpen}.
+     */
+    public static ButtonWidget<?> subPanelCloseButton(int panelWidth) {
+        return new ButtonWidget<>()
+                .name("panel_close_button")
+                .pos(panelWidth - 18, 8)
+                .size(10)
+                .widgetTheme(brachy.modularui.api.IThemeApi.CLOSE_BUTTON)
+                .overlay(GuiTextures.CROSS_TINY)
+                .onMousePressed((context, mouseButton) -> {
+                    if (mouseButton == 0 || mouseButton == 1) {
+                        DeferredGuiOpen.closeOrReturnToParent();
+                        return true;
+                    }
+                    return false;
+                });
+    }
+
     public static ButtonWidget<?> actionButton(String label, int width, Runnable action) {
         return actionButton(label, width, true, action);
     }
@@ -84,10 +105,10 @@ public final class ModularGuiStyle {
                 .name(debugName("button", label))
                 .width(width)
                 .height(18)
-                .overlay(IKey.str(label).color(enabled ? TEXT_PRIMARY : TEXT_DISABLED))
+                .overlay(Text.str(label).color(enabled ? TEXT_PRIMARY : TEXT_DISABLED))
                 .background(enabled ? GuiTextures.MC_BUTTON : GuiTextures.MC_BUTTON_DISABLED, buttonTinted(enabled ? HEADER_FILL : 0xFF1B2024))
                 .hoverBackground(enabled ? GuiTextures.MC_BUTTON : GuiTextures.MC_BUTTON_DISABLED, buttonTinted(enabled ? BUTTON_HIGHLIGHT_FILL : 0xFF1B2024))
-                .onMousePressed(mouseButton -> {
+                .onMousePressed((context, mouseButton) -> {
                     if (!enabled) {
                         return false;
                     }
@@ -101,10 +122,10 @@ public final class ModularGuiStyle {
                 .name(debugName("tab", label))
                 .width(width)
                 .height(18)
-                .overlay(IKey.str(label).color(selected ? TEXT_PRIMARY : 0xCCCCCC))
+                .overlay(Text.str(label).color(selected ? TEXT_PRIMARY : 0xCCCCCC))
                 .background(GuiTextures.MC_BUTTON, buttonTinted(selected ? BUTTON_HIGHLIGHT_FILL : HEADER_FILL))
                 .hoverBackground(GuiTextures.MC_BUTTON, buttonTinted(BUTTON_HIGHLIGHT_FILL))
-                .onMousePressed(mouseButton -> {
+                .onMousePressed((context, mouseButton) -> {
                     if (!selected) {
                         action.run();
                     }
@@ -117,10 +138,10 @@ public final class ModularGuiStyle {
                 .name(debugName("danger_button", label))
                 .width(width)
                 .height(18)
-                .overlay(IKey.str(label).color(TEXT_DANGER))
+                .overlay(Text.str(label).color(TEXT_DANGER))
                 .background(buttonFill(DANGER_FILL))
                 .hoverBackground(buttonFill(DANGER_HOVER_FILL))
-                .onMousePressed(mouseButton -> {
+                .onMousePressed((context, mouseButton) -> {
                     action.run();
                     return true;
                 });
@@ -131,10 +152,10 @@ public final class ModularGuiStyle {
                 .name(debugName("danger_button", label))
                 .width(width)
                 .height(height)
-                .overlay(IKey.str(label).color(TEXT_DANGER))
+                .overlay(Text.str(label).color(TEXT_DANGER))
                 .background(buttonFill(DANGER_FILL))
                 .hoverBackground(buttonFill(DANGER_HOVER_FILL))
-                .onMousePressed(mouseButton -> {
+                .onMousePressed((context, mouseButton) -> {
                     action.run();
                     return true;
                 });
@@ -154,11 +175,12 @@ public final class ModularGuiStyle {
 
     private static IDrawable borderedFill(int fillColor, int borderColor) {
         return (context, x, y, width, height, theme) -> {
-            Gui.drawRect(x, y, x + width, y + height, fillColor);
-            Gui.drawRect(x, y, x + width, y + 1, borderColor);
-            Gui.drawRect(x, y + height - 1, x + width, y + height, borderColor);
-            Gui.drawRect(x, y, x + 1, y + height, borderColor);
-            Gui.drawRect(x + width - 1, y, x + width, y + height, borderColor);
+            GuiGraphics graphics = context.getGraphics();
+            GuiDraw.drawRect(graphics, x, y, width, height, fillColor);
+            GuiDraw.drawRect(graphics, x, y, width, 1, borderColor);
+            GuiDraw.drawRect(graphics, x, y + height - 1, width, 1, borderColor);
+            GuiDraw.drawRect(graphics, x, y, 1, height, borderColor);
+            GuiDraw.drawRect(graphics, x + width - 1, y, 1, height, borderColor);
         };
     }
 

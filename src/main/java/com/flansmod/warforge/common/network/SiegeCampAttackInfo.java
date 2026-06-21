@@ -5,7 +5,7 @@ import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.server.Faction;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.Vec3i;
 
 import java.util.UUID;
 

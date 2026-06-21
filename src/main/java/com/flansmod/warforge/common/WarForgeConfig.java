@@ -3,15 +3,16 @@ package com.flansmod.warforge.common;
 import com.flansmod.warforge.api.Time;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.common.network.PacketSyncConfig;
-import net.minecraft.block.Block;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.ModLoadingContext;
+import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.registries.ForgeRegistries;
 
-import java.io.File;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -42,8 +43,11 @@ public class WarForgeConfig {
     // Alliances
     public static final String CATEGORY_ALLIANCES = "Alliances";
 
-    // Config
-    public static Configuration configFile;
+    // General
+    public static final String CATEGORY_GENERAL = "General";
+
+    // Config spec
+    public static final ForgeConfigSpec SPEC;
     public static boolean DO_FANCY_RENDERING = true;
     public static boolean SHOW_OPPONENT_BORDERS = true;
     public static boolean SHOW_ALLY_BORDERS = true;
@@ -58,7 +62,7 @@ public class WarForgeConfig {
 
     // Claims
     public static boolean ENABLE_CITADEL_UPGRADES = false;
-    public static int[] CLAIM_DIM_WHITELIST = new int[]{0};
+    public static String[] CLAIM_DIM_WHITELIST = new String[]{"minecraft:overworld"};
     public static int CLAIM_STRENGTH_CITADEL = 15;
     public static int CLAIM_STRENGTH_REINFORCED = 10;
     public static int CLAIM_STRENGTH_BASIC = 5;
@@ -264,102 +268,413 @@ public class WarForgeConfig {
 
         CLAIM_DEFENDED.BREAK_BLOCKS = true;
 
+        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        define(builder);
+        SPEC = builder.build();
     }
 
-    public static void syncConfig(File suggestedFile) {
-        configFile = new Configuration(suggestedFile);
+    // ---------------------------------------------------------------------
+    // ForgeConfigSpec backing values. Each ConfigValue is read in bake() and
+    // copied into the matching static field so the hundreds of callers keep
+    // reading WarForgeConfig.FIELD unchanged.
+    // ---------------------------------------------------------------------
 
+    // Claims
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> CLAIM_DIM_WHITELIST_V;
+    private static ForgeConfigSpec.IntValue CLAIM_STRENGTH_CITADEL_V;
+    private static ForgeConfigSpec.IntValue CLAIM_STRENGTH_REINFORCED_V;
+    private static ForgeConfigSpec.IntValue CLAIM_STRENGTH_BASIC_V;
+    private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_CITADEL_V;
+    private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_REINFORCED_V;
+    private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_BASIC_V;
+    private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_BASE_V;
+    private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V;
+    private static ForgeConfigSpec.IntValue MAX_CLAIMS_PER_FACTION_V;
+    private static ForgeConfigSpec.IntValue CLAIM_MANAGER_RADIUS_V;
+    private static ForgeConfigSpec.IntValue ISLAND_COLLECTOR_SLOTS_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_OFFLINE_RAID_PROTECTION_V;
+    private static ForgeConfigSpec.IntValue OFFLINE_RAID_PROTECTION_HOURS_V;
+    private static ForgeConfigSpec.IntValue CITADEL_MOVE_NUM_DAYS_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_CITADEL_UPGRADES_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_ISOLATED_CLAIMS_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> INSURANCE_BLACKLIST_IDS_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_FLAG_IDS_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> CUSTOM_FLAG_ALLOWLIST_V;
+
+    // Sieges
+    private static ForgeConfigSpec.IntValue ATTACK_STRENGTH_SIEGE_CAMP_V;
+    private static ForgeConfigSpec.DoubleValue LEECH_PROPORTION_SIEGE_CAMP_V;
+    private static ForgeConfigSpec.IntValue MAX_SIEGES_V;
+    private static ForgeConfigSpec.IntValue ATTACKER_DESERTION_TIMER_V;
+    private static ForgeConfigSpec.IntValue DEFENDER_DESERTION_TIMER_V;
+    private static ForgeConfigSpec.IntValue ATTACKER_CONQUERED_CHUNK_PERIOD_V;
+    private static ForgeConfigSpec.IntValue DEFENDER_CONQUERED_CHUNK_PERIOD_V;
+    private static ForgeConfigSpec.IntValue COMBAT_LOG_THRESHOLD_V;
+    private static ForgeConfigSpec.IntValue LIVE_QUIT_TIMER_V;
+    private static ForgeConfigSpec.BooleanValue SIEGE_ALLOW_UI_DECLARE_V;
+    private static ForgeConfigSpec.IntValue SIEGE_DECLARE_MAX_RANGE_V;
+    private static ForgeConfigSpec.BooleanValue SIEGE_DECLARE_REQUIRE_PRESENCE_V;
+    private static ForgeConfigSpec.IntValue QUITTER_FAIL_TIMER_V;
+    private static ForgeConfigSpec.IntValue MAX_OFFLINE_PLAYER_COUNT_MINIMUM_V;
+    private static ForgeConfigSpec.DoubleValue MAX_OFFLINE_PLAYER_PERCENT_V;
+    private static ForgeConfigSpec.IntValue VERTICAL_SIEGE_DIST_V;
+    private static ForgeConfigSpec.IntValue SIEGE_BATTLE_RADIUS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_ATTACKER_RADIUS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_DEFENDER_RADIUS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DEFENDER_DEATH_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_ATTACKER_DEATH_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DAY_ELAPSED_BASE_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS_V;
+    private static ForgeConfigSpec.DoubleValue SIEGE_DAY_LENGTH_V;
+    private static ForgeConfigSpec.DoubleValue SIEGE_INFO_RADIUS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DEFENDER_FLAG_V;
+    private static ForgeConfigSpec.IntValue SIEGE_COOLDOWN_FAIL_V;
+    private static ForgeConfigSpec.DoubleValue FLAG_COOLDOWN_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_ATTACKER_FLAG_V;
+    private static ForgeConfigSpec.IntValue SIEGE_DIFF_PER_MEMBER_V;
+    private static ForgeConfigSpec.BooleanValue SIEGE_CAPTURE_V;
+    private static ForgeConfigSpec.BooleanValue SIEGE_ENABLE_NEW_TIMER_V;
+    private static ForgeConfigSpec.IntValue SIEGE_MOMENTUM_DURATION_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> SIEGE_MOMENTUM_MULTIPLIERS_V;
+
+    // Alliances
+    private static ForgeConfigSpec.IntValue ALLIANCE_TRUCE_DURATION_MINUTES_V;
+    private static ForgeConfigSpec.IntValue MAX_ALLIES_V;
+
+    // Vault
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> VAULT_BLOCK_IDS_V;
+
+    // Yields
+    private static ForgeConfigSpec.DoubleValue YIELD_DAY_LENGTH_V;
+    private static ForgeConfigSpec.DoubleValue POOR_QUAL_MULT_V;
+    private static ForgeConfigSpec.DoubleValue FAIR_QUAL_MULT_V;
+    private static ForgeConfigSpec.DoubleValue RICH_QUAL_MULT_V;
+
+    // Notoriety
+    private static ForgeConfigSpec.IntValue NOTORIETY_PER_PLAYER_KILL_V;
+    private static ForgeConfigSpec.IntValue NOTORIETY_PER_SIEGE_ATTACK_SUCCESS_V;
+    private static ForgeConfigSpec.IntValue NOTORIETY_PER_SIEGE_DEFEND_SUCCESS_V;
+    private static ForgeConfigSpec.IntValue NOTORIETY_KILL_CAP_PER_PLAYER_V;
+
+    // Legacy
+    private static ForgeConfigSpec.IntValue LEGACY_PER_DAY_V;
+    private static ForgeConfigSpec.BooleanValue LEGACY_USES_YIELD_TIMER_V;
+
+    // Visual / Client
+    private static ForgeConfigSpec.DoubleValue SHOW_NEW_AREA_TIMER_V;
+    private static ForgeConfigSpec.IntValue FACTION_NAME_LENGTH_MAX_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> FACTION_NAME_BANLIST_V;
+    private static ForgeConfigSpec.BooleanValue SHOW_OPPONENT_BORDERS_V;
+    private static ForgeConfigSpec.BooleanValue SHOW_ALLY_BORDERS_V;
+    private static ForgeConfigSpec.BooleanValue SHOW_YIELD_TIMERS_V;
+    private static ForgeConfigSpec.BooleanValue FACTION_PREFIX_IN_CHAT_V;
+    private static ForgeConfigSpec.BooleanValue FACTION_PREFIX_IN_TABLIST_V;
+    private static ForgeConfigSpec.ConfigValue<String> JOURNEYMAP_CLAIM_MODE_V;
+    private static ForgeConfigSpec.ConfigValue<String> JOURNEYMAP_VEIN_MODE_V;
+    private static ForgeConfigSpec.IntValue JOURNEYMAP_VEIN_AUTO_RADIUS_V;
+    private static ForgeConfigSpec.IntValue VEIN_MEMBER_DISPLAY_TIME_MS_V;
+    private static ForgeConfigSpec.BooleanValue MODERN_WARFARE_MODELS_V;
+    private static ForgeConfigSpec.DoubleValue HUD_VERT_CUTOFF_PERCENT_V;
+    private static ForgeConfigSpec.ConfigValue<String> POS_TIMERS_V;
+    private static ForgeConfigSpec.ConfigValue<String> POS_SIEGE_V;
+    private static ForgeConfigSpec.ConfigValue<String> POS_TOAST_INDICATOR_V;
+    private static ForgeConfigSpec.ConfigValue<String> POS_VEIN_INDICATOR_V;
+    private static ForgeConfigSpec.BooleanValue DO_FANCY_RENDERING_V;
+    private static ForgeConfigSpec.IntValue RANDOM_BORDER_REDRAW_DENOMINATOR_V;
+
+    // General
+    private static ForgeConfigSpec.BooleanValue BLOCK_ENDER_CHEST_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_TPA_POTIONS_V;
+    private static ForgeConfigSpec.ConfigValue<String> FACTIONS_BOT_CHANNEL_ID_V;
+
+    // Warps
+    private static ForgeConfigSpec.BooleanValue ENABLE_F_HOME_COMMAND_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_F_HOME_POTION_EFFECT_V;
+    private static ForgeConfigSpec.BooleanValue ALLOW_F_HOME_BETWEEN_DIMENSIONS_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_SPAWN_COMMAND_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_SPAWN_POTION_EFFECT_V;
+    private static ForgeConfigSpec.BooleanValue ALLOW_SPAWN_BETWEEN_DIMENSIONS_V;
+    private static ForgeConfigSpec.IntValue NUM_TICKS_FOR_WARP_COMMANDS_V;
+
+    // Debug
+    private static ForgeConfigSpec.BooleanValue DEBUG_TRACE_SETBLOCK_V;
+
+    private static List<String> asList(String[] arr) {
+        return new ArrayList<>(Arrays.asList(arr));
+    }
+
+    private static void define(ForgeConfigSpec.Builder cfg) {
         // Protections
-        UNCLAIMED.SyncConfig("Unclaimed", "Unclaimed Chunks");
-        SAFE_ZONE.SyncConfig("SafeZone", "Safe Zone");
-        WAR_ZONE.SyncConfig("WarZone", "War Zone");
-        CITADEL_FRIEND.SyncConfig("CitadelFriend", "Citadels of their Faction");
-        CITADEL_FOE.SyncConfig("CitadelFoe", "Citadels of other Factions");
-        CLAIM_FRIEND.SyncConfig("ClaimFriend", "Claims of their Faction");
-        CLAIM_ALLY.SyncConfig("ClaimAlly", "Claims of allied Factions (only applies when the owning faction enables ally interaction)");
-        CLAIM_FOE.SyncConfig("ClaimFoe", "Claims of other Factions");
-        SIEGECAMP_SIEGER.SyncConfig("Sieger", "Sieges they started");
-        SIEGECAMP_OTHER.SyncConfig("SiegeOther", "Other sieges, defending or neutral");
-        CLAIM_DEFENDED.SyncConfig("ClaimDefended", "Claims under sieged faction that are not under direct siege");
+        UNCLAIMED.define(cfg, "Unclaimed", "Unclaimed Chunks");
+        SAFE_ZONE.define(cfg, "SafeZone", "Safe Zone");
+        WAR_ZONE.define(cfg, "WarZone", "War Zone");
+        CITADEL_FRIEND.define(cfg, "CitadelFriend", "Citadels of their Faction");
+        CITADEL_FOE.define(cfg, "CitadelFoe", "Citadels of other Factions");
+        CLAIM_FRIEND.define(cfg, "ClaimFriend", "Claims of their Faction");
+        CLAIM_ALLY.define(cfg, "ClaimAlly", "Claims of allied Factions (only applies when the owning faction enables ally interaction)");
+        CLAIM_FOE.define(cfg, "ClaimFoe", "Claims of other Factions");
+        SIEGECAMP_SIEGER.define(cfg, "Sieger", "Sieges they started");
+        SIEGECAMP_OTHER.define(cfg, "SiegeOther", "Other sieges, defending or neutral");
+        CLAIM_DEFENDED.define(cfg, "ClaimDefended", "Claims under sieged faction that are not under direct siege");
 
         // Claim Settings
-        CLAIM_DIM_WHITELIST = configFile.get(CATEGORY_CLAIMS, "Claim Dimension Whitelist", CLAIM_DIM_WHITELIST, "In which dimensions should player be able to claim chunks").getIntList();
-        CLAIM_STRENGTH_CITADEL = configFile.getInt("Citadel Claim Strength", CATEGORY_CLAIMS, CLAIM_STRENGTH_CITADEL, 1, 1024, "The strength of citadel claims");
-        CLAIM_STRENGTH_REINFORCED = configFile.getInt("Reinforced Claim Strength", CATEGORY_CLAIMS, CLAIM_STRENGTH_REINFORCED, 1, 1024, "The strength of reinforced claims");
-        CLAIM_STRENGTH_BASIC = configFile.getInt("Basic Claim Strength", CATEGORY_CLAIMS, CLAIM_STRENGTH_BASIC, 1, 1024, "The strength of basic claims");
-        SUPPORT_STRENGTH_CITADEL = configFile.getInt("Citadel Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_CITADEL, 1, 1024, "The support strength a citadel gives to adjacent claims");
-        SUPPORT_STRENGTH_REINFORCED = configFile.getInt("Reinforced Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_REINFORCED, 1, 1024, "The support strength a reinforced claim gives to adjacent claims");
-        SUPPORT_STRENGTH_BASIC = configFile.getInt("Basic Support Strength", CATEGORY_CLAIMS, SUPPORT_STRENGTH_BASIC, 1, 1024, "The support strength a basic claim gives to adjacent claims");
-        FORCE_LOADED_CHUNKS_BASE = configFile.getInt("Force-loaded Chunks Base Limit", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_BASE, 0, 1024, "How many claim chunks each faction can force-load by default.");
-        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = configFile.getInt("Force-loaded Chunks Per Citadel Level", CATEGORY_CLAIMS, FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128, "Extra force-load chunk capacity granted per citadel level.");
-        MAX_CLAIMS_PER_FACTION = configFile.getInt("Max Claims Per Faction", CATEGORY_CLAIMS, MAX_CLAIMS_PER_FACTION, -1, 1000000, "Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.");
-        CLAIM_MANAGER_RADIUS = configFile.getInt("Claim Manager Radius", CATEGORY_CLAIMS, CLAIM_MANAGER_RADIUS, 1, 12, "Square radius in chunks shown in the claim manager UI.");
-        ISLAND_COLLECTOR_SLOTS = configFile.getInt("Island Collector Slot Count", CATEGORY_CLAIMS, ISLAND_COLLECTOR_SLOTS, 1, 1024, "Number of pull-only storage slots in the faction yield collector block. Shrinking this on an existing world relocates any items that no longer fit into remaining slots.");
-        ENABLE_OFFLINE_RAID_PROTECTION = configFile.getBoolean("Enable Offline Raid Protection", CATEGORY_CLAIMS, ENABLE_OFFLINE_RAID_PROTECTION, "If enabled, factions cannot be sieged for a limited period after all their members go offline.");
-        OFFLINE_RAID_PROTECTION_HOURS = configFile.getInt("Offline Raid Protection Hours", CATEGORY_CLAIMS, OFFLINE_RAID_PROTECTION_HOURS, 0, 168, "How many hours a faction remains protected from new sieges after the last member goes offline.");
-        CITADEL_MOVE_NUM_DAYS = configFile.getInt("Days Between Citadel Moves", CATEGORY_CLAIMS, CITADEL_MOVE_NUM_DAYS, 0, 1024, "How many days a faction has to wait to move their citadel again");
-        ENABLE_CITADEL_UPGRADES = configFile.getBoolean("Enable Citadel Upgrade System", CATEGORY_CLAIMS, false, "Applies claim limits that require upgrading to extend your faction's claim limit");
-        ENABLE_ISOLATED_CLAIMS = configFile.getBoolean("Enabled Isolated Claims", CATEGORY_CLAIMS, ENABLE_ISOLATED_CLAIMS, "If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.");
-        INSURANCE_BLACKLIST_IDS = configFile.getStringList("Insurance Blacklist", CATEGORY_CLAIMS, INSURANCE_BLACKLIST_IDS, "Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.");
-        DEFAULT_FLAG_IDS = configFile.getStringList("Available Default Flags", CATEGORY_CLAIMS, DEFAULT_FLAG_IDS, "Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).");
-        CUSTOM_FLAG_ALLOWLIST = configFile.getStringList("Available Custom Flags", CATEGORY_CLAIMS, CUSTOM_FLAG_ALLOWLIST, "Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.");
+        cfg.push(CATEGORY_CLAIMS);
+        CLAIM_DIM_WHITELIST_V = cfg.comment("In which dimensions should player be able to claim chunks")
+                .defineList("Claim Dimension Whitelist", java.util.Arrays.asList(CLAIM_DIM_WHITELIST), o -> o instanceof String);
+        CLAIM_STRENGTH_CITADEL_V = cfg.comment("The strength of citadel claims").defineInRange("Citadel Claim Strength", CLAIM_STRENGTH_CITADEL, 1, 1024);
+        CLAIM_STRENGTH_REINFORCED_V = cfg.comment("The strength of reinforced claims").defineInRange("Reinforced Claim Strength", CLAIM_STRENGTH_REINFORCED, 1, 1024);
+        CLAIM_STRENGTH_BASIC_V = cfg.comment("The strength of basic claims").defineInRange("Basic Claim Strength", CLAIM_STRENGTH_BASIC, 1, 1024);
+        SUPPORT_STRENGTH_CITADEL_V = cfg.comment("The support strength a citadel gives to adjacent claims").defineInRange("Citadel Support Strength", SUPPORT_STRENGTH_CITADEL, 1, 1024);
+        SUPPORT_STRENGTH_REINFORCED_V = cfg.comment("The support strength a reinforced claim gives to adjacent claims").defineInRange("Reinforced Support Strength", SUPPORT_STRENGTH_REINFORCED, 1, 1024);
+        SUPPORT_STRENGTH_BASIC_V = cfg.comment("The support strength a basic claim gives to adjacent claims").defineInRange("Basic Support Strength", SUPPORT_STRENGTH_BASIC, 1, 1024);
+        FORCE_LOADED_CHUNKS_BASE_V = cfg.comment("How many claim chunks each faction can force-load by default.").defineInRange("Force-loaded Chunks Base Limit", FORCE_LOADED_CHUNKS_BASE, 0, 1024);
+        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V = cfg.comment("Extra force-load chunk capacity granted per citadel level.").defineInRange("Force-loaded Chunks Per Citadel Level", FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128);
+        MAX_CLAIMS_PER_FACTION_V = cfg.comment("Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.").defineInRange("Max Claims Per Faction", MAX_CLAIMS_PER_FACTION, -1, 1000000);
+        CLAIM_MANAGER_RADIUS_V = cfg.comment("Square radius in chunks shown in the claim manager UI.").defineInRange("Claim Manager Radius", CLAIM_MANAGER_RADIUS, 1, 12);
+        ISLAND_COLLECTOR_SLOTS_V = cfg.comment("Number of pull-only storage slots in the faction yield collector block. Shrinking this on an existing world relocates any items that no longer fit into remaining slots.").defineInRange("Island Collector Slot Count", ISLAND_COLLECTOR_SLOTS, 1, 1024);
+        ENABLE_OFFLINE_RAID_PROTECTION_V = cfg.comment("If enabled, factions cannot be sieged for a limited period after all their members go offline.").define("Enable Offline Raid Protection", ENABLE_OFFLINE_RAID_PROTECTION);
+        OFFLINE_RAID_PROTECTION_HOURS_V = cfg.comment("How many hours a faction remains protected from new sieges after the last member goes offline.").defineInRange("Offline Raid Protection Hours", OFFLINE_RAID_PROTECTION_HOURS, 0, 168);
+        CITADEL_MOVE_NUM_DAYS_V = cfg.comment("How many days a faction has to wait to move their citadel again").defineInRange("Days Between Citadel Moves", CITADEL_MOVE_NUM_DAYS, 0, 1024);
+        ENABLE_CITADEL_UPGRADES_V = cfg.comment("Applies claim limits that require upgrading to extend your faction's claim limit").define("Enable Citadel Upgrade System", false);
+        ENABLE_ISOLATED_CLAIMS_V = cfg.comment("If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.").define("Enabled Isolated Claims", ENABLE_ISOLATED_CLAIMS);
+        INSURANCE_BLACKLIST_IDS_V = cfg.comment("Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.").defineList("Insurance Blacklist", asList(INSURANCE_BLACKLIST_IDS), o -> o instanceof String);
+        DEFAULT_FLAG_IDS_V = cfg.comment("Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).").defineList("Available Default Flags", asList(DEFAULT_FLAG_IDS), o -> o instanceof String);
+        CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
+        cfg.pop();
 
         // Siege Camp Settings
-        ATTACK_STRENGTH_SIEGE_CAMP = configFile.getInt("Siege Camp Attack Strength", CATEGORY_SIEGES, ATTACK_STRENGTH_SIEGE_CAMP, 1, 1024, "How much attack pressure a siege camp exerts on adjacent enemy claims");
-        LEECH_PROPORTION_SIEGE_CAMP = configFile.getFloat("Siege Camp Leech Proportion", CATEGORY_SIEGES, LEECH_PROPORTION_SIEGE_CAMP, 0f, 1f, "What proportion of a claim's yields are leeched when a siege camp is set to leech mode");
-        MAX_SIEGES = configFile.getInt("Siege Camp Max Count Per Faction", CATEGORY_SIEGES, MAX_SIEGES, 1, 1000, "How many sieges each faction is allowed to have, with any additional siege camps being unable to be placed by members");
-        ATTACKER_DESERTION_TIMER = configFile.getInt("Attacker Desertion Timer [s]", CATEGORY_SIEGES, ATTACKER_DESERTION_TIMER, 0, Integer.MAX_VALUE, "The number of seconds a siege can idle with no attackers in it before any action occurs. Setting to 0 results in checks being run every tick.");
-        DEFENDER_DESERTION_TIMER = configFile.getInt("Defender Desertion Timer [s]", CATEGORY_SIEGES, DEFENDER_DESERTION_TIMER, 0, Integer.MAX_VALUE, "The number of seconds a siege can be undefended before any action occurs. Setting to 0 results in checks being run every tick.");
-        ATTACKER_CONQUERED_CHUNK_PERIOD = configFile.getInt("Attacker Conquered Chunk Grace Period [ms]", CATEGORY_SIEGES, ATTACKER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE, "The number of milliseconds to permit placement within a chunk only by the faction who last won a siege on it. Setting to 0 results in no grace period.");
-        DEFENDER_CONQUERED_CHUNK_PERIOD = configFile.getInt("Defender Conquered Chunk Grace Period [ms]", CATEGORY_SIEGES, DEFENDER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE, "The number of milliseconds to deny sieging or claiming in previously sieged chunk in which the siege was won by the defenders. Setting to 0 results in no grace period.");
-        COMBAT_LOG_THRESHOLD = configFile.getInt("Time to Combat Log Action [ms]", CATEGORY_SIEGES, COMBAT_LOG_THRESHOLD, 0, Integer.MAX_VALUE, "The number of milliseconds before enforcement action is taken when a player leaves during a siege on any of their claims.");
-        LIVE_QUIT_TIMER = configFile.getInt("Time to Live Quit Siege [ms]", CATEGORY_SIEGES, LIVE_QUIT_TIMER, 0, Integer.MAX_VALUE, "The number of milliseconds before a defending team which went offline after a siege against them has begun is considered to have quit, forfeiting the siege.");
-        SIEGE_ALLOW_UI_DECLARE = configFile.getBoolean("Allow UI Siege Declaration", CATEGORY_SIEGES, SIEGE_ALLOW_UI_DECLARE, "If enabled, officers can declare a siege directly from the claim map UI (consuming a siege camp block item) without physically placing a siege camp.");
-        SIEGE_DECLARE_MAX_RANGE = configFile.getInt("UI Siege Declaration Max Range", CATEGORY_SIEGES, SIEGE_DECLARE_MAX_RANGE, 1, 64, "When declaring a siege from the claim map UI, the maximum chunk distance (chebyshev) allowed between the chosen start-from chunk and the target chunk.");
-        SIEGE_DECLARE_REQUIRE_PRESENCE = configFile.getBoolean("UI Siege Requires Attacker Presence", CATEGORY_SIEGES, SIEGE_DECLARE_REQUIRE_PRESENCE, "If enabled, a UI-declared (camp-less) siege fails if no attacking faction member stays within the attacker radius of the start-from chunk for the attacker desertion timer, mirroring physical siege camps.");
+        cfg.push(CATEGORY_SIEGES);
+        ATTACK_STRENGTH_SIEGE_CAMP_V = cfg.comment("How much attack pressure a siege camp exerts on adjacent enemy claims").defineInRange("Siege Camp Attack Strength", ATTACK_STRENGTH_SIEGE_CAMP, 1, 1024);
+        LEECH_PROPORTION_SIEGE_CAMP_V = cfg.comment("What proportion of a claim's yields are leeched when a siege camp is set to leech mode").defineInRange("Siege Camp Leech Proportion", (double) LEECH_PROPORTION_SIEGE_CAMP, 0d, 1d);
+        MAX_SIEGES_V = cfg.comment("How many sieges each faction is allowed to have, with any additional siege camps being unable to be placed by members").defineInRange("Siege Camp Max Count Per Faction", MAX_SIEGES, 1, 1000);
+        ATTACKER_DESERTION_TIMER_V = cfg.comment("The number of seconds a siege can idle with no attackers in it before any action occurs. Setting to 0 results in checks being run every tick.").defineInRange("Attacker Desertion Timer [s]", ATTACKER_DESERTION_TIMER, 0, Integer.MAX_VALUE);
+        DEFENDER_DESERTION_TIMER_V = cfg.comment("The number of seconds a siege can be undefended before any action occurs. Setting to 0 results in checks being run every tick.").defineInRange("Defender Desertion Timer [s]", DEFENDER_DESERTION_TIMER, 0, Integer.MAX_VALUE);
+        ATTACKER_CONQUERED_CHUNK_PERIOD_V = cfg.comment("The number of milliseconds to permit placement within a chunk only by the faction who last won a siege on it. Setting to 0 results in no grace period.").defineInRange("Attacker Conquered Chunk Grace Period [ms]", ATTACKER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE);
+        DEFENDER_CONQUERED_CHUNK_PERIOD_V = cfg.comment("The number of milliseconds to deny sieging or claiming in previously sieged chunk in which the siege was won by the defenders. Setting to 0 results in no grace period.").defineInRange("Defender Conquered Chunk Grace Period [ms]", DEFENDER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE);
+        COMBAT_LOG_THRESHOLD_V = cfg.comment("The number of milliseconds before enforcement action is taken when a player leaves during a siege on any of their claims.").defineInRange("Time to Combat Log Action [ms]", COMBAT_LOG_THRESHOLD, 0, Integer.MAX_VALUE);
+        LIVE_QUIT_TIMER_V = cfg.comment("The number of milliseconds before a defending team which went offline after a siege against them has begun is considered to have quit, forfeiting the siege.").defineInRange("Time to Live Quit Siege [ms]", LIVE_QUIT_TIMER, 0, Integer.MAX_VALUE);
+        SIEGE_ALLOW_UI_DECLARE_V = cfg.comment("If enabled, officers can declare a siege directly from the claim map UI (consuming a siege camp block item) without physically placing a siege camp.").define("Allow UI Siege Declaration", SIEGE_ALLOW_UI_DECLARE);
+        SIEGE_DECLARE_MAX_RANGE_V = cfg.comment("When declaring a siege from the claim map UI, the maximum chunk distance (chebyshev) allowed between the chosen start-from chunk and the target chunk.").defineInRange("UI Siege Declaration Max Range", SIEGE_DECLARE_MAX_RANGE, 1, 64);
+        SIEGE_DECLARE_REQUIRE_PRESENCE_V = cfg.comment("If enabled, a UI-declared (camp-less) siege fails if no attacking faction member stays within the attacker radius of the start-from chunk for the attacker desertion timer, mirroring physical siege camps.").define("UI Siege Requires Attacker Presence", SIEGE_DECLARE_REQUIRE_PRESENCE);
+        QUITTER_FAIL_TIMER_V = cfg.comment("The number of milliseconds before a defending team which failed a siege defense due to quitting is failed for subsequent sieges, if still offline.").defineInRange("Time to Quitters Failing Offline Siege [ms]", QUITTER_FAIL_TIMER, 0, Integer.MAX_VALUE);
+        MAX_OFFLINE_PLAYER_COUNT_MINIMUM_V = cfg.comment("A static minimum for the maximum number of players which can have been online at some point during a siege before the faction online player count dropping to 0 indicates a live quit. Negative values override the percent").defineInRange("Max Players Before Online Status", MAX_OFFLINE_PLAYER_COUNT_MINIMUM, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        MAX_OFFLINE_PLAYER_PERCENT_V = cfg.comment("The maximum percent of players in a faction which can be online at some point during a siege before the online count dropping to 0 indicates a live quit.").defineInRange("Max Player % Before Online Status", (double) MAX_OFFLINE_PLAYER_PERCENT, 0d, 1.0d);
+        VERTICAL_SIEGE_DIST_V = cfg.comment("The number of blocks up or down a siege block can be placed from a potential target, inclusively. Sieges may also only be started on targets within this vertical radius.").defineInRange("Maximum Vertical Siege Radius [Inclusive]", VERTICAL_SIEGE_DIST, 0, Integer.MAX_VALUE);
+        SIEGE_BATTLE_RADIUS_V = cfg.comment("The number of chunks in any direction from each active siege camp that count as the active battle area for siege progress and siege-zone protections.").defineInRange("Battle Square Chunk Radius From Siege", SIEGE_BATTLE_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_ATTACKER_RADIUS_V = cfg.comment("The number of chunks in any direction from the siege block that an attacker can be in to prevent siege abandon.").defineInRange("Attacker Square Chunk Radius From Siege", SIEGE_ATTACKER_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_DEFENDER_RADIUS_V = cfg.comment("The number of chunks in any direction from the siege block that a defender can be in to prevent siege abandon.").defineInRange("Defender Square Chunk Radius From Siege", SIEGE_DEFENDER_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_SWING_PER_DEFENDER_DEATH_V = cfg.comment("How much a siege progress swings when a defender dies in the siege").defineInRange("Siege Swing Per Defender Death", SIEGE_SWING_PER_DEFENDER_DEATH, 0, 1024);
+        SIEGE_SWING_PER_ATTACKER_DEATH_V = cfg.comment("How much a siege progress swings when an attacker dies in the siege").defineInRange("Siege Swing Per Attacker Death", SIEGE_SWING_PER_ATTACKER_DEATH, 0, 1024);
+        SIEGE_SWING_PER_DAY_ELAPSED_BASE_V = cfg.comment("How much a siege progress swings each day (see below). This happens regardless of logins").defineInRange("Siege Swing Per Day", SIEGE_SWING_PER_DAY_ELAPSED_BASE, 0, 1024);
+        SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS_V = cfg.comment("How much a siege progress swings when no attackers have logged on for a day (see below)").defineInRange("Siege Swing Per Day Without Attacker Logins", SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS, 0, 1024);
+        SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS_V = cfg.comment("How much a siege progress swings when no defenders have logged on for a day (see below)").defineInRange("Siege Swing Per Day Without Defender Logins", SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS, 0, 1024);
+        SIEGE_DAY_LENGTH_V = cfg.comment("The length of a day for siege login purposes, in real-world hours.").defineInRange("Siege Day Length", (double) SIEGE_DAY_LENGTH, 0.0001d, 100000d);
+        SIEGE_INFO_RADIUS_V = cfg.comment("The range at which you see siege information. (Capped by the server setting)").defineInRange("Siege Info Radius", (double) SIEGE_INFO_RADIUS, 1d, 1000d);
+        SIEGE_SWING_PER_DEFENDER_FLAG_V = cfg.comment("How much the siege swings per defender flag per day").defineInRange("Siege Swing Per Defender Flag", SIEGE_SWING_PER_DEFENDER_FLAG, 0, 1024);
+        SIEGE_COOLDOWN_FAIL_V = cfg.comment("Cooldown between sieges, in minutes").defineInRange("Cooldown between sieges after failure", SIEGE_COOLDOWN_FAIL, 0, 100000);
+        FLAG_COOLDOWN_V = cfg.comment("Cooldown between flag moves, in minutes").defineInRange("Cooldown between Flag move", (double) FLAG_COOLDOWN, 0d, 100000d);
+        SIEGE_SWING_PER_ATTACKER_FLAG_V = cfg.comment("How much the siege swings per attacker flag per day").defineInRange("Siege Swing Per Attacker Flag", SIEGE_SWING_PER_ATTACKER_FLAG, 0, 1024);
+        SIEGE_DIFF_PER_MEMBER_V = cfg.comment("How much having a defender flag at a base reinforces the difficulty of the siege for the attackers").defineInRange("Siege Difficulty Reinforcement Per Defender Flag", SIEGE_DIFF_PER_MEMBER, 0, 1024);
+        SIEGE_CAPTURE_V = cfg.comment("Does a successful siege convert the claim").define("Siege Captures", SIEGE_CAPTURE);
+        SIEGE_ENABLE_NEW_TIMER_V = cfg.comment("Enable new per siege time system, instead of a central siege day, each siege has its own timer, starting with the siege").define("Enable Per-Siege timer", SIEGE_ENABLE_NEW_TIMER);
+        SIEGE_MOMENTUM_DURATION_V = cfg.comment("Time the momentum lasts").defineInRange("Siege momentum duration", 60, 1, Integer.MAX_VALUE);
+        SIEGE_MOMENTUM_MULTIPLIERS_V = cfg.comment("List of momentum multipliers in the form level=multiplier").defineList("SiegeMomentumMultipliers",
+                asList(new String[]{"0=15:00", "1=10:00", "2=8:30", "3=5:00", "4=2:30"}), o -> o instanceof String);
+        cfg.pop();
 
-        ALLIANCE_TRUCE_DURATION_MINUTES = configFile.getInt("Alliance Truce Duration [min]", CATEGORY_ALLIANCES, ALLIANCE_TRUCE_DURATION_MINUTES, 0, 525600, "When an alliance is broken, both factions enter a truce during which they cannot siege or harm each other. Length in minutes; 0 disables the truce.");
-        MAX_ALLIES = configFile.getInt("Max Allies Per Faction", CATEGORY_ALLIANCES, MAX_ALLIES, -1, 1000, "Maximum number of simultaneous alliances a faction may hold. Set to -1 for unlimited.");
-        QUITTER_FAIL_TIMER = configFile.getInt("Time to Quitters Failing Offline Siege [ms]", CATEGORY_SIEGES, QUITTER_FAIL_TIMER, 0, Integer.MAX_VALUE, "The number of milliseconds before a defending team which failed a siege defense due to quitting is failed for subsequent sieges, if still offline.");
-        MAX_OFFLINE_PLAYER_COUNT_MINIMUM = configFile.getInt("Max Players Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_COUNT_MINIMUM, Integer.MIN_VALUE, Integer.MAX_VALUE, "A static minimum for the maximum number of players which can have been online at some point during a siege before the faction online player count dropping to 0 indicates a live quit. Negative values override the percent");
-        MAX_OFFLINE_PLAYER_PERCENT = configFile.getFloat("Max Player % Before Online Status", CATEGORY_SIEGES, MAX_OFFLINE_PLAYER_PERCENT, 0, 1.0F, "The maximum percent of players in a faction which can be online at some point during a siege before the online count dropping to 0 indicates a live quit.");
-        VERTICAL_SIEGE_DIST = configFile.getInt("Maximum Vertical Siege Radius [Inclusive]", CATEGORY_SIEGES, VERTICAL_SIEGE_DIST, 0, Integer.MAX_VALUE, "The number of blocks up or down a siege block can be placed from a potential target, inclusively. Sieges may also only be started on targets within this vertical radius.");
-        SIEGE_BATTLE_RADIUS = configFile.getInt("Battle Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_BATTLE_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from each active siege camp that count as the active battle area for siege progress and siege-zone protections.");
-        SIEGE_ATTACKER_RADIUS = configFile.getInt("Attacker Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_ATTACKER_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from the siege block that an attacker can be in to prevent siege abandon.");
-        SIEGE_DEFENDER_RADIUS = configFile.getInt("Defender Square Chunk Radius From Siege", CATEGORY_SIEGES, SIEGE_DEFENDER_RADIUS, 0, Integer.MAX_VALUE, "The number of chunks in any direction from the siege block that a defender can be in to prevent siege abandon.");
+        // Alliances
+        cfg.push(CATEGORY_ALLIANCES);
+        ALLIANCE_TRUCE_DURATION_MINUTES_V = cfg.comment("When an alliance is broken, both factions enter a truce during which they cannot siege or harm each other. Length in minutes; 0 disables the truce.").defineInRange("Alliance Truce Duration [min]", ALLIANCE_TRUCE_DURATION_MINUTES, 0, 525600);
+        MAX_ALLIES_V = cfg.comment("Maximum number of simultaneous alliances a faction may hold. Set to -1 for unlimited.").defineInRange("Max Allies Per Faction", MAX_ALLIES, -1, 1000);
+        cfg.pop();
 
-        // Siege swing parameters
-        SIEGE_SWING_PER_DEFENDER_DEATH = configFile.getInt("Siege Swing Per Defender Death", CATEGORY_SIEGES, SIEGE_SWING_PER_DEFENDER_DEATH, 0, 1024, "How much a siege progress swings when a defender dies in the siege");
-        SIEGE_SWING_PER_ATTACKER_DEATH = configFile.getInt("Siege Swing Per Attacker Death", CATEGORY_SIEGES, SIEGE_SWING_PER_ATTACKER_DEATH, 0, 1024, "How much a siege progress swings when an attacker dies in the siege");
-        SIEGE_SWING_PER_DAY_ELAPSED_BASE = configFile.getInt("Siege Swing Per Day", CATEGORY_SIEGES, SIEGE_SWING_PER_DAY_ELAPSED_BASE, 0, 1024, "How much a siege progress swings each day (see below). This happens regardless of logins");
-        SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS = configFile.getInt("Siege Swing Per Day Without Attacker Logins", CATEGORY_SIEGES, SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS, 0, 1024, "How much a siege progress swings when no attackers have logged on for a day (see below)");
-        SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS = configFile.getInt("Siege Swing Per Day Without Defender Logins", CATEGORY_SIEGES, SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS, 0, 1024, "How much a siege progress swings when no defenders have logged on for a day (see below)");
-        SIEGE_DAY_LENGTH = configFile.getFloat("Siege Day Length", CATEGORY_SIEGES, SIEGE_DAY_LENGTH, 0.0001f, 100000f, "The length of a day for siege login purposes, in real-world hours.");
-        SIEGE_INFO_RADIUS = configFile.getFloat("Siege Info Radius", CATEGORY_SIEGES, SIEGE_INFO_RADIUS, 1f, 1000f, "The range at which you see siege information. (Capped by the server setting)");
-        SIEGE_SWING_PER_DEFENDER_DEATH = configFile.getInt("Siege Swing Per Defender Death", CATEGORY_SIEGES, SIEGE_SWING_PER_DEFENDER_DEATH, 0, 1024, "How much a siege progress swings when a defender dies in the siege");
-        SIEGE_SWING_PER_DEFENDER_FLAG = configFile.getInt("Siege Swing Per Defender Flag", CATEGORY_SIEGES, SIEGE_SWING_PER_DEFENDER_FLAG, 0, 1024, "How much the siege swings per defender flag per day");
-        SIEGE_COOLDOWN_FAIL = configFile.getInt("Cooldown between sieges after failure", CATEGORY_SIEGES, SIEGE_COOLDOWN_FAIL, 0, 100000, "Cooldown between sieges, in minutes");
-        FLAG_COOLDOWN = configFile.getFloat("Cooldown between Flag move", CATEGORY_SIEGES, FLAG_COOLDOWN, 0, 100000f, "Cooldown between flag moves, in minutes");
-        SIEGE_SWING_PER_ATTACKER_FLAG = configFile.getInt("Siege Swing Per Attacker Flag", CATEGORY_SIEGES, SIEGE_SWING_PER_ATTACKER_FLAG, 0, 1024, "How much the siege swings per attacker flag per day");
-        SIEGE_DIFF_PER_MEMBER = configFile.getInt("Siege Difficulty Reinforcement Per Defender Flag", CATEGORY_SIEGES, SIEGE_DIFF_PER_MEMBER, 0, 1024, "How much having a defender flag at a base reinforces the difficulty of the siege for the attackers");
-        SIEGE_CAPTURE = configFile.getBoolean("Siege Captures", CATEGORY_SIEGES, SIEGE_CAPTURE, "Does a successful siege convert the claim");
-        SIEGE_ENABLE_NEW_TIMER = configFile.getBoolean("Enable Per-Siege timer", CATEGORY_SIEGES, SIEGE_ENABLE_NEW_TIMER, "Enable new per siege time system, instead of a central siege day, each siege has its own timer, starting with the siege");
+        // Vault parameters
+        cfg.push(CATEGORY_GENERAL);
+        VAULT_BLOCK_IDS_V = cfg.comment("The block IDs that count towards the value of your citadel's vault").defineList("Valuable Blocks", asList(VAULT_BLOCK_IDS), o -> o instanceof String);
+        FACTION_NAME_LENGTH_MAX_V = cfg.comment("How many characters long can a faction name be.").defineInRange("Max Faction Name Length", FACTION_NAME_LENGTH_MAX, 3, 128);
+        FACTION_NAME_BANLIST_V = cfg.comment("Case-insensitive substrings that disallow faction names from being created or renamed.").defineList("Faction Name Banlist", asList(FACTION_NAME_BANLIST), o -> o instanceof String);
+        SHOW_OPPONENT_BORDERS_V = cfg.comment("Turns the in-world border rendering on/off for opponent chunks").define("Show Opponent Chunk Borders", SHOW_OPPONENT_BORDERS);
+        SHOW_ALLY_BORDERS_V = cfg.comment("Turns the in-world border rendering on/off for ally chunks").define("Show Ally Chunk Borders", SHOW_ALLY_BORDERS);
+        BLOCK_ENDER_CHEST_V = cfg.comment("Prevent players from opening ender chests").define("Disable Ender Chest", BLOCK_ENDER_CHEST);
+        ENABLE_TPA_POTIONS_V = cfg.comment("Allow players to craft and consume /tpa and /tpaccept style potions").define("Enable TPA Potions", ENABLE_TPA_POTIONS);
+        FACTIONS_BOT_CHANNEL_ID_V = cfg.comment("https://github.com/Chikachi/DiscordIntegration/wiki/IMC-Feature").define("Discord Bot Channel ID", Long.toString(FACTIONS_BOT_CHANNEL_ID));
+        cfg.pop();
 
-        //New siege stuff
-        SIEGE_MOMENTUM_DURATION = configFile.getInt("Siege momentum duration", CATEGORY_SIEGES, 60, 1, Integer.MAX_VALUE, "Time the momentum lasts");
-        // Momentum multipliers (define per momentum level)
-        String[] defaults = new String[]{
-                "0=15:00",
-                "1=10:00",
-                "2=8:30",
-                "3=5:00",
-                "4=2:30"
-        };
-        String[] values = configFile.getStringList("SiegeMomentumMultipliers", CATEGORY_SIEGES, defaults,
-                "List of momentum multipliers in the form level=multiplier");
+        // Yield parameters
+        cfg.push(CATEGORY_YIELDS);
+        String qualityText = "The global multiplier for %s quality veins which all veins fall back to if they do not have an override.";
+        YIELD_DAY_LENGTH_V = cfg.comment("The length of time between yields, in real-world hours.").defineInRange("Yield Day Length", (double) YIELD_DAY_LENGTH, 0.0001d, 100000d);
+        POOR_QUAL_MULT_V = cfg.comment(String.format(qualityText, Quality.POOR)).defineInRange("Global Poor Quality Multiplier", (double) POOR_QUAL_MULT, 0d, 512d);
+        FAIR_QUAL_MULT_V = cfg.comment(String.format(qualityText, Quality.FAIR)).defineInRange("Global Fair Quality Multiplier", (double) FAIR_QUAL_MULT, 0d, 512d);
+        RICH_QUAL_MULT_V = cfg.comment(String.format(qualityText, Quality.RICH)).defineInRange("Global Rich Quality Multiplier", (double) RICH_QUAL_MULT, 0d, 512d);
+        cfg.pop();
+
+        // Notoriety
+        cfg.push(CATEGORY_NOTORIETY);
+        NOTORIETY_PER_PLAYER_KILL_V = cfg.comment("How much notoriety a player earns for their faction when killing another player").defineInRange("Notoriety gain per PVP kill", NOTORIETY_PER_PLAYER_KILL, 0, 1024);
+        NOTORIETY_PER_SIEGE_ATTACK_SUCCESS_V = cfg.comment("How much notoriety a faction earns when successfully winning an siege as attacker").defineInRange("Notoriety gain per siege attack win", NOTORIETY_PER_SIEGE_ATTACK_SUCCESS, 0, 1024);
+        NOTORIETY_PER_SIEGE_DEFEND_SUCCESS_V = cfg.comment("How much notoriety a faction earns when successfully defending a siege").defineInRange("Notoriety gain per siege defend win", NOTORIETY_PER_SIEGE_DEFEND_SUCCESS, 0, 1024);
+        NOTORIETY_KILL_CAP_PER_PLAYER_V = cfg.comment("How many times a faction can kill the same player and still get points").defineInRange("Max # kills per player", NOTORIETY_KILL_CAP_PER_PLAYER, 0, 1024);
+        cfg.pop();
+
+        // Legacy
+        cfg.push(CATEGORY_LEGACY);
+        LEGACY_PER_DAY_V = cfg.comment("How much legacy a faction gets for having at least one player on").defineInRange("Legacy gain per day", LEGACY_PER_DAY, 0, 1024);
+        LEGACY_USES_YIELD_TIMER_V = cfg.comment("If true, legacy triggers every yield timer. Otherwise, every siege timer").define("Legacy uses yield timer", LEGACY_USES_YIELD_TIMER);
+        cfg.pop();
+
+        // Client / Visual
+        cfg.push(CATEGORY_CLIENT);
+        SHOW_NEW_AREA_TIMER_V = cfg.comment("How many in-game ticks to show the 'You have entered {faction}' message for.").defineInRange("New Area Timer", (double) SHOW_NEW_AREA_TIMER, 0.0d, 1000d);
+        SHOW_YIELD_TIMERS_V = cfg.comment("Whether to show a readout of the time until the next yield / siege in top left of your screen").define("Show yield timers", SHOW_YIELD_TIMERS);
+        VEIN_MEMBER_DISPLAY_TIME_MS_V = cfg.comment("The time in milliseconds for which each member of a vein will be displayed when it is being cycled through, to the precision allowed by the client tick system.").defineInRange("Vein Member Display Time", (int) VEIN_MEMBER_DISPLAY_TIME_MS, 100, Integer.MAX_VALUE);
+        MODERN_WARFARE_MODELS_V = cfg.comment("Enable modern warfare models, instead of medival more vanilla-friendly models").define("Enable modern warfare models", MODERN_WARFARE_MODELS);
+        HUD_VERT_CUTOFF_PERCENT_V = cfg.comment("What percent of the entire screen resolution from the top must certain displays (such as vein info) be before they stop rendering. Set to 0.0 to disable all relevant displays, or 1.0 to turn this off.").defineInRange("HUD Vertical cutoff", (double) HUD_VERT_CUTOFF_PERCENT, 0.0d, 1.0d);
+        POS_TIMERS_V = cfg.comment("Position of the yield timers").define("Yield timer position", "BOTTOM_RIGHT");
+        POS_SIEGE_V = cfg.comment("Position of the siege status").define("Siege status position", "TOP");
+        POS_TOAST_INDICATOR_V = cfg.comment("Position of the  toast indicator").define("Toast indicator position", "TOP");
+        POS_VEIN_INDICATOR_V = cfg.comment("Position of the  chunk vein indicator").define("Chunk vein indicator position", "TOP");
+        DO_FANCY_RENDERING_V = cfg.comment("Controls whether or not fancy graphics will be enabled for this mod's rendering.").define("Enable WarForge Fancy Rendering", DO_FANCY_RENDERING);
+        RANDOM_BORDER_REDRAW_DENOMINATOR_V = cfg.comment("Sets the bound on a random number generated, which when equal to 0 calls the border redraw. Effectively 1/this chance to redraw every frame").defineInRange("Random Border Redraw Denominator", RANDOM_BORDER_REDRAW_DENOMINATOR, 1, Integer.MAX_VALUE);
+        cfg.pop();
+
+        // Display
+        cfg.push(CATEGORY_DISPLAY);
+        FACTION_PREFIX_IN_CHAT_V = cfg.comment("If enabled, a player's faction name is shown as a coloured prefix before their name in chat.").define("Faction Prefix In Chat", FACTION_PREFIX_IN_CHAT);
+        FACTION_PREFIX_IN_TABLIST_V = cfg.comment("If enabled, a player's faction name is shown as a coloured prefix before their name in the tab player list.").define("Faction Prefix In Tab List", FACTION_PREFIX_IN_TABLIST);
+        JOURNEYMAP_CLAIM_MODE_V = cfg.comment("Draws a faction-coloured border over claimed chunks on JourneyMap, if it is installed. Server-authoritative.\n"
+                        + "DISABLED = no overlay.\n"
+                        + "AUTO = every claim is shown to everyone globally, updated live regardless of whether a player has visited the area.\n"
+                        + "PLAYER = a chunk's claim only appears (and updates) on a player's map once that player has observed (loaded) that chunk; unobserved claims are never sent to the client.")
+                .define("JourneyMap Claim Display Mode", "DISABLED", o -> isJourneyMapMode(o));
+        JOURNEYMAP_VEIN_MODE_V = cfg.comment("Draws each chunk's ore vein as a small item icon on JourneyMap, if it is installed. Server-authoritative.\n"
+                        + "DISABLED = no overlay.\n"
+                        + "AUTO = veins for a wide radius around each player are sent automatically as they move; no need to enter each chunk.\n"
+                        + "PLAYER = a chunk's vein only appears once the player has walked into and loaded that chunk; unobserved veins are never sent to the client.")
+                .define("JourneyMap Vein Display Mode", "DISABLED", o -> isJourneyMapMode(o));
+        JOURNEYMAP_VEIN_AUTO_RADIUS_V = cfg.comment("In AUTO vein mode, how many chunks around each player to reveal veins for. Larger values reveal more of the map but cause the server to generate and store veins over a wider area.").defineInRange("JourneyMap Vein Auto Radius", JOURNEYMAP_VEIN_AUTO_RADIUS, 1, 128);
+        cfg.pop();
+
+        // Warps
+        cfg.push(CATEGORY_WARPS);
+        ENABLE_F_HOME_COMMAND_V = cfg.comment("Allow players to use /f home to teleport to their citadel").define("Enable /f home Command", ENABLE_F_HOME_COMMAND);
+        ENABLE_F_HOME_POTION_EFFECT_V = cfg.comment("Allow players to craft a potion that takes them to their citadel").define("Enable /f home Potion", ENABLE_F_HOME_POTION_EFFECT);
+        ALLOW_F_HOME_BETWEEN_DIMENSIONS_V = cfg.comment("Allow players to use /f home when in a different dimension to their citadel").define("Allow /f home across dimensions", ALLOW_F_HOME_BETWEEN_DIMENSIONS);
+        ENABLE_SPAWN_COMMAND_V = cfg.comment("Allow players to use /spawn to teleport to the world spawn").define("Enable /spawn Command", ENABLE_SPAWN_COMMAND);
+        ENABLE_SPAWN_POTION_EFFECT_V = cfg.comment("Allow players to craft a potion that takes them to the world spawn").define("Enable /spawn Potion", ENABLE_SPAWN_POTION_EFFECT);
+        ALLOW_SPAWN_BETWEEN_DIMENSIONS_V = cfg.comment("Allow players to use /spawn when in a different dimension to the world spawn").define("Allow /spawn across dimensions", ALLOW_SPAWN_BETWEEN_DIMENSIONS);
+        NUM_TICKS_FOR_WARP_COMMANDS_V = cfg.comment("How many ticks must the player stand still for a warp command to take effect").defineInRange("Num Ticks for Warps", NUM_TICKS_FOR_WARP_COMMANDS, 0, 20 * 60 * 5);
+        cfg.pop();
+
+        // Debug / diagnostics
+        cfg.push(CATEGORY_DEBUG);
+        DEBUG_TRACE_SETBLOCK_V = cfg.comment("DEBUG/diagnostic only. When enabled, logs every server-side setBlockState that lands inside a claimed chunk, " +
+                "together with the position, the owning claim, the block being placed and the calling code. " +
+                "Use this to identify mods that mutate protected terrain outside the explosion-event path " +
+                "(e.g. GregTech Industrial TNT, AE2 Tiny TNT). Very spammy - leave disabled in production.").define("Trace setBlockState In Claimed Chunks", DEBUG_TRACE_SETBLOCK);
+        cfg.pop();
+    }
+
+    private static boolean isJourneyMapMode(Object o) {
+        return o instanceof String s && (s.equals("DISABLED") || s.equals("AUTO") || s.equals("PLAYER"));
+    }
+
+    private static List<Integer> intList(int[] arr) {
+        ArrayList<Integer> out = new ArrayList<>(arr.length);
+        for (int i : arr) out.add(i);
+        return out;
+    }
+
+    private static int[] toIntArray(List<? extends Integer> list) {
+        int[] out = new int[list.size()];
+        for (int i = 0; i < out.length; i++) out[i] = list.get(i);
+        return out;
+    }
+
+    private static String[] toStringArray(List<? extends String> list) {
+        return list.toArray(new String[0]);
+    }
+
+    public static void register() {
+        ModLoadingContext.get().registerConfig(ModConfig.Type.COMMON, SPEC);
+    }
+
+    // Copies spec values into the static fields. Invoked on ModConfigEvent.Loading / Reloading.
+    public static void bake() {
+        // Protections
+        UNCLAIMED.bake();
+        SAFE_ZONE.bake();
+        WAR_ZONE.bake();
+        CITADEL_FRIEND.bake();
+        CITADEL_FOE.bake();
+        CLAIM_FRIEND.bake();
+        CLAIM_ALLY.bake();
+        CLAIM_FOE.bake();
+        SIEGECAMP_SIEGER.bake();
+        SIEGECAMP_OTHER.bake();
+        CLAIM_DEFENDED.bake();
+
+        // Claims
+        CLAIM_DIM_WHITELIST = CLAIM_DIM_WHITELIST_V.get().toArray(new String[0]);
+        CLAIM_STRENGTH_CITADEL = CLAIM_STRENGTH_CITADEL_V.get();
+        CLAIM_STRENGTH_REINFORCED = CLAIM_STRENGTH_REINFORCED_V.get();
+        CLAIM_STRENGTH_BASIC = CLAIM_STRENGTH_BASIC_V.get();
+        SUPPORT_STRENGTH_CITADEL = SUPPORT_STRENGTH_CITADEL_V.get();
+        SUPPORT_STRENGTH_REINFORCED = SUPPORT_STRENGTH_REINFORCED_V.get();
+        SUPPORT_STRENGTH_BASIC = SUPPORT_STRENGTH_BASIC_V.get();
+        FORCE_LOADED_CHUNKS_BASE = FORCE_LOADED_CHUNKS_BASE_V.get();
+        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V.get();
+        MAX_CLAIMS_PER_FACTION = MAX_CLAIMS_PER_FACTION_V.get();
+        CLAIM_MANAGER_RADIUS = CLAIM_MANAGER_RADIUS_V.get();
+        ISLAND_COLLECTOR_SLOTS = ISLAND_COLLECTOR_SLOTS_V.get();
+        ENABLE_OFFLINE_RAID_PROTECTION = ENABLE_OFFLINE_RAID_PROTECTION_V.get();
+        OFFLINE_RAID_PROTECTION_HOURS = OFFLINE_RAID_PROTECTION_HOURS_V.get();
+        CITADEL_MOVE_NUM_DAYS = CITADEL_MOVE_NUM_DAYS_V.get();
+        ENABLE_CITADEL_UPGRADES = ENABLE_CITADEL_UPGRADES_V.get();
+        ENABLE_ISOLATED_CLAIMS = ENABLE_ISOLATED_CLAIMS_V.get();
+        INSURANCE_BLACKLIST_IDS = toStringArray(INSURANCE_BLACKLIST_IDS_V.get());
+        DEFAULT_FLAG_IDS = toStringArray(DEFAULT_FLAG_IDS_V.get());
+        CUSTOM_FLAG_ALLOWLIST = toStringArray(CUSTOM_FLAG_ALLOWLIST_V.get());
+
+        // Sieges
+        ATTACK_STRENGTH_SIEGE_CAMP = ATTACK_STRENGTH_SIEGE_CAMP_V.get();
+        LEECH_PROPORTION_SIEGE_CAMP = LEECH_PROPORTION_SIEGE_CAMP_V.get().floatValue();
+        MAX_SIEGES = MAX_SIEGES_V.get();
+        ATTACKER_DESERTION_TIMER = ATTACKER_DESERTION_TIMER_V.get();
+        DEFENDER_DESERTION_TIMER = DEFENDER_DESERTION_TIMER_V.get();
+        ATTACKER_CONQUERED_CHUNK_PERIOD = ATTACKER_CONQUERED_CHUNK_PERIOD_V.get();
+        DEFENDER_CONQUERED_CHUNK_PERIOD = DEFENDER_CONQUERED_CHUNK_PERIOD_V.get();
+        COMBAT_LOG_THRESHOLD = COMBAT_LOG_THRESHOLD_V.get();
+        LIVE_QUIT_TIMER = LIVE_QUIT_TIMER_V.get();
+        SIEGE_ALLOW_UI_DECLARE = SIEGE_ALLOW_UI_DECLARE_V.get();
+        SIEGE_DECLARE_MAX_RANGE = SIEGE_DECLARE_MAX_RANGE_V.get();
+        SIEGE_DECLARE_REQUIRE_PRESENCE = SIEGE_DECLARE_REQUIRE_PRESENCE_V.get();
+        QUITTER_FAIL_TIMER = QUITTER_FAIL_TIMER_V.get();
+        MAX_OFFLINE_PLAYER_COUNT_MINIMUM = MAX_OFFLINE_PLAYER_COUNT_MINIMUM_V.get();
+        MAX_OFFLINE_PLAYER_PERCENT = MAX_OFFLINE_PLAYER_PERCENT_V.get().floatValue();
+        VERTICAL_SIEGE_DIST = VERTICAL_SIEGE_DIST_V.get();
+        SIEGE_BATTLE_RADIUS = SIEGE_BATTLE_RADIUS_V.get();
+        SIEGE_ATTACKER_RADIUS = SIEGE_ATTACKER_RADIUS_V.get();
+        SIEGE_DEFENDER_RADIUS = SIEGE_DEFENDER_RADIUS_V.get();
+        SIEGE_SWING_PER_DEFENDER_DEATH = SIEGE_SWING_PER_DEFENDER_DEATH_V.get();
+        SIEGE_SWING_PER_ATTACKER_DEATH = SIEGE_SWING_PER_ATTACKER_DEATH_V.get();
+        SIEGE_SWING_PER_DAY_ELAPSED_BASE = SIEGE_SWING_PER_DAY_ELAPSED_BASE_V.get();
+        SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS = SIEGE_SWING_PER_DAY_ELAPSED_NO_ATTACKER_LOGINS_V.get();
+        SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS = SIEGE_SWING_PER_DAY_ELAPSED_NO_DEFENDER_LOGINS_V.get();
+        SIEGE_DAY_LENGTH = SIEGE_DAY_LENGTH_V.get().floatValue();
+        SIEGE_INFO_RADIUS = SIEGE_INFO_RADIUS_V.get().floatValue();
+        SIEGE_SWING_PER_DEFENDER_FLAG = SIEGE_SWING_PER_DEFENDER_FLAG_V.get();
+        SIEGE_COOLDOWN_FAIL = SIEGE_COOLDOWN_FAIL_V.get();
+        FLAG_COOLDOWN = FLAG_COOLDOWN_V.get().floatValue();
+        SIEGE_SWING_PER_ATTACKER_FLAG = SIEGE_SWING_PER_ATTACKER_FLAG_V.get();
+        SIEGE_DIFF_PER_MEMBER = SIEGE_DIFF_PER_MEMBER_V.get();
+        SIEGE_CAPTURE = SIEGE_CAPTURE_V.get();
+        SIEGE_ENABLE_NEW_TIMER = SIEGE_ENABLE_NEW_TIMER_V.get();
+        SIEGE_MOMENTUM_DURATION = SIEGE_MOMENTUM_DURATION_V.get();
 
         SIEGE_MOMENTUM_TIME.clear();
-        for (String s : values) {
+        for (String s : SIEGE_MOMENTUM_MULTIPLIERS_V.get()) {
             String[] split = s.split("=");
             if (split.length == 2) {
                 try {
@@ -372,130 +687,119 @@ public class WarForgeConfig {
             }
         }
 
-        // Vault parameters
-        VAULT_BLOCK_IDS = configFile.getStringList("Valuable Blocks", Configuration.CATEGORY_GENERAL, VAULT_BLOCK_IDS, "The block IDs that count towards the value of your citadel's vault");
+        // Alliances
+        ALLIANCE_TRUCE_DURATION_MINUTES = ALLIANCE_TRUCE_DURATION_MINUTES_V.get();
+        MAX_ALLIES = MAX_ALLIES_V.get();
 
-        // Yield parameters
-        String qualityText = "The global multiplier for %s quality veins which all veins fall back to if they do not have an override.";
-        YIELD_DAY_LENGTH = configFile.getFloat("Yield Day Length", CATEGORY_YIELDS, YIELD_DAY_LENGTH, 0.0001f, 100000f, "The length of time between yields, in real-world hours.");
-        POOR_QUAL_MULT = configFile.getFloat("Global Poor Quality Multiplier", CATEGORY_YIELDS, POOR_QUAL_MULT, 0f, 512f, String.format(qualityText, Quality.POOR));
-        FAIR_QUAL_MULT = configFile.getFloat("Global Fair Quality Multiplier", CATEGORY_YIELDS, FAIR_QUAL_MULT, 0f, 512f, String.format(qualityText, Quality.FAIR));
-        RICH_QUAL_MULT = configFile.getFloat("Global Rich Quality Multiplier", CATEGORY_YIELDS, RICH_QUAL_MULT, 0f, 512f, String.format(qualityText, Quality.RICH));
+        // Vault
+        VAULT_BLOCK_IDS = toStringArray(VAULT_BLOCK_IDS_V.get());
+
+        // Yields
+        YIELD_DAY_LENGTH = YIELD_DAY_LENGTH_V.get().floatValue();
+        POOR_QUAL_MULT = POOR_QUAL_MULT_V.get().floatValue();
+        FAIR_QUAL_MULT = FAIR_QUAL_MULT_V.get().floatValue();
+        RICH_QUAL_MULT = RICH_QUAL_MULT_V.get().floatValue();
 
         // Notoriety
-        NOTORIETY_PER_PLAYER_KILL = configFile.getInt("Notoriety gain per PVP kill", CATEGORY_NOTORIETY, NOTORIETY_PER_PLAYER_KILL, 0, 1024, "How much notoriety a player earns for their faction when killing another player");
-        NOTORIETY_PER_SIEGE_ATTACK_SUCCESS = configFile.getInt("Notoriety gain per siege attack win", CATEGORY_NOTORIETY, NOTORIETY_PER_SIEGE_ATTACK_SUCCESS, 0, 1024, "How much notoriety a faction earns when successfully winning an siege as attacker");
-        NOTORIETY_PER_SIEGE_DEFEND_SUCCESS = configFile.getInt("Notoriety gain per siege defend win", CATEGORY_NOTORIETY, NOTORIETY_PER_SIEGE_DEFEND_SUCCESS, 0, 1024, "How much notoriety a faction earns when successfully defending a siege");
-        NOTORIETY_KILL_CAP_PER_PLAYER = configFile.getInt("Max # kills per player", CATEGORY_NOTORIETY, NOTORIETY_KILL_CAP_PER_PLAYER, 0, 1024, "How many times a faction can kill the same player and still get points");
+        NOTORIETY_PER_PLAYER_KILL = NOTORIETY_PER_PLAYER_KILL_V.get();
+        NOTORIETY_PER_SIEGE_ATTACK_SUCCESS = NOTORIETY_PER_SIEGE_ATTACK_SUCCESS_V.get();
+        NOTORIETY_PER_SIEGE_DEFEND_SUCCESS = NOTORIETY_PER_SIEGE_DEFEND_SUCCESS_V.get();
+        NOTORIETY_KILL_CAP_PER_PLAYER = NOTORIETY_KILL_CAP_PER_PLAYER_V.get();
+
         // Legacy
-        LEGACY_PER_DAY = configFile.getInt("Legacy gain per day", CATEGORY_LEGACY, LEGACY_PER_DAY, 0, 1024, "How much legacy a faction gets for having at least one player on");
-        LEGACY_USES_YIELD_TIMER = configFile.getBoolean("Legacy uses yield timer", CATEGORY_LEGACY, LEGACY_USES_YIELD_TIMER, "If true, legacy triggers every yield timer. Otherwise, every siege timer");
+        LEGACY_PER_DAY = LEGACY_PER_DAY_V.get();
+        LEGACY_USES_YIELD_TIMER = LEGACY_USES_YIELD_TIMER_V.get();
 
-        // Visual
-        SHOW_NEW_AREA_TIMER = configFile.getFloat("New Area Timer", CATEGORY_CLIENT, SHOW_NEW_AREA_TIMER, 0.0f, 1000f, "How many in-game ticks to show the 'You have entered {faction}' message for.");
-        FACTION_NAME_LENGTH_MAX = configFile.getInt("Max Faction Name Length", Configuration.CATEGORY_GENERAL, FACTION_NAME_LENGTH_MAX, 3, 128, "How many characters long can a faction name be.");
-        FACTION_NAME_BANLIST = configFile.getStringList("Faction Name Banlist", Configuration.CATEGORY_GENERAL, FACTION_NAME_BANLIST, "Case-insensitive substrings that disallow faction names from being created or renamed.");
-        SHOW_OPPONENT_BORDERS = configFile.getBoolean("Show Opponent Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_OPPONENT_BORDERS, "Turns the in-world border rendering on/off for opponent chunks");
-        SHOW_ALLY_BORDERS = configFile.getBoolean("Show Ally Chunk Borders", Configuration.CATEGORY_GENERAL, SHOW_ALLY_BORDERS, "Turns the in-world border rendering on/off for ally chunks");
-        SHOW_YIELD_TIMERS = configFile.getBoolean("Show yield timers", CATEGORY_CLIENT, SHOW_YIELD_TIMERS, "Whether to show a readout of the time until the next yield / siege in top left of your screen");
+        // Visual / General
+        SHOW_NEW_AREA_TIMER = SHOW_NEW_AREA_TIMER_V.get().floatValue();
+        FACTION_NAME_LENGTH_MAX = FACTION_NAME_LENGTH_MAX_V.get();
+        FACTION_NAME_BANLIST = toStringArray(FACTION_NAME_BANLIST_V.get());
+        SHOW_OPPONENT_BORDERS = SHOW_OPPONENT_BORDERS_V.get();
+        SHOW_ALLY_BORDERS = SHOW_ALLY_BORDERS_V.get();
+        SHOW_YIELD_TIMERS = SHOW_YIELD_TIMERS_V.get();
 
-        FACTION_PREFIX_IN_CHAT = configFile.getBoolean("Faction Prefix In Chat", CATEGORY_DISPLAY, FACTION_PREFIX_IN_CHAT, "If enabled, a player's faction name is shown as a coloured prefix before their name in chat.");
-        FACTION_PREFIX_IN_TABLIST = configFile.getBoolean("Faction Prefix In Tab List", CATEGORY_DISPLAY, FACTION_PREFIX_IN_TABLIST, "If enabled, a player's faction name is shown as a coloured prefix before their name in the tab player list.");
-        JOURNEYMAP_CLAIM_MODE = parseJourneyMapMode(configFile.getString("JourneyMap Claim Display Mode", CATEGORY_DISPLAY, "DISABLED",
-                "Draws a faction-coloured border over claimed chunks on JourneyMap, if it is installed. Server-authoritative.\n"
-                        + "DISABLED = no overlay.\n"
-                        + "AUTO = every claim is shown to everyone globally, updated live regardless of whether a player has visited the area.\n"
-                        + "PLAYER = a chunk's claim only appears (and updates) on a player's map once that player has observed (loaded) that chunk; unobserved claims are never sent to the client.",
-                new String[]{"DISABLED", "AUTO", "PLAYER"}));
-        JOURNEYMAP_VEIN_MODE = parseJourneyMapMode(configFile.getString("JourneyMap Vein Display Mode", CATEGORY_DISPLAY, "DISABLED",
-                "Draws each chunk's ore vein as a small item icon on JourneyMap, if it is installed. Server-authoritative.\n"
-                        + "DISABLED = no overlay.\n"
-                        + "AUTO = veins for a wide radius around each player are sent automatically as they move; no need to enter each chunk.\n"
-                        + "PLAYER = a chunk's vein only appears once the player has walked into and loaded that chunk; unobserved veins are never sent to the client.",
-                new String[]{"DISABLED", "AUTO", "PLAYER"}));
-        JOURNEYMAP_VEIN_AUTO_RADIUS = configFile.getInt("JourneyMap Vein Auto Radius", CATEGORY_DISPLAY, JOURNEYMAP_VEIN_AUTO_RADIUS, 1, 128,
-                "In AUTO vein mode, how many chunks around each player to reveal veins for. Larger values reveal more of the map but cause the server to generate and store veins over a wider area.");
-        VEIN_MEMBER_DISPLAY_TIME_MS = configFile.getInt("Vein Member Display Time", CATEGORY_CLIENT, (int) VEIN_MEMBER_DISPLAY_TIME_MS, 100, Integer.MAX_VALUE, "The time in milliseconds for which each member of a vein will be displayed when it is being cycled through, to the precision allowed by the client tick system.");
-        MODERN_WARFARE_MODELS = configFile.getBoolean("Enable modern warfare models", Configuration.CATEGORY_CLIENT, MODERN_WARFARE_MODELS, "Enable modern warfare models, instead of medival more vanilla-friendly models");
-        HUD_VERT_CUTOFF_PERCENT = configFile.getFloat("HUD Vertical cutoff", CATEGORY_CLIENT, HUD_VERT_CUTOFF_PERCENT, 0.0f, 1.0f, "What percent of the entire screen resolution from the top must certain displays (such as vein info) be before they stop rendering. Set to 0.0 to disable all relevant displays, or 1.0 to turn this off.");
+        FACTION_PREFIX_IN_CHAT = FACTION_PREFIX_IN_CHAT_V.get();
+        FACTION_PREFIX_IN_TABLIST = FACTION_PREFIX_IN_TABLIST_V.get();
+        JOURNEYMAP_CLAIM_MODE = parseJourneyMapMode(JOURNEYMAP_CLAIM_MODE_V.get());
+        JOURNEYMAP_VEIN_MODE = parseJourneyMapMode(JOURNEYMAP_VEIN_MODE_V.get());
+        JOURNEYMAP_VEIN_AUTO_RADIUS = JOURNEYMAP_VEIN_AUTO_RADIUS_V.get();
+        VEIN_MEMBER_DISPLAY_TIME_MS = VEIN_MEMBER_DISPLAY_TIME_MS_V.get();
+        MODERN_WARFARE_MODELS = MODERN_WARFARE_MODELS_V.get();
+        HUD_VERT_CUTOFF_PERCENT = HUD_VERT_CUTOFF_PERCENT_V.get().floatValue();
 
-        POS_TIMERS = ScreenPos.fromString(configFile.getString("Yield timer position", CATEGORY_CLIENT, "BOTTOM_RIGHT", "Position of the yield timers"));
-        POS_SIEGE = ScreenPos.fromString(configFile.getString("Siege status position", CATEGORY_CLIENT, "TOP", "Position of the siege status"));
-        POS_TOAST_INDICATOR = ScreenPos.fromString(configFile.getString("Toast indicator position", CATEGORY_CLIENT, "TOP", "Position of the  toast indicator"));
-        POS_VEIN_INDICATOR = ScreenPos.fromString(configFile.getString("Chunk vein indicator position", CATEGORY_CLIENT, "TOP", "Position of the  chunk vein indicator"));
+        POS_TIMERS = ScreenPos.fromString(POS_TIMERS_V.get());
+        POS_SIEGE = ScreenPos.fromString(POS_SIEGE_V.get());
+        POS_TOAST_INDICATOR = ScreenPos.fromString(POS_TOAST_INDICATOR_V.get());
+        POS_VEIN_INDICATOR = ScreenPos.fromString(POS_VEIN_INDICATOR_V.get());
 
         // Other permissions
-        BLOCK_ENDER_CHEST = configFile.getBoolean("Disable Ender Chest", Configuration.CATEGORY_GENERAL, BLOCK_ENDER_CHEST, "Prevent players from opening ender chests");
-        ENABLE_TPA_POTIONS = configFile.getBoolean("Enable TPA Potions", Configuration.CATEGORY_GENERAL, ENABLE_TPA_POTIONS, "Allow players to craft and consume /tpa and /tpaccept style potions");
+        BLOCK_ENDER_CHEST = BLOCK_ENDER_CHEST_V.get();
+        ENABLE_TPA_POTIONS = ENABLE_TPA_POTIONS_V.get();
 
-        //Warps
-        ENABLE_F_HOME_COMMAND = configFile.getBoolean("Enable /f home Command", CATEGORY_WARPS, ENABLE_F_HOME_COMMAND, "Allow players to use /f home to teleport to their citadel");
-        ENABLE_F_HOME_POTION_EFFECT = configFile.getBoolean("Enable /f home Potion", CATEGORY_WARPS, ENABLE_F_HOME_POTION_EFFECT, "Allow players to craft a potion that takes them to their citadel");
-        ALLOW_F_HOME_BETWEEN_DIMENSIONS = configFile.getBoolean("Allow /f home across dimensions", CATEGORY_WARPS, ALLOW_F_HOME_BETWEEN_DIMENSIONS, "Allow players to use /f home when in a different dimension to their citadel");
-        ENABLE_SPAWN_COMMAND = configFile.getBoolean("Enable /spawn Command", CATEGORY_WARPS, ENABLE_SPAWN_COMMAND, "Allow players to use /spawn to teleport to the world spawn");
-        ENABLE_SPAWN_POTION_EFFECT = configFile.getBoolean("Enable /spawn Potion", CATEGORY_WARPS, ENABLE_SPAWN_POTION_EFFECT, "Allow players to craft a potion that takes them to the world spawn");
-        ALLOW_SPAWN_BETWEEN_DIMENSIONS = configFile.getBoolean("Allow /spawn across dimensions", CATEGORY_WARPS, ALLOW_SPAWN_BETWEEN_DIMENSIONS, "Allow players to use /spawn when in a different dimension to the world spawn");
-        NUM_TICKS_FOR_WARP_COMMANDS = configFile.getInt("Num Ticks for Warps", CATEGORY_WARPS, NUM_TICKS_FOR_WARP_COMMANDS, 0, 20 * 60 * 5, "How many ticks must the player stand still for a warp command to take effect");
+        // Warps
+        ENABLE_F_HOME_COMMAND = ENABLE_F_HOME_COMMAND_V.get();
+        ENABLE_F_HOME_POTION_EFFECT = ENABLE_F_HOME_POTION_EFFECT_V.get();
+        ALLOW_F_HOME_BETWEEN_DIMENSIONS = ALLOW_F_HOME_BETWEEN_DIMENSIONS_V.get();
+        ENABLE_SPAWN_COMMAND = ENABLE_SPAWN_COMMAND_V.get();
+        ENABLE_SPAWN_POTION_EFFECT = ENABLE_SPAWN_POTION_EFFECT_V.get();
+        ALLOW_SPAWN_BETWEEN_DIMENSIONS = ALLOW_SPAWN_BETWEEN_DIMENSIONS_V.get();
+        NUM_TICKS_FOR_WARP_COMMANDS = NUM_TICKS_FOR_WARP_COMMANDS_V.get();
 
         // Graphics controls
-        DO_FANCY_RENDERING = configFile.getBoolean("Enable WarForge Fancy Rendering", CATEGORY_CLIENT, DO_FANCY_RENDERING, "Controls whether or not fancy graphics will be enabled for this mod's rendering.");
-        RANDOM_BORDER_REDRAW_DENOMINATOR = configFile.getInt("Random Border Redraw Denominator", CATEGORY_CLIENT, RANDOM_BORDER_REDRAW_DENOMINATOR, 1, Integer.MAX_VALUE, "Sets the bound on a random number generated, which when equal to 0 calls the border redraw. Effectively 1/this chance to redraw every frame");
+        DO_FANCY_RENDERING = DO_FANCY_RENDERING_V.get();
+        RANDOM_BORDER_REDRAW_DENOMINATOR = RANDOM_BORDER_REDRAW_DENOMINATOR_V.get();
 
-        String botChannelString = configFile.getString("Discord Bot Channel ID", Configuration.CATEGORY_GENERAL, "" + FACTIONS_BOT_CHANNEL_ID, "https://github.com/Chikachi/DiscordIntegration/wiki/IMC-Feature");
-        FACTIONS_BOT_CHANNEL_ID = Long.parseLong(botChannelString);
+        FACTIONS_BOT_CHANNEL_ID = Long.parseLong(FACTIONS_BOT_CHANNEL_ID_V.get());
 
         // Debug / diagnostics
-        DEBUG_TRACE_SETBLOCK = configFile.getBoolean("Trace setBlockState In Claimed Chunks", CATEGORY_DEBUG, DEBUG_TRACE_SETBLOCK,
-                "DEBUG/diagnostic only. When enabled, logs every server-side setBlockState that lands inside a claimed chunk, " +
-                        "together with the position, the owning claim, the block being placed and the calling code. " +
-                        "Use this to identify mods that mutate protected terrain outside the explosion-event path " +
-                        "(e.g. GregTech Industrial TNT, AE2 Tiny TNT). Very spammy - leave disabled in production.");
-
-        if (configFile.hasChanged())
-            configFile.save();
+        DEBUG_TRACE_SETBLOCK = DEBUG_TRACE_SETBLOCK_V.get();
     }
 
     //New system to deal with that config sync
     public static PacketSyncConfig createConfigSyncPacket() {
         var packet = new PacketSyncConfig();
-        var compoundNBT = new NBTTagCompound();
-        compoundNBT.setBoolean("enableUpgrades", ENABLE_CITADEL_UPGRADES);
-        compoundNBT.setBoolean("newSiegeTimer", SIEGE_ENABLE_NEW_TIMER);
-        compoundNBT.setInteger("maxMomentum", SIEGE_MOMENTUM_MAX);
-        compoundNBT.setInteger("timeMomentum", SIEGE_MOMENTUM_DURATION);
-        compoundNBT.setString("momentumMap", SIEGE_MOMENTUM_TIME.toString());
-        compoundNBT.setFloat("poorQualMult", POOR_QUAL_MULT);
-        compoundNBT.setFloat("fairQualMult", FAIR_QUAL_MULT);
-        compoundNBT.setFloat("richQualMult", RICH_QUAL_MULT);
-        compoundNBT.setShort("megachunkLength", VEIN_HANDLER.megachunkLength);
-        compoundNBT.setInteger("battleSiegeRadius", SIEGE_BATTLE_RADIUS);
-        compoundNBT.setInteger("atkSiegeRadius", SIEGE_ATTACKER_RADIUS);
-        compoundNBT.setInteger("defSiegeRadius", SIEGE_DEFENDER_RADIUS);
-        compoundNBT.setBoolean("offlineRaidProtection", ENABLE_OFFLINE_RAID_PROTECTION);
-        compoundNBT.setInteger("offlineRaidProtectionHours", OFFLINE_RAID_PROTECTION_HOURS);
-        compoundNBT.setString("insuranceBlacklist", String.join("\n", INSURANCE_BLACKLIST_IDS));
-        compoundNBT.setBoolean("factionPrefixChat", FACTION_PREFIX_IN_CHAT);
-        compoundNBT.setBoolean("factionPrefixTab", FACTION_PREFIX_IN_TABLIST);
-        compoundNBT.setInteger("islandCollectorSlots", ISLAND_COLLECTOR_SLOTS);
-        compoundNBT.setInteger("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
-        compoundNBT.setInteger("jmVeinMode", JOURNEYMAP_VEIN_MODE);
+        var compoundNBT = new CompoundTag();
+        compoundNBT.putBoolean("enableUpgrades", ENABLE_CITADEL_UPGRADES);
+        compoundNBT.putBoolean("newSiegeTimer", SIEGE_ENABLE_NEW_TIMER);
+        compoundNBT.putInt("maxMomentum", SIEGE_MOMENTUM_MAX);
+        compoundNBT.putInt("timeMomentum", SIEGE_MOMENTUM_DURATION);
+        compoundNBT.putString("momentumMap", SIEGE_MOMENTUM_TIME.toString());
+        compoundNBT.putFloat("poorQualMult", POOR_QUAL_MULT);
+        compoundNBT.putFloat("fairQualMult", FAIR_QUAL_MULT);
+        compoundNBT.putFloat("richQualMult", RICH_QUAL_MULT);
+        compoundNBT.putShort("megachunkLength", VEIN_HANDLER.megachunkLength);
+        compoundNBT.putInt("battleSiegeRadius", SIEGE_BATTLE_RADIUS);
+        compoundNBT.putInt("atkSiegeRadius", SIEGE_ATTACKER_RADIUS);
+        compoundNBT.putInt("defSiegeRadius", SIEGE_DEFENDER_RADIUS);
+        compoundNBT.putBoolean("offlineRaidProtection", ENABLE_OFFLINE_RAID_PROTECTION);
+        compoundNBT.putInt("offlineRaidProtectionHours", OFFLINE_RAID_PROTECTION_HOURS);
+        compoundNBT.putString("insuranceBlacklist", String.join("\n", INSURANCE_BLACKLIST_IDS));
+        compoundNBT.putBoolean("factionPrefixChat", FACTION_PREFIX_IN_CHAT);
+        compoundNBT.putBoolean("factionPrefixTab", FACTION_PREFIX_IN_TABLIST);
+        compoundNBT.putInt("islandCollectorSlots", ISLAND_COLLECTOR_SLOTS);
+        compoundNBT.putInt("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
+        compoundNBT.putInt("jmVeinMode", JOURNEYMAP_VEIN_MODE);
         packet.configNBT = compoundNBT.toString();
         return packet;
     }
 
     public static boolean isInsuranceBlacklisted(ItemStack stack) {
-        if (stack == null || stack.isEmpty() || stack.getItem().getRegistryName() == null) {
+        if (stack == null || stack.isEmpty()) {
             return false;
         }
 
-        String registryName = stack.getItem().getRegistryName().toString();
-        String fullName = registryName + ":" + stack.getMetadata();
+        ResourceLocation registry = ForgeRegistries.ITEMS.getKey(stack.getItem());
+        if (registry == null) {
+            return false;
+        }
+
+        String registryName = registry.toString();
         for (String pattern : INSURANCE_BLACKLIST_IDS) {
             if (pattern == null || pattern.trim().isEmpty()) {
                 continue;
             }
             String trimmed = pattern.trim();
-            if (globMatches(trimmed, registryName) || globMatches(trimmed, fullName)) {
+            if (globMatches(trimmed, registryName)) {
                 return true;
             }
         }
@@ -564,6 +868,30 @@ public class WarForgeConfig {
         private String[] BLOCK_INTERACT_WHITELIST_IDS = new String[]{"minecraft:ender_chest", "warforge:citadelblock", "warforge:basicclaimblock", "warforge:reinforcedclaimblock", "warforge:siegecampblock"};
         private String[] ITEM_USE_WHITELIST_IDS = new String[]{"minecraft:snowball"};
 
+        // ForgeConfigSpec backing values for this protection category.
+        private ForgeConfigSpec.BooleanValue BREAK_BLOCKS_V;
+        private ForgeConfigSpec.BooleanValue PLACE_BLOCKS_V;
+        private ForgeConfigSpec.BooleanValue BLOCK_REMOVAL_V;
+        private ForgeConfigSpec.BooleanValue EXPLOSION_DAMAGE_V;
+        private ForgeConfigSpec.BooleanValue INTERACT_V;
+        private ForgeConfigSpec.BooleanValue USE_ITEM_V;
+        private ForgeConfigSpec.BooleanValue PLAYER_TAKE_DAMAGE_FROM_MOB_V;
+        private ForgeConfigSpec.BooleanValue PLAYER_TAKE_DAMAGE_FROM_PLAYER_V;
+        private ForgeConfigSpec.BooleanValue PLAYER_TAKE_DAMAGE_FROM_OTHER_V;
+        private ForgeConfigSpec.BooleanValue PLAYER_DEAL_DAMAGE_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_PLACE_WHITELIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_BREAK_WHITELIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_INTERACT_WHITELIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_USE_WHITELIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_PLACE_BLACKLIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_BREAK_BLACKLIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> BLOCK_INTERACT_BLACKLIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> ITEM_USE_BLACKLIST_V;
+        private ForgeConfigSpec.BooleanValue ALLOW_MOB_SPAWNS_V;
+        private ForgeConfigSpec.BooleanValue ALLOW_MOB_ENTRY_V;
+        private ForgeConfigSpec.BooleanValue ALLOW_DISMOUNT_ENTITY_V;
+        private ForgeConfigSpec.BooleanValue ALLOW_MOUNT_ENTITY_V;
+
         private Set<Block> findBlocks(String[] input) {
             Set<Block> output = new HashSet<>(input.length);
             for (String blockID : input) {
@@ -604,84 +932,75 @@ public class WarForgeConfig {
             ITEM_USE_BLACKLIST = findItems(ITEM_USE_BLACKLIST_IDS);
         }
 
-        public void SyncConfig(String name, String desc) {
+        public void define(ForgeConfigSpec.Builder cfg, String name, String desc) {
+            cfg.push(name);
 
-            BREAK_BLOCKS = configFile.getBoolean(name + " - Break Blocks", name, BREAK_BLOCKS, "Can players break blocks in " + desc);
-            PLACE_BLOCKS = configFile.getBoolean(name + " - Place Blocks", name, PLACE_BLOCKS, "Can players place blocks in " + desc);
-            BLOCK_REMOVAL = configFile.getBoolean(name + " - Block Removal", name, BLOCK_REMOVAL, "Can blocks be removed at all in (including from explosions, mobs etc) " + desc);
-            EXPLOSION_DAMAGE = configFile.getBoolean(name + " - Explosion Damage", name, EXPLOSION_DAMAGE, "Can explosions damage blocks in " + desc);
-            INTERACT = configFile.getBoolean(name + " - Interact", name, INTERACT, "Can players interact with blocks and entities in " + desc);
-            USE_ITEM = configFile.getBoolean(name + " - Use Items", name, USE_ITEM, "Can players use items in " + desc);
-            PLAYER_TAKE_DAMAGE_FROM_MOB = configFile.getBoolean(name + " - Take Dmg From Mob", name, PLAYER_TAKE_DAMAGE_FROM_MOB, "Can players take mob damage in " + desc);
-            PLAYER_TAKE_DAMAGE_FROM_PLAYER = configFile.getBoolean(name + " - Take Dmg From Player", name, PLAYER_TAKE_DAMAGE_FROM_PLAYER, "Can players take damage from other players in " + desc);
-            PLAYER_TAKE_DAMAGE_FROM_OTHER = configFile.getBoolean(name + " - Take Any Other Dmg", name, PLAYER_TAKE_DAMAGE_FROM_OTHER, "Can players take damage from any other source in " + desc);
-            PLAYER_DEAL_DAMAGE = configFile.getBoolean(name + " - Deal Damage", name, PLAYER_DEAL_DAMAGE, "Can players deal damage in " + desc);
+            BREAK_BLOCKS_V = cfg.comment("Can players break blocks in " + desc).define(name + " - Break Blocks", BREAK_BLOCKS);
+            PLACE_BLOCKS_V = cfg.comment("Can players place blocks in " + desc).define(name + " - Place Blocks", PLACE_BLOCKS);
+            BLOCK_REMOVAL_V = cfg.comment("Can blocks be removed at all in (including from explosions, mobs etc) " + desc).define(name + " - Block Removal", BLOCK_REMOVAL);
+            EXPLOSION_DAMAGE_V = cfg.comment("Can explosions damage blocks in " + desc).define(name + " - Explosion Damage", EXPLOSION_DAMAGE);
+            INTERACT_V = cfg.comment("Can players interact with blocks and entities in " + desc).define(name + " - Interact", INTERACT);
+            USE_ITEM_V = cfg.comment("Can players use items in " + desc).define(name + " - Use Items", USE_ITEM);
+            PLAYER_TAKE_DAMAGE_FROM_MOB_V = cfg.comment("Can players take mob damage in " + desc).define(name + " - Take Dmg From Mob", PLAYER_TAKE_DAMAGE_FROM_MOB);
+            PLAYER_TAKE_DAMAGE_FROM_PLAYER_V = cfg.comment("Can players take damage from other players in " + desc).define(name + " - Take Dmg From Player", PLAYER_TAKE_DAMAGE_FROM_PLAYER);
+            PLAYER_TAKE_DAMAGE_FROM_OTHER_V = cfg.comment("Can players take damage from any other source in " + desc).define(name + " - Take Any Other Dmg", PLAYER_TAKE_DAMAGE_FROM_OTHER);
+            PLAYER_DEAL_DAMAGE_V = cfg.comment("Can players deal damage in " + desc).define(name + " - Deal Damage", PLAYER_DEAL_DAMAGE);
 
             // Whitelists
-            BLOCK_PLACE_WHITELIST_IDS = configFile.getStringList(
-                    name + " - Place Whitelist",
-                    name,
-                    BLOCK_PLACE_WHITELIST_IDS,
-                    "Whitelist: block IDs that can still be placed. Has no effect if block placement is allowed anyway"
-            );
+            BLOCK_PLACE_WHITELIST_V = cfg.comment("Whitelist: block IDs that can still be placed. Has no effect if block placement is allowed anyway")
+                    .defineList(name + " - Place Whitelist", asList(BLOCK_PLACE_WHITELIST_IDS), o -> o instanceof String);
+            BLOCK_BREAK_WHITELIST_V = cfg.comment("Whitelist: block IDs that can still be broken. Has no effect if block breaking is allowed anyway")
+                    .defineList(name + " - Break Whitelist", asList(BLOCK_BREAK_WHITELIST_IDS), o -> o instanceof String);
+            BLOCK_INTERACT_WHITELIST_V = cfg.comment("Whitelist: block IDs that can still be interacted with. Has no effect if interacting is allowed anyway")
+                    .defineList(name + " - Interact Whitelist", asList(BLOCK_INTERACT_WHITELIST_IDS), o -> o instanceof String);
+            ITEM_USE_WHITELIST_V = cfg.comment("Whitelist: item IDs that can still be used. Has no effect if using items is allowed anyway")
+                    .defineList(name + " - Use Whitelist", asList(ITEM_USE_WHITELIST_IDS), o -> o instanceof String);
 
-            BLOCK_BREAK_WHITELIST_IDS = configFile.getStringList(
-                    name + " - Break Whitelist",
-                    name,
-                    BLOCK_BREAK_WHITELIST_IDS,
-                    "Whitelist: block IDs that can still be broken. Has no effect if block breaking is allowed anyway"
-            );
+            // Blacklists
+            BLOCK_PLACE_BLACKLIST_V = cfg.comment("Blacklist: block IDs that can never be placed, even if placement is otherwise allowed")
+                    .defineList(name + " - Place Blacklist", asList(BLOCK_PLACE_BLACKLIST_IDS), o -> o instanceof String);
+            BLOCK_BREAK_BLACKLIST_V = cfg.comment("Blacklist: block IDs that can never be broken, even if breaking is otherwise allowed")
+                    .defineList(name + " - Break Blacklist", asList(BLOCK_BREAK_BLACKLIST_IDS), o -> o instanceof String);
+            BLOCK_INTERACT_BLACKLIST_V = cfg.comment("Blacklist: block IDs that can never be interacted with, even if interaction is otherwise allowed")
+                    .defineList(name + " - Interact Blacklist", asList(BLOCK_INTERACT_BLACKLIST_IDS), o -> o instanceof String);
+            ITEM_USE_BLACKLIST_V = cfg.comment("Blacklist: item IDs that can never be used, even if using items is otherwise allowed")
+                    .defineList(name + " - Use Blacklist", asList(ITEM_USE_BLACKLIST_IDS), o -> o instanceof String);
 
-            BLOCK_INTERACT_WHITELIST_IDS = configFile.getStringList(
-                    name + " - Interact Whitelist",
-                    name,
-                    BLOCK_INTERACT_WHITELIST_IDS,
-                    "Whitelist: block IDs that can still be interacted with. Has no effect if interacting is allowed anyway"
-            );
+            ALLOW_MOB_SPAWNS_V = cfg.comment("Can mobs spawn in " + desc).define(name + " - Allow Mob Spawns", ALLOW_MOB_SPAWNS);
+            ALLOW_MOB_ENTRY_V = cfg.comment("Can mobs enter " + desc).define(name + " - Allow Mob Entry", ALLOW_MOB_ENTRY);
 
-            ITEM_USE_WHITELIST_IDS = configFile.getStringList(
-                    name + " - Use Whitelist",
-                    name,
-                    ITEM_USE_WHITELIST_IDS,
-                    "Whitelist: item IDs that can still be used. Has no effect if using items is allowed anyway"
-            );
+            ALLOW_DISMOUNT_ENTITY_V = cfg.comment("Can players dismount entities " + desc).define(name + " - Allow Dismount Entity", ALLOW_DISMOUNT_ENTITY);
+            ALLOW_MOUNT_ENTITY_V = cfg.comment("Can players mount entities " + desc).define(name + " - Allow Mount Entity", ALLOW_MOUNT_ENTITY);
 
-// Blacklists
-            BLOCK_PLACE_BLACKLIST_IDS = configFile.getStringList(
-                    name + " - Place Blacklist",
-                    name,
-                    BLOCK_PLACE_BLACKLIST_IDS,
-                    "Blacklist: block IDs that can never be placed, even if placement is otherwise allowed"
-            );
+            cfg.pop();
+        }
 
-            BLOCK_BREAK_BLACKLIST_IDS = configFile.getStringList(
-                    name + " - Break Blacklist",
-                    name,
-                    BLOCK_BREAK_BLACKLIST_IDS,
-                    "Blacklist: block IDs that can never be broken, even if breaking is otherwise allowed"
-            );
+        public void bake() {
+            BREAK_BLOCKS = BREAK_BLOCKS_V.get();
+            PLACE_BLOCKS = PLACE_BLOCKS_V.get();
+            BLOCK_REMOVAL = BLOCK_REMOVAL_V.get();
+            EXPLOSION_DAMAGE = EXPLOSION_DAMAGE_V.get();
+            INTERACT = INTERACT_V.get();
+            USE_ITEM = USE_ITEM_V.get();
+            PLAYER_TAKE_DAMAGE_FROM_MOB = PLAYER_TAKE_DAMAGE_FROM_MOB_V.get();
+            PLAYER_TAKE_DAMAGE_FROM_PLAYER = PLAYER_TAKE_DAMAGE_FROM_PLAYER_V.get();
+            PLAYER_TAKE_DAMAGE_FROM_OTHER = PLAYER_TAKE_DAMAGE_FROM_OTHER_V.get();
+            PLAYER_DEAL_DAMAGE = PLAYER_DEAL_DAMAGE_V.get();
 
-            BLOCK_INTERACT_BLACKLIST_IDS = configFile.getStringList(
-                    name + " - Interact Blacklist",
-                    name,
-                    BLOCK_INTERACT_BLACKLIST_IDS,
-                    "Blacklist: block IDs that can never be interacted with, even if interaction is otherwise allowed"
-            );
+            BLOCK_PLACE_WHITELIST_IDS = toStringArray(BLOCK_PLACE_WHITELIST_V.get());
+            BLOCK_BREAK_WHITELIST_IDS = toStringArray(BLOCK_BREAK_WHITELIST_V.get());
+            BLOCK_INTERACT_WHITELIST_IDS = toStringArray(BLOCK_INTERACT_WHITELIST_V.get());
+            ITEM_USE_WHITELIST_IDS = toStringArray(ITEM_USE_WHITELIST_V.get());
 
-            ITEM_USE_BLACKLIST_IDS = configFile.getStringList(
-                    name + " - Use Blacklist",
-                    name,
-                    ITEM_USE_BLACKLIST_IDS,
-                    "Blacklist: item IDs that can never be used, even if using items is otherwise allowed"
-            );
+            BLOCK_PLACE_BLACKLIST_IDS = toStringArray(BLOCK_PLACE_BLACKLIST_V.get());
+            BLOCK_BREAK_BLACKLIST_IDS = toStringArray(BLOCK_BREAK_BLACKLIST_V.get());
+            BLOCK_INTERACT_BLACKLIST_IDS = toStringArray(BLOCK_INTERACT_BLACKLIST_V.get());
+            ITEM_USE_BLACKLIST_IDS = toStringArray(ITEM_USE_BLACKLIST_V.get());
 
-
-            ALLOW_MOB_SPAWNS = configFile.getBoolean(name + " - Allow Mob Spawns", name, ALLOW_MOB_SPAWNS, "Can mobs spawn in " + desc);
-            ALLOW_MOB_ENTRY = configFile.getBoolean(name + " - Allow Mob Entry", name, ALLOW_MOB_ENTRY, "Can mobs enter " + desc);
-
-            ALLOW_DISMOUNT_ENTITY = configFile.getBoolean(name + " - Allow Dismount Entity", name, ALLOW_DISMOUNT_ENTITY, "Can players dismount entities " + desc);
-            ALLOW_MOUNT_ENTITY = configFile.getBoolean(name + " - Allow Mount Entity", name, ALLOW_MOUNT_ENTITY, "Can players mount entities " + desc);
-
+            ALLOW_MOB_SPAWNS = ALLOW_MOB_SPAWNS_V.get();
+            ALLOW_MOB_ENTRY = ALLOW_MOB_ENTRY_V.get();
+            ALLOW_DISMOUNT_ENTITY = ALLOW_DISMOUNT_ENTITY_V.get();
+            ALLOW_MOUNT_ENTITY = ALLOW_MOUNT_ENTITY_V.get();
         }
     }
 }

@@ -9,50 +9,46 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
-/* Legacy code that errors
-import scala.actors.threadpool.Arrays;
-*/
-
-public class Leaderboard 
+public class Leaderboard
 {
 	public static class FactionSorterNotoriety implements Comparator<Faction>
 	{
 		@Override
 		public int compare(Faction a, Faction b) { return Integer.compare(b.notoriety, a.notoriety); }
 	}
-	
-	
+
+
 	public static class FactionSorterWealth implements Comparator<Faction>
 	{
 		@Override
 		public int compare(Faction a, Faction b) { return Integer.compare(b.wealth, a.wealth); }
 	}
-	
-	
+
+
 	public static class FactionSorterLegacy implements Comparator<Faction>
 	{
 		@Override
 		public int compare(Faction a, Faction b) { return Integer.compare(b.legacy, a.legacy); }
 	}
-	
+
 	public static class FactionSorterTotal implements Comparator<Faction>
 	{
 		@Override
-		public int compare(Faction a, Faction b) 
-		{ 
+		public int compare(Faction a, Faction b)
+		{
 			return Integer.compare(b.legacy + b.notoriety + b.wealth, a.legacy + a.notoriety + a.wealth);
 		}
 	}
-	
-	
-	public enum FactionStat 
+
+
+	public enum FactionStat
 	{
 		NOTORIETY,
 		WEALTH,
 		LEGACY,
 		TOTAL,
 	}
-	
+
 	public static Comparator<Faction> GetSorter(FactionStat stat)
 	{
 		switch(stat)
@@ -65,24 +61,24 @@ public class Leaderboard
 		WarForgeMod.LOGGER.error("Unknown sort type");
 		return totalSorter;
 	}
-	
-	
+
+
 	private static FactionSorterNotoriety notorietySorter = new FactionSorterNotoriety();
 	private static FactionSorterWealth wealthSorter = new FactionSorterWealth();
 	private static FactionSorterLegacy legacySorter = new FactionSorterLegacy();
 	private static FactionSorterTotal totalSorter = new FactionSorterTotal();
 	private ArrayList<Faction> mFactions = new ArrayList<Faction>();
-	
+
 	public void RegisterFaction(Faction faction)
 	{
 		mFactions.add(faction);
 	}
-	
-	public void UnregisterFaction(Faction faction) 
+
+	public void UnregisterFaction(Faction faction)
 	{
 		mFactions.remove(faction);
 	}
-	
+
 	public List<Faction> GetSortedList(FactionStat stat, List<Faction> optionalTarget)
 	{
 		Comparator<Faction> sorter = GetSorter(stat);
@@ -98,17 +94,17 @@ public class Leaderboard
 			return mFactions;
 		}
 	}
-	
+
 	public int GetOneIndexedRankOf(Faction faction, FactionStat stat)
 	{
 		return GetZeroIndexedRankOf(faction, stat) + 1;
 	}
-	
+
 	public int GetZeroIndexedRankOf(Faction faction, FactionStat stat)
 	{
 		int numBetterFactions = 0;
 		Comparator<Faction> sorter = GetSorter(stat);
-		
+
 		for(Faction other : mFactions)
 		{
 			if(sorter.compare(faction, other) > 0)
@@ -116,14 +112,14 @@ public class Leaderboard
 				numBetterFactions++;
 			}
 		}
-		
+
 		return numBetterFactions;
 	}
-	
+
 	public LeaderboardInfo CreateInfo(int firstIndex, FactionStat stat, UUID playerAsking)
 	{
 		LeaderboardInfo info = new LeaderboardInfo();
-		
+
 		info.firstIndex = firstIndex;
 		info.stat = stat;
 		if(playerAsking != null && !playerAsking.equals(Faction.nullUuid))
@@ -142,7 +138,7 @@ public class Leaderboard
 				info.factionInfos[i - firstIndex] = sorted.get(i).createInfo();
 			}
 		}
-		
+
 		return info;
 	}
 }

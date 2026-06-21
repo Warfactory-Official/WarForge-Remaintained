@@ -1,42 +1,30 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.factory.PosGuiData;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.CommonProxy;
 import com.flansmod.warforge.common.Content;
-import com.flansmod.warforge.common.blocks.models.ClaimModels;
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.blocks.*;
+import com.flansmod.warforge.common.blocks.models.ClaimModels;
 import com.flansmod.warforge.common.effect.AnimatedEffectHandler;
-import com.flansmod.warforge.common.network.PacketRequestFactionInfo;
 import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
+import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
+import com.mojang.blaze3d.platform.InputConstants;
 import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiChat;
-import net.minecraft.client.renderer.block.model.ModelResourceLocation;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.world.World;
-import net.minecraftforge.client.event.ModelRegistryEvent;
-import net.minecraftforge.client.model.ModelLoader;
+import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
-import net.minecraftforge.fml.common.event.FMLInitializationEvent;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import org.lwjgl.input.Keyboard;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +34,7 @@ import static com.flansmod.warforge.common.WarForgeMod.FACTIONS;
 
 public class ClientProxy extends CommonProxy
 {
-	public static HashMap<DimBlockPos, SiegeCampProgressInfo> sSiegeInfo = new HashMap<DimBlockPos, SiegeCampProgressInfo>();
+	public static HashMap<DimBlockPos, SiegeCampProgressInfo> sSiegeInfo = new HashMap<>();
 
 	public static Short2ObjectOpenHashMap<Vein> VEIN_ENTRIES = new Short2ObjectOpenHashMap<>();
 
@@ -54,92 +42,69 @@ public class ClientProxy extends CommonProxy
 
 	public static short megachunkLength = -1;
 
-	public static KeyBinding factionChatKey = new KeyBinding("key.factionchat.desc",
+	public static KeyMapping factionChatKey = new KeyMapping("key.factionchat.desc",
 			KeyConflictContext.IN_GAME,
-			Keyboard.KEY_Y,
+			InputConstants.Type.KEYSYM,
+			GLFW.GLFW_KEY_Y,
 			"key.warforge.factionchat");
 
-	@Override
-	public void preInit(FMLPreInitializationEvent event) {
-		MinecraftForge.EVENT_BUS.register(this);
+	// Invoked from the WarForgeMod constructor with the client mod event bus.
+	public void clientSetup(FMLClientSetupEvent event)
+	{
 		MinecraftForge.EVENT_BUS.register(new ClientTickHandler());
 		MinecraftForge.EVENT_BUS.register(new AnimatedEffectHandler());
 		MinecraftForge.EVENT_BUS.register(new ClaimFlagRenderer());
-		ClientRegistry.registerKeyBinding(factionChatKey);
+
+		// MUI factories are registered in WarForgeMod.commonSetup (needed on both sides).
+
+		event.enqueueWork(() -> {
+			ItemBlockRenderTypes.setRenderLayer(Content.CITADEL_BLOCK.get(), RenderType.cutout());
+			ItemBlockRenderTypes.setRenderLayer(Content.BASIC_CLAIM_BLOCK.get(), RenderType.cutout());
+			ItemBlockRenderTypes.setRenderLayer(Content.REINFORCED_CLAIM_BLOCK.get(), RenderType.cutout());
+			ItemBlockRenderTypes.setRenderLayer(Content.SIEGE_CAMP_BLOCK.get(), RenderType.cutout());
+			ItemBlockRenderTypes.setRenderLayer(Content.DUMMY_TRANSLUSENT.get(), RenderType.translucent());
+		});
+	}
+
+	public void registerRenderers(EntityRenderersEvent.RegisterRenderers event)
+	{
+		event.registerBlockEntityRenderer(Content.TE_CITADEL.get(), ctx -> new RenderTileEntityClaim(ClaimModels.ModelType.CITADEL));
+		event.registerBlockEntityRenderer(Content.TE_BASIC_CLAIM.get(), ctx -> new RenderTileEntityClaim(ClaimModels.ModelType.BASIC_CLAIM));
+		event.registerBlockEntityRenderer(Content.TE_SIEGE_CAMP.get(), ctx -> new RenderTileEntityClaim(ClaimModels.ModelType.SIEGE));
+		event.registerBlockEntityRenderer(Content.TE_DUMMY.get(), RenderTileEntityDummy::new);
+		event.registerBlockEntityRenderer(Content.TE_LEADERBOARD.get(), TileEntityLeaderboardRenderer::new);
+	}
+
+	public void registerKeyMappings(RegisterKeyMappingsEvent event)
+	{
+		event.register(factionChatKey);
+		event.register(ClientTickHandler.toggleBordersKey);
+		event.register(ClientTickHandler.claimManagerKey);
+		event.register(ClientTickHandler.toggleVeinOverlayKey);
 	}
 
 	@Override
-	public void Init(FMLInitializationEvent event) {
-//		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityCitadel.class, new TileEntityClaimRenderer());
-//		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityBasicClaim.class, new TileEntityClaimRenderer());
-//		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityReinforcedClaim.class, new TileEntityClaimRenderer());
-//		ClientRegistry.bindTileEntitySpecialRenderer(TileEntitySiegeCamp.class, new TileEntityClaimRenderer());
-//
-		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityDummy.class, new RenderTileEntityDummy());
-
-		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityLeaderboard.class, new TileEntityLeaderboardRenderer());
-		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityCitadel.class, new RenderTileEntityClaim(ClaimModels.ModelType.CITADEL));
-		ClientRegistry.bindTileEntitySpecialRenderer(TileEntityBasicClaim.class, new RenderTileEntityClaim(ClaimModels.ModelType.BASIC_CLAIM));
-        ClientRegistry.bindTileEntitySpecialRenderer(TileEntitySiegeCamp.class, new RenderTileEntityClaim(ClaimModels.ModelType.SIEGE));
-	}
-
-	@Override
-	public void TickClient() {
-		if(factionChatKey.isPressed()) {
-			GuiChat gui = new GuiChat("/f chat ");
-			Minecraft.getMinecraft().displayGuiScreen(gui);
+	public void TickClient()
+	{
+		if (factionChatKey.consumeClick()) {
+			Minecraft.getInstance().setScreen(new ChatScreen("/f chat "));
 		}
 	}
 
 	@Override
-	public Object getClientGuiElement(int ID, EntityPlayer player, World world, int x, int y, int z) {
-        return switch (ID) {
-            case GUI_TYPE_CREATE_FACTION ->
-                    new GuiCreateFaction((TileEntityCitadel) world.getTileEntity(new BlockPos(x, y, z)), false);
-            case GUI_TYPE_RECOLOUR_FACTION ->
-                    new GuiCreateFaction((TileEntityCitadel) world.getTileEntity(new BlockPos(x, y, z)), true);
-            case GUI_TYPE_BASIC_CLAIM -> new GuiBasicClaim(getServerGuiElement(ID, player, world, x, y, z));
-            case GUI_TYPE_FACTION_INFO -> new GuiFactionInfo();
-            //case GUI_TYPE_SIEGE_CAMP: return new GuiSiegeCamp();
-            case GUI_TYPE_LEADERBOARD -> new GuiLeaderboard();
-            default -> null;
-        };
-    }
-
-	@Override
-	public TileEntity GetTile(DimBlockPos pos) {
-		if(Minecraft.getMinecraft().world.provider.getDimension() == pos.dim)
-			return Minecraft.getMinecraft().world.getTileEntity(pos.toRegularPos());
+	public BlockEntity GetTile(DimBlockPos pos)
+	{
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level != null && mc.level.dimension().equals(pos.dim))
+			return mc.level.getBlockEntity(pos.toRegularPos());
 
 		WarForgeMod.LOGGER.error("Can't get info about a tile entity in a different dimension on client");
 		return null;
 	}
 
 	@Override
-	public ModularPanel buildCitadelUI(PosGuiData guiData, PanelSyncManager syncManager, UISettings settings, TileEntityCitadel citadel) {
-		return ModularCitadelGui.buildUI(guiData, syncManager, settings, citadel);
-	}
-
-	@SubscribeEvent
-	public void registerModels(ModelRegistryEvent event) {
-		RegisterModel(Content.citadelBlockItem);
-		RegisterModel(Content.basicClaimBlockItem);
-		RegisterModel(Content.reinforcedClaimBlockItem);
-		RegisterModel(Content.siegeCampBlockItem);
-		RegisterModel(Content.adminClaimBlockItem);
-        RegisterModel(Content.islandCollectorItem);
-
-		RegisterModel(Content.topLeaderboardItem);
-		RegisterModel(Content.legacyLeaderboardItem);
-		RegisterModel(Content.wealthLeaderboardItem);
-		RegisterModel(Content.notorietyLeaderboardItem);
-	}
-
-	private void RegisterModel(Item item) {
-		ModelLoader.setCustomModelResourceLocation(item, 0, new ModelResourceLocation(item.getRegistryName(), "inventory"));
-	}
-
-	public void UpdateSiegeInfo(SiegeCampProgressInfo info) {
+	public void UpdateSiegeInfo(SiegeCampProgressInfo info)
+	{
 		// sent to client on server stop to avoid de-sync
 		if (info.attackingName.equals("c") && info.defendingName.equals("c")) {
 			sSiegeInfo.clear();
@@ -149,7 +114,7 @@ public class ClientProxy extends CommonProxy
 		// add warzone chunks manually only when the siege is first recognized
 		if (!sSiegeInfo.containsKey(info.attackingPos)) {
 			// initialize data about this client
-			Faction playerFaction = FACTIONS.getFactionOfPlayer(Minecraft.getMinecraft().player.getUniqueID());
+			Faction playerFaction = FACTIONS.getFactionOfPlayer(Minecraft.getInstance().player.getUUID());
 			String facName = null;
 			if (playerFaction != null && !playerFaction.uuid.equals(Faction.nullUuid)) { facName = playerFaction.name; }
 
@@ -180,7 +145,7 @@ public class ClientProxy extends CommonProxy
 			info.warzoneChunks = sSiegeInfo.get(info.attackingPos).warzoneChunks;
 		}
 
-        sSiegeInfo.remove(info.attackingPos);
+		sSiegeInfo.remove(info.attackingPos);
 
 		sSiegeInfo.put(info.attackingPos, info);
 	}

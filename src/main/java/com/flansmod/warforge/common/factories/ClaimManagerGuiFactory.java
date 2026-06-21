@@ -1,28 +1,31 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.api.IGuiHolder;
-import com.cleanroommc.modularui.factory.AbstractUIFactory;
-import com.cleanroommc.modularui.factory.GuiManager;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.ModularScreen;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.utils.Platform;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.api.IUIHolder;
+import brachy.modularui.factory.AbstractUIFactory;
+import brachy.modularui.factory.GuiManager;
+import brachy.modularui.api.MCHelper;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.ModularScreen;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.GuiClaimManager;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketClaimChunksData;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.PacketBuffer;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 import org.jetbrains.annotations.NotNull;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiData> {
     public static final ClaimManagerGuiFactory INSTANCE = new ClaimManagerGuiFactory();
-
 
     public static boolean siegeTargetMode = false;
     public static DimChunkPos siegeStartPickFor = null;
@@ -36,15 +39,13 @@ public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiDat
         siegeStartPickFor = null;
     }
 
-    private static final IGuiHolder<ClaimManagerGuiData> HOLDER = new IGuiHolder<>() {
+    private static final IUIHolder<ClaimManagerGuiData> HOLDER = new IUIHolder<>() {
         @Override
         public ModularPanel buildUI(ClaimManagerGuiData guiData, PanelSyncManager syncManager, UISettings settings) {
             if (guiData.isClient()) {
                 return GuiClaimManager.buildPanel(guiData);
             }
-            return ModularPanel.defaultPanel("claim_manager")
-                    .width(636)
-                    .height(764)
+            return ModularPanel.defaultPanel("claim_manager", 636, 764)
                     .topRel(0.40f);
         }
 
@@ -55,7 +56,7 @@ public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiDat
     };
 
     private ClaimManagerGuiFactory() {
-        super("warforge:claim_manager");
+        super(new ResourceLocation(Tags.MODID, "claim_manager"));
     }
 
     public static void init() {
@@ -64,56 +65,58 @@ public class ClaimManagerGuiFactory extends AbstractUIFactory<ClaimManagerGuiDat
         }
     }
 
-    public void open(EntityPlayer player, DimChunkPos center, int radius, int pageX, int pageZ) {
-        EntityPlayerMP serverPlayer = verifyServerSide(player);
+    public void open(Player player, DimChunkPos center, int radius, int pageX, int pageZ) {
+        ServerPlayer serverPlayer = verifyServerSide(player);
         GuiManager.open(this, createServerData(serverPlayer, center, radius, pageX, pageZ, true), serverPlayer);
     }
 
-    @SideOnly(Side.CLIENT)
+    @OnlyIn(Dist.CLIENT)
     public void openClient(DimChunkPos center, int radius, int pageX, int pageZ) {
-        GuiManager.openFromClient(this, new ClaimManagerGuiData(verifyClientSide(Platform.getClientPlayer()), center, radius, pageX, pageZ));
+        com.flansmod.warforge.client.DeferredGuiOpen.open(() ->
+                GuiManager.openFromClient(this, new ClaimManagerGuiData(verifyClientSide(MCHelper.getPlayer()), center, radius, pageX, pageZ)));
     }
 
     @Override
-    public @NotNull IGuiHolder<ClaimManagerGuiData> getGuiHolder(ClaimManagerGuiData guiData) {
+    public @NotNull IUIHolder<ClaimManagerGuiData> getGuiHolder(ClaimManagerGuiData guiData) {
         return HOLDER;
     }
 
     @Override
-    public void writeGuiData(ClaimManagerGuiData guiData, PacketBuffer packetBuffer) {
+    public void writeGuiData(ClaimManagerGuiData guiData, FriendlyByteBuf buffer) {
         if (guiData.isClient()) {
-            packetBuffer.writeInt(guiData.dim);
-            packetBuffer.writeInt(guiData.centerX);
-            packetBuffer.writeInt(guiData.centerZ);
-            packetBuffer.writeByte(guiData.radius);
-            packetBuffer.writeInt(guiData.pageX);
-            packetBuffer.writeInt(guiData.pageZ);
+            buffer.writeUtf(guiData.dim.location().toString());
+            buffer.writeInt(guiData.centerX);
+            buffer.writeInt(guiData.centerZ);
+            buffer.writeByte(guiData.radius);
+            buffer.writeInt(guiData.pageX);
+            buffer.writeInt(guiData.pageZ);
             return;
         }
 
-        packetBuffer.writeInt(guiData.pageX);
-        packetBuffer.writeInt(guiData.pageZ);
-        guiData.toPacket().encodeInto(null, packetBuffer);
+        buffer.writeInt(guiData.pageX);
+        buffer.writeInt(guiData.pageZ);
+        guiData.toPacket().encodeInto(buffer);
     }
 
     @Override
-    public @NotNull ClaimManagerGuiData readGuiData(EntityPlayer entityPlayer, PacketBuffer packetBuffer) {
-        if (!entityPlayer.world.isRemote) {
-            DimChunkPos center = new DimChunkPos(packetBuffer.readInt(), packetBuffer.readInt(), packetBuffer.readInt());
-            int radius = packetBuffer.readByte();
-            int pageX = packetBuffer.readInt();
-            int pageZ = packetBuffer.readInt();
-            return createServerData((EntityPlayerMP) entityPlayer, center, radius, pageX, pageZ, true);
+    public @NotNull ClaimManagerGuiData readGuiData(Player player, FriendlyByteBuf buffer) {
+        if (!player.level().isClientSide()) {
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(buffer.readUtf()));
+            DimChunkPos center = new DimChunkPos(dim, buffer.readInt(), buffer.readInt());
+            int radius = buffer.readByte();
+            int pageX = buffer.readInt();
+            int pageZ = buffer.readInt();
+            return createServerData((ServerPlayer) player, center, radius, pageX, pageZ, true);
         }
 
-        int pageX = packetBuffer.readInt();
-        int pageZ = packetBuffer.readInt();
+        int pageX = buffer.readInt();
+        int pageZ = buffer.readInt();
         PacketClaimChunksData packet = new PacketClaimChunksData();
-        packet.decodeInto(null, packetBuffer);
-        return new ClaimManagerGuiData(entityPlayer, packet, pageX, pageZ);
+        packet.decodeInto(buffer);
+        return new ClaimManagerGuiData(player, packet, pageX, pageZ);
     }
 
-    private ClaimManagerGuiData createServerData(EntityPlayerMP player, DimChunkPos center, int radius, int pageX, int pageZ, boolean syncClaimCache) {
+    private ClaimManagerGuiData createServerData(ServerPlayer player, DimChunkPos center, int radius, int pageX, int pageZ, boolean syncClaimCache) {
         PacketClaimChunksData packet = WarForgeMod.FACTIONS.createClaimChunksData(player, center, radius);
         if (syncClaimCache) {
             WarForgeMod.NETWORK.sendTo(packet, player);

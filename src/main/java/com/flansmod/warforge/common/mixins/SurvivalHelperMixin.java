@@ -1,38 +1,30 @@
 package com.flansmod.warforge.common.mixins;
 
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-import net.minecraft.world.World;
-import nl.requios.effortlessbuilding.helper.SurvivalHelper;
+import com.flansmod.warforge.common.util.DimBlockPos;
+import net.minecraft.world.entity.player.Player;
+import nl.requios.effortlessbuilding.utilities.BlockEntry;
+import nl.requios.effortlessbuilding.utilities.BlockPlacerHelper;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(SurvivalHelper.class)
+@Mixin(value = BlockPlacerHelper.class, remap = false)
 public class SurvivalHelperMixin {
+
     @Inject(method = "placeBlock", at = @At("HEAD"), remap = false, cancellable = true)
-    private static void PlaceBlockMixin(World world, EntityPlayer player, BlockPos pos, IBlockState blockState,
-                                        ItemStack origstack, EnumFacing facing, Vec3d hitVec, boolean skipPlaceCheck,
-                                        boolean skipCollisionCheck, boolean playSound,
-                                        CallbackInfoReturnable<Boolean> cir) {
+    private static void warforge$placeBlock(Player player, BlockEntry blockEntry, CallbackInfoReturnable<Boolean> cir) {
 
-        if (ProtectionsModule.OP_OVERRIDE && WarForgeMod.isOp(player)) return;
+        if (ProtectionsModule.OP_OVERRIDE && player.getServer() != null
+                && player.getServer().getPlayerList().isOp(player.getGameProfile())) return;
 
-        DimBlockPos dimPos = new DimBlockPos(player.dimension, pos);
-        ProtectionConfig config = ProtectionsModule.GetProtections(player.getUniqueID(), dimPos);
+        DimBlockPos dimPos = new DimBlockPos(player.level().dimension(), blockEntry.blockPos);
+        ProtectionConfig config = ProtectionsModule.GetProtections(player.getUUID(), dimPos);
 
         if (!config.PLACE_BLOCKS) {
-            if (!config.BLOCK_PLACE_WHITELIST.contains(blockState.getBlock())) {
+            if (!config.BLOCK_PLACE_WHITELIST.contains(blockEntry.newBlockState.getBlock())) {
                 cir.setReturnValue(false);
             }
         }

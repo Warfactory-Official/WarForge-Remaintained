@@ -1,12 +1,8 @@
 package com.flansmod.warforge.common.network;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.common.network.ByteBufUtils;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -16,57 +12,48 @@ import java.util.UUID;
 public abstract class PacketBase
 {
 	/**
-	 * Encode the packet into a ByteBuf stream. Advanced data handlers can be found at @link{net.minecraftforge.fml.common.network.ByteBufUtils}
+	 * Encode the packet into a FriendlyByteBuf stream.
 	 */
-	public abstract void encodeInto(ChannelHandlerContext ctx, ByteBuf data);
-	
+	public abstract void encodeInto(FriendlyByteBuf data);
+
 	/**
-	 * Decode the packet from a ByteBuf stream. Advanced data handlers can be found at @link{net.minecraftforge.fml.common.network.ByteBufUtils}
+	 * Decode the packet from a FriendlyByteBuf stream.
 	 */
-	public abstract void decodeInto(ChannelHandlerContext ctx, ByteBuf data);
-	
+	public abstract void decodeInto(FriendlyByteBuf data);
+
 	/**
 	 * Handle the packet on server side, post-decoding
 	 */
-	public abstract void handleServerSide(EntityPlayerMP playerEntity);
-	
+	public abstract void handleServerSide(ServerPlayer playerEntity);
+
 	/**
 	 * Handle the packet on client side, post-decoding
 	 */
-	@SideOnly(Side.CLIENT)
-	public abstract void handleClientSide(EntityPlayer clientPlayer);
-	
+	public abstract void handleClientSide(Player clientPlayer);
+
 	/**
-	 * Util method for quickly writing strings - stores at most 2 bytes for string length
+	 * Util method for quickly writing strings
 	 */
-	public static void writeUTF(ByteBuf data, String s)
+	public static void writeUTF(FriendlyByteBuf data, String s)
 	{
-		ByteBufUtils.writeUTF8String(data, s);
+		data.writeUtf(s);
 	}
-	
+
 	/**
 	 * Util method for quickly reading strings
 	 */
-	public static String readUTF(ByteBuf data)
+	public static String readUTF(FriendlyByteBuf data)
 	{
-		return ByteBufUtils.readUTF8String(data);
-	}
-	
-	public static void writeUUID(ByteBuf data, UUID id)
-	{
-		data.writeLong(id.getMostSignificantBits());
-		data.writeLong(id.getLeastSignificantBits());
-	}
-	
-	public static UUID readUUID(ByteBuf data)
-	{
-		long most = data.readLong();
-		long least = data.readLong();
-		return new UUID(most, least);
+		return data.readUtf();
 	}
 
-	public boolean canUseCompression() {
-		return false;
+	public static void writeUUID(FriendlyByteBuf data, UUID id)
+	{
+		data.writeUUID(id);
 	}
 
+	public static UUID readUUID(FriendlyByteBuf data)
+	{
+		return data.readUUID();
+	}
 }

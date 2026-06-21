@@ -2,33 +2,33 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.server.Faction;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.item.ItemStack;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 
 public class PacketFactionInsuranceAction extends PacketBase {
     public int slot = -1;
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeInt(slot);
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         slot = data.readInt();
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUniqueID());
+    public void handleServerSide(ServerPlayer playerEntity) {
+        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUUID());
         if (faction == null) {
             return;
         }
-        if (!WarForgeMod.isOp(playerEntity) && !faction.isPlayerRoleInFaction(playerEntity.getUniqueID(), Faction.Role.LEADER)) {
-            playerEntity.sendMessage(new net.minecraft.util.text.TextComponentString("Only the faction leader can void insurance items"));
+        if (!WarForgeMod.isOp(playerEntity) && !faction.isPlayerRoleInFaction(playerEntity.getUUID(), Faction.Role.LEADER)) {
+            playerEntity.sendSystemMessage(Component.literal("Only the faction leader can void insurance items"));
             return;
         }
         if (slot < 0 || slot >= faction.getInsuranceSlotCount()) {
@@ -41,6 +41,6 @@ public class PacketFactionInsuranceAction extends PacketBase {
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
     }
 }

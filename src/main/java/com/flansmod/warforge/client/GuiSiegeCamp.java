@@ -1,12 +1,12 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.IngredientDrawable;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.IngredientDrawable;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.ScrollingTextWidget;
+import brachy.modularui.widgets.layout.Flow;
 import com.flansmod.warforge.api.Color4i;
 import com.flansmod.warforge.api.Time;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
@@ -16,15 +16,14 @@ import com.flansmod.warforge.api.modularui.MapDrawable;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.SiegeCampGuiData;
-import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
 import com.flansmod.warforge.common.network.PacketStartSiege;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
-import com.flansmod.warforge.server.StackComparable;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.text.translation.I18n;
+import com.flansmod.warforge.server.ItemMatcher;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -46,7 +45,8 @@ public final class GuiSiegeCamp {
     }
 
     public static ModularPanel buildPanel(SiegeCampGuiData data) {
-        ChunkPos centerChunk = data.siegeCampPos.toChunkPos();
+        DimChunkPos centerChunk = data.siegeCampPos.toChunkPos();
+        String dimName = data.siegeCampPos.dim.location().toString();
         int totalSize = 2 * RADIUS + 1;
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 totalSize,
@@ -72,33 +72,30 @@ public final class GuiSiegeCamp {
         int mapLeft = CONTENT_LEFT + MAP_GUTTER;
         int mapTop = mapY + MAP_GUTTER;
 
-        ModularPanel panel = ModularPanel.defaultPanel("siege_main")
-                .width(width)
-                .height(height)
-                .topRel(0.40f);
+        ModularPanel panel = ModularPanel.defaultPanel("siege_main", width, height).topRel(0.40f);
 
         Flow infoSection = ModularGuiStyle.section(mapSectionWidth, INFO_HEIGHT).name("siege_info_section").pos(CONTENT_LEFT, infoY);
         Flow legendSection = ModularGuiStyle.section(mapSectionWidth, LEGEND_HEIGHT).name("siege_legend_section").pos(CONTENT_LEFT, legendY);
 
-        HashMap<Long, SiegeCampAttackInfo> byOffset = new HashMap<Long, SiegeCampAttackInfo>();
+        HashMap<Long, SiegeCampAttackInfo> byOffset = new HashMap<>();
         for (SiegeCampAttackInfo info : data.possibleAttacks) {
             byOffset.put(ChunkMapUtil.key(info.mOffset.getX(), info.mOffset.getZ()), info);
         }
 
-        List<SiegeCampAttackInfo> orderedAttacks = new ArrayList<SiegeCampAttackInfo>(totalSize * totalSize);
+        List<SiegeCampAttackInfo> orderedAttacks = new ArrayList<>(totalSize * totalSize);
         for (int z = -RADIUS; z <= RADIUS; z++) {
             for (int x = -RADIUS; x <= RADIUS; x++) {
                 orderedAttacks.add(byOffset.get(ChunkMapUtil.key(x, z)));
             }
         }
 
-        HashMap<Long, Integer> tintByChunk = new HashMap<Long, Integer>();
+        HashMap<Long, Integer> tintByChunk = new HashMap<>();
         for (SiegeCampAttackInfo info : orderedAttacks) {
             if (info != null && !info.mFactionUUID.equals(Faction.nullUuid)) {
                 tintByChunk.put(ChunkMapUtil.key(centerChunk.x + info.mOffset.getX(), centerChunk.z + info.mOffset.getZ()), info.mFactionColour);
             }
         }
-        String textureNamespace = "siegemap_" + data.siegeCampPos.dim + "_" + centerChunk.x + "_" + centerChunk.z;
+        String textureNamespace = "siegemap_" + dimName + "_" + centerChunk.x + "_" + centerChunk.z;
         ChunkMapTextureDaemon.requestMapUpdate(textureNamespace, data.siegeCampPos.dim, centerChunk.x, centerChunk.z, RADIUS, tintByChunk);
 
         boolean[][] adjacencyArray = new boolean[orderedAttacks.size()][4];
@@ -112,20 +109,20 @@ public final class GuiSiegeCamp {
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(data.color)).name("siege_color_stripe").size(6, height));
         panel.child(ModularGuiStyle.panelCloseButton(width));
 
-        panel.child(IKey.str("Siege Target Map").asWidget()
+        panel.child(Text.str("Siege Target Map").asWidget()
                 .name("siege_title")
                 .pos(CONTENT_LEFT, 12)
-                .style(net.minecraft.util.text.TextFormatting.BOLD)
+                .style(Text.BOLD)
                 .shadow(true)
                 .color(ModularGuiStyle.TEXT_PRIMARY)
                 .scale(1.15f));
-        panel.child(new ScrollingTextWidget(IKey.str("Camp [" + centerChunk.x + ", " + centerChunk.z + "] | Dim " + data.siegeCampPos.dim + " | Radius " + RADIUS))
+        panel.child(new ScrollingTextWidget(Text.str("Camp [" + centerChunk.x + ", " + centerChunk.z + "] | Dim " + dimName + " | Radius " + RADIUS))
                 .name("siege_subtitle")
                 .pos(CONTENT_LEFT, 27)
                 .width(width - CONTENT_LEFT * 2 - 18)
                 .color(ModularGuiStyle.TEXT_SECONDARY));
 
-        infoSection.child(new ScrollingTextWidget(IKey.str("Current momentum: " + data.momentum))
+        infoSection.child(new ScrollingTextWidget(Text.str("Current momentum: " + data.momentum))
                 .name("siege_momentum_text")
                 .width(mapSectionWidth - 10)
                 .margin(0, 0, 0, 4)
@@ -140,12 +137,12 @@ public final class GuiSiegeCamp {
                         richTooltip.addLine("§eLevel " + level + "§r: §a" + new Time(time).getFormattedTime(Time.TimeFormat.MINUTES_SECONDS, Time.Verbality.SHORT));
                     }
                 }));
-        infoSection.child(new ScrollingTextWidget(IKey.str("Select a target chunk around the siege camp. Center tile is your current camp position."))
+        infoSection.child(new ScrollingTextWidget(Text.str("Select a target chunk around the siege camp. Center tile is your current camp position."))
                 .name("siege_prompt_text")
                 .width(mapSectionWidth - 10)
                 .margin(0, 0, 0, 2)
                 .color(ModularGuiStyle.TEXT_MUTED));
-        legendSection.child(new ScrollingTextWidget(IKey.str("Click an attackable chunk to begin the siege. Tooltips show faction ownership, claim type, and vein data."))
+        legendSection.child(new ScrollingTextWidget(Text.str("Click an attackable chunk to begin the siege. Tooltips show faction ownership, claim type, and vein data."))
                 .name("siege_controls_text")
                 .width(mapSectionWidth - 10)
                 .color(ModularGuiStyle.TEXT_MUTED));
@@ -159,12 +156,10 @@ public final class GuiSiegeCamp {
                 if (chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) {
                     chunkInfo.setCenterMarkType(SiegeCampAttackInfoRender.CenterMarkType.SIEGE_CAMP);
                 }
-                ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(chunkInfo, chunkInfo.claimType, false, false, false, null);
-
                 panel.child(new ButtonWidget<>()
-                        .name("siege_chunk_" + data.siegeCampPos.dim + "_" + (centerChunk.x + chunkInfo.mOffset.getX()) + "_" + (centerChunk.z + chunkInfo.mOffset.getZ()))
-                        .overlay(new MapDrawable(ChunkMapTextureDaemon.getTextureName(textureNamespace, data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), renderInfo, adjacencyArray[index]))
-                        .onMousePressed(mouseButton -> {
+                        .name("siege_chunk_" + dimName + "_" + (centerChunk.x + chunkInfo.mOffset.getX()) + "_" + (centerChunk.z + chunkInfo.mOffset.getZ()))
+                        .overlay(new MapDrawable(ChunkMapTextureDaemon.getTextureName(textureNamespace, data.siegeCampPos.dim, centerChunk.x + chunkInfo.mOffset.getX(), centerChunk.z + chunkInfo.mOffset.getZ()), chunkInfo, adjacencyArray[index]))
+                        .onMousePressed((context, button) -> {
                             if ((chunkInfo.mOffset.getX() == 0 && chunkInfo.mOffset.getZ() == 0) && !chunkInfo.canAttack) {
                                 return false;
                             }
@@ -178,28 +173,28 @@ public final class GuiSiegeCamp {
                         })
                         .tooltip(richTooltip -> {
                             if (!chunkInfo.mFactionName.isEmpty()) {
-                                richTooltip.addLine(IKey.str("Territory of " + chunkInfo.mFactionName).color(Color4i.fromRGB(chunkInfo.mFactionColour).toARGB()));
+                                richTooltip.addLine(Text.str("Territory of " + chunkInfo.mFactionName).color(Color4i.fromRGB(chunkInfo.mFactionColour).toARGB()));
                             } else {
-                                richTooltip.addLine(IKey.str("Wilderness").style(IKey.GREEN));
+                                richTooltip.addLine(Text.str("Wilderness").style(Text.GREEN));
                             }
                             richTooltip.addLine("Claim Type: " + formatClaimType(chunkInfo.claimType));
                             if (chunkInfo.mWarforgeVein != null) {
-                                richTooltip.addLine(new IngredientDrawable(
+                                richTooltip.addDrawableLine(new IngredientDrawable(
                                         chunkInfo.mWarforgeVein.compIds.stream()
-                                                .map(StackComparable::toItem)
-                                                .filter(Objects::nonNull)
+                                                .map(ItemMatcher::toStack)
+                                                .filter(stack -> !stack.isEmpty())
                                                 .toArray(ItemStack[]::new)
                                 ).asIcon().size(25));
-                                richTooltip.addLine(IKey.str("Ore In the chunk: " +
+                                richTooltip.addLine(Text.str("Ore In the chunk: " +
                                         translateVeinName(chunkInfo.mWarforgeVein.translationKey,
-                                                I18n.translateToLocal(chunkInfo.mOreQuality.getTranslationKey()) + " [" +
+                                                I18n.get(chunkInfo.mOreQuality.getTranslationKey()) + " [" +
                                                         chunkInfo.mOreQuality.getMultString(chunkInfo.mWarforgeVein) + "]")));
                             } else {
-                                richTooltip.addLine(IKey.str("No ores in this chunk"));
+                                richTooltip.addLine(Text.str("No ores in this chunk"));
                             }
                             if (chunkInfo.canAttack) {
-                                richTooltip.addLine(IKey.str("Total attack time: " + new Time(WarForgeConfig.SIEGE_MOMENTUM_TIME.get(data.momentum) * 1000L).getFormattedTime(Time.TimeFormat.HOURS_MINUTES_SECONDS, Time.Verbality.SHORT)).style(IKey.RED));
-                                richTooltip.addLine(IKey.str("Click to attack now!").style(IKey.BOLD, IKey.RED));
+                                richTooltip.addLine(Text.str("Total attack time: " + new Time(WarForgeConfig.SIEGE_MOMENTUM_TIME.get(data.momentum) * 1000L).getFormattedTime(Time.TimeFormat.HOURS_MINUTES_SECONDS, Time.Verbality.SHORT)).style(Text.RED));
+                                richTooltip.addLine(Text.str("Click to attack now!").style(Text.BOLD, Text.RED));
                             }
                         })
                         .size(CELL_SIZE)
@@ -223,9 +218,9 @@ public final class GuiSiegeCamp {
 
     private static String translateVeinName(String translationKey, Object... args) {
         String resolvedKey = translationKey;
-        if (!I18n.canTranslate(resolvedKey) && I18n.canTranslate(resolvedKey + ".name")) {
+        if (!I18n.exists(resolvedKey) && I18n.exists(resolvedKey + ".name")) {
             resolvedKey += ".name";
         }
-        return I18n.translateToLocalFormatted(resolvedKey, args);
+        return I18n.get(resolvedKey, args);
     }
 }

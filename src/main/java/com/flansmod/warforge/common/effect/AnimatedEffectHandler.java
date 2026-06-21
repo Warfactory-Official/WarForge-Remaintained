@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.effect;
 
-import net.minecraftforge.fml.common.eventhandler.EventPriority;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +23,5 @@ public class AnimatedEffectHandler {
             return effect.isComplete();
         });
     }
-
 
 }

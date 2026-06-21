@@ -2,10 +2,9 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionFlagSelectGuiFactory;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -14,24 +13,24 @@ public class PacketChooseFactionFlag extends PacketBase {
     public String flagId = "";
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         writeUUID(data, factionId);
         writeUTF(data, flagId);
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         factionId = readUUID(data);
         flagId = readUTF(data);
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
-        WarForgeMod.FACTIONS.requestChooseFactionFlag(playerEntity, factionId, flagId);
-        FactionFlagSelectGuiFactory.INSTANCE.open(playerEntity, factionId);
+    public void handleServerSide(ServerPlayer player) {
+        WarForgeMod.FACTIONS.requestChooseFactionFlag(player, factionId, flagId);
+        FactionFlagSelectGuiFactory.INSTANCE.open(player, factionId);
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
     }
 }

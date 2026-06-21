@@ -1,9 +1,10 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.Tags;
+import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.resources.ResourceLocation;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -48,7 +49,8 @@ public final class ClientFlagRegistry {
     public static void clear() {
         for (ResourceLocation texture : textures.values()) {
             if (texture.getNamespace().equals(Tags.MODID)) {
-                Minecraft.getMinecraft().addScheduledTask(() -> Minecraft.getMinecraft().getTextureManager().deleteTexture(texture));
+                Minecraft mc = Minecraft.getInstance();
+                mc.tell(() -> mc.getTextureManager().release(texture));
             }
         }
         textures.clear();
@@ -72,7 +74,8 @@ public final class ClientFlagRegistry {
         if (assembly.isComplete()) {
             assemblies.remove(flagId);
             byte[] bytes = assembly.join();
-            Minecraft.getMinecraft().addScheduledTask(() -> registerCustomFlag(flagId, width, height, bytes));
+            Minecraft mc = Minecraft.getInstance();
+            mc.tell(() -> registerCustomFlag(flagId, width, height, bytes));
         }
     }
 
@@ -103,8 +106,9 @@ public final class ClientFlagRegistry {
             if (image == null) {
                 return;
             }
+            NativeImage nativeImage = bufferedImageToNativeImage(image);
             ResourceLocation location = new ResourceLocation(Tags.MODID, "dynamic/flag/" + Integer.toUnsignedString(flagId.hashCode()));
-            Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+            Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(nativeImage));
             textures.put(flagId, location);
             dimensions.put(flagId, new int[]{width, height});
         } catch (IOException ignored) {
@@ -116,13 +120,41 @@ public final class ClientFlagRegistry {
         int argb = 0xFF000000 | (parseColor(name) & 0xFFFFFF);
         int[] pixels = new int[DEFAULT_FLAG_SIZE * DEFAULT_FLAG_SIZE];
         Arrays.fill(pixels, argb);
-        BufferedImage image = new BufferedImage(DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE, BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE, pixels, 0, DEFAULT_FLAG_SIZE);
+        NativeImage nativeImage = new NativeImage(DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE, false);
+        for (int y = 0; y < DEFAULT_FLAG_SIZE; y++) {
+            for (int x = 0; x < DEFAULT_FLAG_SIZE; x++) {
+                // NativeImage uses ABGR pixel format; convert from ARGB
+                int argbPixel = pixels[y * DEFAULT_FLAG_SIZE + x];
+                nativeImage.setPixelRGBA(x, y, argbToAbgr(argbPixel));
+            }
+        }
         ResourceLocation location = new ResourceLocation(Tags.MODID, "dynamic/flag/default_" + name.toLowerCase(Locale.ROOT));
-        Minecraft.getMinecraft().getTextureManager().loadTexture(location, new DynamicTexture(image));
+        Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(nativeImage));
         textures.put(flagId, location);
         dimensions.put(flagId, new int[]{DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE});
         return location;
+    }
+
+    /** Converts a BufferedImage (ARGB) to a NativeImage (ABGR). */
+    private static NativeImage bufferedImageToNativeImage(BufferedImage image) {
+        int w = image.getWidth();
+        int h = image.getHeight();
+        NativeImage nativeImage = new NativeImage(w, h, false);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                nativeImage.setPixelRGBA(x, y, argbToAbgr(image.getRGB(x, y)));
+            }
+        }
+        return nativeImage;
+    }
+
+    /** Swaps R and B channels: ARGB -> ABGR (NativeImage's expected format). */
+    private static int argbToAbgr(int argb) {
+        int a = (argb >> 24) & 0xFF;
+        int r = (argb >> 16) & 0xFF;
+        int g = (argb >> 8) & 0xFF;
+        int b = argb & 0xFF;
+        return (a << 24) | (b << 16) | (g << 8) | r;
     }
 
     private static int parseColor(String name) {

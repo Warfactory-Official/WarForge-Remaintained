@@ -6,19 +6,14 @@ import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
-@SideOnly(Side.CLIENT)
 public class ChunkVeinCache {
     protected WarforgeCache<DimChunkPos, Pair<Vein, Quality>> cache;
 
-    @SideOnly(Side.CLIENT)
     public ChunkVeinCache() {
         cache = new WarforgeCache<>(0, 64);
     }
 
-    @SideOnly(Side.CLIENT)
     public void purge(){
         cache.clear();
     }

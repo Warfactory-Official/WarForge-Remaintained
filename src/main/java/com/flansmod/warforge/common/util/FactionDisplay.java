@@ -1,15 +1,14 @@
 package com.flansmod.warforge.common.util;
 
 import com.flansmod.warforge.common.WarForgeConfig;
-import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.network.play.server.SPacketPlayerListItem;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextColor;
+import net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.text.ITextComponent;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.util.UUID;
 
@@ -17,66 +16,37 @@ import java.util.UUID;
  * Helpers for showing a player's faction as a coloured prefix in chat and the tab list.
  * <p>
  * Chat is rewritten through {@code ServerChatEvent}; the tab list display name is provided by a mixin
- * on {@code EntityPlayerMP#getTabListDisplayName} and pushed to clients with {@link #refreshTabName}.
+ * on {@code ServerPlayer#getTabListDisplayName} and pushed to clients with {@link #refreshTabName}.
  */
 public final class FactionDisplay {
     private FactionDisplay() {
     }
 
-    // The 16 vanilla chat colours and their foreground RGB values, used to approximate a faction's
-    // RGB colour (1.12.2 chat/tab text can only use these named colours).
-    private static final TextFormatting[] COLOURS = {
-            TextFormatting.BLACK, TextFormatting.DARK_BLUE, TextFormatting.DARK_GREEN, TextFormatting.DARK_AQUA,
-            TextFormatting.DARK_RED, TextFormatting.DARK_PURPLE, TextFormatting.GOLD, TextFormatting.GRAY,
-            TextFormatting.DARK_GRAY, TextFormatting.BLUE, TextFormatting.GREEN, TextFormatting.AQUA,
-            TextFormatting.RED, TextFormatting.LIGHT_PURPLE, TextFormatting.YELLOW, TextFormatting.WHITE
-    };
-    private static final int[] COLOUR_RGB = {
-            0x000000, 0x0000AA, 0x00AA00, 0x00AAAA, 0xAA0000, 0xAA00AA, 0xFFAA00, 0xAAAAAA,
-            0x555555, 0x5555FF, 0x55FF55, 0x55FFFF, 0xFF5555, 0xFF55FF, 0xFFFF55, 0xFFFFFF
-    };
-
-    public static TextFormatting nearestColour(int rgb) {
-        int r = (rgb >> 16) & 0xFF, g = (rgb >> 8) & 0xFF, b = rgb & 0xFF;
-        int best = COLOURS.length - 1;
-        long bestDist = Long.MAX_VALUE;
-        for (int i = 0; i < COLOUR_RGB.length; i++) {
-            int cr = (COLOUR_RGB[i] >> 16) & 0xFF, cg = (COLOUR_RGB[i] >> 8) & 0xFF, cb = COLOUR_RGB[i] & 0xFF;
-            long d = (long) (r - cr) * (r - cr) + (long) (g - cg) * (g - cg) + (long) (b - cb) * (b - cb);
-            if (d < bestDist) {
-                bestDist = d;
-                best = i;
-            }
-        }
-        return COLOURS[best];
-    }
-
-    /** The "[FactionName] " prefix coloured to the faction's colour, or {@code null} if the player has no faction. */
-    public static ITextComponent factionPrefix(Faction faction) {
+    /** The "[FactionName] " prefix coloured to the faction's RGB colour, or {@code null} if the player has no faction. */
+    public static MutableComponent factionPrefix(Faction faction) {
         if (faction == null || faction.uuid.equals(Faction.nullUuid) || faction.name == null || faction.name.isEmpty()) {
             return null;
         }
-        TextComponentString prefix = new TextComponentString("[" + faction.name + "] ");
-        prefix.getStyle().setColor(nearestColour(faction.colour));
-        return prefix;
+        return Component.literal("[" + faction.name + "] ")
+                .withStyle(style -> style.withColor(TextColor.fromRgb(faction.colour)));
     }
 
     /** Returns {@code original} with the faction prefix prepended, or {@code original} unchanged if no faction. */
-    public static ITextComponent withChatPrefix(Faction faction, ITextComponent original) {
-        ITextComponent prefix = factionPrefix(faction);
+    public static Component withChatPrefix(Faction faction, Component original) {
+        MutableComponent prefix = factionPrefix(faction);
         if (prefix == null) {
             return original;
         }
-        return new TextComponentString("").appendSibling(prefix).appendSibling(original);
+        return Component.literal("").append(prefix).append(original);
     }
 
     /** The tab-list display name "[FactionName] PlayerName", or {@code null} to fall back to the vanilla name. */
-    public static ITextComponent tabName(Faction faction, String playerName) {
-        ITextComponent prefix = factionPrefix(faction);
+    public static Component tabName(Faction faction, String playerName) {
+        MutableComponent prefix = factionPrefix(faction);
         if (prefix == null) {
             return null;
         }
-        return new TextComponentString("").appendSibling(prefix).appendSibling(new TextComponentString(playerName));
+        return Component.literal("").append(prefix).append(Component.literal(playerName));
     }
 
     /** Re-send a player's tab-list display name to everyone so faction prefix changes show up live. */
@@ -86,14 +56,16 @@ public final class FactionDisplay {
         if (!WarForgeConfig.FACTION_PREFIX_IN_TABLIST) {
             return;
         }
-        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null || playerId == null) {
             return;
         }
-        EntityPlayerMP player = server.getPlayerList().getPlayerByUUID(playerId);
+        ServerPlayer player = server.getPlayerList().getPlayer(playerId);
         if (player != null) {
-            server.getPlayerList().sendPacketToAllPlayers(
-                    new SPacketPlayerListItem(SPacketPlayerListItem.Action.UPDATE_DISPLAY_NAME, player));
+            server.getPlayerList().broadcastAll(
+                    new ClientboundPlayerInfoUpdatePacket(
+                            ClientboundPlayerInfoUpdatePacket.Action.UPDATE_DISPLAY_NAME,
+                            player));
         }
     }
 

@@ -1,40 +1,42 @@
 package com.flansmod.warforge.common.blocks;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.ITileEntityProvider;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.entity.Entity;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockAccess;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.LevelReader;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
 
-public class BlockAdminClaim extends Block implements ITileEntityProvider
+import javax.annotation.Nullable;
+
+public class BlockAdminClaim extends Block implements EntityBlock
 {
-	public BlockAdminClaim() 
+	public BlockAdminClaim()
 	{
-		super(Material.ROCK);
-//		this.setCreativeTab(CreativeTabs.COMBAT);
-		this.setBlockUnbreakable();
-		this.setResistance(30000000f);
+		super(BlockBehaviour.Properties.of()
+				.strength(-1.0F, 3600000.0F)
+				.noLootTable());
 	}
 
 	@Override
-	public TileEntity createNewTileEntity(World worldIn, int meta)
+	@Nullable
+	public BlockEntity newBlockEntity(BlockPos pos, BlockState state)
 	{
-		return new TileEntityAdminClaim();
+		return new TileEntityAdminClaim(pos, state);
 	}
-	
+
 	@Override
-	public boolean canPlaceBlockAt(World world, BlockPos pos)
+	public boolean canSurvive(BlockState state, LevelReader world, BlockPos pos)
 	{
 		return false;
 	}
-	
+
 	@Override
-    public boolean canEntityDestroy(IBlockState state, IBlockAccess world, BlockPos pos, Entity entity)
-    {
-        return false;
-    }
+	public boolean canEntityDestroy(BlockState state, BlockGetter world, BlockPos pos, Entity entity)
+	{
+		return false;
+	}
 }

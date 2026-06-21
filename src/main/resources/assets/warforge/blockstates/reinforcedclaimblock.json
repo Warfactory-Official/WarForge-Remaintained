@@ -1,5 +1,5 @@
 {
     "variants": {
-        "normal": { "model": "warforge:reinforcedclaimblock" }
+        "": { "model": "warforge:block/reinforcedclaimblock" }
     }
 }

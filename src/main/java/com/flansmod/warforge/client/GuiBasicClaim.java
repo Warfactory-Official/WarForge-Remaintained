@@ -1,134 +1,111 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.common.ContainerBasicClaim;
+import brachy.modularui.api.GuiAxis;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.GuiTextures;
+import brachy.modularui.factory.PosGuiData;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.layout.Flow;
+import brachy.modularui.widgets.slot.ItemSlot;
+import brachy.modularui.widgets.slot.ModularSlot;
+
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
+import com.flansmod.warforge.common.blocks.TileEntityYieldCollector;
 import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.PacketMoveCitadel;
 import com.flansmod.warforge.common.network.PacketPlaceFlag;
 import com.flansmod.warforge.common.network.PacketRemoveClaim;
 
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiButton;
-import net.minecraft.client.gui.inventory.GuiContainer;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.inventory.Container;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.ChatFormatting;
 
-public class GuiBasicClaim extends GuiContainer
-{
-	private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "gui/citadelmenu.png");
+/**
+ * ModularUI panel for a basic territory claim. Under modern ModularUI there is no per-GUI vanilla
+ * {@code Container}; the claim {@link TileEntityBasicClaim} is itself the item handler and the 3x3
+ * yield grid is added directly to the panel. Action buttons mirror the legacy citadel menu (the claim
+ * GUI reuses the citadel layout).
+ */
+public final class GuiBasicClaim {
 
-	private static final int BUTTON_INFO = 0;
-	private static final int BUTTON_REMOVE_CLAIM = 1;
-	private static final int BUTTON_PLACE_FLAG = 2;
-	private static final int BUTTON_MOVE_CITADEL = 3;
-	public ContainerBasicClaim claimContainer;
-	
-	public GuiBasicClaim(Container container) 
-	{
-		super(container);
-		claimContainer = (ContainerBasicClaim)container;
-		
-		ySize = 182;
-	}
+    private static final int SLOT_SIZE = 18;
+    private static final int COLUMNS = 3;
+    private static final int WIDTH = 200;
+    private static final int HEIGHT = 182;
+    private static final int CONTENT_LEFT = 8;
+    private static final int GRID_Y = 30;
 
-	@Override
-	public void initGui()
-	{
-		super.initGui();
-						
-		//Info Button
-		GuiButton infoButton = new GuiButton(BUTTON_INFO, width / 2 - 20, height / 2 - 48, 48, 20, "Info");
-		buttonList.add(infoButton);
+    private GuiBasicClaim() {
+    }
 
-		GuiButton removeClaimButton = new GuiButton(BUTTON_REMOVE_CLAIM, width / 2 + 32, height / 2 - 48, 48, 20, "Unclaim");
-		buttonList.add(removeClaimButton);
-		
-		GuiButton moveCitadelButton = new GuiButton(BUTTON_MOVE_CITADEL, width / 2 - 20, height / 2 - 26, 100, 20, "Move Citadel");
-		buttonList.add(moveCitadelButton);
-		
-		GuiButton placeFlagButton = new GuiButton(BUTTON_PLACE_FLAG, width / 2 - 20, height / 2 - 70, 100, 20, "Place Flag");
-		buttonList.add(placeFlagButton);
-//		if(claimContainer.claim.getPlayerFlags().contains(Minecraft.getMinecraft().getSession().getUsername()))
-//		{
-//			placeFlagButton.enabled = false;
-//		}
-	}
-	
-	@Override
-	protected void actionPerformed(GuiButton button)
-	{
-		switch(button.id)
-		{
-			case BUTTON_INFO:
-			{
-				FactionStatsGuiFactory.INSTANCE.openClient(claimContainer.claim.getFaction());
-				break;
-			}
-			case BUTTON_REMOVE_CLAIM:
-			{
-				PacketRemoveClaim packet = new PacketRemoveClaim();
+    public static ModularPanel buildUI(PosGuiData data, PanelSyncManager syncManager, UISettings settings, TileEntityBasicClaim claim) {
+        ModularPanel panel = ModularPanel.defaultPanel("basic_claim", WIDTH, HEIGHT)
+                .topRel(0.40f);
+        panel.bindPlayerInventory();
 
-				packet.pos = claimContainer.claim.getClaimPos();
+        panel.child(Text.str(claim.getClaimDisplayName()).asWidget()
+                .pos(CONTENT_LEFT, 8)
+                .style(ChatFormatting.BOLD)
+                .color(0xFFFFFF));
+        panel.child(Text.str("Yields").asWidget()
+                .pos(CONTENT_LEFT, 20)
+                .color(0xC7CCD1));
 
-				WarForgeMod.NETWORK.sendToServer(packet);
-				
-				Minecraft.getMinecraft().displayGuiScreen(null);
-				break;
-			}
-			case BUTTON_PLACE_FLAG:
-			{
-				PacketPlaceFlag packet = new PacketPlaceFlag();
-				packet.pos = claimContainer.claim.getClaimPos();
-				WarForgeMod.NETWORK.sendToServer(packet);
-				
-				Minecraft.getMinecraft().displayGuiScreen(null);
-				break;
-			}
-			case BUTTON_MOVE_CITADEL:
-			{
-				WarForgeMod.NETWORK.sendToServer(new PacketMoveCitadel());
-				
-				Minecraft.getMinecraft().displayGuiScreen(null);
-				break;
-			}
-		}	
-	}
-	
-	@Override
-	protected void drawGuiContainerBackgroundLayer(float partialTicks, int mouseX, int mouseY)
-	{
-		GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-		mc.renderEngine.bindTexture(texture);
-		int j = (width - xSize) / 2;
-		int k = (height - ySize) / 2;
-		drawTexturedModalRect(j, k, 0, 0, xSize, ySize);
-		// Paste over the banner slot as we are reusing the citadel screen
-		drawTexturedModalRect(j + 151, k + 67, 133, 67, 18, 18);
-	}
+        int slots = claim.getSlots();
+        ParentWidget<?> grid = new ParentWidget<>();
+        grid.name("basic_claim_grid");
+        grid.pos(CONTENT_LEFT, GRID_Y);
+        grid.size(COLUMNS * SLOT_SIZE, ((TileEntityYieldCollector.NUM_YIELD_STACKS + COLUMNS - 1) / COLUMNS) * SLOT_SIZE);
+        for (int i = 0; i < slots; i++) {
+            int col = i % COLUMNS;
+            int row = i / COLUMNS;
+            grid.child(new ItemSlot()
+                    .name("basic_claim_slot_" + i)
+                    .slot(new ModularSlot(claim, i))
+                    .pos(col * SLOT_SIZE, row * SLOT_SIZE));
+        }
+        panel.child(grid);
 
-	@Override
-	protected void drawGuiContainerForegroundLayer(int x, int y)
-	{
-		super.drawGuiContainerForegroundLayer(x, y);
-		
-		fontRenderer.drawString(claimContainer.claim.getClaimDisplayName(), 6, 6, 0x404040);
+        Flow actions = new Flow(GuiAxis.Y)
+                .name("basic_claim_actions")
+                .pos(CONTENT_LEFT + COLUMNS * SLOT_SIZE + 12, GRID_Y)
+                .coverChildren();
+        actions.child(actionButton("Place Flag", () -> {
+            PacketPlaceFlag packet = new PacketPlaceFlag();
+            packet.pos = claim.getClaimPos();
+            WarForgeMod.NETWORK.sendToServer(packet);
+            panel.closeIfOpen();
+        }));
+        actions.child(actionButton("Info", () -> FactionStatsGuiFactory.INSTANCE.openClient(claim.getFaction())));
+        actions.child(actionButton("Unclaim", () -> {
+            PacketRemoveClaim packet = new PacketRemoveClaim();
+            packet.pos = claim.getClaimPos();
+            WarForgeMod.NETWORK.sendToServer(packet);
+            panel.closeIfOpen();
+        }));
+        actions.child(actionButton("Move Citadel", () -> {
+            WarForgeMod.NETWORK.sendToServer(new PacketMoveCitadel());
+            panel.closeIfOpen();
+        }));
+        panel.child(actions);
 
-		fontRenderer.drawString("Yields", 6, 20, 0x404040);
-		fontRenderer.drawString("Inventory", 8, (ySize - 96) + 2, 0x404040);
-	}
-	
-	@Override
-	public void drawScreen(int mouseX, int mouseY, float partialTicks)
-	{
-		super.drawScreen(mouseX, mouseY, partialTicks);
-		renderHoveredToolTip(mouseX, mouseY);
-	}
-	
-	@Override
-	public boolean doesGuiPauseGame()
-	{
-		return false;
-	}
+        return panel;
+    }
+
+    private static ButtonWidget<?> actionButton(String label, Runnable action) {
+        return new ButtonWidget<>()
+                .width(100)
+                .height(20)
+                .margin(0, 2)
+                .overlay(Text.str(label).color(0xFFFFFF))
+                .background(GuiTextures.MC_BUTTON)
+                .hoverBackground(GuiTextures.MC_BUTTON_HOVERED)
+                .onMousePressed((context, button) -> {
+                    action.run();
+                    return true;
+                });
+    }
 }

@@ -1,10 +1,13 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.client.JourneyMapVeinCache;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -18,19 +21,30 @@ import java.util.List;
  * about veins it is not entitled to see.
  */
 public class PacketJourneyMapVeins extends PacketBase {
-    /** When true the client wipes its vein cache before applying this packet. */
-    public boolean clear = false;
-    /** Each entry: {dim, chunkX, chunkZ, compressedVeinInfo}. */
-    public final List<int[]> sets = new ArrayList<>();
-    /** Each entry: {dim, chunkX, chunkZ}. */
-    public final List<int[]> removes = new ArrayList<>();
-
-    public void addSet(int dim, int x, int z, short veinInfo) {
-        sets.add(new int[]{dim, x, z, veinInfo});
+    public static final class Set {
+        public final ResourceKey<Level> dim;
+        public final int x, z;
+        public final short veinInfo;
+        public Set(ResourceKey<Level> dim, int x, int z, short veinInfo) { this.dim = dim; this.x = x; this.z = z; this.veinInfo = veinInfo; }
     }
 
-    public void addRemove(int dim, int x, int z) {
-        removes.add(new int[]{dim, x, z});
+    public static final class Remove {
+        public final ResourceKey<Level> dim;
+        public final int x, z;
+        public Remove(ResourceKey<Level> dim, int x, int z) { this.dim = dim; this.x = x; this.z = z; }
+    }
+
+    /** When true the client wipes its vein cache before applying this packet. */
+    public boolean clear = false;
+    public final List<Set> sets = new ArrayList<>();
+    public final List<Remove> removes = new ArrayList<>();
+
+    public void addSet(ResourceKey<Level> dim, int x, int z, short veinInfo) {
+        sets.add(new Set(dim, x, z, veinInfo));
+    }
+
+    public void addRemove(ResourceKey<Level> dim, int x, int z) {
+        removes.add(new Remove(dim, x, z));
     }
 
     public boolean isEmpty() {
@@ -38,51 +52,53 @@ public class PacketJourneyMapVeins extends PacketBase {
     }
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeBoolean(clear);
         data.writeInt(sets.size());
-        for (int[] s : sets) {
-            data.writeInt(s[0]);
-            data.writeInt(s[1]);
-            data.writeInt(s[2]);
-            data.writeShort(s[3]);
+        for (Set s : sets) {
+            data.writeUtf(s.dim.location().toString());
+            data.writeInt(s.x);
+            data.writeInt(s.z);
+            data.writeShort(s.veinInfo);
         }
         data.writeInt(removes.size());
-        for (int[] r : removes) {
-            data.writeInt(r[0]);
-            data.writeInt(r[1]);
-            data.writeInt(r[2]);
+        for (Remove r : removes) {
+            data.writeUtf(r.dim.location().toString());
+            data.writeInt(r.x);
+            data.writeInt(r.z);
         }
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         clear = data.readBoolean();
         int setCount = data.readInt();
         for (int i = 0; i < setCount; i++) {
-            sets.add(new int[]{data.readInt(), data.readInt(), data.readInt(), data.readShort()});
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
+            sets.add(new Set(dim, data.readInt(), data.readInt(), data.readShort()));
         }
         int removeCount = data.readInt();
         for (int i = 0; i < removeCount; i++) {
-            removes.add(new int[]{data.readInt(), data.readInt(), data.readInt()});
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
+            removes.add(new Remove(dim, data.readInt(), data.readInt()));
         }
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         // client-bound only
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         if (clear) {
             JourneyMapVeinCache.applyClear();
         }
-        for (int[] s : sets) {
-            JourneyMapVeinCache.set(s[0], s[1], s[2], (short) s[3]);
+        for (Set s : sets) {
+            JourneyMapVeinCache.set(s.dim, s.x, s.z, s.veinInfo);
         }
-        for (int[] r : removes) {
-            JourneyMapVeinCache.remove(r[0], r[1], r[2]);
+        for (Remove r : removes) {
+            JourneyMapVeinCache.remove(r.dim, r.x, r.z);
         }
     }
 }

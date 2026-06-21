@@ -1,6 +1,8 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -12,13 +14,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class ServerTerrainCache {
     private static final ConcurrentHashMap<Long, int[]> COLORS = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Long, int[]> HEIGHTS = new ConcurrentHashMap<>();
-    private static volatile int cachedDim = Integer.MIN_VALUE;
+    private static volatile ResourceKey<Level> cachedDim = null;
 
     private ServerTerrainCache() {
     }
 
-    public static void put(int dim, int chunkX, int chunkZ, int[] colors, int[] heights) {
-        if (dim != cachedDim) {
+    public static void put(ResourceKey<Level> dim, int chunkX, int chunkZ, int[] colors, int[] heights) {
+        if (!dim.equals(cachedDim)) {
             COLORS.clear();
             HEIGHTS.clear();
             cachedDim = dim;
@@ -29,8 +31,8 @@ public final class ServerTerrainCache {
     }
 
     /** 0xRRGGBB top-block colour at the world position, or {@link Integer#MIN_VALUE} if not cached. */
-    public static int colorAt(int dim, int worldX, int worldZ) {
-        if (dim != cachedDim) {
+    public static int colorAt(ResourceKey<Level> dim, int worldX, int worldZ) {
+        if (!dim.equals(cachedDim)) {
             return Integer.MIN_VALUE;
         }
         int[] c = COLORS.get(ChunkMapUtil.key(worldX >> 4, worldZ >> 4));
@@ -38,8 +40,8 @@ public final class ServerTerrainCache {
     }
 
     /** Heightmap value at the world position, or {@link Integer#MIN_VALUE} if not cached. */
-    public static int heightAt(int dim, int worldX, int worldZ) {
-        if (dim != cachedDim) {
+    public static int heightAt(ResourceKey<Level> dim, int worldX, int worldZ) {
+        if (!dim.equals(cachedDim)) {
             return Integer.MIN_VALUE;
         }
         int[] h = HEIGHTS.get(ChunkMapUtil.key(worldX >> 4, worldZ >> 4));
@@ -49,6 +51,6 @@ public final class ServerTerrainCache {
     public static void clear() {
         COLORS.clear();
         HEIGHTS.clear();
-        cachedDim = Integer.MIN_VALUE;
+        cachedDim = null;
     }
 }

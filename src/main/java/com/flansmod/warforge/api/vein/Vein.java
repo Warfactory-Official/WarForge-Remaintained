@@ -4,13 +4,15 @@ package com.flansmod.warforge.api.vein;
 import com.flansmod.warforge.api.vein.init.VeinConfigHandler;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.client.ClientProxy;
-import com.flansmod.warforge.server.StackComparable;
-import io.netty.buffer.ByteBuf;
-import it.unimi.dsi.fastutil.ints.Int2FloatOpenHashMap;
-import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap;
-import it.unimi.dsi.fastutil.ints.Int2ShortOpenHashMap;
-import it.unimi.dsi.fastutil.ints.IntSet;
+import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.server.ItemMatcher;
+import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ShortOpenHashMap;
+import it.unimi.dsi.fastutil.objects.ObjectSet;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -24,19 +26,19 @@ public class Vein {
     public final float[] qualMults;
 
     @Nonnull
-    public final LinkedHashSet<StackComparable> compIds;  // if this is null, then nothing is produced
+    public final LinkedHashSet<ItemMatcher> compIds;  // if this is null, then nothing is produced
     @Nonnull
-    private final Int2ObjectOpenHashMap<short[]> dimWeights;  // weight out of 10,000 and expected weight - inherently stores valid dim info
+    private final Object2ObjectOpenHashMap<ResourceKey<Level>, short[]> dimWeights;  // weight out of 10,000 and expected weight - inherently stores valid dim info
     @Nonnull
-    public final Object2ObjectOpenHashMap<StackComparable, ArrayList<Int2ShortOpenHashMap>> compWeights;
+    public final Object2ObjectOpenHashMap<ItemMatcher, ArrayList<Object2ShortOpenHashMap<ResourceKey<Level>>>> compWeights;
     @Nonnull
-    public final Object2ObjectOpenHashMap<StackComparable, ArrayList<Int2FloatOpenHashMap>> compYields;  // compId -> dimId -> yield as Float (multiplier applied already)
+    public final Object2ObjectOpenHashMap<ItemMatcher, ArrayList<Object2FloatOpenHashMap<ResourceKey<Level>>>> compYields;  // compId -> dim -> yield as Float (multiplier applied already)
 
     // Packet Data:
-    public final ByteBuf SERIALIZED_ENTRY;
+    public final FriendlyByteBuf SERIALIZED_ENTRY;
     private final short id;
 
-    public Vein(final ByteBuf veinEntryBuf) {
+    public Vein(final FriendlyByteBuf veinEntryBuf) {
         this(VeinConfigHandler.VeinEntry.deserialize(veinEntryBuf), false);
     }
 
@@ -52,7 +54,7 @@ public class Vein {
         this.translationKey = veinEntry.translationKey;
         qualMults = veinEntry.qualMults;
         id = veinEntry.id;
-        dimWeights = new Int2ObjectOpenHashMap<>(veinEntry.dimWeights.size());
+        dimWeights = new Object2ObjectOpenHashMap<>(veinEntry.dimWeights.size());
         dimWeights.defaultReturnValue(new short[]{0, 0});
 
         short megachunkArea = 0;
@@ -61,7 +63,7 @@ public class Vein {
 
         // carry over the dimension weight information
         for(VeinConfigHandler.DimWeight dimWeight : veinEntry.dimWeights.values()) {
-            dimWeights.put(dimWeight.id, new short[]{ dimWeight.weight,
+            dimWeights.put(dimWeight.dim, new short[]{ dimWeight.weight,
                     (short) (megachunkArea * dimWeight.weight / VeinUtils.WEIGHT_FRACTION_TENS_POW)});
         }
 
@@ -74,7 +76,11 @@ public class Vein {
             // we want to map each stack comparable component to some list of weights and yields
             // a component's item may be repeated to give different chances to get a range of values
             // for a set of components with equivalent items, the stack comparable of the first is preferred and stored
-            var stackComparable = StackComparable.parseArbitraryResource(component.item);
+            var stackComparable = ItemMatcher.parse(component.item);
+            if (stackComparable == null) {
+                WarForgeMod.LOGGER.warn("Vein component '{}' did not resolve to a known item or tag; skipping.", component.item);
+                continue;
+            }
             if (!compIds.contains(stackComparable)) {
                 // if we haven't seen this item before, then add it to the relevant locations
                 compIds.add(stackComparable);
@@ -87,21 +93,20 @@ public class Vein {
             compWeights.get(stackComparable).add(component.weights);  // store the weights
 
             // apply multiplier to default yield value to get dimYield value
-            Int2FloatOpenHashMap yields = new Int2FloatOpenHashMap();
+            Object2FloatOpenHashMap<ResourceKey<Level>> yields = new Object2FloatOpenHashMap<>();
             yields.defaultReturnValue(component.yield);  // default is yield * default mult [1.0]
 
             // apply the component level dim multipliers
             if (component.multipliers != null) {
-                for (var entry : component.multipliers.int2FloatEntrySet()) {
-                    // for some reason cast to int is needed to disambiguate the call to put
-                    yields.put(entry.getIntKey(), component.yield * entry.getFloatValue());
+                for (var entry : component.multipliers.object2FloatEntrySet()) {
+                    yields.put(entry.getKey(), component.yield * entry.getFloatValue());
                 }
             }
 
             // apply the vein level dim multipliers for any not already present
-            for (var entry : veinEntry.dimWeights.int2ObjectEntrySet()) {
-                if (yields.containsKey(entry.getIntKey())) { continue; }
-                yields.put(entry.getIntKey(), component.yield * entry.getValue().multiplier);
+            for (var entry : veinEntry.dimWeights.object2ObjectEntrySet()) {
+                if (yields.containsKey(entry.getKey())) { continue; }
+                yields.put(entry.getKey(), component.yield * entry.getValue().multiplier);
             }
 
             compYields.get(stackComparable).add(yields);  // store the yields
@@ -110,14 +115,14 @@ public class Vein {
         if (isServer) { VEIN_HANDLER.ID_TO_VEINS.put(id, this); }
     }
 
-    public short getDimWeight(int dim) { return dimWeights.get(dim)[0]; }
-    public short getDimExpectedCount(int dim) { return dimWeights.get(dim)[1]; }
-    public IntSet getValidDims() { return dimWeights.keySet(); }
+    public short getDimWeight(ResourceKey<Level> dim) { return dimWeights.get(dim)[0]; }
+    public short getDimExpectedCount(ResourceKey<Level> dim) { return dimWeights.get(dim)[1]; }
+    public ObjectSet<ResourceKey<Level>> getValidDims() { return dimWeights.keySet(); }
     public short getId() { return id; }
 
     public String toString() {
         String dimIds = this.dimWeights.keySet().stream()
-                .map(dimID -> Integer.toString(dimID))
+                .map(dim -> dim.location().toString())
                 .collect(Collectors.joining(", ", "{", "}"));
 
         String dimWeights = this.dimWeights.values().stream()

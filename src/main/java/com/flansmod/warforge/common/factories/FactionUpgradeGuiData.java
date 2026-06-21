@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -14,7 +14,7 @@ public class FactionUpgradeGuiData extends GuiData {
     public int color = 0xFFFFFF;
     public boolean outrankingOfficer;
 
-    public FactionUpgradeGuiData(EntityPlayer player, UUID requestedFactionId) {
+    public FactionUpgradeGuiData(Player player, UUID requestedFactionId) {
         super(player);
         this.requestedFactionId = requestedFactionId;
     }

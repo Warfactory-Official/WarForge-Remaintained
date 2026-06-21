@@ -1,9 +1,9 @@
 {
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "warforge:blocks/legacyleaderboard",
-		"1": "blocks/bedrock",
-		"particle": "warforge:blocks/legacyleaderboard"
+		"0": "warforge:block/legacyleaderboard",
+		"1": "block/bedrock",
+		"particle": "warforge:block/legacyleaderboard"
 	},
 	"elements": [
 		{

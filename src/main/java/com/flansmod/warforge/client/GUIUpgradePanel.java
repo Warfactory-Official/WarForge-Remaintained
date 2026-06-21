@@ -1,35 +1,37 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.ModularUI;
-import com.cleanroommc.modularui.api.GuiAxis;
-import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.drawable.IngredientDrawable;
-import com.cleanroommc.modularui.drawable.UITexture;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.ModularScreen;
-import com.cleanroommc.modularui.utils.Alignment;
-import com.cleanroommc.modularui.widget.Widget;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ListWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
+import brachy.modularui.ModularUI;
+import brachy.modularui.api.GuiAxis;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.ItemDrawable;
+import brachy.modularui.drawable.UITexture;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.ModularScreen;
+import brachy.modularui.utils.Alignment;
+import brachy.modularui.widget.Widget;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.ListWidget;
+import brachy.modularui.widgets.layout.Flow;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionUpgradeGuiData;
 import com.flansmod.warforge.common.network.PacketRequestUpgrade;
-import com.flansmod.warforge.server.StackComparable;
+import com.flansmod.warforge.server.ItemMatcher;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.init.Items;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.crafting.Ingredient;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
-import net.minecraftforge.oredict.OreIngredient;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
@@ -49,7 +51,7 @@ public class GUIUpgradePanel {
     private static final int BODY_SECTION_HEIGHT = ACTIONS_Y - BODY_Y - 10;
 
     public static ModularScreen createGui(UUID factionID, String factionName, int level, int color, boolean outrankingOfficer) {
-        FactionUpgradeGuiData data = new FactionUpgradeGuiData(Minecraft.getMinecraft().player, factionID);
+        FactionUpgradeGuiData data = new FactionUpgradeGuiData(Minecraft.getInstance().player, factionID);
         data.factionId = factionID;
         data.factionName = factionName;
         data.level = level;
@@ -75,13 +77,12 @@ public class GUIUpgradePanel {
                 .marginBottom(5)
                 .widthRel(0.98f);
 
-
         if (UPGRADE_HANDLER.getRequirementsFor(level + 1) == null) {
             return createNoMoreLevelsPanel();
         }
 
         // Sorted by quantity
-        Map<StackComparable, Integer> requirements = UPGRADE_HANDLER.getRequirementsFor(level + 1)
+        Map<ItemMatcher, Integer> requirements = UPGRADE_HANDLER.getRequirementsFor(level + 1)
                 .entrySet().stream()
                 .sorted(Comparator.comparingInt(Map.Entry::getValue))
                 .collect(Collectors.toMap(
@@ -91,55 +92,45 @@ public class GUIUpgradePanel {
                         LinkedHashMap::new
                 ));
 
-        EntityPlayer player = Minecraft.getMinecraft().player;
+        Player player = Minecraft.getInstance().player;
         AtomicBoolean requirementPassed = new AtomicBoolean(true);
-        List<ItemStack> inventory = player.inventory.mainInventory;
+        List<ItemStack> inventory = player.getInventory().items;
 
-        List<StackComparable.StackComparableResult> results = requirements.entrySet().stream()
+        List<ItemMatcher.MatchResult> results = requirements.entrySet().stream()
                 .map(entry -> {
-                    StackComparable sc = entry.getKey();
+                    ItemMatcher sc = entry.getKey();
                     int required = entry.getValue();
 
                     int count = inventory.stream()
-                            .filter(stack -> !stack.isEmpty() && sc.equals(stack))
+                            .filter(stack -> !stack.isEmpty() && sc.matches(stack))
                             .mapToInt(ItemStack::getCount)
                             .sum();
 
                     if (count < required)
                         requirementPassed.set(false);
 
-                    return new StackComparable.StackComparableResult(sc, count, required);
+                    return new ItemMatcher.MatchResult(sc, count, required);
                 })
                 .collect(Collectors.toList());
 
         AtomicInteger index = new AtomicInteger(0);
         results.forEach((comparableResult) -> {
-            Ingredient ingredient;
-            String displayName;
-
-            // tries to get oredict ingredient, then tries to get raw item as ingredient
-            if (comparableResult.compared.getOredict() != null) {
-                ingredient = new OreIngredient(comparableResult.compared.getOredict());
-                displayName = humanizeOreDictName(comparableResult.compared.getOredict());
-            } else if (comparableResult.compared.getRegistryName() != null) {
-                Item item = ForgeRegistries.ITEMS.getValue(new ResourceLocation(comparableResult.compared.getRegistryName()));
-                if (item == null || item == Items.AIR) {
-                    WarForgeMod.LOGGER.error("Could not find item: " + comparableResult.compared.getRegistryName() + ". Skipping...");
-                    return;
-                }
-                int meta = comparableResult.compared.getMeta() == -1 ? 0 : comparableResult.compared.getMeta();
-                ItemStack stack = new ItemStack(item, 1, meta);
-                ingredient = Ingredient.fromStacks(stack);
-                displayName = stack.getDisplayName();
-            } else {
-                WarForgeMod.LOGGER.error("Malformed StackComparable: \n" + comparableResult + "\nSkipping...");
+            // resolve a representative stack for the requirement (item tags resolve to their first entry)
+            ItemStack stack = comparableResult.matcher().toStack();
+            if (stack.isEmpty()) {
+                WarForgeMod.LOGGER.error("Malformed item requirement: \n" + comparableResult + "\nSkipping...");
                 return;
             }
 
+            String displayName;
+            if (comparableResult.matcher().isTag()) {
+                displayName = humanizeOreDictName(comparableResult.matcher().id());
+            } else {
+                displayName = stack.getHoverName().getString();
+            }
 
-            list.addChild(createRequirementRow(ingredient, displayName, comparableResult.required, comparableResult.has, listWidth - 10), index.getAndIncrement());
+            list.addChild(createRequirementRow(stack, displayName, comparableResult.required(), comparableResult.has(), listWidth - 10), index.getAndIncrement());
         });
-
 
         ModularPanel panel = ModularPanel.defaultPanel("citadel_upgrade_panel")
                 .width(WIDTH)
@@ -153,29 +144,29 @@ public class GUIUpgradePanel {
         panel.child(bodySection);
         panel.child(actionSection);
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(color)).name("upgrade_color_stripe").size(6, HEIGHT));
-        panel.child(ModularGuiStyle.panelCloseButton(WIDTH));
+        panel.child(ModularGuiStyle.subPanelCloseButton(WIDTH));
 
-        Widget prefix = IKey.str("Citadel Upgrade")
+        Widget<?> prefix = Text.str("Citadel Upgrade")
                 .asWidget()
                 .name("upgrade_title")
                 .pos(CONTENT_LEFT, HEADER_Y)
                 .color(ModularGuiStyle.TEXT_PRIMARY)
                 .shadow(true)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .scale(1.15f);
 
-        Widget factionNamePlate = IKey.str(factionName)
+        Widget<?> factionNamePlate = Text.str(factionName)
                 .asWidget()
                 .name("upgrade_faction_name")
                 .color(color)
                 .shadow(true)
                 .pos(CONTENT_LEFT, HEADER_Y + 15)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .scale(1.0f);
 
         panel.child(prefix);
         panel.child(factionNamePlate);
-        bodySection.child(IKey.str("Requirements to advance from level " + level + " to level " + (level + 1)).asWidget()
+        bodySection.child(Text.str("Requirements to advance from level " + level + " to level " + (level + 1)).asWidget()
                 .name("upgrade_requirement_prompt")
                 .margin(0, 0, 0, 6)
                 .color(ModularGuiStyle.TEXT_MUTED));
@@ -196,15 +187,14 @@ public class GUIUpgradePanel {
 
         if (!outrankingOfficer || !requirementPassed.get()) {
             upgradeButton.tooltip(richTooltip -> {
-                richTooltip.addLine(IKey.str("You don't meet following requirements:").style(TextFormatting.BOLD, TextFormatting.RED));
-                if (!outrankingOfficer) richTooltip.addLine(IKey.str("- You need to be officer of or higher!"));
-                if (!requirementPassed.get()) richTooltip.addLine(IKey.str("- You don't have the materials required!"));
+                richTooltip.addLine(Text.str("You don't meet following requirements:").style(ChatFormatting.BOLD, ChatFormatting.RED));
+                if (!outrankingOfficer) richTooltip.addLine(Text.str("- You need to be officer of or higher!"));
+                if (!requirementPassed.get()) richTooltip.addLine(Text.str("- You don't have the materials required!"));
             });
         }
 
-
         UITexture arrow = UITexture.builder()
-                .location(ModularUI.ID, "gui/widgets/progress_bar_arrow")
+                .location(ModularUI.MOD_ID, "gui/widgets/progress_bar_arrow")
                 .imageSize(20, 40)
                 .subAreaXYWH(0, 20, 20, 20)
                 .build();
@@ -212,7 +202,7 @@ public class GUIUpgradePanel {
         list.width(listWidth);
         list.height(listHeight);
         bodySection.child(list);
-        Widget outcomePanel = createUpgradeOutcomePanel(contentWidth, progressionPanelHeight, level, arrow);
+        Widget<?> outcomePanel = createUpgradeOutcomePanel(contentWidth, progressionPanelHeight, level, arrow);
         outcomePanel.margin(2, 2, 2, 0);
         bodySection.child(outcomePanel);
 
@@ -226,26 +216,25 @@ public class GUIUpgradePanel {
         actionSection.child(actionRow);
 
         return panel;
-
     }
 
-    private static Widget createUpgradeOutcomePanel(int width, int height, int level, UITexture arrow) {
+    private static Widget<?> createUpgradeOutcomePanel(int width, int height, int level, UITexture arrow) {
         Flow outcomePanel = new Flow(GuiAxis.Y);
         outcomePanel.name("upgrade_outcome_panel");
         outcomePanel.height(height);
         outcomePanel.padding(0);
         outcomePanel.coverChildrenWidth();
 
-        outcomePanel.child(IKey.str("Upgrade Outcome").asWidget()
+        outcomePanel.child(Text.str("Upgrade Outcome").asWidget()
                 .name("upgrade_outcome_title")
                 .color(ModularGuiStyle.TEXT_PRIMARY)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .margin(0, 0, 0, 1));
-        outcomePanel.child(IKey.str("Level " + level + " -> " + (level + 1)).asWidget()
+        outcomePanel.child(Text.str("Level " + level + " -> " + (level + 1)).asWidget()
                 .name("upgrade_outcome_level_text")
                 .color(ModularGuiStyle.TEXT_WARNING)
                 .shadow(true)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .margin(0, 0, 0, 2));
 
         var deltaRow = new Flow(GuiAxis.X);
@@ -254,7 +243,7 @@ public class GUIUpgradePanel {
         deltaRow.coverChildrenWidth();
         deltaRow.marginTop(2);
 
-        Widget claimCard = createUpgradeDeltaCard(
+        Widget<?> claimCard = createUpgradeDeltaCard(
                 "Claims",
                 String.valueOf(UPGRADE_HANDLER.getClaimLimitForLevel(level)),
                 String.valueOf(UPGRADE_HANDLER.getClaimLimitForLevel(level + 1)),
@@ -262,7 +251,7 @@ public class GUIUpgradePanel {
                 0x55FF55,
                 arrow
         );
-        Widget insuranceCard = createUpgradeDeltaCard(
+        Widget<?> insuranceCard = createUpgradeDeltaCard(
                 "Insurance",
                 String.valueOf(UPGRADE_HANDLER.getInsuranceSlotsForLevel(level)),
                 String.valueOf(UPGRADE_HANDLER.getInsuranceSlotsForLevel(level + 1)),
@@ -280,13 +269,13 @@ public class GUIUpgradePanel {
         return outcomePanel;
     }
 
-    private static Widget createUpgradeDeltaCard(String label, String previous, String next, int previousColor, int nextColor, UITexture arrow) {
+    private static Widget<?> createUpgradeDeltaCard(String label, String previous, String next, int previousColor, int nextColor, UITexture arrow) {
         Flow card = new Flow(GuiAxis.Y);
         card.name(ModularGuiStyle.debugName("upgrade_delta_card", label));
         card.padding(0);
         card.coverChildren();
 
-        card.child(IKey.str(label).asWidget()
+        card.child(Text.str(label).asWidget()
                 .name(ModularGuiStyle.debugName("upgrade_delta_label", label))
                 .color(ModularGuiStyle.TEXT_SECONDARY));
 
@@ -294,7 +283,7 @@ public class GUIUpgradePanel {
         valueRow.name(ModularGuiStyle.debugName("upgrade_delta_values", label));
         valueRow.height(10);
         valueRow.coverChildrenWidth();
-        valueRow.child(IKey.str(previous).asWidget()
+        valueRow.child(Text.str(previous).asWidget()
                 .name(ModularGuiStyle.debugName("upgrade_delta_previous", label))
                 .color(previousColor)
                 .shadow(true)
@@ -304,11 +293,11 @@ public class GUIUpgradePanel {
                 .height(8)
                 .width(10)
                 .margin(1, 0));
-        valueRow.child(IKey.str(next).asWidget()
+        valueRow.child(Text.str(next).asWidget()
                 .name(ModularGuiStyle.debugName("upgrade_delta_next", label))
                 .color(nextColor)
                 .shadow(true)
-                .style(TextFormatting.BOLD)
+                .style(ChatFormatting.BOLD)
                 .scale(1.15f));
         card.child(valueRow);
 
@@ -317,23 +306,21 @@ public class GUIUpgradePanel {
 
     private static ModularPanel createNoMoreLevelsPanel() {
         ModularPanel panel = ModularPanel.defaultPanel("no_more_levels_panel", 220, 76);
-        return panel
+        panel
                 .child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop()).name("upgrade_max_level_backdrop").size(220, 76))
                 .child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(0xFF9F7A34)).name("upgrade_max_level_stripe").size(6, 76))
-                .child(IKey.str("Your citadel is at it's max level!").asWidget()
+                .child(Text.str("Your citadel is at it's max level!").asWidget()
                         .name("upgrade_max_level_text")
                         .pos(16, 16)
                         .shadow(true)
-                        .style(TextFormatting.WHITE)
+                        .style(ChatFormatting.WHITE)
                         .height(16)
                 )
                 .child(ModularGuiStyle.actionButton("Close", 96, () -> panel.closeIfOpen())
                         .pos(16, 42)
-                )
-                ;
-
+                );
+        return panel;
     }
-
 
     public static String humanizeOreDictName(String oredict) {
         String name = oredict.startsWith("any") ? oredict.substring(3) : oredict;
@@ -370,12 +357,11 @@ public class GUIUpgradePanel {
         }
 
         return "Any " + String.join(" ", capitalized);
-
     }
 
-    private static Flow createRequirementRow(Ingredient ingredient, String displayName, int count, int has, int rowWidth) {
-        UITexture CHECK = UITexture.builder()
-                .location(ModularUI.ID, "gui/widgets/toggle_config")
+    private static Flow createRequirementRow(ItemStack stack, String displayName, int count, int has, int rowWidth) {
+        UITexture check = UITexture.builder()
+                .location(ModularUI.MOD_ID, "gui/widgets/toggle_config")
                 .imageSize(14, 28)
                 .subAreaXYWH(2, 16, 10, 10)
                 .build();
@@ -385,30 +371,30 @@ public class GUIUpgradePanel {
         return new Flow(GuiAxis.X)
                 .name(ModularGuiStyle.debugName("requirement_row", displayName))
                 .width(rowWidth)
-                .child(new IDrawable.DrawableWidget(new IngredientDrawable(ingredient))
+                .child(new IDrawable.DrawableWidget(new ItemDrawable(stack))
                         .name(ModularGuiStyle.debugName("requirement_icon", displayName))
                         .size(20, 20)
-                        .align(Alignment.CenterLeft)
+                        .posRel(Alignment.CenterLeft)
                 )
-                .child(IKey.str(displayName).asWidget()
+                .child(Text.str(displayName).asWidget()
                         .name(ModularGuiStyle.debugName("requirement_name", displayName))
-                        .align(Alignment.CenterLeft)
+                        .alignment(Alignment.CenterLeft)
                         .left(nameLeft)
                         .width(nameWidth)
                         .color(0xFFFFFF)
                         .shadow(true)
                 )
-                .child(IKey.str(has + "/" + count).asWidget()
+                .child(Text.str(has + "/" + count).asWidget()
                         .name(ModularGuiStyle.debugName("requirement_count", displayName))
-                        .align(Alignment.CenterLeft)
+                        .alignment(Alignment.CenterLeft)
                         .left(countLeft)
                         .color(has >= count ? 0x55FF55 : 0xFF5555)
                         .shadow(true)
                         .scale(1.5f)
                 )
-                .child(new IDrawable.DrawableWidget(CHECK)
+                .child(new IDrawable.DrawableWidget(check)
                         .name(ModularGuiStyle.debugName("requirement_check", displayName))
-                        .align(Alignment.CenterRight)
+                        .posRel(Alignment.CenterRight)
                         .setEnabledIf(x -> has >= count)
                         .size(20, 20)
                         .right(5)
@@ -420,6 +406,4 @@ public class GUIUpgradePanel {
                 .background(ModularGuiStyle.insetBackdrop())
                 ;
     }
-
-
 }

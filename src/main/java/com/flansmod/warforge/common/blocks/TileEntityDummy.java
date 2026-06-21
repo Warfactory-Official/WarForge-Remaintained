@@ -1,24 +1,29 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import net.minecraft.block.Block;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.network.play.server.SPacketUpdateTileEntity;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.math.AxisAlignedBB;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.network.Connection;
+import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.AABB;
 
-public class TileEntityDummy extends TileEntity implements IBlockDummy {
+public class TileEntityDummy extends BlockEntity implements IBlockDummy {
     protected String playerFlag; //Owner's flag
     private BlockPos masterPos;
     private boolean canRenderLaser = false;
     private float[] laserRGB = new float[]{0F, 0F, 0F}; //pure white
 
+    public TileEntityDummy(BlockPos pos, BlockState state) {
+        super(Content.TE_DUMMY.get(), pos, state);
+    }
 
     public void setMaster(BlockPos pos) {
         this.masterPos = pos;
-        markDirty();
+        setChanged();
     }
 
     public boolean getLaserRender() {
@@ -27,11 +32,10 @@ public class TileEntityDummy extends TileEntity implements IBlockDummy {
 
     public void setLaserRender(boolean bool) {
         canRenderLaser = bool;
-        world.markBlockRangeForRenderUpdate(pos, pos);
-        world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-        world.scheduleBlockUpdate(pos, this.getBlockType(), 0, 0);
-        markDirty();
-
+        BlockState state = level.getBlockState(worldPosition);
+        level.sendBlockUpdated(worldPosition, state, state, 3);
+        level.scheduleTick(worldPosition, getBlockState().getBlock(), 0);
+        setChanged();
     }
 
     public float[] getLaserRGB() {
@@ -42,11 +46,11 @@ public class TileEntityDummy extends TileEntity implements IBlockDummy {
         float r = ((colour >> 16) & 0xFF) / 255.0f;
         float g = ((colour >> 8) & 0xFF) / 255.0f;
         float b = (colour & 0xFF) / 255.0f;
-        this.laserRGB = new float[]{r,g,b};
-        world.markBlockRangeForRenderUpdate(pos, pos);
-        world.notifyBlockUpdate(pos, world.getBlockState(pos), world.getBlockState(pos), 3);
-        world.scheduleBlockUpdate(pos, this.getBlockType(), 0, 0);
-        markDirty();
+        this.laserRGB = new float[]{r, g, b};
+        BlockState state = level.getBlockState(worldPosition);
+        level.sendBlockUpdated(worldPosition, state, state, 3);
+        level.scheduleTick(worldPosition, getBlockState().getBlock(), 0);
+        setChanged();
     }
 
     public void setLaserRGB(float[] laserRGB) {
@@ -54,101 +58,91 @@ public class TileEntityDummy extends TileEntity implements IBlockDummy {
     }
 
     public BlockPos getMasterTile() {
-        if (world == null || masterPos == null) return null;
+        if (level == null || masterPos == null) return null;
         return masterPos;
     }//Primitive but sufficent for the time tbh
 
     @Override
-    public NBTTagCompound writeToNBT(NBTTagCompound compound) {
-        super.writeToNBT(compound);
-        compound.setBoolean("laser", canRenderLaser);
-        compound.setFloat("r", laserRGB[0]);
-        compound.setFloat("g", laserRGB[1]);
-        compound.setFloat("b", laserRGB[2]);
+    public void saveAdditional(CompoundTag compound) {
+        super.saveAdditional(compound);
+        compound.putBoolean("laser", canRenderLaser);
+        compound.putFloat("r", laserRGB[0]);
+        compound.putFloat("g", laserRGB[1]);
+        compound.putFloat("b", laserRGB[2]);
         if (masterPos != null) {
-            compound.setLong("master", masterPos.toLong());
+            compound.putLong("master", masterPos.asLong());
         }
-        return compound;
     }
-
 
     @Override
     public void onLoad() {
         super.onLoad();
-        if (world.isRemote) return;
+        if (level.isClientSide) return;
         if (masterPos == null) {
-            WarForgeMod.LOGGER.error("TileEntityDummy at " + this.pos + "had null Master pos, attempting to locate it");
+            WarForgeMod.LOGGER.error("TileEntityDummy at " + this.worldPosition + "had null Master pos, attempting to locate it");
             for (int i = 1; i <= 3; i++) {
-                Block block = world.getBlockState(pos.down(i)).getBlock();
+                Block block = level.getBlockState(worldPosition.below(i)).getBlock();
                 if (block instanceof MultiBlockColumn) {
-                    setMaster(pos.down(i));
-                    WarForgeMod.LOGGER.info("TileEntityDummy at " + this.pos + " found master at " + pos.down(i));
-                    markDirty();
+                    setMaster(worldPosition.below(i));
+                    WarForgeMod.LOGGER.info("TileEntityDummy at " + this.worldPosition + " found master at " + worldPosition.below(i));
+                    setChanged();
                     return;
                 }
-                WarForgeMod.LOGGER.error("TileEntityDummy at " + this.pos + " cannot find it's master, this is a bug, report it to the developer!");
+                WarForgeMod.LOGGER.error("TileEntityDummy at " + this.worldPosition + " cannot find it's master, this is a bug, report it to the developer!");
             }
         }
-
     }
 
     @Override
-    public void readFromNBT(NBTTagCompound compound) {
-        super.readFromNBT(compound);
+    public void load(CompoundTag compound) {
+        super.load(compound);
         canRenderLaser = compound.getBoolean("laser");
         laserRGB[0] = compound.getFloat("r");
         laserRGB[1] = compound.getFloat("g");
         laserRGB[2] = compound.getFloat("b");
 
-
-        if (compound.hasKey("master")) {
-            masterPos = BlockPos.fromLong(compound.getLong("master"));
+        if (compound.contains("master")) {
+            masterPos = BlockPos.of(compound.getLong("master"));
         }
     }
 
-
     @Override
-    public SPacketUpdateTileEntity getUpdatePacket() {
-        return new SPacketUpdateTileEntity(getPos(), getBlockMetadata(), getUpdateTag());
+    public ClientboundBlockEntityDataPacket getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     @Override
-    public void onDataPacket(net.minecraft.network.NetworkManager net, SPacketUpdateTileEntity packet) {
-        NBTTagCompound tags = packet.getNbtCompound();
-
-        handleUpdateTag(tags);
+    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
+        handleUpdateTag(packet.getTag());
     }
 
     @Override
-    public NBTTagCompound getUpdateTag() {
-        NBTTagCompound tags = super.getUpdateTag();
-        tags.setBoolean("laser", canRenderLaser);
-        tags.setFloat("r", laserRGB[0]);
-        tags.setFloat("g", laserRGB[1]);
-        tags.setFloat("b", laserRGB[2]);
-        if(masterPos != null)
-            tags.setLong("master", masterPos.toLong());
-
+    public CompoundTag getUpdateTag() {
+        CompoundTag tags = super.getUpdateTag();
+        tags.putBoolean("laser", canRenderLaser);
+        tags.putFloat("r", laserRGB[0]);
+        tags.putFloat("g", laserRGB[1]);
+        tags.putFloat("b", laserRGB[2]);
+        if (masterPos != null)
+            tags.putLong("master", masterPos.asLong());
 
         return tags;
     }
 
     @Override
-    public void handleUpdateTag(NBTTagCompound tags) {
-        setLaserRender(tags.getBoolean("laser"));
+    public void handleUpdateTag(CompoundTag tags) {
+        canRenderLaser = tags.getBoolean("laser");
         laserRGB[0] = tags.getFloat("r");
         laserRGB[1] = tags.getFloat("g");
         laserRGB[2] = tags.getFloat("b");
-        masterPos = BlockPos.fromLong(tags.getLong("master"));
-
-
+        masterPos = BlockPos.of(tags.getLong("master"));
     }
 
     @Override
-    public AxisAlignedBB getRenderBoundingBox() {
-        if(canRenderLaser) {
-            BlockPos pos = getPos();
-            return new AxisAlignedBB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 0.5, 256, pos.getZ() + 0.5);
+    public AABB getRenderBoundingBox() {
+        if (canRenderLaser) {
+            BlockPos pos = getBlockPos();
+            return new AABB(pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 0.5, 256, pos.getZ() + 0.5);
         }
         return super.getRenderBoundingBox();
     }

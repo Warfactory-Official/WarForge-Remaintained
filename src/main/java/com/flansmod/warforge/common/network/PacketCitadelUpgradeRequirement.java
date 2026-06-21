@@ -1,79 +1,68 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.server.StackComparable;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.nbt.JsonToNBT;
-import net.minecraft.nbt.NBTException;
-import net.minecraft.nbt.NBTTagCompound;
+import com.flansmod.warforge.server.ItemMatcher;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;
+import java.util.Map;
 
 public class PacketCitadelUpgradeRequirement extends PacketBase {
 
     public int level;
-    public HashMap<StackComparable, Integer> requirements;
+    public HashMap<ItemMatcher, Integer> requirements;
     public int limit;
     public int insuranceSlots;
 
-    public PacketCitadelUpgradeRequirement(int level, HashMap<StackComparable, Integer> requirements, int limit, int insuranceSlots) {
+    public PacketCitadelUpgradeRequirement(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots) {
         this.level = level;
         this.requirements = requirements;
         this.limit = limit;
         this.insuranceSlots = insuranceSlots;
     }
 
-
-    @SuppressWarnings("unused") //Used in reflection
     public PacketCitadelUpgradeRequirement() {
     }
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeInt(level);
         data.writeInt(limit);
         data.writeInt(insuranceSlots);
-        for (StackComparable stack : requirements.keySet()) {
-            writeUTF(data, stack.writeToNBT().toString());
-            data.writeInt(requirements.get(stack));
+        data.writeVarInt(requirements.size());
+        for (Map.Entry<ItemMatcher, Integer> entry : requirements.entrySet()) {
+            entry.getKey().write(data);
+            data.writeVarInt(entry.getValue());
         }
-
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         level = data.readInt();
         limit = data.readInt();
         insuranceSlots = data.readInt();
         requirements = new HashMap<>();
 
-        while (data.isReadable()) {
-            try {
-                String snbt = readUTF(data);
-                NBTTagCompound tag = JsonToNBT.getTagFromJson(snbt);
-                StackComparable stack = StackComparable.readFromNBT(tag);
-                int amount = data.readInt();
-                requirements.put(stack, amount);
-            } catch (NBTException e) {
-                WarForgeMod.LOGGER.error("Error on decoding CitadelUpgradeRequirementPacket");
+        int count = data.readVarInt();
+        for (int i = 0; i < count; i++) {
+            ItemMatcher matcher = ItemMatcher.read(data);
+            int amount = data.readVarInt();
+            if (matcher != null) {
+                requirements.put(matcher, amount);
             }
         }
-
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer player) {
         WarForgeMod.LOGGER.error("Received level requirement info on server");
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit, insuranceSlots);
-
     }
 
 }

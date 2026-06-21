@@ -1,16 +1,15 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.client.ClientProxy;
+import com.flansmod.warforge.client.JourneyMapClaimCache;
+import com.flansmod.warforge.client.JourneyMapVeinCache;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.nbt.JsonToNBT;
-import net.minecraft.nbt.NBTException;
-import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,26 +18,26 @@ public class PacketSyncConfig extends PacketBase {
     public String configNBT;
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         writeUTF(data, configNBT);
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         configNBT = readUTF(data);
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         //noop
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
-        NBTTagCompound compound;
+    public void handleClientSide(Player clientPlayer) {
+        CompoundTag compound;
         try {
-            compound = JsonToNBT.getTagFromJson(configNBT);
-        } catch (NBTException e) {
+            compound = TagParser.parseTag(configNBT);
+        } catch (Exception e) {
             WarForgeMod.LOGGER.error("Malformed config data NBT");
             return;
         }
@@ -53,8 +52,8 @@ public class PacketSyncConfig extends PacketBase {
                 + "citadel upgrade system, per server requirements");
 
         // Integers
-        WarForgeConfig.SIEGE_MOMENTUM_MAX = (byte) compound.getInteger("maxMomentum");
-        WarForgeConfig.SIEGE_MOMENTUM_DURATION = compound.getInteger("timeMomentum");
+        WarForgeConfig.SIEGE_MOMENTUM_MAX = (byte) compound.getInt("maxMomentum");
+        WarForgeConfig.SIEGE_MOMENTUM_DURATION = compound.getInt("timeMomentum");
 
 
         // Momentum map (stored as String → needs parsing back)
@@ -81,26 +80,26 @@ public class PacketSyncConfig extends PacketBase {
         WarForgeConfig.RICH_QUAL_MULT = compound.getFloat("richQualMult");
 
         ClientProxy.megachunkLength = compound.getShort("megachunkLength");
-        WarForgeConfig.SIEGE_BATTLE_RADIUS = compound.hasKey("battleSiegeRadius")
-                ? compound.getInteger("battleSiegeRadius")
+        WarForgeConfig.SIEGE_BATTLE_RADIUS = compound.contains("battleSiegeRadius")
+                ? compound.getInt("battleSiegeRadius")
                 : WarForgeConfig.SIEGE_BATTLE_RADIUS;
-        WarForgeConfig.SIEGE_ATTACKER_RADIUS = compound.getInteger("atkSiegeRadius");
-        WarForgeConfig.SIEGE_DEFENDER_RADIUS = compound.getInteger("defSiegeRadius");
+        WarForgeConfig.SIEGE_ATTACKER_RADIUS = compound.getInt("atkSiegeRadius");
+        WarForgeConfig.SIEGE_DEFENDER_RADIUS = compound.getInt("defSiegeRadius");
         WarForgeConfig.ENABLE_OFFLINE_RAID_PROTECTION = compound.getBoolean("offlineRaidProtection");
-        WarForgeConfig.OFFLINE_RAID_PROTECTION_HOURS = compound.getInteger("offlineRaidProtectionHours");
+        WarForgeConfig.OFFLINE_RAID_PROTECTION_HOURS = compound.getInt("offlineRaidProtectionHours");
         String insuranceBlacklist = compound.getString("insuranceBlacklist");
         WarForgeConfig.INSURANCE_BLACKLIST_IDS = insuranceBlacklist.isEmpty() ? new String[0] : insuranceBlacklist.split("\n");
 
         WarForgeConfig.FACTION_PREFIX_IN_CHAT = compound.getBoolean("factionPrefixChat");
         WarForgeConfig.FACTION_PREFIX_IN_TABLIST = compound.getBoolean("factionPrefixTab");
-        if (compound.hasKey("islandCollectorSlots")) {
-            WarForgeConfig.ISLAND_COLLECTOR_SLOTS = compound.getInteger("islandCollectorSlots");
+        if (compound.contains("islandCollectorSlots")) {
+            WarForgeConfig.ISLAND_COLLECTOR_SLOTS = compound.getInt("islandCollectorSlots");
         }
-        WarForgeConfig.JOURNEYMAP_CLAIM_MODE = compound.getInteger("jmClaimMode");
-        WarForgeConfig.JOURNEYMAP_VEIN_MODE = compound.getInteger("jmVeinMode");
+        WarForgeConfig.JOURNEYMAP_CLAIM_MODE = compound.getInt("jmClaimMode");
+        WarForgeConfig.JOURNEYMAP_VEIN_MODE = compound.getInt("jmVeinMode");
         // Each connection starts from a clean slate; the server re-sends whatever this client is allowed to see.
-        com.flansmod.warforge.client.JourneyMapClaimCache.applyClear();
-        com.flansmod.warforge.client.JourneyMapVeinCache.applyClear();
+        JourneyMapClaimCache.applyClear();
+        JourneyMapVeinCache.applyClear();
 
         WarForgeConfig.SIEGE_MOMENTUM_TIME.clear();
         WarForgeConfig.SIEGE_MOMENTUM_TIME.putAll(parsedMap);
@@ -109,9 +108,5 @@ public class PacketSyncConfig extends PacketBase {
                 + " maxMomentum=" + WarForgeConfig.SIEGE_MOMENTUM_MAX
                 + ", duration=" + WarForgeConfig.SIEGE_MOMENTUM_DURATION
                 + ", multipliers=" + WarForgeConfig.SIEGE_MOMENTUM_TIME);
-    }
-
-    public boolean canUseCompression() {
-        return true;
     }
 }

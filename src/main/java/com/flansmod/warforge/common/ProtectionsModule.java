@@ -5,23 +5,26 @@ import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.FactionStorage;
-import net.minecraft.block.Block;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.MoverType;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemFood;
-import net.minecraft.util.DamageSource;
-import net.minecraft.util.EntityDamageSource;
-import net.minecraftforge.event.entity.EntityEvent.EnteringChunk;
+import net.minecraft.core.SectionPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.event.entity.EntityEvent.EnteringSection;
 import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
-import net.minecraftforge.event.world.BlockEvent;
-import net.minecraftforge.event.world.ExplosionEvent;
-import net.minecraftforge.event.world.WorldEvent.PotentialSpawns;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
+import net.minecraftforge.event.level.BlockEvent;
+import net.minecraftforge.event.level.ExplosionEvent;
+import net.minecraftforge.event.level.LevelEvent.PotentialSpawns;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nonnull;
 import java.util.HashMap;
@@ -122,12 +125,13 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnDismount(EntityMountEvent event) {
-        if (event.getEntity().world.isRemote)
+        if (event.getEntityMounting().level().isClientSide)
             return;
 
-        if (event.getEntityMounting() instanceof EntityPlayer) {
-            DimBlockPos vehiclePos = new DimBlockPos(event.getEntityBeingMounted().dimension, event.getEntityBeingMounted().getPosition());
-            ProtectionConfig mountConfig = GetProtections(event.getEntityMounting().getUniqueID(), vehiclePos);
+        if (event.getEntityMounting() instanceof Player) {
+            Entity vehicle = event.getEntityBeingMounted();
+            DimBlockPos vehiclePos = new DimBlockPos(vehicle.level().dimension(), vehicle.blockPosition());
+            ProtectionConfig mountConfig = GetProtections(event.getEntityMounting().getUUID(), vehiclePos);
 
             if (event.isMounting() && !mountConfig.ALLOW_MOUNT_ENTITY)
                 event.setCanceled(true);
@@ -139,11 +143,11 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnExplosion(ExplosionEvent.Detonate event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide)
             return;
 
         // Check each pos, but keep a cache of configs so we don't do like 300 lookups
-        int dim = event.getWorld().provider.getDimension();
+        var dim = event.getLevel().dimension();
         HashMap<DimChunkPos, ProtectionConfig> checkedPositions = new HashMap<DimChunkPos, ProtectionConfig>();
 
         for (int i = event.getAffectedBlocks().size() - 1; i >= 0; i--) {
@@ -161,19 +165,20 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnDamage(LivingDamageEvent event) {
-        if (event.getEntity().world.isRemote)
+        if (event.getEntity().level().isClientSide)
             return;
 
-        DimBlockPos damagedPos = new DimBlockPos(event.getEntity().dimension, event.getEntity().getPosition());
-        ProtectionConfig damagedConfig = GetProtections(event.getEntity().getUniqueID(), damagedPos);
+        LivingEntity victim = event.getEntity();
+        DimBlockPos damagedPos = new DimBlockPos(victim.level().dimension(), victim.blockPosition());
+        ProtectionConfig damagedConfig = GetProtections(victim.getUUID(), damagedPos);
 
         DamageSource source = event.getSource();
-        if (source instanceof EntityDamageSource) {
-            Entity attacker = source.getTrueSource();
-            if (attacker instanceof EntityPlayer && event.getEntity() instanceof EntityPlayer) {
+        Entity attacker = source.getEntity();
+        if (attacker != null) {
+            if (attacker instanceof Player && victim instanceof Player) {
                 // Factions in a post-alliance truce cannot harm each other for the truce's duration.
-                Faction attackerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(attacker.getUniqueID());
-                Faction victimFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(event.getEntity().getUniqueID());
+                Faction attackerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(attacker.getUUID());
+                Faction victimFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(victim.getUUID());
                 if (attackerFaction != null && victimFaction != null
                         && !attackerFaction.uuid.equals(victimFaction.uuid)
                         && attackerFaction.isInTruceWith(victimFaction.uuid)) {
@@ -181,15 +186,15 @@ public class ProtectionsModule {
                     return;
                 }
             }
-            if (attacker instanceof EntityPlayer) {
+            if (attacker instanceof Player) {
                 if (!damagedConfig.PLAYER_TAKE_DAMAGE_FROM_PLAYER) {
                     event.setCanceled(true);
                     //WarForgeMod.LOGGER.info("Cancelled damage event from other player because we are in a safe zone");
                     return;
                 }
 
-                DimBlockPos attackerPos = new DimBlockPos(attacker.dimension, attacker.getPosition());
-                ProtectionConfig attackerConfig = GetProtections(attacker.getUniqueID(), attackerPos);
+                DimBlockPos attackerPos = new DimBlockPos(attacker.level().dimension(), attacker.blockPosition());
+                ProtectionConfig attackerConfig = GetProtections(attacker.getUUID(), attackerPos);
 
                 if (!attackerConfig.PLAYER_DEAL_DAMAGE) {
                     event.setCanceled(true);
@@ -212,21 +217,21 @@ public class ProtectionsModule {
 
     // might be useful at some point
     @SubscribeEvent
-    public void EntityPlaced(BlockEvent.PlaceEvent event) {
-        if (event.getWorld().isRemote) { return; }
-        WarForgeMod.LOGGER.atDebug().log("Place Event: " + event);
+    public void EntityPlaced(BlockEvent.EntityMultiPlaceEvent event) {
+        if (event.getLevel().isClientSide()) { return; }
+        WarForgeMod.LOGGER.atDebug().log("Multi Place Event: " + event);
     }
 
     // TODO: Make the protections module properly handle mekanism place events where the placer is actually null
     // is called twice for mekanism cables for some reason; first call has null entity, second has placer (which might be null)
     @SubscribeEvent
     public void BlockPlaced(BlockEvent.EntityPlaceEvent event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide())
             return;
 
         Entity eventEntity = event.getEntity();
 
-        if (OP_OVERRIDE && WarForgeMod.isOp(eventEntity))
+        if (OP_OVERRIDE && eventEntity instanceof Player && WarForgeMod.isOp((Player) eventEntity))
             return;
 
         // best effort compat with mekanism
@@ -236,21 +241,21 @@ public class ProtectionsModule {
         else if (blockId.getNamespace().equals("mekanism") && eventEntity == null) { return; }  // ignore mek place w/ null entity
 
         if (eventEntity == null) {
-            WarForgeMod.LOGGER.atError().log("Detected null entity for event with detals: pos - " + event.getPos() + "; world - " + event.getWorld() + ";");
+            WarForgeMod.LOGGER.atError().log("Detected null entity for event with detals: pos - " + event.getPos() + "; world - " + event.getLevel() + ";");
             event.setCanceled(true);
             return;
         }
 
-        DimBlockPos pos = new DimBlockPos(eventEntity.dimension, event.getPos());
-        ProtectionConfig config = GetProtections(eventEntity.getUniqueID(), pos);
+        DimBlockPos pos = new DimBlockPos(eventEntity.level().dimension(), event.getPos());
+        ProtectionConfig config = GetProtections(eventEntity.getUUID(), pos);
 
         if (!config.PLACE_BLOCKS) {
-            if (!config.BLOCK_PLACE_WHITELIST.contains(event.getBlockSnapshot().getCurrentBlock().getBlock())) {
+            if (!config.BLOCK_PLACE_WHITELIST.contains(placedBlock)) {
                 //WarForgeMod.LOGGER.info("Cancelled block placement event");
                 event.setCanceled(true);
             }
         } else {
-            if (config.BLOCK_PLACE_BLACKLIST.contains(event.getBlockSnapshot().getCurrentBlock().getBlock())) {
+            if (config.BLOCK_PLACE_BLACKLIST.contains(placedBlock)) {
                 //WarForgeMod.LOGGER.info("Cancelled block placement event");
                 event.setCanceled(true);
             }
@@ -259,14 +264,14 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void BlockRemoved(BlockEvent.BreakEvent event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide())
             return;
 
         if (OP_OVERRIDE && WarForgeMod.isOp(event.getPlayer()))
             return;
 
-        DimBlockPos pos = new DimBlockPos(event.getPlayer().dimension, event.getPos());
-        ProtectionConfig config = GetProtections(event.getPlayer().getUniqueID(), pos);
+        DimBlockPos pos = new DimBlockPos(event.getPlayer().level().dimension(), event.getPos());
+        ProtectionConfig config = GetProtections(event.getPlayer().getUUID(), pos);
 
         if (!config.BREAK_BLOCKS || !config.BLOCK_REMOVAL) {
             if (!config.BLOCK_BREAK_WHITELIST.contains(event.getState().getBlock())) {
@@ -282,14 +287,15 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerInteractEntity(PlayerInteractEvent.EntityInteract event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide)
             return;
 
-        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntityPlayer()))
+        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
             return;
 
-        DimBlockPos pos = new DimBlockPos(event.getTarget().dimension, event.getTarget().getPosition());
-        ProtectionConfig config = GetProtections(event.getEntityPlayer().getUniqueID(), pos);
+        Entity target = event.getTarget();
+        DimBlockPos pos = new DimBlockPos(target.level().dimension(), target.blockPosition());
+        ProtectionConfig config = GetProtections(event.getEntity().getUUID(), pos);
 
         if (!config.INTERACT) {
             //WarForgeMod.LOGGER.info("Cancelled interact event");
@@ -299,17 +305,17 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerRightClick(PlayerInteractEvent.RightClickBlock event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide)
             return;
 
-        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntityPlayer()))
+        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
             return;
 
-        DimBlockPos pos = new DimBlockPos(event.getEntity().dimension, event.getPos());
-        ProtectionConfig config = GetProtections(event.getEntityPlayer().getUniqueID(), pos);
+        DimBlockPos pos = new DimBlockPos(event.getEntity().level().dimension(), event.getPos());
+        ProtectionConfig config = GetProtections(event.getEntity().getUUID(), pos);
 
 
-        Block block = event.getWorld().getBlockState(event.getPos()).getBlock();
+        Block block = event.getLevel().getBlockState(event.getPos()).getBlock();
         if (!config.INTERACT) {
             if (block != WarForgeMod.CONTENT.citadelBlock
                     && block != WarForgeMod.CONTENT.basicClaimBlock
@@ -328,18 +334,18 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerRightClickItem(PlayerInteractEvent.RightClickItem event) {
-        if (event.getWorld().isRemote)
+        if (event.getLevel().isClientSide)
             return;
 
-        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntityPlayer()))
+        if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
             return;
 
         // Always allow food
-        if (event.getItemStack().getItem() instanceof ItemFood)
+        if (event.getItemStack().getItem().isEdible())
             return;
 
-        DimBlockPos pos = new DimBlockPos(event.getEntity().dimension, event.getPos());
-        ProtectionConfig config = GetProtections(event.getEntityPlayer().getUniqueID(), pos);
+        DimBlockPos pos = new DimBlockPos(event.getEntity().level().dimension(), event.getPos());
+        ProtectionConfig config = GetProtections(event.getEntity().getUUID(), pos);
 
         Item usedItem = event.getItemStack().getItem();
         if (!config.USE_ITEM) {
@@ -354,23 +360,30 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnMobSpawn(PotentialSpawns event) {
-        ProtectionConfig config = GetProtections(Faction.nullUuid, new DimBlockPos(event.getWorld().provider.getDimension(), event.getPos()));
+        ResourceKey<Level> dim = ((Level) event.getLevel()).dimension();
+        ProtectionConfig config = GetProtections(Faction.nullUuid, new DimBlockPos(dim, event.getPos()));
         if (!config.ALLOW_MOB_SPAWNS) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
-    public void LivingUpdate(EnteringChunk event) {
+    public void LivingUpdate(EnteringSection event) {
+        if (!event.didChunkChange())
+            return;
+
         if (!inLoop) {
-            if (!(event.getEntity() instanceof EntityPlayer)) {
-                ProtectionConfig config = GetProtections(Faction.nullUuid, new DimBlockPos(event.getEntity().dimension, event.getEntity().getPosition()));
+            if (!(event.getEntity() instanceof Player)) {
+                Entity entity = event.getEntity();
+                ProtectionConfig config = GetProtections(Faction.nullUuid, new DimBlockPos(entity.level().dimension(), entity.blockPosition()));
                 if (!config.ALLOW_MOB_ENTRY) {
                     inLoop = true;
-                    boolean wasNoClip = event.getEntity().noClip;
-                    event.getEntity().noClip = true;
-                    event.getEntity().move(MoverType.SELF, (event.getOldChunkX() - event.getNewChunkX()), 0d, (event.getOldChunkZ() - event.getNewChunkZ()));
-                    event.getEntity().noClip = wasNoClip;
+                    boolean wasNoClip = entity.noPhysics;
+                    entity.noPhysics = true;
+                    SectionPos oldPos = event.getOldPos();
+                    SectionPos newPos = event.getNewPos();
+                    entity.move(MoverType.SELF, new Vec3((oldPos.x() - newPos.x()), 0d, (oldPos.z() - newPos.z())));
+                    entity.noPhysics = wasNoClip;
                     inLoop = false;
                 }
             }

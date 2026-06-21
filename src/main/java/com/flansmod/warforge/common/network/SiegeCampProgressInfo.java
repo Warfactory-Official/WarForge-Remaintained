@@ -3,7 +3,8 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
-import net.minecraft.util.math.ChunkPos;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 
@@ -12,7 +13,7 @@ import java.util.ArrayList;
 public class SiegeCampProgressInfo {
     public DimBlockPos defendingPos;
     public DimBlockPos attackingPos;
-    public ArrayList<ChunkPos> warzoneChunks;
+    public ArrayList<ChunkPos> warzoneChunks = new ArrayList<>();
     public int attackingColour;
     public int defendingColour;
     public String attackingName;
@@ -31,8 +32,8 @@ public class SiegeCampProgressInfo {
 
     public static SiegeCampProgressInfo getDebugInfo() {
         SiegeCampProgressInfo info = new SiegeCampProgressInfo();
-        info.defendingPos = new DimBlockPos(0, 100, 64, 100);
-        info.attackingPos = new DimBlockPos(0, 120, 64, 100);
+        info.defendingPos = new DimBlockPos(Level.OVERWORLD, 100, 64, 100);
+        info.attackingPos = new DimBlockPos(Level.OVERWORLD, 120, 64, 100);
         info.attackingColour = 0xFF0000;
         info.defendingColour = 0x0000FF;
         info.attackingName = "Red Team";

@@ -3,15 +3,16 @@ package com.flansmod.warforge.common;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.FactionStorage;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.UUID;
 
 // Diagnostic only. When WarForgeConfig.DEBUG_TRACE_SETBLOCK is enabled, every server-side
-// World#setBlockState that lands inside a claimed chunk is logged together with the owning
+// Level#setBlockAndUpdate that lands inside a claimed chunk is logged together with the owning
 // claim and the calling code, so operators can pin down which mod/object is mutating protected
 // terrain outside the explosion-event path and decide what targeted protection to add.
 public final class SetBlockTracer {
@@ -19,11 +20,11 @@ public final class SetBlockTracer {
     private SetBlockTracer() {
     }
 
-    public static void trace(World world, BlockPos pos, IBlockState newState) {
+    public static void trace(Level level, BlockPos pos, BlockState newState) {
         if (!WarForgeConfig.DEBUG_TRACE_SETBLOCK) {
             return;
         }
-        if (world == null || world.isRemote || pos == null) {
+        if (level == null || level.isClientSide || pos == null) {
             return;
         }
 
@@ -35,7 +36,7 @@ public final class SetBlockTracer {
         DimChunkPos chunkPos;
         UUID owner;
         try {
-            chunkPos = new DimChunkPos(world.provider.getDimension(), pos);
+            chunkPos = new DimChunkPos(level.dimension(), pos);
             owner = factions.getClaim(chunkPos);
         } catch (Throwable ignored) {
             return;
@@ -65,12 +66,12 @@ public final class SetBlockTracer {
         return owner.toString();
     }
 
-    private static String describeBlock(IBlockState state) {
+    private static String describeBlock(BlockState state) {
         if (state == null) {
             return "<null>";
         }
         try {
-            ResourceLocation id = state.getBlock().getRegistryName();
+            ResourceLocation id = ForgeRegistries.BLOCKS.getKey(state.getBlock());
             return id == null ? state.getBlock().toString() : id.toString();
         } catch (Throwable ignored) {
             return "<unknown>";
@@ -78,7 +79,7 @@ public final class SetBlockTracer {
     }
 
     // Walk the live stack and collect the first few frames that belong neither to this tracer,
-    // the mixin handler, nor World's own setBlockState delegation - i.e. the actual caller chain.
+    // the mixin handler, nor Level's own setBlockAndUpdate delegation - i.e. the actual caller chain.
     private static String findCaller() {
         StackTraceElement[] stack = Thread.currentThread().getStackTrace();
         StringBuilder sb = new StringBuilder();
@@ -91,9 +92,9 @@ public final class SetBlockTracer {
             if (cls.equals(SetBlockTracer.class.getName())) {
                 continue;
             }
-            // The mixin handler is merged into net.minecraft.world.World; skip that class entirely
-            // so we step past both the injected method and World's own setBlockState overloads.
-            if (cls.equals("net.minecraft.world.World")) {
+            // The mixin handler is merged into net.minecraft.world.level.Level; skip that class entirely
+            // so we step past both the injected method and Level's own setBlock overloads.
+            if (cls.equals("net.minecraft.world.level.Level")) {
                 continue;
             }
             if (shown > 0) {

@@ -1,15 +1,15 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.drawable.IngredientDrawable;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.viewport.GuiContext;
-import com.cleanroommc.modularui.theme.WidgetTheme;
-import com.cleanroommc.modularui.widgets.ButtonWidget;
-import com.cleanroommc.modularui.widgets.ScrollingTextWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.flansmod.warforge.api.modularui.ChunkMapUtil;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.IngredientDrawable;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.viewport.GuiContext;
+import brachy.modularui.theme.WidgetTheme;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.ScrollingTextWidget;
+import brachy.modularui.widgets.layout.Flow;
+import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapDrawable;
 import com.flansmod.warforge.Tags;
@@ -20,21 +20,24 @@ import com.flansmod.warforge.common.factories.ClaimManagerGuiData;
 import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
+import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender.CenterMarkType;
 import com.flansmod.warforge.common.network.PacketClaimChunkAction;
 import com.flansmod.warforge.common.network.PacketDeclareSiege;
 import com.flansmod.warforge.common.network.PacketRequestTerrainColors;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
-import com.flansmod.warforge.server.StackComparable;
+import com.flansmod.warforge.server.ItemMatcher;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.util.text.translation.I18n;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.Vec3i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 
 import java.util.Objects;
 
@@ -56,14 +59,14 @@ public final class GuiClaimManager {
 
     public static ModularPanel buildPanel(ClaimManagerGuiData data) {
         int size = data.radius * 2 + 1;
-        ScaledResolution scaled = new ScaledResolution(Minecraft.getMinecraft());
+        var window = Minecraft.getInstance().getWindow();
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 size,
                 3,
                 Math.min(size, MAX_VISIBLE_RADIUS * 2 + 1),
                 CELL_SIZE,
-                scaled.getScaledWidth(),
-                scaled.getScaledHeight(),
+                window.getGuiScaledWidth(),
+                window.getGuiScaledHeight(),
                 CONTENT_LEFT * 2 + 40,
                 64,
                 data.pageX,
@@ -83,7 +86,7 @@ public final class GuiClaimManager {
 
         // Two-stage siege declaration state (client-side, see ClaimManagerGuiFactory).
         DimChunkPos siegePickFor = ClaimManagerGuiFactory.siegeStartPickFor;
-        final boolean startPickMode = siegePickFor != null && siegePickFor.dim == data.dim
+        final boolean startPickMode = siegePickFor != null && siegePickFor.dim.equals(data.dim)
                 && siegePickFor.x == data.centerX && siegePickFor.z == data.centerZ;
         if (siegePickFor != null && !startPickMode) {
             ClaimManagerGuiFactory.siegeStartPickFor = null; // stale: centered somewhere other than the target
@@ -108,35 +111,36 @@ public final class GuiClaimManager {
         panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(accentColor)).size(6, height));
         panel.child(ModularGuiStyle.panelCloseButton(width));
 
-        panel.child(IKey.str(startPickMode ? "Choose Siege Origin" : targetMode ? "Select Siege Target" : "Territory Map").asWidget()
-                .name("claim_manager_title")
-                .pos(CONTENT_LEFT, 12)
-                .style(net.minecraft.util.text.TextFormatting.BOLD)
+        panel.child(Text.str(startPickMode ? "Choose Siege Origin" : targetMode ? "Select Siege Target" : "Territory Map")
+                .style(ChatFormatting.BOLD)
                 .shadow(true)
                 .color(ModularGuiStyle.TEXT_PRIMARY)
-                .scale(1.15f));
-        panel.child(new ScrollingTextWidget(IKey.str("Center [" + data.centerX + ", " + data.centerZ + "] | Radius " + data.radius + " | Dim " + data.dim))
+                .scale(1.15f)
+                .asWidget()
+                .name("claim_manager_title")
+                .pos(CONTENT_LEFT, 12));
+        panel.child(new ScrollingTextWidget(Text.str("Center [" + data.centerX + ", " + data.centerZ + "] | Radius " + data.radius + " | Dim " + data.dim.location()))
                 .name("claim_manager_subtitle")
                 .pos(CONTENT_LEFT, 27)
                 .width(width - CONTENT_LEFT * 2 - 18)
                 .color(ModularGuiStyle.TEXT_SECONDARY));
 
-        infoSection.child(new ScrollingTextWidget(IKey.dynamic(() -> {
+        infoSection.child(new ScrollingTextWidget(Text.dynamic(() -> {
                     String claimCap = ClientClaimChunkCache.claimMax == Short.MAX_VALUE ? "INF" : String.valueOf(ClientClaimChunkCache.claimMax);
-                    return "Claims " + ClientClaimChunkCache.claimCount + "/" + claimCap + " | Loaded " + ClientClaimChunkCache.forceLoadedCount + "/" + ClientClaimChunkCache.forceLoadedMax;
+                    return Component.literal("Claims " + ClientClaimChunkCache.claimCount + "/" + claimCap + " | Loaded " + ClientClaimChunkCache.forceLoadedCount + "/" + ClientClaimChunkCache.forceLoadedMax);
                 }))
                 .name("claim_manager_status_text")
                 .width(mapSectionWidth - 10)
                 .margin(0, 0, 0, 4)
                 .color(ModularGuiStyle.TEXT_PRIMARY));
-        infoSection.child(new ScrollingTextWidget(IKey.str(viewport.visibleSize < size
+        infoSection.child(new ScrollingTextWidget(Text.str(viewport.visibleSize < size
                         ? "Paged view " + viewport.visibleSize + "x" + viewport.visibleSize + " across the selected radius."
                         : "Showing the full selected radius."))
                 .name("claim_manager_page_text")
                 .width(mapSectionWidth - 10)
                 .margin(0, 0, 0, 2)
                 .color(ModularGuiStyle.TEXT_MUTED));
-        legendSection.child(new ScrollingTextWidget(IKey.str(startPickMode
+        legendSection.child(new ScrollingTextWidget(Text.str(startPickMode
                         ? "Click a highlighted chunk to launch the siege from. This consumes one siege camp block."
                         : targetMode
                         ? "Click an enemy claim to target it, then pick where to attack from."
@@ -160,7 +164,7 @@ public final class GuiClaimManager {
         } else if (startPickMode) {
             panel.child(ModularGuiStyle.actionButton("Cancel", 60, () -> {
                 ClaimManagerGuiFactory.resetSiegeState();
-                Minecraft.getMinecraft().displayGuiScreen(null);
+                Minecraft.getInstance().setScreen(null);
             }).pos(width - 86, 9).height(16));
         }
 
@@ -172,9 +176,9 @@ public final class GuiClaimManager {
                 final int localZ = j - viewport.startZ;
 
                 panel.child(new ButtonWidget<>()
-                        .name("claim_chunk_" + data.dim + "_" + chunkX + "_" + chunkZ)
+                        .name("claim_chunk_" + data.dim.location() + "_" + chunkX + "_" + chunkZ)
                         .overlay(liveChunkOverlay(data, chunkX, chunkZ))
-                        .onMousePressed(mouseButton -> {
+                        .onMousePressed((context, mouseButton) -> {
                             if (startPickMode) {
                                 return handleStartPick(data, chunkX, chunkZ);
                             }
@@ -216,22 +220,22 @@ public final class GuiClaimManager {
                             tooltip.addLine("Claim Type: " + formatClaimType(info.claimType));
                             tooltip.addLine("Chunk: [" + info.x + ", " + info.z + "]");
                             if (info.vein != null) {
-                                tooltip.addLine(new IngredientDrawable(
+                                tooltip.addDrawableLine(new IngredientDrawable(
                                         info.vein.compIds.stream()
-                                                .map(StackComparable::toItem)
-                                                .filter(Objects::nonNull)
+                                                .map(ItemMatcher::toStack)
+                                                .filter(stack -> !stack.isEmpty())
                                                 .toArray(ItemStack[]::new)
                                 ).asIcon().size(25));
                                 if (info.oreQuality != null) {
-                                    tooltip.addLine(IKey.str("Ore In the chunk: " +
+                                    tooltip.addLine(Text.str("Ore In the chunk: " +
                                             translateVeinName(info.vein.translationKey,
-                                                    I18n.translateToLocal(info.oreQuality.getTranslationKey()) + " [" +
+                                                    I18n.get(info.oreQuality.getTranslationKey()) + " [" +
                                                             info.oreQuality.getMultString(info.vein) + "]")));
                                 } else {
-                                    tooltip.addLine(IKey.str("Ore In the chunk: " + translateVeinName(info.vein.translationKey, "")));
+                                    tooltip.addLine(Text.str("Ore In the chunk: " + translateVeinName(info.vein.translationKey, "")));
                                 }
                             } else {
-                                tooltip.addLine(IKey.str("No ores in this chunk"));
+                                tooltip.addLine(Text.str("No ores in this chunk"));
                             }
                             if (info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED)) {
                                 tooltip.addLine("Force-loaded");
@@ -307,7 +311,7 @@ public final class GuiClaimManager {
         return (GuiContext context, int x, int y, int width, int height, WidgetTheme theme) -> {
             ClaimChunkInfo info = getLiveInfo(data, chunkX, chunkZ);
             DimChunkPos pickFor = ClaimManagerGuiFactory.siegeStartPickFor;
-            boolean startPick = pickFor != null && pickFor.dim == data.dim
+            boolean startPick = pickFor != null && pickFor.dim.equals(data.dim)
                     && pickFor.x == data.centerX && pickFor.z == data.centerZ;
             boolean isTarget = chunkX == data.centerX && chunkZ == data.centerZ;
             // In stage 2 highlight every valid (in-view, non-target) launch chunk and mark the target;
@@ -316,13 +320,16 @@ public final class GuiClaimManager {
             ResourceLocation centerIcon = startPick
                     ? (isTarget ? new ResourceLocation(Tags.MODID, "gui/icon_siege_attack.png") : null)
                     : getCenterIcon(data, chunkX, chunkZ);
+            // The siege-attack target marker is a whole icon; getCenterIcon yields a full player skin sheet.
+            CenterMarkType centerIconType = startPick ? CenterMarkType.CUSTOM_TEXTURE : CenterMarkType.PLAYER_FACE;
             ClaimChunkRenderInfo renderInfo = new ClaimChunkRenderInfo(
                     toMapState(info, data.centerX, data.centerZ),
                     info.claimType,
                     info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED),
                     info.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED,
                     highlight,
-                    centerIcon
+                    centerIcon,
+                    centerIconType
             );
             new MapDrawable(textureName(data.dim, chunkX, chunkZ), renderInfo, getLiveAdjacency(data, chunkX, chunkZ))
                     .draw(context, x, y, width, height, theme);
@@ -355,7 +362,7 @@ public final class GuiClaimManager {
         if (target == null) {
             return false;
         }
-        if (chunkX == target.x && chunkZ == target.z && data.dim == target.dim) {
+        if (chunkX == target.x && chunkZ == target.z && data.dim.equals(target.dim)) {
             status("Pick a chunk other than the target to launch from");
             return false;
         }
@@ -364,14 +371,14 @@ public final class GuiClaimManager {
         packet.fromChunk = new DimChunkPos(data.dim, chunkX, chunkZ);
         WarForgeMod.NETWORK.sendToServer(packet);
         ClaimManagerGuiFactory.resetSiegeState();
-        Minecraft.getMinecraft().displayGuiScreen(null);
+        Minecraft.getInstance().setScreen(null);
         return true;
     }
 
     private static void status(String message) {
-        Minecraft mc = Minecraft.getMinecraft();
+        Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
-            mc.player.sendStatusMessage(new TextComponentString(message), true);
+            mc.player.displayClientMessage(Component.literal(message), true);
         }
     }
 
@@ -408,20 +415,20 @@ public final class GuiClaimManager {
     }
 
     private static ResourceLocation getCenterIcon(ClaimManagerGuiData data, int chunkX, int chunkZ) {
-        Minecraft minecraft = Minecraft.getMinecraft();
+        Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) {
             return null;
         }
         if (chunkX != data.centerX || chunkZ != data.centerZ) {
             return null;
         }
-        return SkinUtil.getPlayerFace(minecraft.player.getUniqueID());
+        return SkinUtil.getPlayerFace(minecraft.player.getUUID());
     }
 
-    private static boolean isBattleZoneChunk(int dim, int chunkX, int chunkZ) {
+    private static boolean isBattleZoneChunk(ResourceKey<Level> dim, int chunkX, int chunkZ) {
         ChunkPos target = new ChunkPos(chunkX, chunkZ);
         for (var siegeInfo : ClientProxy.sSiegeInfo.values()) {
-            if (siegeInfo == null || siegeInfo.attackingPos == null || siegeInfo.attackingPos.dim != dim || siegeInfo.warzoneChunks == null) {
+            if (siegeInfo == null || siegeInfo.attackingPos == null || !siegeInfo.attackingPos.dim.equals(dim) || siegeInfo.warzoneChunks == null) {
                 continue;
             }
             if (siegeInfo.warzoneChunks.contains(target)) {
@@ -460,14 +467,14 @@ public final class GuiClaimManager {
 
     private static String translateVeinName(String translationKey, Object... args) {
         String resolvedKey = translationKey;
-        if (!I18n.canTranslate(resolvedKey) && I18n.canTranslate(resolvedKey + ".name")) {
+        if (!I18n.exists(resolvedKey) && I18n.exists(resolvedKey + ".name")) {
             resolvedKey += ".name";
         }
-        return I18n.translateToLocalFormatted(resolvedKey, args);
+        return I18n.get(resolvedKey, args);
     }
 
-    private static String textureName(int dim, int x, int z) {
-        return "claimmap/" + dim + "_" + x + "_" + z;
+    private static String textureName(ResourceKey<Level> dim, int x, int z) {
+        return ChunkMapTextureDaemon.getTextureName("claimmap", dim, x, z);
     }
 
     private static int resolveAccentColor(ClaimManagerGuiData data) {

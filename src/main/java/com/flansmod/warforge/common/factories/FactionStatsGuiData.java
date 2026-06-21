@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -30,7 +30,7 @@ public class FactionStatsGuiData extends GuiData {
     public boolean canManageMembers;
     public boolean canUpgrade;
 
-    public FactionStatsGuiData(EntityPlayer player, UUID requestedFactionId) {
+    public FactionStatsGuiData(Player player, UUID requestedFactionId) {
         super(player);
         this.requestedFactionId = requestedFactionId;
     }

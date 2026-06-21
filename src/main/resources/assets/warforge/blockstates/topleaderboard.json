@@ -1,5 +1,5 @@
 {
     "variants": {
-        "normal": { "model": "warforge:topleaderboard" }
+        "": { "model": "warforge:block/topleaderboard" }
     }
 }

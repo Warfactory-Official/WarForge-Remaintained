@@ -3,20 +3,19 @@ package com.flansmod.warforge.server;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.mojang.authlib.GameProfile;
-import net.minecraft.entity.item.EntityItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.CompressedStreamTools;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraft.nbt.NBTTagList;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.management.PlayerProfileCache;
-import net.minecraft.world.WorldServer;
-import net.minecraftforge.common.DimensionManager;
-import net.minecraftforge.fml.common.FMLCommonHandler;
+import net.minecraft.server.players.PlayerList;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.storage.LevelResource;
+import net.minecraftforge.server.ServerLifecycleHooks;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +23,7 @@ import java.util.UUID;
 
 
 public class CombatLogHandler {
-    private class PlayerInfo{
+    private class PlayerInfo {
         public DimBlockPos logoffPos;
         public UUID playerID;
         public long logoffTimestamp;
@@ -43,49 +42,45 @@ public class CombatLogHandler {
     }
 
     public void add(DimBlockPos logoffPos, UUID playerID, long logoffTimestamp) {
-        if(playerID == null)
+        if (playerID == null)
             return;
         enforcementList.add(new PlayerInfo(logoffPos, playerID, logoffTimestamp));
-
     }
-    private void enforce(PlayerInfo player){
-        MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
-        if (server == null) return;
 
-        PlayerProfileCache profileCache = server.getPlayerProfileCache();
-        if (profileCache == null) return;
+    private void enforce(PlayerInfo player) {
+        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
+        if (server == null) return;
 
         // Retrieve player profile and data file
         UUID playerUUID = player.playerID;
-        GameProfile profile = profileCache.getProfileByUUID(playerUUID);
+        GameProfile profile = server.getProfileCache().get(playerUUID).orElse(null);
         if (profile == null) return;
 
-        File worldDir = DimensionManager.getWorld(0).getSaveHandler().getWorldDirectory();
-        File playerDataFile = new File(worldDir, "playerdata/" + playerUUID.toString() + ".dat");
+        File worldDir = server.getWorldPath(LevelResource.ROOT).toFile();
+        File playerDataFile = new File(worldDir, "playerdata/" + playerUUID + ".dat");
 
         if (playerDataFile.exists() && playerDataFile.isFile()) {
             try {
-                NBTTagCompound playerData = CompressedStreamTools.readCompressed(new FileInputStream(playerDataFile));
+                CompoundTag playerData = NbtIo.readCompressed(playerDataFile);
                 if (playerData != null) {
-                    NBTTagList inventoryList = playerData.getTagList("Inventory", 10).copy();
+                    ListTag inventoryList = playerData.getList("Inventory", Tag.TAG_COMPOUND).copy();
                     DimBlockPos logoffPos = player.logoffPos;
-                    WorldServer world = DimensionManager.getWorld(logoffPos.dim);
+                    ServerLevel world = server.getLevel(logoffPos.dim);
 
                     // Clear inventory data
-                    playerData.setTag("Inventory", new NBTTagList());
+                    playerData.put("Inventory", new ListTag());
 
                     // Save modified player data
-                    CompressedStreamTools.writeCompressed(playerData, new FileOutputStream(playerDataFile));
+                    NbtIo.writeCompressed(playerData, playerDataFile);
 
-                    //Go through every tag and drop it
-                    for (int i = 0; i < inventoryList.tagCount(); i++) {
-                        NBTTagCompound itemCompound = inventoryList.getCompoundTagAt(i);
-                        ItemStack stack = new ItemStack(itemCompound);
+                    // Go through every tag and drop it
+                    for (int i = 0; i < inventoryList.size(); i++) {
+                        CompoundTag itemCompound = inventoryList.getCompound(i);
+                        ItemStack stack = ItemStack.of(itemCompound);
 
-                        EntityItem entityItem = new EntityItem(world, logoffPos.getX(), logoffPos.getY(), logoffPos.getZ(), stack);
-                        world.spawnEntity(entityItem);
+                        ItemEntity entityItem = new ItemEntity(world, logoffPos.getX(), logoffPos.getY(), logoffPos.getZ(), stack);
+                        world.addFreshEntity(entityItem);
                     }
-
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -99,10 +94,8 @@ public class CombatLogHandler {
             if (((int) (timestamp - info.logoffTimestamp)) > WarForgeConfig.COMBAT_LOG_THRESHOLD) enforce(info);
         }
     }
-    public boolean isEmpty(){
-        if(enforcementList.isEmpty())
-            return true;
-        return false;
-    }
 
+    public boolean isEmpty() {
+        return enforcementList.isEmpty();
+    }
 }

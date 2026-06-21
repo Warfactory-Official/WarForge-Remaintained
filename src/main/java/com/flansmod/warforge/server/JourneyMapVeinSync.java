@@ -7,9 +7,11 @@ import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketJourneyMapVeins;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.World;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.Level;
 import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.HashMap;
@@ -41,7 +43,8 @@ public class JourneyMapVeinSync {
     private final Map<UUID, AutoState> autoStates = new HashMap<>();
 
     private static final class AutoState {
-        int dim, centerX, centerZ;
+        ResourceKey<Level> dim;
+        int centerX, centerZ;
         int cursor;
         boolean complete;
     }
@@ -50,20 +53,21 @@ public class JourneyMapVeinSync {
         return WarForgeConfig.JOURNEYMAP_VEIN_MODE;
     }
 
-    private static long seedForDim(int dim) {
+    private static long seedForDim(ResourceKey<Level> dim) {
         MinecraftServer server = WarForgeMod.MC_SERVER;
         if (server == null) {
             return 0L;
         }
-        World world = server.getWorld(dim);
-        if (world == null) {
-            world = server.getWorld(0);
+        // All dimensions of a world share the same world seed; fall back to the overworld if the dim is unloaded.
+        ServerLevel level = server.getLevel(dim);
+        if (level == null) {
+            level = server.overworld();
         }
-        return world == null ? 0L : world.provider.getSeed();
+        return level == null ? 0L : level.getSeed();
     }
 
     /** The compressed vein short at a chunk, or {@code null} if there is no vein (so no marker). */
-    private Short veinInfoAt(int dim, int x, int z) {
+    private Short veinInfoAt(ResourceKey<Level> dim, int x, int z) {
         VeinUtils handler = WarForgeMod.VEIN_HANDLER;
         if (handler == null || !handler.hasFinishedInit || !handler.dimHasVeins(dim)) {
             return null;
@@ -90,21 +94,24 @@ public class JourneyMapVeinSync {
             return;
         }
         int radius = Math.max(1, WarForgeConfig.JOURNEYMAP_VEIN_AUTO_RADIUS);
-        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             scanAuto(player, radius);
         }
     }
 
-    private void scanAuto(EntityPlayerMP player, int radius) {
-        AutoState state = autoStates.get(player.getUniqueID());
-        if (state == null || state.dim != player.dimension || state.centerX != player.chunkCoordX || state.centerZ != player.chunkCoordZ) {
+    private void scanAuto(ServerPlayer player, int radius) {
+        ResourceKey<Level> dim = player.level().dimension();
+        int chunkX = player.chunkPosition().x;
+        int chunkZ = player.chunkPosition().z;
+        AutoState state = autoStates.get(player.getUUID());
+        if (state == null || !state.dim.equals(dim) || state.centerX != chunkX || state.centerZ != chunkZ) {
             state = new AutoState();
-            state.dim = player.dimension;
-            state.centerX = player.chunkCoordX;
-            state.centerZ = player.chunkCoordZ;
+            state.dim = dim;
+            state.centerX = chunkX;
+            state.centerZ = chunkZ;
             state.cursor = 0;
             state.complete = false;
-            autoStates.put(player.getUniqueID(), state);
+            autoStates.put(player.getUUID(), state);
         }
         if (state.complete) {
             return;
@@ -118,7 +125,7 @@ public class JourneyMapVeinSync {
             int idx = state.cursor++;
             int x = state.centerX + (idx % side) - radius;
             int z = state.centerZ + (idx / side) - radius;
-            accumulate(packet, player.getUniqueID(), new DimChunkPos(state.dim, x, z), veinInfoAt(state.dim, x, z));
+            accumulate(packet, player.getUUID(), new DimChunkPos(state.dim, x, z), veinInfoAt(state.dim, x, z));
             processed++;
             if (packet.sets.size() + packet.removes.size() >= MAX_ENTRIES_PER_PACKET) {
                 WarForgeMod.NETWORK.sendTo(packet, player);
@@ -134,7 +141,7 @@ public class JourneyMapVeinSync {
     }
 
     /** PLAYER mode: the player just loaded this chunk, so reveal its vein to them. */
-    public void onChunkObserved(EntityPlayerMP player, int dim, int x, int z) {
+    public void onChunkObserved(ServerPlayer player, ResourceKey<Level> dim, int x, int z) {
         if (mode() != WarForgeConfig.JM_MODE_PLAYER) {
             return;
         }
@@ -142,7 +149,7 @@ public class JourneyMapVeinSync {
     }
 
     /** Called when an administrator changes a chunk's vein so observers see it update. */
-    public void onVeinChanged(int dim, int x, int z) {
+    public void onVeinChanged(ResourceKey<Level> dim, int x, int z) {
         int mode = mode();
         if (mode == WarForgeConfig.JM_MODE_DISABLED) {
             return;
@@ -153,19 +160,19 @@ public class JourneyMapVeinSync {
         }
         DimChunkPos chunk = new DimChunkPos(dim, x, z);
         int radius = Math.max(1, WarForgeConfig.JOURNEYMAP_VEIN_AUTO_RADIUS);
-        for (EntityPlayerMP player : server.getPlayerList().getPlayers()) {
-            if (player.dimension != dim) {
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            if (!player.level().dimension().equals(dim)) {
                 continue;
             }
-            Map<DimChunkPos, Short> view = playerViews.get(player.getUniqueID());
+            Map<DimChunkPos, Short> view = playerViews.get(player.getUUID());
             if (view != null && view.containsKey(chunk)) {
                 sendSingle(player, chunk, veinInfoAt(dim, x, z));
             }
             // AUTO: force a re-scan so a newly-added vein on a previously-empty chunk gets picked up.
             if (mode == WarForgeConfig.JM_MODE_AUTO) {
-                AutoState state = autoStates.get(player.getUniqueID());
-                if (state != null && state.dim == dim
-                        && Math.abs(player.chunkCoordX - x) <= radius && Math.abs(player.chunkCoordZ - z) <= radius) {
+                AutoState state = autoStates.get(player.getUUID());
+                if (state != null && state.dim.equals(dim)
+                        && Math.abs(player.chunkPosition().x - x) <= radius && Math.abs(player.chunkPosition().z - z) <= radius) {
                     state.complete = false;
                     state.cursor = 0;
                 }
@@ -173,19 +180,19 @@ public class JourneyMapVeinSync {
         }
     }
 
-    public void onPlayerJoin(EntityPlayerMP player) {
-        playerViews.remove(player.getUniqueID());
-        autoStates.remove(player.getUniqueID());
+    public void onPlayerJoin(ServerPlayer player) {
+        playerViews.remove(player.getUUID());
+        autoStates.remove(player.getUUID());
     }
 
-    public void onPlayerLogout(EntityPlayerMP player) {
-        playerViews.remove(player.getUniqueID());
-        autoStates.remove(player.getUniqueID());
+    public void onPlayerLogout(ServerPlayer player) {
+        playerViews.remove(player.getUUID());
+        autoStates.remove(player.getUUID());
     }
 
-    private void sendSingle(EntityPlayerMP player, DimChunkPos chunk, Short veinInfo) {
+    private void sendSingle(ServerPlayer player, DimChunkPos chunk, Short veinInfo) {
         PacketJourneyMapVeins packet = new PacketJourneyMapVeins();
-        accumulate(packet, player.getUniqueID(), chunk, veinInfo);
+        accumulate(packet, player.getUUID(), chunk, veinInfo);
         if (!packet.isEmpty()) {
             WarForgeMod.NETWORK.sendTo(packet, player);
         }

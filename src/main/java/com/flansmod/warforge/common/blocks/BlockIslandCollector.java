@@ -1,47 +1,48 @@
 package com.flansmod.warforge.common.blocks;
 
-import com.cleanroommc.modularui.factory.TileEntityGuiFactory;
+import brachy.modularui.factory.BlockEntityUIFactory;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.block.Block;
-import net.minecraft.block.ITileEntityProvider;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.inventory.IInventory;
-import net.minecraft.inventory.InventoryHelper;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Containers;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
 
-public class BlockIslandCollector extends Block implements ITileEntityProvider {
-    public BlockIslandCollector(Material materialIn) {
-        super(materialIn);
-        setHardness(4.0f);
-        setResistance(20.0f);
-        setCreativeTab(CreativeTabs.COMBAT);
+import javax.annotation.Nullable;
+
+public class BlockIslandCollector extends Block implements EntityBlock {
+    public BlockIslandCollector() {
+        super(BlockBehaviour.Properties.of()
+                .strength(4.0F, 20.0F)
+                .sound(SoundType.STONE));
+    }
+
+    @Nullable
+    @Override
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
+        return new TileEntityIslandCollector(pos, state);
     }
 
     @Override
-    public TileEntity createNewTileEntity(World worldIn, int meta) {
-        return new TileEntityIslandCollector();
-    }
-
-    @Override
-    public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer, ItemStack stack) {
-        if (world.isRemote || !(placer instanceof EntityPlayerMP)) {
+    public void setPlacedBy(Level world, BlockPos pos, BlockState state, @Nullable LivingEntity placer, ItemStack stack) {
+        if (world.isClientSide || !(placer instanceof ServerPlayer player)) {
             return;
         }
 
-        EntityPlayerMP player = (EntityPlayerMP) placer;
-        DimBlockPos collectorPos = new DimBlockPos(world.provider.getDimension(), pos);
+        DimBlockPos collectorPos = new DimBlockPos(world.dimension(), pos);
         boolean success = WarForgeMod.FACTIONS.registerCollector(player, collectorPos);
         if (!success) {
             world.destroyBlock(pos, true);
@@ -49,33 +50,36 @@ public class BlockIslandCollector extends Block implements ITileEntityProvider {
     }
 
     @Override
-    public void breakBlock(World worldIn, BlockPos pos, IBlockState state) {
-        TileEntity tileentity = worldIn.getTileEntity(pos);
-        if (tileentity instanceof IInventory) {
-            InventoryHelper.dropInventoryItems(worldIn, pos, (IInventory) tileentity);
+    public void onRemove(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!state.is(newState.getBlock())) {
+            BlockEntity tileentity = world.getBlockEntity(pos);
+            if (tileentity instanceof TileEntityIslandCollector collector) {
+                for (int i = 0; i < collector.getSlots(); i++) {
+                    Containers.dropItemStack(world, pos.getX(), pos.getY(), pos.getZ(), collector.getStackInSlot(i));
+                }
+            }
+            if (!world.isClientSide) {
+                WarForgeMod.FACTIONS.unregisterCollector(new DimBlockPos(world.dimension(), pos));
+            }
         }
-        if (!worldIn.isRemote) {
-            WarForgeMod.FACTIONS.unregisterCollector(new DimBlockPos(worldIn.provider.getDimension(), pos));
-        }
-        super.breakBlock(worldIn, pos, state);
+        super.onRemove(state, world, pos, newState, isMoving);
     }
 
     @Override
-    public boolean onBlockActivated(World worldIn, BlockPos pos, IBlockState state, EntityPlayer playerIn, EnumHand hand, EnumFacing facing, float hitX, float hitY, float hitZ) {
-        if (worldIn.isRemote) {
-            return true;
+    public InteractionResult use(BlockState state, Level world, BlockPos pos, Player player, InteractionHand hand, BlockHitResult hit) {
+        if (world.isClientSide) {
+            return InteractionResult.SUCCESS;
         }
 
-        TileEntity te = worldIn.getTileEntity(pos);
-        if (te instanceof TileEntityIslandCollector collector) {
+        if (world.getBlockEntity(pos) instanceof TileEntityIslandCollector collector) {
             if (!collector.getFaction().equals(Faction.nullUuid)
-                    && !WarForgeMod.FACTIONS.IsPlayerInFaction(playerIn.getUniqueID(), collector.getFaction())
-                    && !WarForgeMod.isOp(playerIn)) {
-                return true;
+                    && !WarForgeMod.FACTIONS.IsPlayerInFaction(player.getUUID(), collector.getFaction())
+                    && !WarForgeMod.isOp(player)) {
+                return InteractionResult.SUCCESS;
             }
-            TileEntityGuiFactory.INSTANCE.open(playerIn, pos);
-            return true;
+            BlockEntityUIFactory.INSTANCE.open(player, pos);
+            return InteractionResult.SUCCESS;
         }
-        return false;
+        return InteractionResult.PASS;
     }
 }

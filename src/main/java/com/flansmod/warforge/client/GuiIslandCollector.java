@@ -1,31 +1,34 @@
 package com.flansmod.warforge.client;
 
-import com.cleanroommc.modularui.api.GuiAxis;
-import com.cleanroommc.modularui.api.drawable.IDrawable;
-import com.cleanroommc.modularui.api.drawable.IKey;
-import com.cleanroommc.modularui.factory.PosGuiData;
-import com.cleanroommc.modularui.screen.ModularPanel;
-import com.cleanroommc.modularui.screen.UISettings;
-import com.cleanroommc.modularui.value.sync.PanelSyncManager;
-import com.cleanroommc.modularui.widget.ParentWidget;
-import com.cleanroommc.modularui.widgets.ListWidget;
-import com.cleanroommc.modularui.widgets.layout.Flow;
-import com.cleanroommc.modularui.widgets.slot.ItemSlot;
-import com.cleanroommc.modularui.widgets.slot.ModularSlot;
+import brachy.modularui.api.GuiAxis;
+import brachy.modularui.api.drawable.IDrawable;
+import brachy.modularui.api.drawable.Text;
+import brachy.modularui.drawable.Rectangle;
+import brachy.modularui.factory.PosGuiData;
+import brachy.modularui.screen.ModularPanel;
+import brachy.modularui.screen.UISettings;
+import brachy.modularui.api.widget.IWidget;
+import brachy.modularui.value.sync.PanelSyncManager;
+import brachy.modularui.widget.ParentWidget;
+import brachy.modularui.widgets.ButtonWidget;
+import brachy.modularui.widgets.ListWidget;
+import brachy.modularui.widgets.layout.Flow;
+import brachy.modularui.widgets.slot.ItemSlot;
+import brachy.modularui.widgets.slot.ModularSlot;
+
 import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.util.text.TextFormatting;
+
+import net.minecraft.ChatFormatting;
 import net.minecraftforge.items.IItemHandlerModifiable;
 
 /**
- * ModularUI panel for the faction yield collector.
- * <p>
- * Kept free of any {@code net.minecraft.client.*} references at build time so it can be constructed
- * on both the client and a dedicated server (ModularUI builds the panel on both sides to wire up
- * slot syncing). The 100 storage slots are extract-only: players may pull items out but never put
- * items in.
+ * ModularUI panel for the faction yield collector. The storage slots are extract-only: players may
+ * pull items out but never put items in. Built on both client and server so slot syncing is wired up
+ * symmetrically; no {@code net.minecraft.client.*} references at build time.
  */
 public final class GuiIslandCollector {
+
     private static final int COLUMNS = 10;
     private static final int SLOT_SIZE = 18;
     private static final int VISIBLE_ROWS = 6;
@@ -40,64 +43,69 @@ public final class GuiIslandCollector {
     private static final int WIDTH = CONTENT_LEFT * 2 + SECTION_WIDTH;
     private static final int HEIGHT = BODY_Y + SECTION_HEIGHT + 12;
 
+    private static final int HEADER_FILL = 0xFF171B1F;
+    private static final int SECTION_FILL = 0xEE20262B;
+    private static final int INSET_FILL = 0xFF262D33;
+    private static final int TEXT_PRIMARY = 0xFFFFFF;
+    private static final int TEXT_SECONDARY = 0xC7CCD1;
+
     private GuiIslandCollector() {
     }
 
     public static ModularPanel buildUI(PosGuiData data, PanelSyncManager syncManager, UISettings settings, TileEntityIslandCollector collector) {
-        syncManager.bindPlayerInventory(data.getPlayer());
-
         IItemHandlerModifiable storage = collector.getStorageHandler();
         int slots = storage.getSlots();
         boolean hasFaction = !collector.getFaction().equals(Faction.nullUuid);
 
-        ModularPanel panel = ModularPanel.defaultPanel("island_collector")
-                .width(WIDTH)
-                .height(HEIGHT)
+        ModularPanel panel = ModularPanel.defaultPanel("island_collector", WIDTH, HEIGHT)
                 .topRel(0.40f);
+        panel.bindPlayerInventory();
 
-        Flow storageSection = ModularGuiStyle.section(SECTION_WIDTH, SECTION_HEIGHT)
-                .name("island_collector_storage_section")
-                .pos(CONTENT_LEFT, BODY_Y);
-
-        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.headerBackdrop())
+        panel.child(new IDrawable.DrawableWidget(new Rectangle().color(HEADER_FILL))
                 .name("island_collector_header_backdrop")
                 .size(WIDTH, HEADER_HEIGHT));
+
+        Flow storageSection = new Flow(GuiAxis.Y)
+                .name("island_collector_storage_section")
+                .background(new Rectangle().color(SECTION_FILL))
+                .size(SECTION_WIDTH, SECTION_HEIGHT)
+                .padding(5)
+                .pos(CONTENT_LEFT, BODY_Y);
         panel.child(storageSection);
-        panel.child(new IDrawable.DrawableWidget(ModularGuiStyle.colorStripe(hasFaction ? collector.colour : 0x4A4A4A))
+
+        panel.child(new IDrawable.DrawableWidget(new Rectangle().color(0xFF000000 | ((hasFaction ? collector.colour : 0x4A4A4A) & 0x00FFFFFF)))
                 .name("island_collector_color_stripe")
                 .size(6, HEIGHT));
-        panel.child(ModularGuiStyle.panelCloseButton(WIDTH));
+        panel.child(ButtonWidget.panelCloseButton().name("panel_close_button").pos(WIDTH - 18, 8).size(10));
 
-        panel.child(IKey.str("Faction Yield Storage").asWidget()
+        panel.child(Text.str("Faction Yield Storage").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)
-                .style(TextFormatting.BOLD)
-                .color(ModularGuiStyle.TEXT_PRIMARY)
+                .style(ChatFormatting.BOLD)
+                .color(TEXT_PRIMARY)
                 .shadow(true)
                 .scale(1.15f));
-        panel.child(IKey.str(hasFaction ? collector.factionName : "Unclaimed").asWidget()
+        panel.child(Text.str(hasFaction ? collector.factionName : "Unclaimed").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y + 15)
-                .style(TextFormatting.BOLD)
-                .color(hasFaction ? collector.colour : ModularGuiStyle.TEXT_SECONDARY));
+                .style(ChatFormatting.BOLD)
+                .color(hasFaction ? collector.colour : TEXT_SECONDARY));
 
-        storageSection.child(IKey.str("Collected Yield").asWidget()
+        storageSection.child(Text.str("Collected Yield").asWidget()
                 .margin(0, 0, 0, 4)
-                .style(TextFormatting.BOLD)
-                .color(ModularGuiStyle.TEXT_PRIMARY));
+                .style(ChatFormatting.BOLD)
+                .color(TEXT_PRIMARY));
 
-        ListWidget list = new ListWidget();
-        list.scrollDirection(GuiAxis.Y)
-                .name("island_collector_list")
-                .background(ModularGuiStyle.insetBackdrop())
-                .width(LIST_WIDTH)
-                .height(LIST_HEIGHT);
+        ListWidget<IWidget, ?> list = new ListWidget<>();
+        list.scrollDirection(GuiAxis.Y);
+        list.background(new Rectangle().color(INSET_FILL));
+        list.width(LIST_WIDTH);
+        list.height(LIST_HEIGHT);
+        list.name("island_collector_list");
 
         int rows = (slots + COLUMNS - 1) / COLUMNS;
         for (int row = 0; row < rows; row++) {
             list.addChild(buildRow(storage, row, slots), row);
         }
         storageSection.child(list);
-
-        panel.child(ModularGuiStyle.playerInventoryPanel(HEIGHT));
 
         return panel;
     }

@@ -1,31 +1,16 @@
 package com.flansmod.warforge.server;
 
-import net.minecraft.entity.Entity;
-import net.minecraft.world.Teleporter;
-import net.minecraft.world.WorldServer;
+import java.util.function.Function;
 
-public class WfTeleporter extends Teleporter {
-    public WfTeleporter(WorldServer world) {
-        super(world);
-    }
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
+import net.minecraftforge.common.util.ITeleporter;
 
-    @Override
-    public void placeInPortal(Entity entity, float yaw) {
-    }
+public class WfTeleporter implements ITeleporter {
 
     @Override
-    public boolean placeInExistingPortal(Entity entity, float yaw) {
-        return false;
-    }
-
-    @Override
-    public boolean makePortal(Entity entity) {
-        return false; // No new portal creation
-    }
-
-    @Override
-    public void removeStalePortalLocations(long worldTime) {
+    public Entity placeEntity(Entity entity, ServerLevel currentWorld, ServerLevel destWorld, float yaw, Function<Boolean, Entity> repositionEntity) {
+        // No portal handling; just reposition the entity into the destination dimension at the default spot.
+        return repositionEntity.apply(false);
     }
 }
-
-

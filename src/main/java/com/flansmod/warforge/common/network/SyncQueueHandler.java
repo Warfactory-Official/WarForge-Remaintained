@@ -1,17 +1,17 @@
 package com.flansmod.warforge.common.network;
 
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraftforge.fml.common.gameevent.TickEvent;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraftforge.event.TickEvent;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 public class SyncQueueHandler {
     public static class SyncTask {
-        public final EntityPlayerMP player;
+        public final ServerPlayer player;
         public final Runnable runnable;
 
-        public SyncTask(EntityPlayerMP player, Runnable runnable) {
+        public SyncTask(ServerPlayer player, Runnable runnable) {
             this.player = player;
             this.runnable = runnable;
         }
@@ -20,7 +20,7 @@ public class SyncQueueHandler {
     private static final Deque<SyncTask> syncTasks = new ArrayDeque<>();
     public static final int perTick  = 4;
 
-    public static void enqueue(EntityPlayerMP player, Runnable task) {
+    public static void enqueue(ServerPlayer player, Runnable task) {
         if (player == null || player.hasDisconnected()) return;
         syncTasks.add(new SyncTask(player, task));
     }

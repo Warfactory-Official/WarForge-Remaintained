@@ -1,11 +1,18 @@
 package com.flansmod.warforge.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
-import com.flansmod.warforge.client.util.RenderUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
@@ -19,39 +26,40 @@ import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
-import com.flansmod.warforge.server.StackComparable;
+import com.flansmod.warforge.server.ItemMatcher;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
-import net.minecraft.block.Block;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.gui.Gui;
-import net.minecraft.client.model.ModelBanner;
-import net.minecraft.client.renderer.*;
-import net.minecraft.client.renderer.block.model.ItemCameraTransforms;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.client.resources.I18n;
-import net.minecraft.client.settings.KeyBinding;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemBlock;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumHand;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.RayTraceResult;
-import net.minecraft.util.text.TextComponentString;
-import net.minecraft.world.World;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.client.event.RenderGameOverlayEvent.ElementType;
-import net.minecraftforge.client.event.RenderWorldLastEvent;
-import net.minecraftforge.fml.client.registry.ClientRegistry;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import net.minecraftforge.fml.common.gameevent.TickEvent.ClientTickEvent;
-import net.minecraftforge.fml.common.network.FMLNetworkEvent;
-import net.minecraftforge.fml.common.registry.ForgeRegistries;
-import org.lwjgl.input.Keyboard;
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.resources.language.I18n;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.BlockItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
+import net.minecraftforge.client.event.RenderGuiEvent;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.client.settings.KeyConflictContext;
+import net.minecraftforge.client.settings.KeyModifier;
+import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.TickEvent.ClientTickEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import org.joml.Matrix4f;
+import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -73,58 +81,45 @@ public class ClientTickHandler {
     public static long nextSiegeDayMs = 0L;
     public static long nextYieldDayMs = 0L;
     public static long timerSiegeEndStamp = 0L;
-   	public static boolean CLAIMS_DIRTY = false;
+    public static boolean CLAIMS_DIRTY = false;
     public static boolean UI_DEBUG = false;
     public static boolean TIMER_DEBUG = false;
     public static boolean showVeinOverlay = true;
-    private final Tessellator tess;
-    private DimChunkPos playerChunkPos = new DimChunkPos(0, 0, 0);
-    private DimChunkPos lastClaimSyncChunk = new DimChunkPos(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE);
+    private DimChunkPos playerChunkPos = new DimChunkPos(Level.OVERWORLD, 0, 0);
+    private DimChunkPos lastClaimSyncChunk = new DimChunkPos(Level.OVERWORLD, Integer.MIN_VALUE, Integer.MIN_VALUE);
     private float newAreaToastTime = 0;
     private String areaMessage = "";
     private int areaMessageColour = 0xFF_FF_FF_FF;
     private String areaFlagId = "";
     private HashMap<DimChunkPos, BorderRenderData> renderData = new HashMap<>();
 
-	// -1 indicates the chunk wasn't the targeting of previous probe(s)
-	private static ArrayList<String> cachedCompStrings = null;
-	private static Object2LongOpenHashMap<DimChunkPos> permitChunkReprobeMs = new Object2LongOpenHashMap<>();
-	private static long lastRenderStartTimeMs = -1;  // (curr time - this) / (display time (ms)) to get index
-	private static Iterator<StackComparable> compIt = null;
-	private static StackComparable currComp = null;
+    // -1 indicates the chunk wasn't the targeting of previous probe(s)
+    private static ArrayList<String> cachedCompStrings = null;
+    private static Object2LongOpenHashMap<DimChunkPos> permitChunkReprobeMs = new Object2LongOpenHashMap<>();
+    private static long lastRenderStartTimeMs = -1;  // (curr time - this) / (display time (ms)) to get index
+    private static Iterator<ItemMatcher> compIt = null;
+    private static ItemMatcher currComp = null;
 
     public ClientTickHandler() {
-        tess = Tessellator.getInstance();
-        toggleBordersKey = new KeyBinding("key.warforge.showborders", Keyboard.KEY_B, "key.warforge.cathegory");
-		ClientRegistry.registerKeyBinding(toggleBordersKey);
-        claimManagerKey = new KeyBinding("key.warforge.claimmanager", Keyboard.KEY_M, "key.warforge.cathegory");
-        ClientRegistry.registerKeyBinding(claimManagerKey);
-        toggleVeinOverlayKey = new KeyBinding("key.warforge.toggleveinoverlay", Keyboard.KEY_O, "key.warforge.cathegory");
-        ClientRegistry.registerKeyBinding(toggleVeinOverlayKey);
+    }
 
-	}
-    public static KeyBinding toggleBordersKey;
-    public static KeyBinding claimManagerKey;
-    public static KeyBinding toggleVeinOverlayKey;
+    public static KeyMapping toggleBordersKey = new KeyMapping("key.warforge.showborders", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, "key.warforge.cathegory");
+    public static KeyMapping claimManagerKey = new KeyMapping("key.warforge.claimmanager", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_M, "key.warforge.cathegory");
+    public static KeyMapping toggleVeinOverlayKey = new KeyMapping("key.warforge.toggleveinoverlay", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "key.warforge.cathegory");
 
     private void cleanupBorderRenderData() {
-        for (BorderRenderData data : renderData.values()) {
-            if (data.renderList > 0) {
-               Minecraft.getMinecraft().addScheduledTask( () -> GlStateManager.glDeleteLists(data.renderList, 1));
-            }
-        }
         renderData.clear();
     }
 
     @SubscribeEvent
-    public void onPlayerLogin(FMLNetworkEvent.ClientConnectedToServerEvent event) {
+    public void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
         // init and clear stale data
-		permitChunkReprobeMs = new Object2LongOpenHashMap<>();
-		permitChunkReprobeMs.defaultReturnValue(-1);
-		lastRenderStartTimeMs = -1;
-		compIt = null;
-		currComp = null;
-		cachedCompStrings = null;
+        permitChunkReprobeMs = new Object2LongOpenHashMap<>();
+        permitChunkReprobeMs.defaultReturnValue(-1);
+        lastRenderStartTimeMs = -1;
+        compIt = null;
+        currComp = null;
+        cachedCompStrings = null;
         cleanupBorderRenderData();
 
         // clear stale data
@@ -135,25 +130,35 @@ public class ClientTickHandler {
         ServerTerrainCache.clear();
         ClaimManagerGuiFactory.resetSiegeState();
         ClientFlagRegistry.clear();
-        ClientClaimChunkCache.replaceAll(0, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
+        ClientClaimChunkCache.replaceAll(Level.OVERWORLD, 0, 0, 0, Faction.nullUuid, 0, 0, 0, 0, new ArrayList<ClaimChunkInfo>());
         CLAIMS_DIRTY = true;
         showVeinOverlay = true;
         areaFlagId = "";
     }
 
     @SubscribeEvent
-    public void onPlayerLogout(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+    public void onPlayerLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         cleanupBorderRenderData();
-        Minecraft.getMinecraft().addScheduledTask(ChunkMapTextureDaemon::releaseAll);
+        Minecraft.getInstance().tell(ChunkMapTextureDaemon::releaseAll);
         ServerTerrainCache.clear();
         ClaimManagerGuiFactory.resetSiegeState();
         ClientFlagRegistry.clear();
     }
 
     @SubscribeEvent
+    public void onScreenInit(ScreenEvent.Init.Post event) {
+        DeferredGuiOpen.onScreenOpened();
+    }
+
+    @SubscribeEvent
     public void onTick(ClientTickEvent tick) {
-        Minecraft mc = Minecraft.getMinecraft();
-        if (mc.world == null || mc.player == null) return;
+        if (tick.phase != TickEvent.Phase.END) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) return;
+
+        // Open any sub-GUI requested from inside another MUI screen (see DeferredGuiOpen).
+        DeferredGuiOpen.tick();
 
         // Handle client packets and perform the client-side tick
         WarForgeMod.NETWORK.handleClientPackets();
@@ -185,92 +190,87 @@ public class ClientTickHandler {
             newAreaToastTime--;
         }
 
-        // Avoid calling Minecraft.getMinecraft() multiple times
-        EntityPlayerSP player = Minecraft.getMinecraft().player;
-        if (player != null && player.ticksExisted % 200 == 0) {
+        LocalPlayer player = mc.player;
+        if (player.tickCount % 200 == 0) {
             CLAIMS_DIRTY = true;
         }
 
-        if (player != null) {
-            DimChunkPos standing = new DimChunkPos(player.dimension, player.getPosition());
+        ResourceKey<Level> playerDim = player.level().dimension();
+        DimChunkPos standing = new DimChunkPos(playerDim, player.blockPosition());
 
-            // when we leave a chunk, restart iteration on vein members
+        // when we leave a chunk, restart iteration on vein members
+        if (!standing.equals(playerChunkPos)) {
+            lastRenderStartTimeMs = -1;
+        }
+
+        boolean guiOpen = mc.screen != null;
+        if (!guiOpen) {
+            if (!standing.equals(lastClaimSyncChunk) || player.tickCount % 40 == 0) {
+                requestClaimChunkData(standing);
+                lastClaimSyncChunk = standing;
+            }
+        } else if (player.tickCount % 40 == 0 && lastClaimSyncChunk.dim.equals(playerDim)
+                && !ClaimManagerGuiFactory.isRemoteSiegeView()) {
+            // While a stage-2 siege picker is open on a remote target, don't clobber its
+            // target-centered claim window with a player-centered refresh.
+            requestClaimChunkData(lastClaimSyncChunk);
+        }
+
+        if (claimManagerKey.consumeClick()) {
+            ClaimManagerGuiFactory.resetSiegeState();
+            ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
+        }
+
+        if (toggleBordersKey.consumeClick()) {
+            WarForgeMod.showBorders = !WarForgeMod.showBorders;
+            player.sendSystemMessage(Component.literal("Borders " + (WarForgeMod.showBorders ? "enabled" : "disabled")));
+        }
+
+        if (toggleVeinOverlayKey.consumeClick()) {
+            toggleVeinOverlay(player);
+        }
+
+        // Show new area timer if configured
+        if (WarForgeConfig.SHOW_NEW_AREA_TIMER > 0.0f) {
+
+            // Only perform claim checks if the player has moved to a new chunk
             if (!standing.equals(playerChunkPos)) {
-				lastRenderStartTimeMs = -1;
-            }
+                ClaimChunkInfo preClaim = ClientClaimChunkCache.get(playerChunkPos);
+                ClaimChunkInfo postClaim = ClientClaimChunkCache.get(standing);
+                boolean hadPreClaim = preClaim != null && !preClaim.factionId.equals(Faction.nullUuid);
+                boolean hasPostClaim = postClaim != null && !postClaim.factionId.equals(Faction.nullUuid);
 
-
-            boolean guiOpen = Minecraft.getMinecraft().currentScreen != null;
-            if (!guiOpen) {
-                if (!standing.equals(lastClaimSyncChunk) || player.ticksExisted % 40 == 0) {
-                    requestClaimChunkData(standing);
-                    lastClaimSyncChunk = standing;
-                }
-            } else if (player.ticksExisted % 40 == 0 && lastClaimSyncChunk.dim == player.dimension
-                    && !ClaimManagerGuiFactory.isRemoteSiegeView()) {
-                // While a stage-2 siege picker is open on a remote target, don't clobber its
-                // target-centered claim window with a player-centered refresh.
-                requestClaimChunkData(lastClaimSyncChunk);
-            }
-
-            if (claimManagerKey.isPressed()) {
-                ClaimManagerGuiFactory.resetSiegeState();
-                ClaimManagerGuiFactory.INSTANCE.openClient(standing, WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
-            }
-
-            if (toggleBordersKey.isPressed()) {
-                WarForgeMod.showBorders = !WarForgeMod.showBorders;
-                player.sendMessage(new TextComponentString("Borders " + (WarForgeMod.showBorders ? "enabled" : "disabled")));
-            }
-
-            if (toggleVeinOverlayKey.isPressed()) {
-                toggleVeinOverlay(player);
-            }
-
-            // Show new area timer if configured
-            if (WarForgeConfig.SHOW_NEW_AREA_TIMER > 0.0f) {
-
-                // Only perform claim checks if the player has moved to a new chunk
-                if (!standing.equals(playerChunkPos)) {
-                    ClaimChunkInfo preClaim = ClientClaimChunkCache.get(playerChunkPos);
-                    ClaimChunkInfo postClaim = ClientClaimChunkCache.get(standing);
-                    boolean hadPreClaim = preClaim != null && !preClaim.factionId.equals(Faction.nullUuid);
-                    boolean hasPostClaim = postClaim != null && !postClaim.factionId.equals(Faction.nullUuid);
-
-                    // Generate area message only if needed (reduce redundant logic)
-                    if (!hadPreClaim) {
-                        if (hasPostClaim) {
-                            // Entered a new claim
-                            areaMessage = "Entering " + postClaim.factionName;
+                // Generate area message only if needed (reduce redundant logic)
+                if (!hadPreClaim) {
+                    if (hasPostClaim) {
+                        // Entered a new claim
+                        areaMessage = "Entering " + postClaim.factionName;
+                        areaMessageColour = postClaim.colour;
+                        areaFlagId = postClaim.flagId;
+                        newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
+                    }
+                } else // Left a claim
+                {
+                    if (!hasPostClaim) {
+                        // Gone nowhere
+                        areaMessage = "Leaving " + preClaim.factionName;
+                        areaMessageColour = preClaim.colour;
+                        areaFlagId = "";
+                        newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
+                    } else {
+                        // Entered another claim, possibly different faction
+                        if (!preClaim.factionId.equals(postClaim.factionId)) {
+                            areaMessage = "Leaving " + preClaim.factionName + ", Entering " + postClaim.factionName;
                             areaMessageColour = postClaim.colour;
                             areaFlagId = postClaim.flagId;
                             newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
                         }
-                    } else // Left a claim
-                    {
-                        if (!hasPostClaim) {
-                            // Gone nowhere
-                            areaMessage = "Leaving " + preClaim.factionName;
-                            areaMessageColour = preClaim.colour;
-                            areaFlagId = "";
-                            newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
-                        } else {
-                            // Entered another claim, possibly different faction
-                            if (!preClaim.factionId.equals(postClaim.factionId)) {
-                                areaMessage = "Leaving " + preClaim.factionName + ", Entering " + postClaim.factionName;
-                                areaMessageColour = postClaim.colour;
-                                areaFlagId = postClaim.flagId;
-                                newAreaToastTime = WarForgeConfig.SHOW_NEW_AREA_TIMER;
-                            }
-                        }
                     }
-
-                    playerChunkPos = standing;
                 }
+
+                playerChunkPos = standing;
             }
         }
-
-
     }
 
     private void requestClaimChunkData(DimChunkPos center) {
@@ -281,58 +281,54 @@ public class ClientTickHandler {
     }
 
     @SubscribeEvent
-    public void onRenderHUD(RenderGameOverlayEvent event) {
-        Minecraft mc = Minecraft.getMinecraft();
-        if (mc.world == null || mc.player == null) return;
+    public void onRenderHUD(RenderGuiEvent.Post event) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null) return;
 
-        ScreenSpaceUtil.resetOffsets(event);
+        ScreenSpaceUtil.resetOffsets();
 
-        if (event.getType() == ElementType.BOSSHEALTH) {
-            EntityPlayerSP player = mc.player;
+        GuiGraphics graphics = event.getGuiGraphics();
+        float partialTicks = event.getPartialTick();
+        LocalPlayer player = mc.player;
 
-            if (player != null) {
+        // Siege camp info
+        SiegeCampProgressInfo infoToRender = !UI_DEBUG ? getClosestSiegeCampInfo(player) : SiegeCampProgressInfo.getDebugInfo();
 
-                // Siege camp info
-                SiegeCampProgressInfo infoToRender = !UI_DEBUG ? getClosestSiegeCampInfo(player) : SiegeCampProgressInfo.getDebugInfo();
+        if (infoToRender != null) {
+            renderSiegeOverlay(mc, graphics, infoToRender, partialTicks);
+        }
 
-                if (infoToRender != null) {
-                    renderSiegeOverlay(mc, infoToRender, event);
-                }
+        // Timer info
+        if (WarForgeConfig.SHOW_YIELD_TIMERS) {
+            renderTimers(mc, graphics);
+        }
 
-                // Timer info
-                if (WarForgeConfig.SHOW_YIELD_TIMERS) {
-                    renderTimers(mc);
-                }
+        // New Area Toast
+        if (newAreaToastTime > 0.0f) {
+            renderNewAreaToast(mc, graphics);
+        }
 
-                // New Area Toast
-                if (newAreaToastTime > 0.0f) {
-                    renderNewAreaToast(mc, event);
-                }
+        // get the vein info
+        if (showVeinOverlay) {
+            DimChunkPos currPos = new DimChunkPos(player.level().dimension(), player.blockPosition());
+            boolean hasPosData = CHUNK_VEIN_CACHE.isReceived(currPos);
+            boolean hasValidData = hasPosData && CHUNK_VEIN_CACHE.isRecognized(currPos);
+            Pair<Vein, Quality> veinInfo = CHUNK_VEIN_CACHE.get(currPos);
 
-				// get the vein info
-				if (showVeinOverlay) {
-					DimChunkPos currPos = new DimChunkPos(player.dimension, player.getPosition());
-					boolean hasPosData = CHUNK_VEIN_CACHE.isReceived(currPos);
-					boolean hasValidData = hasPosData && CHUNK_VEIN_CACHE.isRecognized(currPos);
-					Pair<Vein, Quality> veinInfo = CHUNK_VEIN_CACHE.get(currPos);
-
-					// probe the server for the data for this chunk
-					if (!hasValidData && permitChunkReprobeMs.getLong(currPos) <= System.currentTimeMillis()) {
-						WarForgeMod.LOGGER.info("Pinging server for chunk vein info");
-						permitChunkReprobeMs.put(currPos, System.currentTimeMillis() + 5000);  // only ping every 5s as needed
-						PacketChunkPosVeinID packetChunkVeinRequest = new PacketChunkPosVeinID();
-						packetChunkVeinRequest.veinLocation = currPos;
-						WarForgeMod.NETWORK.sendToServer(packetChunkVeinRequest);
-					}
-
-					renderVeinData(mc, veinInfo, hasPosData, event);
-				}
-
+            // probe the server for the data for this chunk
+            if (!hasValidData && permitChunkReprobeMs.getLong(currPos) <= System.currentTimeMillis()) {
+                WarForgeMod.LOGGER.info("Pinging server for chunk vein info");
+                permitChunkReprobeMs.put(currPos, System.currentTimeMillis() + 5000);  // only ping every 5s as needed
+                PacketChunkPosVeinID packetChunkVeinRequest = new PacketChunkPosVeinID();
+                packetChunkVeinRequest.veinLocation = currPos;
+                WarForgeMod.NETWORK.sendToServer(packetChunkVeinRequest);
             }
+
+            renderVeinData(mc, graphics, veinInfo, hasPosData);
         }
     }
 
-    private void renderTimers(Minecraft mc) {
+    private void renderTimers(Minecraft mc, GuiGraphics graphics) {
         int screenWidth = ScreenSpaceUtil.RESOLUTIONX;
 
         int padding = 4;
@@ -343,21 +339,21 @@ public class ClientTickHandler {
         // Siege progress
         if (!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER || UI_DEBUG) {
             String siegeText = "Siege Progress: " + formatPaddedTimer(nextSiegeDayMs - System.currentTimeMillis());
-            int textWidth = mc.fontRenderer.getStringWidth(siegeText);
+            int textWidth = mc.font.width(siegeText);
             int x = ScreenSpaceUtil.shouldCenterX(pos) ? ScreenSpaceUtil.centerX(screenWidth, textWidth) : ScreenSpaceUtil.getX(pos, textWidth) + ScreenSpaceUtil.getXOffset(pos, padding);
             int ySiege = pos.getY() + ScreenSpaceUtil.getYOffset(pos, textHeight);
 
-            mc.fontRenderer.drawStringWithShadow(siegeText, x, ySiege, 0xffffff);
+            graphics.drawString(mc.font, siegeText, x, ySiege, 0xffffff, true);
             ScreenSpaceUtil.incrementY(pos, textHeight);
         }
 
         // Next yields
         String yieldText = "Next yields: " + formatPaddedTimer(nextYieldDayMs - System.currentTimeMillis());
-        int textWidth = mc.fontRenderer.getStringWidth(yieldText);
+        int textWidth = mc.font.width(yieldText);
         int x = ScreenSpaceUtil.shouldCenterX(pos) ? ScreenSpaceUtil.centerX(screenWidth, textWidth) : ScreenSpaceUtil.getX(pos, textWidth) + ScreenSpaceUtil.getXOffset(pos, padding);
         int yYield = pos.getY() + ScreenSpaceUtil.getYOffset(pos, textHeight);
 
-        mc.fontRenderer.drawStringWithShadow(yieldText, x, yYield, 0xffffff);
+        graphics.drawString(mc.font, yieldText, x, yYield, 0xffffff, true);
         ScreenSpaceUtil.incrementY(pos, textHeight);
     }
 
@@ -370,13 +366,14 @@ public class ClientTickHandler {
         return (d > 0 ? (d) + " days, " : "") + String.format("%02d", (h % 24)) + ":" + String.format("%02d", (m % 60)) + ":" + String.format("%02d", (s % 60));
     }
 
-    private SiegeCampProgressInfo getClosestSiegeCampInfo(EntityPlayerSP player) {
+    private SiegeCampProgressInfo getClosestSiegeCampInfo(LocalPlayer player) {
         SiegeCampProgressInfo closestInfo = null;
         double bestDistanceSq = Double.MAX_VALUE;
 
+        ResourceKey<Level> playerDim = player.level().dimension();
         for (SiegeCampProgressInfo info : ClientProxy.sSiegeInfo.values()) {
-            double distSq = info.defendingPos.distanceSq(player.posX, player.posY, player.posZ);
-            if (info.defendingPos.dim == player.dimension && distSq < WarForgeConfig.SIEGE_INFO_RADIUS * WarForgeConfig.SIEGE_INFO_RADIUS) {
+            double distSq = info.defendingPos.distSqr(new BlockPos((int) player.getX(), (int) player.getY(), (int) player.getZ()));
+            if (info.defendingPos.dim.equals(playerDim) && distSq < WarForgeConfig.SIEGE_INFO_RADIUS * WarForgeConfig.SIEGE_INFO_RADIUS) {
                 if (distSq < bestDistanceSq) {
                     bestDistanceSq = distSq;
                     closestInfo = info;
@@ -387,230 +384,201 @@ public class ClientTickHandler {
         return closestInfo;
     }
 
-	private void renderVeinData(Minecraft mc, Pair<Vein, Quality> veinInfo, boolean hasData, RenderGameOverlayEvent event) {
-		GlStateManager.enableAlpha();
-		GlStateManager.enableBlend();
+    private void renderVeinData(Minecraft mc, GuiGraphics graphics, Pair<Vein, Quality> veinInfo, boolean hasData) {
+        // even if we aren't rendering, count up start time to indicate we are within the same chunk as before
+        boolean isNewChunk = lastRenderStartTimeMs == -1;
+        long currTimeMs = System.currentTimeMillis();
 
-		// even if we aren't rendering, count up start time to indicate we are within the same chunk as before
-		boolean isNewChunk = lastRenderStartTimeMs == -1;
-		long currTimeMs = System.currentTimeMillis();
+        // even though intelliJ thinks veinInfo is never null, it definitely should be able to be
+        // we render either the item, or some waiting icon
+        ItemStack currMemberItemStack = null;
+        boolean hasItemToRender = veinInfo != null && veinInfo.getLeft() != null && veinInfo.getLeft().compIds.size() > 0;
+        if (hasItemToRender) {
+            // initialize render info
+            if (lastRenderStartTimeMs == -1) {
+                lastRenderStartTimeMs = currTimeMs;
+                compIt = veinInfo.getLeft().compIds.iterator();  // LinkedHashSet should give a consistent ordering
+                currComp = compIt.next();
+            }
 
-		// even though intelliJ thinks veinInfo is never null, it definitely should be able to be
-		// we render either the item, or some waiting icon
-		ItemStack currMemberItemStack = null;
-		boolean hasItemToRender = veinInfo != null && veinInfo.getLeft() != null && veinInfo.getLeft().compIds.size() > 0;
-		if (hasItemToRender)  {
-			// initialize render info
-			if (lastRenderStartTimeMs == -1) {
-				lastRenderStartTimeMs = currTimeMs;
-				compIt = veinInfo.getLeft().compIds.iterator();  // LinkedHashSet should give a consistent ordering
-				currComp = compIt.next();
-			}
+            // check if the display time is up
+            else if (currTimeMs - lastRenderStartTimeMs > WarForgeConfig.VEIN_MEMBER_DISPLAY_TIME_MS) {
+                lastRenderStartTimeMs = currTimeMs;  // we are updating the component that we are rendering
+                if (!compIt.hasNext()) { compIt = veinInfo.getLeft().compIds.iterator(); } // restart from beginning
+                currComp = compIt.next();
+            }
 
-			// check if the display time is up
-			else if (currTimeMs - lastRenderStartTimeMs > WarForgeConfig.VEIN_MEMBER_DISPLAY_TIME_MS) {
-				lastRenderStartTimeMs = currTimeMs;  // we are updating the component that we are rendering
-				if (!compIt.hasNext()) { compIt = veinInfo.getLeft().compIds.iterator(); } // restart from beginning
-				currComp = compIt.next();
-			}
+            currMemberItemStack = currComp.toStack();
 
-			currMemberItemStack = currComp.toItem();
+            if (currMemberItemStack.isEmpty()) {
+                WarForgeMod.LOGGER.atError().log("Got unexpected null stack for vein " + veinInfo.getLeft().toString());
+                return;
+            }
+        }
 
-			if (currMemberItemStack == null) {
-				WarForgeMod.LOGGER.atError().log("Got unexpected null stack for vein " + veinInfo.getLeft().toString());
-				return;
-			}
-		}
-
-		// either use the cached string or make a new one if either no cached exists or we are in a new chunk
-		ArrayList<String> compInfoStrings = cachedCompStrings;
-		if (cachedCompStrings == null || isNewChunk) {
-			compInfoStrings = createVeinInfoStrings(veinInfo, hasData);
-		}
+        // either use the cached string or make a new one if either no cached exists or we are in a new chunk
+        ArrayList<String> compInfoStrings = cachedCompStrings;
+        if (cachedCompStrings == null || isNewChunk) {
+            compInfoStrings = createVeinInfoStrings(veinInfo, hasData);
+        }
 
         ScreenSpaceUtil.ScreenPos veinPos = WarForgeConfig.POS_VEIN_INDICATOR;
-		final int imageSize = hasItemToRender ? 24 : 0;
+        final int imageSize = hasItemToRender ? 24 : 0;
 
-		// draw the vein info
+        // draw the vein info
         final int textHeight = ScreenSpaceUtil.TEXTHEIGHT;
-        final int veinTitleWidth = mc.fontRenderer.getStringWidth(compInfoStrings.get(0));
+        final int veinTitleWidth = mc.font.width(compInfoStrings.get(0));
         final int titleX = ScreenSpaceUtil.getX(veinPos, veinTitleWidth);
         final int veinInfoHeight = Math.max(textHeight, (textHeight + imageSize) / 2);
         final int titleY = ScreenSpaceUtil.getY(veinPos, veinInfoHeight) + 4 + (veinInfoHeight - textHeight);
         final int imageX = titleX - imageSize / 2;  // offset the image to the left of the title + gap
 
         if (titleY > WarForgeConfig.HUD_VERT_CUTOFF_PERCENT * ScreenSpaceUtil.RESOLUTIONY) { return; }  // don't overdraw onto main part of screen
-		mc.fontRenderer.drawStringWithShadow(compInfoStrings.get(0), titleX, titleY, 0xFFFFFF);
+        graphics.drawString(mc.font, compInfoStrings.get(0), titleX, titleY, 0xFFFFFF, true);
         veinPos.incrementY(textHeight);
 
-		// draw the item
-		if (currMemberItemStack != null) {
-			// prepare to render
-			GlStateManager.pushMatrix();
-			RenderHelper.disableStandardItemLighting();
-			GlStateManager.enableDepth();
+        // draw the item
+        if (currMemberItemStack != null) {
+            // 16x16 base item icon scaled to imageSize, centered to the left of the title text
+            PoseStack pose = graphics.pose();
+            pose.pushPose();
+            pose.translate(imageX - 4 - imageSize / 2f, titleY + textHeight / 2f - imageSize / 2f, 0);
+            pose.scale(imageSize / 16f, imageSize / 16f, 1f);
+            graphics.renderItem(currMemberItemStack, 0, 0);
+            pose.popPose();
+        }
 
-			// render the item
-            // y offset is position of dead center of image, so we need to offset down to align with the text
-			GlStateManager.translate(imageX - 4, titleY + textHeight / 2f, 0);
-			GlStateManager.scale(imageSize, imageSize, 1);
-			GlStateManager.rotate(180, 0, 1, 0);
-			GlStateManager.rotate(180, 0, 0, 1);
-
-			RenderItem renderItem = Minecraft.getMinecraft().getRenderItem();
-			renderItem.renderItem(currMemberItemStack, ItemCameraTransforms.TransformType.GUI);
-
-			// disable the things we just used
-			GlStateManager.disableDepth();
-			RenderHelper.enableStandardItemLighting();
-			GlStateManager.disableLighting();
-			GlStateManager.popMatrix();
-		}
-
-		// draw the component strings
-		for (int i = 1; i < compInfoStrings.size(); ++i) {
+        // draw the component strings
+        for (int i = 1; i < compInfoStrings.size(); ++i) {
             // we want the components to look left aligned and indented
-			String currFormattedComp = compInfoStrings.get(i);
-			mc.fontRenderer.drawStringWithShadow(currFormattedComp, titleX + 4, veinPos.getY(), 0xFFFFFF);
+            String currFormattedComp = compInfoStrings.get(i);
+            graphics.drawString(mc.font, currFormattedComp, titleX + 4, veinPos.getY(), 0xFFFFFF, true);
             veinPos.incrementY(textHeight);
-		}
-	}
+        }
+    }
 
-    private void toggleVeinOverlay(EntityPlayerSP player) {
+    private void toggleVeinOverlay(LocalPlayer player) {
         showVeinOverlay = !showVeinOverlay;
         lastRenderStartTimeMs = -1;
         cachedCompStrings = null;
         compIt = null;
         currComp = null;
 
-        player.sendMessage(new TextComponentString(I18n.format(
+        player.sendSystemMessage(Component.literal(I18n.get(
                 showVeinOverlay ? "warforge.info.vein.toggle.enabled" : "warforge.info.vein.toggle.disabled")));
     }
 
-	private ArrayList<String> createVeinInfoStrings(Pair<Vein, Quality> veinInfo, boolean hasCached) {
-		ArrayList<String> result = new ArrayList<>(1);
+    private ArrayList<String> createVeinInfoStrings(Pair<Vein, Quality> veinInfo, boolean hasCached) {
+        ArrayList<String> result = new ArrayList<>(1);
 
-		// handle no data specially
-		if (!hasCached) {
-			result.add(I18n.format("warforge.info.vein.waiting"));
-			return result;
-		}
+        // handle no data specially
+        if (!hasCached) {
+            result.add(I18n.get("warforge.info.vein.waiting"));
+            return result;
+        }
 
-		// handle null veins specially
-		if (veinInfo == null) {
-			result.add(I18n.format("warforge.info.vein.null"));
-			return result;
-		}
+        // handle null veins specially
+        if (veinInfo == null) {
+            result.add(I18n.get("warforge.info.vein.null"));
+            return result;
+        }
 
-		// translate and format the vein name by supplying the localized quality name as an argument
-		Vein currVein = veinInfo.getLeft();
-		Quality currQual = veinInfo.getRight();
+        // translate and format the vein name by supplying the localized quality name as an argument
+        Vein currVein = veinInfo.getLeft();
+        Quality currQual = veinInfo.getRight();
 
-		// handle unrecognized veins specially
-		if (currVein == null || currQual == null) {
-			result.add(I18n.format("warforge.info.vein.unrecognized"));
-			return result;
-		}
+        // handle unrecognized veins specially
+        if (currVein == null || currQual == null) {
+            result.add(I18n.get("warforge.info.vein.unrecognized"));
+            return result;
+        }
 
         // vein is now guaranteed valid and received; prepare formatted data for display
-		result.add(I18n.format(currVein.translationKey,
-                I18n.format(currQual.getTranslationKey()) + " [" + currQual.getMultString(currVein) + "]"));
-		int dim = Minecraft.getMinecraft().player.dimension;
+        result.add(I18n.get(currVein.translationKey,
+                I18n.get(currQual.getTranslationKey()) + " [" + currQual.getMultString(currVein) + "]"));
+        ResourceKey<Level> dim = Minecraft.getInstance().player.level().dimension();
 
-		// turn each component into the item we will be displaying and list them
-		for (StackComparable currComp : currVein.compIds) {
-			ItemStack currStack = currComp.toItem();
-			if (currStack == null) {
-				WarForgeMod.LOGGER.atError().log("Couldn't find item with component id " +
-						currComp + " in vein " + currVein.translationKey);
-				continue;
-			}
+        // turn each component into the item we will be displaying and list them
+        for (ItemMatcher currComp : currVein.compIds) {
+            ItemStack currStack = currComp.toStack();
+            if (currStack.isEmpty()) {
+                WarForgeMod.LOGGER.atError().log("Couldn't find item with component id " +
+                        currComp + " in vein " + currVein.translationKey);
+                continue;
+            }
 
-			// janky work around for weird default minecraft items which sometimes decide to append .name to the key
-			// without updating the translation key the item itself returns
-			String translationKey = currStack.getItem().getTranslationKey();
-			if (!I18n.hasKey(translationKey) && I18n.hasKey(translationKey + ".name")) { translationKey += ".name"; }
+            // janky work around for weird default minecraft items which sometimes decide to append .name to the key
+            // without updating the translation key the item itself returns
+            String translationKey = currStack.getItem().getDescriptionId();
+            if (!I18n.exists(translationKey) && I18n.exists(translationKey + ".name")) { translationKey += ".name"; }
 
-			// if we got an item stack, translate it and display information about it
-			StringBuilder compInfo = new StringBuilder(I18n.format(translationKey));
-			parseCompInfo(compInfo, currComp, veinInfo, dim);
-			result.add(compInfo.toString());
-		}
+            // if we got an item stack, translate it and display information about it
+            StringBuilder compInfo = new StringBuilder(I18n.get(translationKey));
+            parseCompInfo(compInfo, currComp, veinInfo, dim);
+            result.add(compInfo.toString());
+        }
 
-		return result;
-	}
-
-	private void parseCompInfo(StringBuilder compInfoStr, StackComparable currComp, Pair<Vein, Quality> veinInfo, int dim) {
-		compInfoStr.append(":");
-		ArrayList<short[]> yieldInfos = VeinUtils.getYieldInfo(currComp, veinInfo, dim);  // weight, guaranteed yield, % extra yield
-
-		// format each subComp in the form <guaranteedYield# - %comp; +%extra> to show yield distribution for item
-		for (short[] subCompInfo : yieldInfos) {
-			// show the guaranteed yield info and component weight
-			compInfoStr.append(" <[");
-			compInfoStr.append(subCompInfo[1]);
-			compInfoStr.append("]-");
-			compInfoStr.append(VeinUtils.shortToPercentStr(subCompInfo[0]));
-
-			// if there is a chance for an extra yield, display as much
-			if (subCompInfo[2] > 0) {
-				compInfoStr.append("; +");
-				compInfoStr.append(VeinUtils.shortToPercentStr(subCompInfo[2]));
-			}
-
-			compInfoStr.append(">,");  // setup next sub comp
-		}
-
-		// there will be an extra comma at the end
-		compInfoStr.deleteCharAt(compInfoStr.length() - 1);
-	}
-
-	private void renderSiegeOverlay(Minecraft mc, SiegeCampProgressInfo infoToRender, RenderGameOverlayEvent event) {
-		GlStateManager.enableAlpha();
-		GlStateManager.enableBlend();
-
-		// Colors for attacking and defending
-		float attackR = (float)(infoToRender.attackingColour >> 16 & 255) / 255.0F;
-		float attackG = (float)(infoToRender.attackingColour >> 8 & 255) / 255.0F;
-		float attackB = (float)(infoToRender.attackingColour & 255) / 255.0F;
-		float defendR = (float)(infoToRender.defendingColour >> 16 & 255) / 255.0F;
-		float defendG = (float)(infoToRender.defendingColour >> 8 & 255) / 255.0F;
-		float defendB = (float)(infoToRender.defendingColour & 255) / 255.0F;
-
-		// Render Background and Bars
-        var pos = WarForgeConfig.POS_SIEGE;
-		int xText = ScreenSpaceUtil.getX(pos, 256);  // 256 = width of bar
-		int yText = ScreenSpaceUtil.getY(pos, 40);   // 40 = total height (bar + text)
-
-		float scroll = (mc.getFrameTimer().getIndex() + event.getPartialTicks()) * 0.25f;
-		scroll = scroll % 10;
-
-        mc.renderEngine.bindTexture(siegeprogress);
-        GlStateManager.color(1f, 1f, 1f, 1f);
-        RenderUtil.drawTexturedModalRect(tess, xText, yText, 0, 0, 256, 30);
-
-        renderSiegeProgressBar(mc, infoToRender, xText, yText, attackR, attackG, attackB, defendR, defendG, defendB, scroll);
-        renderSiegeNotches(mc, infoToRender, xText, yText);
-
-        renderSiegeText(mc, infoToRender, xText, yText);
-        if(WarForgeConfig.SIEGE_ENABLE_NEW_TIMER)
-            renderSiegeTimer(mc, infoToRender, xText, yText+5);
+        return result;
     }
 
-    private void renderSiegeTimer(Minecraft mc, SiegeCampProgressInfo infoToRender, int xText, int yText){
-        String siegeText = formatPaddedTimer( infoToRender.endTimestamp - System.currentTimeMillis() );
-        int textWidth = mc.fontRenderer.getStringWidth(siegeText);
-        int color =  infoToRender.endTimestamp - System.currentTimeMillis() < 60000 ? 0xFF0000 : 0xFFFFFF;
+    private void parseCompInfo(StringBuilder compInfoStr, ItemMatcher currComp, Pair<Vein, Quality> veinInfo, ResourceKey<Level> dim) {
+        compInfoStr.append(":");
+        ArrayList<short[]> yieldInfos = VeinUtils.getYieldInfo(currComp, veinInfo, dim);  // weight, guaranteed yield, % extra yield
 
-        mc.fontRenderer.drawStringWithShadow(siegeText, xText+(128-textWidth/2), yText + 28, color);
-        if(TIMER_DEBUG){
-            mc.fontRenderer.drawStringWithShadow( "End timestamp :"+ infoToRender.endTimestamp, xText-textWidth, yText + 30, 0xFFFFFF);
-            mc.fontRenderer.drawStringWithShadow("Raw timestamp difference: "+ (infoToRender.endTimestamp - System.currentTimeMillis()), xText-textWidth, yText + 40, 0xFFFFFF);
+        // format each subComp in the form <guaranteedYield# - %comp; +%extra> to show yield distribution for item
+        for (short[] subCompInfo : yieldInfos) {
+            // show the guaranteed yield info and component weight
+            compInfoStr.append(" <[");
+            compInfoStr.append(subCompInfo[1]);
+            compInfoStr.append("]-");
+            compInfoStr.append(VeinUtils.shortToPercentStr(subCompInfo[0]));
+
+            // if there is a chance for an extra yield, display as much
+            if (subCompInfo[2] > 0) {
+                compInfoStr.append("; +");
+                compInfoStr.append(VeinUtils.shortToPercentStr(subCompInfo[2]));
+            }
+
+            compInfoStr.append(">,");  // setup next sub comp
+        }
+
+        // there will be an extra comma at the end
+        compInfoStr.deleteCharAt(compInfoStr.length() - 1);
+    }
+
+    private void renderSiegeOverlay(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo infoToRender, float partialTicks) {
+        // Render Background and Bars
+        var pos = WarForgeConfig.POS_SIEGE;
+        int xText = ScreenSpaceUtil.getX(pos, 256);  // 256 = width of bar
+        int yText = ScreenSpaceUtil.getY(pos, 40);   // 40 = total height (bar + text)
+
+        // slowly scrolling progress fill, derived from wall-clock time for a smooth animation
+        float scroll = (float) ((System.currentTimeMillis() / 50.0 + partialTicks) * 0.25);
+        scroll = scroll % 10;
+
+        graphics.blit(siegeprogress, xText, yText, 0, 0, 256, 30, 256, 256);
+
+        renderSiegeProgressBar(graphics, infoToRender, xText, yText, scroll);
+        renderSiegeNotches(graphics, infoToRender, xText, yText);
+
+        renderSiegeText(mc, graphics, infoToRender, xText, yText);
+        if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER)
+            renderSiegeTimer(mc, graphics, infoToRender, xText, yText + 5);
+    }
+
+    private void renderSiegeTimer(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo infoToRender, int xText, int yText) {
+        String siegeText = formatPaddedTimer(infoToRender.endTimestamp - System.currentTimeMillis());
+        int textWidth = mc.font.width(siegeText);
+        int color = infoToRender.endTimestamp - System.currentTimeMillis() < 60000 ? 0xFF0000 : 0xFFFFFF;
+
+        graphics.drawString(mc.font, siegeText, xText + (128 - textWidth / 2), yText + 28, color, true);
+        if (TIMER_DEBUG) {
+            graphics.drawString(mc.font, "End timestamp :" + infoToRender.endTimestamp, xText - textWidth, yText + 30, 0xFFFFFF, true);
+            graphics.drawString(mc.font, "Raw timestamp difference: " + (infoToRender.endTimestamp - System.currentTimeMillis()), xText - textWidth, yText + 40, 0xFFFFFF, true);
         }
     }
 
-    private void renderSiegeProgressBar(Minecraft mc, SiegeCampProgressInfo infoToRender, int xText, int yText, float attackR, float attackG, float attackB, float defendR, float defendG, float defendB, float scroll) {
-        int xSize = 256;
+    private void renderSiegeProgressBar(GuiGraphics graphics, SiegeCampProgressInfo infoToRender, int xText, int yText, float scroll) {
         float siegeLength = infoToRender.completionPoint + 5;
         float notchDistance = 224 / siegeLength;
 
@@ -619,38 +587,38 @@ public class ClientTickHandler {
 
         boolean isIncreasing = infoToRender.progress > infoToRender.mPreviousProgress;
 
-        if (isIncreasing) {
-            GlStateManager.color(attackR, attackG, attackB, 1.0F);
-            RenderUtil.drawTexturedModalRect(tess, xText + 16 + firstPx, yText + 17, 16 + (10 - scroll), 44, lastPx - firstPx, 8);
-        } else {
-            GlStateManager.color(defendR, defendG, defendB, 1.0F);
-            RenderUtil.drawTexturedModalRect(tess, xText + 16 + firstPx, yText + 17, 16 + scroll, 54, lastPx - firstPx, 8);
-        }
+        int barColor = isIncreasing ? infoToRender.attackingColour : infoToRender.defendingColour;
+        float u = isIncreasing ? 16 + (10 - scroll) : 16 + scroll;
+        float v = isIncreasing ? 44 : 54;
+
+        graphics.setColor(((barColor >> 16 & 255) / 255.0F), ((barColor >> 8 & 255) / 255.0F), ((barColor & 255) / 255.0F), 1.0F);
+        graphics.blit(siegeprogress, xText + 16 + firstPx, yText + 17, u, v, lastPx - firstPx, 8, 256, 256);
+        graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    private void renderSiegeNotches(Minecraft mc, SiegeCampProgressInfo infoToRender, int xText, int yText) {
+    private void renderSiegeNotches(GuiGraphics graphics, SiegeCampProgressInfo infoToRender, int xText, int yText) {
         float notchDistance = (float) 224 / (infoToRender.completionPoint + 5);
 
         for (int i = -4; i < infoToRender.completionPoint; i++) {
             int x = (int) ((i + 5) * notchDistance + 16);
-            if (i == 0) RenderUtil.drawTexturedModalRect(tess, xText + x - 2, yText + 17, 6, 43, 5, 8);
-            else RenderUtil.drawTexturedModalRect(tess, xText + x - 2, yText + 17, 1, 43, 4, 8);
+            if (i == 0) graphics.blit(siegeprogress, xText + x - 2, yText + 17, 6, 43, 5, 8, 256, 256);
+            else graphics.blit(siegeprogress, xText + x - 2, yText + 17, 1, 43, 4, 8, 256, 256);
         }
     }
 
-    private void renderSiegeText(Minecraft mc, SiegeCampProgressInfo infoToRender, int xText, int yText) {
-        mc.fontRenderer.drawStringWithShadow(infoToRender.defendingName, xText + 6, yText + 6, infoToRender.defendingColour);
-        mc.fontRenderer.drawStringWithShadow("VS", xText + 128 - (float) mc.fontRenderer.getStringWidth("VS") / 2, yText + 6, 0xffffff);
-        mc.fontRenderer.drawStringWithShadow(infoToRender.attackingName, xText + 256 - 6 - mc.fontRenderer.getStringWidth(infoToRender.attackingName), yText + 6, infoToRender.attackingColour);
+    private void renderSiegeText(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo infoToRender, int xText, int yText) {
+        graphics.drawString(mc.font, infoToRender.defendingName, xText + 6, yText + 6, infoToRender.defendingColour, true);
+        graphics.drawString(mc.font, "VS", (int) (xText + 128 - (float) mc.font.width("VS") / 2), yText + 6, 0xffffff, true);
+        graphics.drawString(mc.font, infoToRender.attackingName, xText + 256 - 6 - mc.font.width(infoToRender.attackingName), yText + 6, infoToRender.attackingColour, true);
 
         String toWin = (infoToRender.progress < infoToRender.completionPoint) ? (infoToRender.completionPoint - infoToRender.progress) + " to win" : "Station siege to win";
         String toDefend = (infoToRender.progress + 5) + " to defend";
-        mc.fontRenderer.drawStringWithShadow(toWin, xText + 256 - 8 - mc.fontRenderer.getStringWidth(toWin), yText + 32, infoToRender.attackingColour);
-        mc.fontRenderer.drawStringWithShadow(toDefend, xText + 8, yText + 32, infoToRender.attackingColour);
+        graphics.drawString(mc.font, toWin, xText + 256 - 8 - mc.font.width(toWin), yText + 32, infoToRender.attackingColour, true);
+        graphics.drawString(mc.font, toDefend, xText + 8, yText + 32, infoToRender.attackingColour, true);
     }
 
-    private void renderNewAreaToast(Minecraft mc, RenderGameOverlayEvent event) {
-        final int stringWidth = mc.fontRenderer.getStringWidth(areaMessage);
+    private void renderNewAreaToast(Minecraft mc, GuiGraphics graphics) {
+        final int stringWidth = mc.font.width(areaMessage);
         final int totalHeight = 24;
 
         final ScreenSpaceUtil.ScreenPos pos = WarForgeConfig.POS_TOAST_INDICATOR;
@@ -665,17 +633,12 @@ public class ClientTickHandler {
         float fadeOut = 2.0f * newAreaToastTime / WarForgeConfig.SHOW_NEW_AREA_TIMER;
         fadeOut = Math.min(fadeOut, 1.0f);
         int colour = areaMessageColour | ((int) (fadeOut * 255f) << 24);
+        int lineColour = ((int) (fadeOut * 255f) << 24) | 0xFFFFFF;
 
-        GlStateManager.enableAlpha();
-        GlStateManager.enableBlend();
-        GlStateManager.color(1f, 1f, 1f, fadeOut);
-        GlStateManager.disableTexture2D();
+        graphics.fill(xText - 50, yText, xText - 50 + stringWidth + 100, yText + 1, lineColour);            // top line
+        graphics.fill(xText - 25, yText + 23, xText - 25 + stringWidth + 50, yText + 24, lineColour);       // bottom line
 
-        RenderUtil.drawTexturedModalRect(tess, xText - 50, yText, 0, 0, stringWidth + 100, 1);            // top line
-        RenderUtil.drawTexturedModalRect(tess, xText - 25, yText + 23, 0, 0, stringWidth + 50, 1);        // bottom line
-
-        GlStateManager.enableTexture2D();
-        mc.fontRenderer.drawStringWithShadow(areaMessage, xText, yText + 11, colour);   // vertically centered text
+        graphics.drawString(mc.font, areaMessage, xText, yText + 11, colour, true);   // vertically centered text
 
         var flagTexture = ClientFlagRegistry.getFlagTexture(areaFlagId);
         var flagDims = ClientFlagRegistry.getFlagDimensions(areaFlagId);
@@ -689,20 +652,20 @@ public class ClientTickHandler {
             flagX += ScreenSpaceUtil.getXOffset(pos, 0);
             int flagY = yText + totalHeight + 4;
 
-            mc.getTextureManager().bindTexture(flagTexture);
-            GlStateManager.color(1f, 1f, 1f, fadeOut);
-            Gui.drawScaledCustomSizeModalRect(flagX, flagY, 0, 0, flagDims[0], flagDims[1], drawWidth, drawHeight, flagDims[0], flagDims[1]);
+            graphics.setColor(1f, 1f, 1f, fadeOut);
+            graphics.blit(flagTexture, flagX, flagY, drawWidth, drawHeight, 0, 0, flagDims[0], flagDims[1], flagDims[0], flagDims[1]);
+            graphics.setColor(1f, 1f, 1f, 1f);
             ScreenSpaceUtil.incrementY(pos, drawHeight + 4);
         }
 
-        GlStateManager.disableBlend();
-        GlStateManager.disableAlpha();
         ScreenSpaceUtil.incrementY(pos, totalHeight + 14 + extraPadding);
     }
 
     private void updateRenderData() {
-        World world = Minecraft.getMinecraft().world;
+        Level world = Minecraft.getInstance().level;
         if (world == null) return;
+
+        ResourceKey<Level> worldDim = world.dimension();
 
         // Update our list from the old one
         HashMap<DimChunkPos, BorderRenderData> tempData = new HashMap<DimChunkPos, BorderRenderData>();
@@ -710,7 +673,7 @@ public class ClientTickHandler {
         // Find all synced claim chunks in our current dimension.
         for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
             DimChunkPos chunkPos = kvp.getKey();
-            if (chunkPos.dim != world.provider.getDimension()) {
+            if (!chunkPos.dim.equals(worldDim)) {
                 continue;
             }
 
@@ -734,304 +697,261 @@ public class ClientTickHandler {
             }
         }
 
-        for (HashMap.Entry<DimChunkPos, BorderRenderData> oldEntry : renderData.entrySet()) {
-            if (!tempData.containsKey(oldEntry.getKey()) && oldEntry.getValue().renderList > 0) {
-                GlStateManager.glDeleteLists(oldEntry.getValue().renderList, 1);
-            }
-        }
-
         renderData = tempData;
-
     }
 
-    private void updateRandomMesh() {
-        World world = Minecraft.getMinecraft().world;
-        if (world == null || renderData.isEmpty()) return;
-        int index = world.rand.nextInt(renderData.size());
+    // Build the border mesh for every claim chunk. With display lists gone in 1.20.1 the wall geometry
+    // is emitted directly into a POSITION_COLOR_TEX buffer each frame; the chunk-local vertices are
+    // offset into world space relative to the camera by the caller via the pose stack.
+    private void buildBorderMesh(Level world, Matrix4f matrix, VertexConsumer buffer, DimChunkPos pos, BorderRenderData data) {
+        int colour = data.colour;
+        int color = 0xFF000000 | (colour & 0xFFFFFF);
 
-        // Then construct the mesh for one random entry
-        for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
-            if (index > 0) {
-                index--;
-                continue;
-            }
+        int minY = world.getMinBuildHeight();
+        int maxY = world.getMaxBuildHeight();
 
-            DimChunkPos pos = kvp.getKey();
-            BorderRenderData data = kvp.getValue();
+        boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
+        if (renderData.containsKey(pos.north()))
+            renderNorth = !sameBorderGroup(renderData.get(pos.north()), data);
+        if (renderData.containsKey(pos.east()))
+            renderEast = !sameBorderGroup(renderData.get(pos.east()), data);
+        if (renderData.containsKey(pos.south()))
+            renderSouth = !sameBorderGroup(renderData.get(pos.south()), data);
+        if (renderData.containsKey(pos.west()))
+            renderWest = !sameBorderGroup(renderData.get(pos.west()), data);
 
-            if (data.renderList != 0) {
-                GlStateManager.glDeleteLists(data.renderList, 1);
-                data.renderList = 0;
-            }
-            data.renderList = GLAllocation.generateDisplayLists(1);
-            GlStateManager.glNewList(data.renderList, 4864);
+        //for super spesific edge cases
+        if (renderData.containsKey(pos.north().west()))
+            renderNorthWest = !sameBorderGroup(renderData.get(pos.north().west()), data);
+        if (renderData.containsKey(pos.north().east()))
+            renderNorthEast = !sameBorderGroup(renderData.get(pos.north().east()), data);
+        if (renderData.containsKey(pos.south().west()))
+            renderSouthWest = !sameBorderGroup(renderData.get(pos.south().west()), data);
+        if (renderData.containsKey(pos.south().east()))
+            renderSouthEast = !sameBorderGroup(renderData.get(pos.south().east()), data);
 
-            boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
-            if (renderData.containsKey(pos.north()))
-                renderNorth = !sameBorderGroup(renderData.get(pos.north()), data);
-            if (renderData.containsKey(pos.east()))
-                renderEast = !sameBorderGroup(renderData.get(pos.east()), data);
-            if (renderData.containsKey(pos.south()))
-                renderSouth = !sameBorderGroup(renderData.get(pos.south()), data);
-            if (renderData.containsKey(pos.west()))
-                renderWest = !sameBorderGroup(renderData.get(pos.west()), data);
-
-            //for super spesific edge cases
-            if (renderData.containsKey(pos.north().west()))
-                renderNorthWest = !sameBorderGroup(renderData.get(pos.north().west()), data);
-            if (renderData.containsKey(pos.north().east()))
-                renderNorthEast = !sameBorderGroup(renderData.get(pos.north().east()), data);
-            if (renderData.containsKey(pos.south().west()))
-                renderSouthWest = !sameBorderGroup(renderData.get(pos.south().west()), data);
-            if (renderData.containsKey(pos.south().east()))
-                renderSouthEast = !sameBorderGroup(renderData.get(pos.south().east()), data);
-
-            // North edge, [0,0] -> [16,0] wall
-            if (renderNorth) {
-                // A smidge of semi-translucent wall from [0,0,0] to [2,256,0] offset by 0.25
-                if (renderWest) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(0 + alignment, 0, alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(2 + alignment, 0, alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(2 + alignment, 128, alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(0 + alignment, 128, alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-
-                // A smidge of semi-translucent wall from [14,0,0] to [16,256,0] offset by 0.25
-                if (renderEast) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(16 - alignment, 0, alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(14 - alignment, 0, alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(14 - alignment, 128, alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(16 - alignment, 128, alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-            }
-
-            // South edge
-            if (renderSouth) {
-                if (renderWest) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(0 + alignment, 0, 16d - alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(2 + alignment, 0, 16d - alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(2 + alignment, 128, 16d - alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(0 + alignment, 128, 16d - alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-
-                if (renderEast) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(16 - alignment, 0, 16d - alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(14 - alignment, 0, 16d - alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(14 - alignment, 128, 16d - alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(16 - alignment, 128, 16d - alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-            }
-
-            // East edge, [0,0] -> [0,16] wall
+        // North edge, [0,0] -> [16,0] wall
+        if (renderNorth) {
+            // A smidge of semi-translucent wall from [0,0,0] to [2,256,0] offset by 0.25
             if (renderWest) {
-                if (renderNorth) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(alignment, 0, 0 + alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(alignment, 0, 2 + alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(alignment, 128, 2 + alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(alignment, 128, 0 + alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-
-                if (renderSouth) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(alignment, 0, 16 - alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(alignment, 0, 14 - alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(alignment, 128, 14 - alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(alignment, 128, 16 - alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
+                buffer.vertex(matrix, (float) (0 + alignment), 0, (float) alignment).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (2 + alignment), 0, (float) alignment).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (2 + alignment), 128, (float) alignment).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (0 + alignment), 128, (float) alignment).color(color).uv(0f, 0.5f).endVertex();
             }
 
-            // West edge
+            // A smidge of semi-translucent wall from [14,0,0] to [16,256,0] offset by 0.25
             if (renderEast) {
-                if (renderNorth) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(16d - alignment, 0, 0 + alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 0, 2 + alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 128, 2 + alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 128, 0 + alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
-
-                if (renderSouth) {
-                    tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                    tess.getBuffer().pos(16d - alignment, 0, 16 - alignment).tex(64f, 0.5f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 0, 14 - alignment).tex(64f, 0f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 128, 14 - alignment).tex(0f, 0f).endVertex();
-                    tess.getBuffer().pos(16d - alignment, 128, 16 - alignment).tex(0f, 0.5f).endVertex();
-                    tess.draw();
-                }
+                buffer.vertex(matrix, (float) (16 - alignment), 0, (float) alignment).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (14 - alignment), 0, (float) alignment).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (14 - alignment), 128, (float) alignment).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16 - alignment), 128, (float) alignment).color(color).uv(0f, 0.5f).endVertex();
             }
-            if (renderNorth || renderSouth) {
-                for (int x = 0; x < 16; x++) {
-                    for (int y = 0; y < 256; y++) {
-                        if (x < 15) {
-                            if (renderNorth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x + 1, y, pos.getZStart()));
-                                renderZEdge(world, tess, x, y, pos.getZStart(), smaller_alignment + 0.001d, air0, air1, 0);
-                            }
-                            if (renderSouth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x + 1, y, pos.getZEnd()));
-                                renderZEdge(world, tess, x, y, pos.getZEnd(), 16d - smaller_alignment + 0.001d, air0, air1, 0);
-                            }
+        }
+
+        // South edge
+        if (renderSouth) {
+            if (renderWest) {
+                buffer.vertex(matrix, (float) (0 + alignment), 0, (float) (16d - alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (2 + alignment), 0, (float) (16d - alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (2 + alignment), 128, (float) (16d - alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (0 + alignment), 128, (float) (16d - alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+
+            if (renderEast) {
+                buffer.vertex(matrix, (float) (16 - alignment), 0, (float) (16d - alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (14 - alignment), 0, (float) (16d - alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (14 - alignment), 128, (float) (16d - alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16 - alignment), 128, (float) (16d - alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+        }
+
+        // East edge, [0,0] -> [0,16] wall
+        if (renderWest) {
+            if (renderNorth) {
+                buffer.vertex(matrix, (float) alignment, 0, (float) (0 + alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 0, (float) (2 + alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 128, (float) (2 + alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 128, (float) (0 + alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+
+            if (renderSouth) {
+                buffer.vertex(matrix, (float) alignment, 0, (float) (16 - alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 0, (float) (14 - alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 128, (float) (14 - alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) alignment, 128, (float) (16 - alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+        }
+
+        // West edge
+        if (renderEast) {
+            if (renderNorth) {
+                buffer.vertex(matrix, (float) (16d - alignment), 0, (float) (0 + alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 0, (float) (2 + alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 128, (float) (2 + alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 128, (float) (0 + alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+
+            if (renderSouth) {
+                buffer.vertex(matrix, (float) (16d - alignment), 0, (float) (16 - alignment)).color(color).uv(64f, 0.5f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 0, (float) (14 - alignment)).color(color).uv(64f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 128, (float) (14 - alignment)).color(color).uv(0f, 0f).endVertex();
+                buffer.vertex(matrix, (float) (16d - alignment), 128, (float) (16 - alignment)).color(color).uv(0f, 0.5f).endVertex();
+            }
+        }
+
+        if (renderNorth || renderSouth) {
+            for (int x = 0; x < 16; x++) {
+                for (int y = minY; y < maxY; y++) {
+                    if (x < 15) {
+                        if (renderNorth) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x + 1, y, pos.getMinBlockZ()));
+                            renderZEdge(world, matrix, buffer, color, x, y, pos.getMinBlockZ(), smaller_alignment + 0.001d, air0, air1, 0);
                         }
-                        if (y < 255) {
-                            if (renderNorth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZStart()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y + 1, pos.getZStart()));
-                                //renderZVerticalEdge(world, x, y, pos.getZStart(), smaller_alignment, air0, air1, 0);
-                                if (x == 15 && renderEast) {
-                                    renderZVerticalCorner(world, tess, x - smaller_alignment, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else if (x == 0 && renderWest) {
-                                    renderZVerticalCorner(world, tess, x, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else {
-                                    renderZVerticalEdge(world, tess, x, y, pos.getZStart(), smaller_alignment, air0, air1, 0);
-                                }
-                            }
-                            if (renderSouth) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y, pos.getZEnd()));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart() + x, y + 1, pos.getZEnd()));
-                                if (x == 15 && renderEast) {
-                                    renderZVerticalCorner(world, tess, x - smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else if (x == 0 && renderWest) {
-                                    renderZVerticalCorner(world, tess, x, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else {
-                                    renderZVerticalEdge(world, tess, x, y, pos.getZEnd(), 16d - smaller_alignment, air0, air1, 0);
-                                }
-                            }
+                        if (renderSouth) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x + 1, y, pos.getMaxBlockZ()));
+                            renderZEdge(world, matrix, buffer, color, x, y, pos.getMaxBlockZ(), 16d - smaller_alignment + 0.001d, air0, air1, 0);
                         }
                     }
-                }
-            }
-
-            if (renderEast || renderWest) {
-                for (int z = 0; z < 16; z++) {
-                    for (int y = 0; y < 256; y++) {
-                        if (z < 15) {
-                            if (renderWest) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z + 1));
-                                renderXEdge(world, tess, pos.getXStart(), y, z, smaller_alignment + 0.001d, air0, air1, 0);
-                            }
-                            if (renderEast) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z + 1));
-                                renderXEdge(world, tess, pos.getXEnd(), y, z, 16d - smaller_alignment + 0.001d, air0, air1, 0);
+                    if (y < maxY - 1) {
+                        if (renderNorth) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y + 1, pos.getMinBlockZ()));
+                            if (x == 15 && renderEast) {
+                                renderZVerticalCorner(world, matrix, buffer, color, x - smaller_alignment, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else if (x == 0 && renderWest) {
+                                renderZVerticalCorner(world, matrix, buffer, color, x, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else {
+                                renderZVerticalEdge(world, matrix, buffer, color, x, y, pos.getMinBlockZ(), smaller_alignment, air0, air1, 0);
                             }
                         }
-                        if (y < 255) {
-                            if (renderWest) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZStart() + z));
-                                if (z == 15 && renderSouth) {
-                                    renderXVerticalCorner(world, tess, smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else if (z == 0 && renderNorth) {
-                                    renderXVerticalCorner(world, tess, smaller_alignment, y, z, air0, air1, 0, -smaller_alignment);
-                                } else {
-                                    renderXVerticalEdge(world, tess, pos.getXStart(), y, z, smaller_alignment, air0, air1, 0);
-                                }
-                            }
-                            if (renderEast) {
-                                boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart() + z));
-                                boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZStart() + z));
-                                if (z == 15 && renderSouth) {
-                                    renderXVerticalCorner(world, tess, 16d - smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
-                                } else if (z == 0 && renderNorth) {
-                                    renderXVerticalCorner(world, tess, 16d - smaller_alignment, y, z, air0, air1, 0, -smaller_alignment);
-                                } else {
-                                    renderXVerticalEdge(world, tess, pos.getXEnd(), y, z, 16d - smaller_alignment, air0, air1, 0);
-                                }
+                        if (renderSouth) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y + 1, pos.getMaxBlockZ()));
+                            if (x == 15 && renderEast) {
+                                renderZVerticalCorner(world, matrix, buffer, color, x - smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else if (x == 0 && renderWest) {
+                                renderZVerticalCorner(world, matrix, buffer, color, x, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else {
+                                renderZVerticalEdge(world, matrix, buffer, color, x, y, pos.getMaxBlockZ(), 16d - smaller_alignment, air0, air1, 0);
                             }
                         }
                     }
                 }
             }
+        }
 
-            //Edge corner cases because of autism
-
-            if (renderNorthEast) {
-                if (!renderNorth && !renderEast) {
-                    for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZStart()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZStart()));
-                        renderZVerticalCorner(world, tess, 15, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
-                        renderXVerticalCorner(world, tess, 16 - smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
+        if (renderEast || renderWest) {
+            for (int z = 0; z < 16; z++) {
+                for (int y = minY; y < maxY; y++) {
+                    if (z < 15) {
+                        if (renderWest) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z + 1));
+                            renderXEdge(world, matrix, buffer, color, pos.getMinBlockX(), y, z, smaller_alignment + 0.001d, air0, air1, 0);
+                        }
+                        if (renderEast) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z + 1));
+                            renderXEdge(world, matrix, buffer, color, pos.getMaxBlockX(), y, z, 16d - smaller_alignment + 0.001d, air0, air1, 0);
+                        }
+                    }
+                    if (y < maxY - 1) {
+                        if (renderWest) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMinBlockZ() + z));
+                            if (z == 15 && renderSouth) {
+                                renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else if (z == 0 && renderNorth) {
+                                renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, z, air0, air1, 0, -smaller_alignment);
+                            } else {
+                                renderXVerticalEdge(world, matrix, buffer, color, pos.getMinBlockX(), y, z, smaller_alignment, air0, air1, 0);
+                            }
+                        }
+                        if (renderEast) {
+                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ() + z));
+                            if (z == 15 && renderSouth) {
+                                renderXVerticalCorner(world, matrix, buffer, color, 16d - smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
+                            } else if (z == 0 && renderNorth) {
+                                renderXVerticalCorner(world, matrix, buffer, color, 16d - smaller_alignment, y, z, air0, air1, 0, -smaller_alignment);
+                            } else {
+                                renderXVerticalEdge(world, matrix, buffer, color, pos.getMaxBlockX(), y, z, 16d - smaller_alignment, air0, air1, 0);
+                            }
+                        }
                     }
                 }
             }
-            if (renderNorthWest) {
-                if (!renderNorth && !renderWest) {
-                    for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZStart()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZStart()));
-                        renderZVerticalCorner(world, tess, -1 + smaller_alignment, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
-                        renderXVerticalCorner(world, tess, smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
-                    }
-                }
-            }
-            if (renderSouthWest) {
-                if (!renderSouth && !renderWest) {
-                    for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXStart(), y, pos.getZEnd()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXStart(), y + 1, pos.getZEnd()));
-                        renderZVerticalCorner(world, tess, -1 + smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
-                        renderXVerticalCorner(world, tess, smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
-                    }
-                }
-            }
-            if (renderSouthEast) {
-                if (!renderSouth && !renderEast) {
-                    for (int y = 0; y < 256; y++) {
-                        boolean air0 = world.isAirBlock(new BlockPos(pos.getXEnd(), y, pos.getZEnd()));
-                        boolean air1 = world.isAirBlock(new BlockPos(pos.getXEnd(), y + 1, pos.getZEnd()));
-                        renderZVerticalCorner(world, tess, 15, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
-                        renderXVerticalCorner(world, tess, 16 - smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
-                    }
-                }
-            }
+        }
 
+        //Edge corner cases because of autism
 
-            GlStateManager.glEndList();
-            break;
+        if (renderNorthEast) {
+            if (!renderNorth && !renderEast) {
+                for (int y = minY; y < maxY; y++) {
+                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ()));
+                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ()));
+                    renderZVerticalCorner(world, matrix, buffer, color, 15, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
+                    renderXVerticalCorner(world, matrix, buffer, color, 16 - smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
+                }
+            }
+        }
+        if (renderNorthWest) {
+            if (!renderNorth && !renderWest) {
+                for (int y = minY; y < maxY; y++) {
+                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ()));
+                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMinBlockZ()));
+                    renderZVerticalCorner(world, matrix, buffer, color, -1 + smaller_alignment, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
+                    renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
+                }
+            }
+        }
+        if (renderSouthWest) {
+            if (!renderSouth && !renderWest) {
+                for (int y = minY; y < maxY; y++) {
+                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMaxBlockZ()));
+                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMaxBlockZ()));
+                    renderZVerticalCorner(world, matrix, buffer, color, -1 + smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
+                    renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
+                }
+            }
+        }
+        if (renderSouthEast) {
+            if (!renderSouth && !renderEast) {
+                for (int y = minY; y < maxY; y++) {
+                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMaxBlockZ()));
+                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMaxBlockZ()));
+                    renderZVerticalCorner(world, matrix, buffer, color, 15, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
+                    renderXVerticalCorner(world, matrix, buffer, color, 16 - smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
+                }
+            }
         }
     }
-
 
     @SubscribeEvent
-    public void onRenderLast(RenderWorldLastEvent event) {
-        // Cache Minecraft instance
-        Minecraft mc = Minecraft.getMinecraft();
-        EntityPlayer player = mc.player;
+    public void onRenderLast(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            return;
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        Player player = mc.player;
         if (player == null) return;
 
-        // Get the camera position
-        Entity camera = mc.getRenderViewEntity();
-        double x = camera.lastTickPosX + (camera.posX - camera.lastTickPosX) * event.getPartialTicks();
-        double y = camera.lastTickPosY + (camera.posY - camera.lastTickPosY) * event.getPartialTicks();
-        double z = camera.lastTickPosZ + (camera.posZ - camera.lastTickPosZ) * event.getPartialTicks();
+        Level world = mc.level;
+        if (world == null) return;
 
-        // Push OpenGL matrix and attributes
-        GlStateManager.pushMatrix();
-        GlStateManager.pushAttrib();
-
-        // Setup lighting and textures
-        mc.entityRenderer.enableLightmap();
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.disableLighting();
-        GlStateManager.enableTexture2D();
-        GlStateManager.disableCull();
-        mc.entityRenderer.disableLightmap();
+        // RenderLevelStageEvent's pose is set up relative to the camera EYE position
+        // (Camera.getPosition()), not the view entity's interpolated feet. Subtracting the
+        // entity feet position instead would leave a residual ~= eye height (~1.62), shifting
+        // the world-space geometry ~1.5 blocks upward. Use the real camera position.
+        float partialTicks = event.getPartialTick();
+        Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+        double x = cam.x;
+        double y = cam.y;
+        double z = cam.z;
 
         // Update render data if necessary
         if (CLAIMS_DIRTY) {
@@ -1039,75 +959,53 @@ public class ClientTickHandler {
             CLAIMS_DIRTY = false;
         }
 
-        // Choose rendering state for the active border set
-        if (WarForgeConfig.DO_FANCY_RENDERING || hasConqueredBorders()) {
-            GlStateManager.enableAlpha();
-            GlStateManager.enableBlend();
-        }
+        PoseStack pose = event.getPoseStack();
 
-        // Slower update speed on fast graphics
-        if (player.world.rand.nextInt(WarForgeConfig.RANDOM_BORDER_REDRAW_DENOMINATOR) == 0) {
-            updateRandomMesh();
-        }
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.disableCull();
+        RenderSystem.setShader(GameRenderer::getPositionColorTexShader);
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
         // Render chunk borders
-        renderChunkBorders(x, y, z);
+        renderChunkBorders(world, pose, x, y, z);
 
         // Render player placement overlay (if necessary)
-        renderPlayerPlacementOverlay(player, x, y, z, event.getPartialTicks());
+        renderPlayerPlacementOverlay(player, pose, x, y, z, partialTicks);
 
-        // Render flags (Citadels)
-        //renderCitadelFlags(x, y, z);
-
-        // Reset OpenGL state
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-        GlStateManager.disableLighting();
-        GlStateManager.disableBlend();
-        GlStateManager.disableAlpha();
-        GlStateManager.popAttrib();
-        GlStateManager.popMatrix();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
     }
 
-    private void renderChunkBorders(double x, double y, double z) {
+    private void renderChunkBorders(Level world, PoseStack pose, double x, double y, double z) {
         if (!WarForgeMod.showBorders) {
-			return;
-		}
+            return;
+        }
 
-        ResourceLocation boundTexture = null;
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder builder = tesselator.getBuilder();
+
         for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
             DimChunkPos pos = kvp.getKey();
             BorderRenderData data = kvp.getValue();
 
-            if (data.renderList >= 0) {
-                GlStateManager.pushMatrix();
-
-                ResourceLocation desiredTexture = getBorderTexture(data);
-                if (desiredTexture != null && !desiredTexture.equals(boundTexture)) {
-                    Minecraft.getMinecraft().renderEngine.bindTexture(desiredTexture);
-                    boundTexture = desiredTexture;
-                }
-
-                int colour = data.colour;
-                float r = (float) (colour >> 16 & 255) / 255.0F;
-                float g = (float) (colour >> 8 & 255) / 255.0F;
-                float b = (float) (colour & 255) / 255.0F;
-                GlStateManager.color(r, g, b, 1.0F);
-
-                GlStateManager.translate(pos.x * 16 - x, 0 - y, pos.z * 16 - z);
-                GlStateManager.callList(data.renderList);
-
-                GlStateManager.popMatrix();
+            ResourceLocation desiredTexture = getBorderTexture(data);
+            if (desiredTexture == null) {
+                continue;
             }
-        }
-    }
+            RenderSystem.setShaderTexture(0, desiredTexture);
 
-    private boolean hasConqueredBorders() {
-        for (BorderRenderData data : renderData.values()) {
-            if (data.outlineStyle == ClaimChunkInfo.OUTLINE_CONQUERED) {
-                return true;
-            }
+            pose.pushPose();
+            pose.translate(pos.x * 16 - x, 0 - y, pos.z * 16 - z);
+
+            Matrix4f matrix = pose.last().pose();
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
+            buildBorderMesh(world, matrix, builder, pos, data);
+            tesselator.end();
+
+            pose.popPose();
         }
-        return false;
     }
 
     private boolean sameBorderGroup(BorderRenderData first, BorderRenderData second) {
@@ -1121,10 +1019,10 @@ public class ClientTickHandler {
         return WarForgeConfig.DO_FANCY_RENDERING ? texture : fastTexture;
     }
 
-    private void renderPlayerPlacementOverlay(EntityPlayer player, double x, double y, double z, float partialTicks) {
-        if (player.getHeldItemMainhand().getItem() instanceof ItemBlock) {
+    private void renderPlayerPlacementOverlay(Player player, PoseStack pose, double x, double y, double z, float partialTicks) {
+        if (player.getMainHandItem().getItem() instanceof BlockItem blockItem) {
             boolean shouldRender = false;
-            Block holding = ((ItemBlock) player.getHeldItemMainhand().getItem()).getBlock();
+            Block holding = blockItem.getBlock();
 
             // Check if the block being held is one that should render the placement overlay
             if (holding == Content.basicClaimBlock || holding == Content.citadelBlock || holding == Content.reinforcedClaimBlock) {
@@ -1133,37 +1031,47 @@ public class ClientTickHandler {
 
             // If we need to render, check for ray tracing and render accordingly
             if (shouldRender) {
-                renderPlacementOverlay(player, x, y, z, partialTicks);
+                renderPlacementOverlay(player, pose, x, y, z, partialTicks);
             }
         }
     }
 
-    private void renderPlacementOverlay(EntityPlayer player, double x, double y, double z, float partialTicks) {
-        DimChunkPos playerPos = new DimChunkPos(player.dimension, player.getPosition());
-        RayTraceResult result = player.rayTrace(10.0f, partialTicks);
-        if (result != null && result.typeOfHit == RayTraceResult.Type.BLOCK) {
-            playerPos = new DimChunkPos(player.dimension, result.getBlockPos());
+    private void renderPlacementOverlay(Player player, PoseStack pose, double x, double y, double z, float partialTicks) {
+        ResourceKey<Level> dim = player.level().dimension();
+        DimChunkPos playerPos = new DimChunkPos(dim, player.blockPosition());
+        HitResult result = player.pick(10.0f, partialTicks, false);
+        if (result != null && result.getType() == HitResult.Type.BLOCK) {
+            playerPos = new DimChunkPos(dim, ((BlockHitResult) result).getBlockPos());
         }
 
-        boolean canPlace = checkPlacementValidity(playerPos, player.getHeldItem(EnumHand.MAIN_HAND).getItem(), player.getHorizontalFacing());
-        GlStateManager.color(canPlace ? 0f : 1f, canPlace ? 1f : 0f, 0f, 1.0F);
-        Minecraft.getMinecraft().renderEngine.bindTexture(overlayTex);
-        GlStateManager.translate(playerPos.x * 16 - x, 0 - y, playerPos.z * 16 - z);
+        boolean canPlace = checkPlacementValidity(playerPos, player.getItemInHand(InteractionHand.MAIN_HAND).getItem(), player.getDirection());
+        int color = canPlace ? 0xFF00FF00 : 0xFFFF0000;
+
+        RenderSystem.setShaderTexture(0, overlayTex);
+
+        pose.pushPose();
+        pose.translate(playerPos.x * 16 - x, 0 - y, playerPos.z * 16 - z);
+        Matrix4f matrix = pose.last().pose();
+
+        Tesselator tesselator = Tesselator.getInstance();
+        BufferBuilder builder = tesselator.getBuilder();
+        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
 
         for (int i = 0; i < 16; i++) {
             for (int k = 0; k < 16; k++) {
-                BlockPos pos = new BlockPos(playerPos.x * 16 + i, player.posY, playerPos.z * 16 + k);
-                tess.getBuffer().begin(7, DefaultVertexFormats.POSITION_TEX);
-                tess.getBuffer().pos(i, pos.getY() + 1.5d, k).tex(0f, 0f).endVertex();
-                tess.getBuffer().pos(i + 1, pos.getY() + 1.5d, k).tex(1f, 0f).endVertex();
-                tess.getBuffer().pos(i + 1, pos.getY() + 1.5d, k + 1).tex(1f, 1f).endVertex();
-                tess.getBuffer().pos(i, pos.getY() + 1.5d, k + 1).tex(0f, 1f).endVertex();
-                tess.draw();
+                float yPlane = (float) ((int) player.getY() + 1.5d);
+                builder.vertex(matrix, i, yPlane, k).color(color).uv(0f, 0f).endVertex();
+                builder.vertex(matrix, i + 1, yPlane, k).color(color).uv(1f, 0f).endVertex();
+                builder.vertex(matrix, i + 1, yPlane, k + 1).color(color).uv(1f, 1f).endVertex();
+                builder.vertex(matrix, i, yPlane, k + 1).color(color).uv(0f, 1f).endVertex();
             }
         }
+
+        tesselator.end();
+        pose.popPose();
     }
 
-    private boolean checkPlacementValidity(DimChunkPos playerPos, Item holding, EnumFacing facing) {
+    private boolean checkPlacementValidity(DimChunkPos playerPos, Item holding, Direction facing) {
         boolean canPlace = true;
         List<DimChunkPos> siegeablePositions = new ArrayList<>();
 
@@ -1173,7 +1081,7 @@ public class ClientTickHandler {
             if (info == null || info.factionId.equals(Faction.nullUuid)) {
                 continue;
             }
-            if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z && playerPos.dim == chunkPos.dim) {
+            if (playerPos.x == chunkPos.x && playerPos.z == chunkPos.z && playerPos.dim.equals(chunkPos.dim)) {
                 canPlace = false;
             }
             siegeablePositions.add(chunkPos);
@@ -1187,11 +1095,9 @@ public class ClientTickHandler {
         return canPlace;
     }
 
-
     private static class BorderRenderData {
         public UUID factionId = Faction.nullUuid;
         public int colour = 0xFFFFFF;
         public byte outlineStyle = ClaimChunkInfo.OUTLINE_NONE;
-        public int renderList = -1;
     }
 }

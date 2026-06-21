@@ -2,14 +2,16 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.tileentity.TileEntity;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
 public class PacketCreateFaction extends PacketBase
 {
@@ -19,9 +21,9 @@ public class PacketCreateFaction extends PacketBase
 
 
 	@Override
-	public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void encodeInto(FriendlyByteBuf data)
 	{
-		data.writeInt(mCitadelPos.dim);
+		writeUTF(data, mCitadelPos.dim.location().toString());
 		data.writeInt(mCitadelPos.getX());
 		data.writeInt(mCitadelPos.getY());
 		data.writeInt(mCitadelPos.getZ());
@@ -30,9 +32,9 @@ public class PacketCreateFaction extends PacketBase
 	}
 
 	@Override
-	public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) 
+	public void decodeInto(FriendlyByteBuf data)
 	{
-		int dim = data.readInt();
+		ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(readUTF(data)));
 		int x = data.readInt();
 		int y = data.readInt();
 		int z = data.readInt();
@@ -42,16 +44,16 @@ public class PacketCreateFaction extends PacketBase
 	}
 
 	@Override
-	public void handleServerSide(EntityPlayerMP playerEntity) 
+	public void handleServerSide(ServerPlayer playerEntity)
 	{
-		if(playerEntity.dimension != mCitadelPos.dim)
+		if(!playerEntity.level().dimension().equals(mCitadelPos.dim))
 		{
 			WarForgeMod.LOGGER.error("Player requested creating a faction in the wrong dim");
 		}
 		else
 		{
-			TileEntity te = playerEntity.world.getTileEntity(mCitadelPos.toRegularPos());
-			if(te != null && te instanceof TileEntityCitadel)
+			BlockEntity te = playerEntity.level().getBlockEntity(mCitadelPos.toRegularPos());
+			if(te instanceof TileEntityCitadel)
 			{
 				WarForgeMod.FACTIONS.requestCreateFaction((TileEntityCitadel)te, playerEntity, mFactionName, mColour);
 			}
@@ -59,9 +61,9 @@ public class PacketCreateFaction extends PacketBase
 	}
 
 	@Override
-	public void handleClientSide(EntityPlayer clientPlayer) 
+	public void handleClientSide(Player clientPlayer)
 	{
 		WarForgeMod.LOGGER.error("Recieved create faction message on client");
 	}
-	
+
 }

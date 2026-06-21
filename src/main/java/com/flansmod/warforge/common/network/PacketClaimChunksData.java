@@ -7,17 +7,20 @@ import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.ClientTickHandler;
 import com.flansmod.warforge.server.Faction;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 public class PacketClaimChunksData extends PacketBase {
-    public int dim;
+    public ResourceKey<Level> dim = Level.OVERWORLD;
     public int centerX;
     public int centerZ;
     public int radius;
@@ -29,8 +32,8 @@ public class PacketClaimChunksData extends PacketBase {
     public List<ClaimChunkInfo> chunks = new ArrayList<ClaimChunkInfo>();
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        data.writeInt(dim);
+    public void encodeInto(FriendlyByteBuf data) {
+        data.writeUtf(dim.location().toString());
         data.writeInt(centerX);
         data.writeInt(centerZ);
         data.writeByte(radius);
@@ -59,8 +62,8 @@ public class PacketClaimChunksData extends PacketBase {
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
-        dim = data.readInt();
+    public void decodeInto(FriendlyByteBuf data) {
+        dim = ResourceKey.create(Registries.DIMENSION, new ResourceLocation(data.readUtf()));
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
@@ -94,12 +97,12 @@ public class PacketClaimChunksData extends PacketBase {
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         // noop
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         ClientClaimChunkCache.replaceAll(dim, centerX, centerZ, radius, playerFactionId, forceLoadedCount, forceLoadedMax, claimCount, claimMax, chunks);
         java.util.HashMap<Long, Integer> tintByChunk = new java.util.HashMap<Long, Integer>();
         for (ClaimChunkInfo info : chunks) {

@@ -1,15 +1,11 @@
 package com.flansmod.warforge.client.util;
 
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.client.event.RenderGameOverlayEvent;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 
 //GOD this ui is a clusterfuck
-@SideOnly(Side.CLIENT)
 public class ScreenSpaceUtil {
 
 
@@ -19,12 +15,12 @@ public class ScreenSpaceUtil {
     // Negative = offset upward/left
     public static int topLeftOffset, topRightOffset, topOffset;
     public static int bottomLeftOffset, bottomRightOffset, bottomOffset;
-    static Minecraft minecraft = Minecraft.getMinecraft();
-    public static int TEXTHEIGHT = minecraft.fontRenderer.FONT_HEIGHT;
+    static Minecraft minecraft = Minecraft.getInstance();
+    public static int TEXTHEIGHT = minecraft.font.lineHeight;
 
-    public static void resetOffsets(RenderGameOverlayEvent event) {
-        RESOLUTIONX = event.getResolution().getScaledWidth();
-        RESOLUTIONY = event.getResolution().getScaledHeight();
+    public static void resetOffsets() {
+        RESOLUTIONX = minecraft.getWindow().getGuiScaledWidth();
+        RESOLUTIONY = minecraft.getWindow().getGuiScaledHeight();
 
         topOffset = topLeftOffset = topRightOffset = 0;
         bottomOffset = RESOLUTIONY - 43;  // -43 for toolbar + hunger/ hearts?
@@ -200,4 +196,3 @@ public class ScreenSpaceUtil {
         }
     }
 }
-

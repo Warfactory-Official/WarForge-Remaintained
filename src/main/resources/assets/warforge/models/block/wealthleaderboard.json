@@ -1,9 +1,9 @@
 {
 	"credit": "Made with Blockbench",
 	"textures": {
-		"0": "warforge:blocks/wealthleaderboard",
-		"1": "minecraft:blocks/bedrock",
-		"particle": "warforge:blocks/wealthleaderboard"
+		"0": "warforge:block/wealthleaderboard",
+		"1": "minecraft:block/bedrock",
+		"particle": "warforge:block/wealthleaderboard"
 	},
 	"elements": [
 		{

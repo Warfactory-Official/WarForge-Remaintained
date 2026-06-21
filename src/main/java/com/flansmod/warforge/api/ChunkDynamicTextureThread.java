@@ -1,13 +1,13 @@
 package com.flansmod.warforge.api;
 
 import com.flansmod.warforge.Tags;
+import com.mojang.blaze3d.platform.NativeImage;
 import lombok.RequiredArgsConstructor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 
-import java.awt.image.BufferedImage;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -57,7 +57,7 @@ public class ChunkDynamicTextureThread extends Thread {
         int[] shaded = new int[rawChunk.length];
 
         // Light from northwest (toward +X and +Z)
-        Vec3d lightDir = new Vec3d(-1, 1, -1).normalize();
+        Vec3 lightDir = new Vec3(-1, 1, -1).normalize();
 
         for (int z = 0; z < height; z++) {
             for (int x = 0; x < width; x++) {
@@ -76,10 +76,10 @@ public class ChunkDynamicTextureThread extends Thread {
                 double dz = hD - hU;
                 float exaggeration = 1.5f;
 
-                Vec3d normal = new Vec3d(-dx, exaggeration, -dz).normalize(); // 2.0 exaggerates vertical steepness
+                Vec3 normal = new Vec3(-dx, exaggeration, -dz).normalize(); // 2.0 exaggerates vertical steepness
 
                 // Lambertian reflectance
-                float shade = (float) normal.dotProduct(lightDir);
+                float shade = (float) normal.dot(lightDir);
                 shade = Math.max(0.0f, Math.min(1.0f, shade));
 
                 float brightness = 0.5f + (float) Math.pow(shade, exaggeration) * 0.5f;
@@ -113,10 +113,7 @@ public class ChunkDynamicTextureThread extends Thread {
             System.arraycopy(scaled, srcOffset, finalBuffer, dstOffset, 16 * scale);
         }
 
-        // Final image
-        BufferedImage image = new BufferedImage(16 * scale, 16 * scale, BufferedImage.TYPE_INT_ARGB);
-        image.setRGB(0, 0, 16 * scale, 16 * scale, finalBuffer, 0, 16 * scale);
-        queue.add(new RegisterTextureAction(image, name));
+        queue.add(new RegisterTextureAction(finalBuffer, 16 * scale, name));
     }
 
 
@@ -131,19 +128,33 @@ public class ChunkDynamicTextureThread extends Thread {
         }
     }
 
+    /** Builds a NativeImage (ABGR pixels) from a square ARGB pixel array. */
+    private static NativeImage toNativeImage(int[] argb, int size) {
+        NativeImage nativeImage = new NativeImage(size, size, false);
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                int color = argb[x + y * size];
+                int a = (color >>> 24) & 0xFF;
+                int r = (color >>> 16) & 0xFF;
+                int g = (color >>> 8) & 0xFF;
+                int b = color & 0xFF;
+                nativeImage.setPixelRGBA(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+            }
+        }
+        return nativeImage;
+    }
+
     @RequiredArgsConstructor
     public static class RegisterTextureAction {
-        final BufferedImage mapTexture;
+        final int[] argbPixels;
+        final int size;
         final String name;
 
         public void register() {
-            Minecraft.getMinecraft().getTextureManager().deleteTexture(
-                    new ResourceLocation(Tags.MODID, name)
-            );
-            Minecraft.getMinecraft().getTextureManager().loadTexture(
-                    new ResourceLocation(Tags.MODID, name),
-                    new DynamicTexture(mapTexture)
-            );
+            Minecraft mc = Minecraft.getInstance();
+            ResourceLocation location = new ResourceLocation(Tags.MODID, name);
+            mc.getTextureManager().release(location);
+            mc.getTextureManager().register(location, new DynamicTexture(toNativeImage(argbPixels, size)));
         }
 
 

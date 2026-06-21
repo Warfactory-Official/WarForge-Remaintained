@@ -1,6 +1,8 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.util.DimChunkPos;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -15,9 +17,9 @@ import java.util.Map;
  */
 public final class JourneyMapVeinCache {
     public interface Listener {
-        void onVeinSet(int dim, int x, int z, short veinInfo);
+        void onVeinSet(ResourceKey<Level> dim, int x, int z, short veinInfo);
 
-        void onVeinRemoved(int dim, int x, int z);
+        void onVeinRemoved(ResourceKey<Level> dim, int x, int z);
 
         void onCleared();
     }
@@ -45,14 +47,14 @@ public final class JourneyMapVeinCache {
         }
     }
 
-    public static synchronized void set(int dim, int x, int z, short veinInfo) {
+    public static synchronized void set(ResourceKey<Level> dim, int x, int z, short veinInfo) {
         VEINS.put(new DimChunkPos(dim, x, z), veinInfo);
         if (listener != null) {
             listener.onVeinSet(dim, x, z, veinInfo);
         }
     }
 
-    public static synchronized void remove(int dim, int x, int z) {
+    public static synchronized void remove(ResourceKey<Level> dim, int x, int z) {
         if (VEINS.remove(new DimChunkPos(dim, x, z)) != null && listener != null) {
             listener.onVeinRemoved(dim, x, z);
         }

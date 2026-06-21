@@ -1,10 +1,10 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,10 +15,10 @@ public class SiegeCampGuiData extends GuiData {
     public final byte momentum;
     public final int color;
 
-    public SiegeCampGuiData(EntityPlayer player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
+    public SiegeCampGuiData(Player player, DimBlockPos siegeCampPos, List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
         super(player);
         this.siegeCampPos = siegeCampPos;
-        this.possibleAttacks = new ArrayList<SiegeCampAttackInfo>(possibleAttacks);
+        this.possibleAttacks = new ArrayList<>(possibleAttacks);
         this.momentum = momentum;
         this.color = color;
     }

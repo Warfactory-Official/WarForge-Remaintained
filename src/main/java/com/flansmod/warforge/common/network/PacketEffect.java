@@ -1,18 +1,17 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.effect.EffectRegistry;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.client.Minecraft;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
-import net.minecraft.nbt.JsonToNBT;
-import net.minecraft.nbt.NBTException;
-import net.minecraft.nbt.NBTTagCompound;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.TagParser;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
+
+import java.util.Random;
 
 public class PacketEffect extends PacketBase {
 
@@ -22,7 +21,7 @@ public class PacketEffect extends PacketBase {
 
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         data.writeDouble(x);
         data.writeDouble(y);
         data.writeDouble(z);
@@ -31,7 +30,7 @@ public class PacketEffect extends PacketBase {
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         this.x = data.readDouble();
         this.y = data.readDouble();
         this.z = data.readDouble();
@@ -40,26 +39,26 @@ public class PacketEffect extends PacketBase {
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         WarForgeMod.LOGGER.error("Recieved effect packet on Server side!");
     }
 
     @Override
-    @SideOnly(Side.CLIENT)
-    public void handleClientSide(EntityPlayer clientPlayer) {
-        NBTTagCompound compound;
+    @OnlyIn(Dist.CLIENT)
+    public void handleClientSide(Player clientPlayer) {
+        CompoundTag compound;
         try {
-            compound = JsonToNBT.getTagFromJson(dataNBT);
-        } catch (NBTException e) {
+            compound = TagParser.parseTag(dataNBT);
+        } catch (Exception e) {
             WarForgeMod.LOGGER.error("Malformed effect data NBT for " + type);
             return;
         }
         if (EffectRegistry.EFFECT_REGISTRY.containsKey(type)) {
             EffectRegistry.EFFECT_REGISTRY.get(type).runEffect(
-                    Minecraft.getMinecraft().world,
+                    Minecraft.getInstance().level,
                     clientPlayer,
-                    Minecraft.getMinecraft().renderEngine,
-                    clientPlayer.world.rand,
+                    Minecraft.getInstance().getTextureManager(),
+                    new Random(),
                     x, y, z,
                     compound
             );
@@ -67,10 +66,5 @@ public class PacketEffect extends PacketBase {
         }
 
 
-    }
-
-    @Override
-    public boolean canUseCompression() {
-        return true;
     }
 }

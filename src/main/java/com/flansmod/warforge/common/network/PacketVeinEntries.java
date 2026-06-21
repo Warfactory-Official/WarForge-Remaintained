@@ -2,11 +2,9 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 
@@ -36,13 +34,9 @@ public class PacketVeinEntries extends PacketBase {
         return true;
     }
 
-    // we want this to be compressed
-    @Override
-    public boolean canUseCompression() { return true; }
-
     // called by the packet handler to convert to a byte stream to send
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         for (Vein vein : veinBuffer) {
             final int veinBufBytes = vein.SERIALIZED_ENTRY.readableBytes();
             data.writeBytes(vein.SERIALIZED_ENTRY, 0, veinBufBytes);
@@ -51,7 +45,7 @@ public class PacketVeinEntries extends PacketBase {
 
     // called by the packet handler to make the packet from a byte stream after construction
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         // continue and try to deserialize the data until it has all been read through
         while (data.readableBytes() > 0) {
             veinBuffer.add(new Vein(data));
@@ -60,13 +54,13 @@ public class PacketVeinEntries extends PacketBase {
 
     // always called on packet after decodeInto has been called
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
+    public void handleServerSide(ServerPlayer playerEntity) {
         // server shouldn't get these
     }
 
     // always called on packet after decodeInto has been called
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
         // store the received veins
         for (Vein vein : veinBuffer) {
             VEIN_ENTRIES.put(vein.getId(), vein);

@@ -3,9 +3,9 @@
 	"credit": "Made with Blockbench",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "warforge:blocks/statues/modern/radio/tableleg",
-		"1": "warforge:blocks/statues/modern/radio/tabletop",
-		"particle": "warforge:blocks/statues/modern/radio/tableleg"
+		"0": "warforge:block/statues/modern/radio/tableleg",
+		"1": "warforge:block/statues/modern/radio/tabletop",
+		"particle": "warforge:block/statues/modern/radio/tableleg"
 	},
 	"elements": [
 		{

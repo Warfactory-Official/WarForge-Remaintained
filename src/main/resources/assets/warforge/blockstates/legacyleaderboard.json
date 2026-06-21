@@ -1,5 +1,5 @@
 {
     "variants": {
-        "normal": { "model": "warforge:legacyleaderboard" }
+        "": { "model": "warforge:block/legacyleaderboard" }
     }
 }

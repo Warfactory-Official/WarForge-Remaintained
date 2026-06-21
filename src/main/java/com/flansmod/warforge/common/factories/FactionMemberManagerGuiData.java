@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.cleanroommc.modularui.factory.GuiData;
+import brachy.modularui.factory.GuiData;
 import com.flansmod.warforge.server.Faction;
-import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -62,11 +62,11 @@ public class FactionMemberManagerGuiData extends GuiData {
     public boolean canInvitePlayers;
     public boolean canManageAlliances;
     public boolean allowAllyInteraction;
-    public final List<MemberEntry> members = new ArrayList<MemberEntry>();
-    public final List<InviteEntry> inviteCandidates = new ArrayList<InviteEntry>();
-    public final List<AllianceEntry> alliances = new ArrayList<AllianceEntry>();
+    public final List<MemberEntry> members = new ArrayList<>();
+    public final List<InviteEntry> inviteCandidates = new ArrayList<>();
+    public final List<AllianceEntry> alliances = new ArrayList<>();
 
-    public FactionMemberManagerGuiData(EntityPlayer player, Page page) {
+    public FactionMemberManagerGuiData(Player player, Page page) {
         super(player);
         this.page = page;
     }

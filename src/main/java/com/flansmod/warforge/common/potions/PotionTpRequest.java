@@ -1,70 +1,54 @@
 package com.flansmod.warforge.common.potions;
 
+import java.util.List;
+
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
-import net.minecraft.client.Minecraft;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.potion.Potion;
-import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fml.relauncher.Side;
-import net.minecraftforge.fml.relauncher.SideOnly;
 
-public class PotionTpRequest extends Potion 
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.phys.AABB;
+
+public class PotionTpRequest extends MobEffect
 {
-	public static final ResourceLocation EXTRA_EFFECTS = new ResourceLocation(Tags.MODID, "textures/potions.png");
-	
-	
-	protected PotionTpRequest() 
+	protected PotionTpRequest()
 	{
-		super(false, 0x00afff);
-		setPotionName("effect.tprequest");
-	}
-	
-	@Override
-    public void performEffect(EntityLivingBase living, int amplifier)
-    {
-		Entity bestEntity = null;
-		double bestDistanceSq = Double.MAX_VALUE;
-		
-    	for(Entity entity : living.world.loadedEntityList)
-    	{
-    		if(entity instanceof EntityLivingBase)
-    		{
-    			if(((EntityLivingBase)entity).isPotionActive(WarForgeMod.POTIONS.tpAccept))
-    			{
-    				double distanceSq = entity.getDistanceSq(living);
-    				if(distanceSq < bestDistanceSq)
-    				{
-    					bestEntity = entity;
-    					bestDistanceSq = distanceSq;
-    				}
-    			}
-    		}
-    	}
-    	
-    	if(bestEntity != null)
-    	{
-    		if(living.attemptTeleport(bestEntity.posX, bestEntity.posY, bestEntity.posZ))
-    		{
-    			living.removeActivePotionEffect(this);
-    		}
-    		
-    	}
-    }
-	
-	@SideOnly(Side.CLIENT)
-	@Override
-	public int getStatusIconIndex() 
-	{
-		Minecraft.getMinecraft().renderEngine.bindTexture(EXTRA_EFFECTS);
-		return 1;
+		super(MobEffectCategory.NEUTRAL, 0x00afff);
 	}
 
 	@Override
-	public boolean isReady(int duration, int amplifier)
-    {
-		 return duration % 20 == 0;
-    }
-	
+	public void applyEffectTick(LivingEntity living, int amplifier)
+	{
+		LivingEntity bestEntity = null;
+		double bestDistanceSq = Double.MAX_VALUE;
+
+		AABB searchBox = living.getBoundingBox().inflate(64.0D);
+		List<LivingEntity> candidates = living.level().getEntitiesOfClass(LivingEntity.class, searchBox);
+		for (LivingEntity entity : candidates)
+		{
+			if (entity.hasEffect(WarForgeMod.POTIONS.tpAccept.get()))
+			{
+				double distanceSq = entity.distanceToSqr(living);
+				if (distanceSq < bestDistanceSq)
+				{
+					bestEntity = entity;
+					bestDistanceSq = distanceSq;
+				}
+			}
+		}
+
+		if (bestEntity != null)
+		{
+			if (living.randomTeleport(bestEntity.getX(), bestEntity.getY(), bestEntity.getZ(), true))
+			{
+				living.removeEffect(this);
+			}
+		}
+	}
+
+	@Override
+	public boolean isDurationEffectTick(int duration, int amplifier)
+	{
+		return duration % 20 == 0;
+	}
 }

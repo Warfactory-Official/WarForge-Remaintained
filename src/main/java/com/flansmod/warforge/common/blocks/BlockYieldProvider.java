@@ -1,30 +1,28 @@
 package com.flansmod.warforge.common.blocks;
 
 import com.flansmod.warforge.api.IItemYieldProvider;
-import net.minecraft.block.Block;
-import net.minecraft.block.material.Material;
-import net.minecraft.block.state.IBlockState;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.IBlockAccess;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.SoundType;
+import net.minecraft.world.level.block.state.BlockBehaviour;
+import net.minecraft.world.level.block.state.BlockState;
 
 // An unharvestable resource block that contributes to the yield of any faction that claims it
 public class BlockYieldProvider extends Block implements IItemYieldProvider
 {
 	public ItemStack yieldToProvide = ItemStack.EMPTY;
 	public float multiplier = 1.0f;
-	 
-	public BlockYieldProvider(Material material, ItemStack yieldStack, float multiplier) 
+
+	public BlockYieldProvider(ItemStack yieldStack, float multiplier)
 	{
-		super(material);
-		
-		this.setCreativeTab(CreativeTabs.BUILDING_BLOCKS);
-		
-		this.setBlockUnbreakable();
-		this.setHardness(300000000F);
-		
+		super(BlockBehaviour.Properties.of()
+				.strength(-1.0F, 3600000.0F)
+				.noLootTable()
+				.sound(SoundType.STONE));
+
 		yieldToProvide = yieldStack;
 		this.multiplier = multiplier;
 	}
@@ -40,12 +38,10 @@ public class BlockYieldProvider extends Block implements IItemYieldProvider
 	{
 		return multiplier;
 	}
-	
-	@Override
-    public boolean canEntityDestroy(IBlockState state, IBlockAccess world, BlockPos pos, Entity entity)
-    {
-        return false;
-    }
 
-	
+	@Override
+	public boolean canEntityDestroy(BlockState state, BlockGetter world, BlockPos pos, Entity entity)
+	{
+		return false;
+	}
 }

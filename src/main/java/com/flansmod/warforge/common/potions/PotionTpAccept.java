@@ -1,25 +1,24 @@
 package com.flansmod.warforge.common.potions;
 
-import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.potion.Potion;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectCategory;
+import net.minecraft.world.entity.LivingEntity;
 
-public class PotionTpAccept extends Potion 
+public class PotionTpAccept extends MobEffect
 {
 	protected PotionTpAccept()
 	{
-		super(false, 0x00ffff);
-		setPotionName("effect.tpaccept");
+		super(MobEffectCategory.NEUTRAL, 0x00ffff);
 	}
 
 	@Override
-    public void performEffect(EntityLivingBase entityLivingBaseIn, int amplifier)
-    {
-    	
-    }
-	
-	 @Override
-	 public boolean isReady(int duration, int amplifier)
-     {
-		 return duration % 20 == 0;
-     }
+	public void applyEffectTick(LivingEntity living, int amplifier)
+	{
+	}
+
+	@Override
+	public boolean isDurationEffectTick(int duration, int amplifier)
+	{
+		return duration % 20 == 0;
+	}
 }

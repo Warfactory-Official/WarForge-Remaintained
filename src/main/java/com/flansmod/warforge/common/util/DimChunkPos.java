@@ -1,21 +1,23 @@
 package com.flansmod.warforge.common.util;
 
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.ChunkPos;
-import net.minecraft.util.math.Vec3i;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 
 public class DimChunkPos extends ChunkPos
 {
-	public int dim;
-	
-	public DimChunkPos(int dim, int x, int z) 
+	public ResourceKey<Level> dim;
+
+	public DimChunkPos(ResourceKey<Level> dim, int x, int z)
 	{
 		super(x, z);
 		this.dim = dim;
 	}
-	
-	public DimChunkPos(int dim, BlockPos pos)
+
+	public DimChunkPos(ResourceKey<Level> dim, BlockPos pos)
 	{
 		super(pos);
 		this.dim = dim;
@@ -23,13 +25,13 @@ public class DimChunkPos extends ChunkPos
 
 	public boolean isSameDim(DimChunkPos other)
 	{
-		return other.dim == dim;
+		return other.dim.equals(dim);
 	}
-	
+
 	@Override//Magic numbers ffs
 	public int hashCode()
     {
-		return super.hashCode() ^ (155225 * this.dim + 140501023);
+		return super.hashCode() ^ (155225 * this.dim.hashCode() + 140501023);
     }
 
 	@Override
@@ -42,27 +44,27 @@ public class DimChunkPos extends ChunkPos
             return false;
 
         DimChunkPos dcpos = (DimChunkPos)other;
-        return this.dim == dcpos.dim && this.x == dcpos.x && this.z == dcpos.z;
+        return this.dim.equals(dcpos.dim) && this.x == dcpos.x && this.z == dcpos.z;
     }
-    
+
 	@Override
     public String toString()
     {
-        return "[" + this.dim + ": " + this.x + ", " + this.z + "]";
+        return "[" + this.dim.location() + ": " + this.x + ", " + this.z + "]";
     }
-	
-	public DimChunkPos Offset(EnumFacing facing, int n)
+
+	public DimChunkPos Offset(Direction facing, int n)
 	{
-	    return new DimChunkPos(dim, x + facing.getXOffset() * n, z + facing.getZOffset() * n);
+	    return new DimChunkPos(dim, x + facing.getStepX() * n, z + facing.getStepZ() * n);
 	}
 
 	public DimChunkPos Offset(Vec3i offset)
 	{
-		return new DimChunkPos(dim, x +  offset.getX(), z + offset.getZ());
+		return new DimChunkPos(dim, x + offset.getX(), z + offset.getZ());
 	}
 
-	public DimChunkPos north() { return Offset(EnumFacing.NORTH, 1); }
-	public DimChunkPos south() { return Offset(EnumFacing.SOUTH, 1); }
-	public DimChunkPos east() { return Offset(EnumFacing.EAST, 1); }
-	public DimChunkPos west() { return Offset(EnumFacing.WEST, 1); }
+	public DimChunkPos north() { return Offset(Direction.NORTH, 1); }
+	public DimChunkPos south() { return Offset(Direction.SOUTH, 1); }
+	public DimChunkPos east() { return Offset(Direction.EAST, 1); }
+	public DimChunkPos west() { return Offset(Direction.WEST, 1); }
 }

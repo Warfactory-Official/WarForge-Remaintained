@@ -1,5 +1,5 @@
 {
     "variants": {
-        "normal": { "model": "warforge:wealthleaderboard" }
+        "": { "model": "warforge:block/wealthleaderboard" }
     }
 }

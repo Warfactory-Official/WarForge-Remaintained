@@ -1,34 +1,25 @@
 pluginManagement {
     repositories {
-        maven {
-            // RetroFuturaGradle
-            name 'GTNH Maven'
-            url 'https://nexus.gtnewhorizons.com/repository/public/'
-            //noinspection GroovyAssignabilityCheck
-            mavenContent {
-                includeGroup 'com.gtnewhorizons'
-                includeGroup 'com.gtnewhorizons.retrofuturagradle'
-            }
-        }
-        maven {
-            name 'Warfactory Releases"'
-            url 'https://repo.warfactory.co/releases'
-        }
         gradlePluginPortal()
+        maven {
+            name = 'MinecraftForge'
+            url = 'https://maven.minecraftforge.net/'
+        }
+        maven {
+            name = 'ParchmentMC'
+            url = 'https://maven.parchmentmc.org'
+        }
+        maven {
+            name = 'SpongePowered'
+            url = 'https://repo.spongepowered.org/repository/maven-public/'
+        }
         mavenCentral()
         mavenLocal()
     }
 }
 
 plugins {
-    id 'com.diffplug.blowdryerSetup' version '1.7.1'
-    // Automatic toolchain provisioning
-    id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
 }
 
-blowdryerSetup {
-    repoSubfolder 'spotless'
-    github 'GregTechCEu/Buildscripts', 'tag', 'v1.0.7'
-}
-
-rootProject.name = rootProject.projectDir.getName()
+rootProject.name = 'WarForge-Remaintained'

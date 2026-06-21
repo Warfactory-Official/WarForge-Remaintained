@@ -1,37 +1,33 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.server.Faction;
-import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelHandlerContext;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.entity.player.EntityPlayerMP;
+import net.minecraft.network.FriendlyByteBuf;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
 public class PacketRequestUpgrade extends PacketBase {
-   public UUID factionID = Faction.nullUuid;
-
+    public UUID factionID = Faction.nullUuid;
 
     @Override
-    public void encodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void encodeInto(FriendlyByteBuf data) {
         writeUUID(data, factionID);
-
     }
 
     @Override
-    public void decodeInto(ChannelHandlerContext ctx, ByteBuf data) {
+    public void decodeInto(FriendlyByteBuf data) {
         factionID = readUUID(data);
     }
 
     @Override
-    public void handleServerSide(EntityPlayerMP playerEntity) {
-                WarForgeMod.FACTIONS.requestLevelUp(playerEntity, factionID);
+    public void handleServerSide(ServerPlayer player) {
+        WarForgeMod.FACTIONS.requestLevelUp(player, factionID);
     }
 
     @Override
-    public void handleClientSide(EntityPlayer clientPlayer) {
+    public void handleClientSide(Player clientPlayer) {
 
     }
 }

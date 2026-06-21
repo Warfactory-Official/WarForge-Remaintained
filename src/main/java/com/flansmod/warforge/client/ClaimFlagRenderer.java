@@ -1,19 +1,8 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.common.blocks.TileEntityClaim;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.BufferBuilder;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderHelper;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraftforge.client.event.RenderWorldLastEvent;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
-import org.lwjgl.opengl.GL11;
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 public class ClaimFlagRenderer {
     private static final double RENDER_DISTANCE_SQ = 64.0 * 64.0;
@@ -22,32 +11,33 @@ public class ClaimFlagRenderer {
     private static final double BANNER_TOP = 2.1;
 
     @SubscribeEvent
-    public void onRenderWorldLast(RenderWorldLastEvent event) {
+    public void onRenderWorldLast(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
+            return;
+        }
         //TODO: Finish this, Im too lazy rn
-//        Minecraft mc = Minecraft.getMinecraft();
-//        if (mc.world == null || mc.player == null) {
+//        Minecraft mc = Minecraft.getInstance();
+//        if (mc.level == null || mc.player == null) {
 //            return;
 //        }
 //
-//        float partialTicks = event.getPartialTicks();
-//        EntityPlayer player = mc.player;
-//        double camX = player.lastTickPosX + (player.posX - player.lastTickPosX) * partialTicks;
-//        double camY = player.lastTickPosY + (player.posY - player.lastTickPosY) * partialTicks;
-//        double camZ = player.lastTickPosZ + (player.posZ - player.lastTickPosZ) * partialTicks;
+//        float partialTicks = event.getPartialTick();
+//        PoseStack pose = event.getPoseStack();
+//        Vec3 cam = mc.gameRenderer.getMainCamera().getPosition();
+//        double camX = cam.x;
+//        double camY = cam.y;
+//        double camZ = cam.z;
 //
-//        boolean begun = false;
-//        Tessellator tessellator = Tessellator.getInstance();
-//        BufferBuilder buffer = tessellator.getBuffer();
+//        MultiBufferSource.BufferSource buffers = mc.renderBuffers().bufferSource();
 //
-//        for (TileEntity tile : mc.world.loadedTileEntityList) {
-//            if (!(tile instanceof TileEntityClaim)) {
+//        for (BlockEntity tile : mc.level.blockEntityList) {
+//            if (!(tile instanceof TileEntityClaim claim)) {
 //                continue;
 //            }
-//            TileEntityClaim claim = (TileEntityClaim) tile;
 //            if (claim.factionFlagId == null || claim.factionFlagId.isEmpty()) {
 //                continue;
 //            }
-//            BlockPos pos = claim.getPos();
+//            BlockPos pos = claim.getBlockPos();
 //            double dx = pos.getX() + 0.5 - camX;
 //            double dy = pos.getY() - camY;
 //            double dz = pos.getZ() + 0.5 - camZ;
@@ -59,43 +49,29 @@ public class ClaimFlagRenderer {
 //                continue;
 //            }
 //
-//            if (!begun) {
-//                begin();
-//                begun = true;
-//            }
-//
-//            mc.getTextureManager().bindTexture(texture);
-//            GlStateManager.pushMatrix();
-//            GlStateManager.translate(dx, dy, dz);
-//            buffer.begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION_TEX);
-//            buffer.pos(-HALF_WIDTH, BANNER_TOP, 0.0).tex(0.0, 0.0).endVertex();
-//            buffer.pos(-HALF_WIDTH, BANNER_BOTTOM, 0.0).tex(0.0, 1.0).endVertex();
-//            buffer.pos(HALF_WIDTH, BANNER_BOTTOM, 0.0).tex(1.0, 1.0).endVertex();
-//            buffer.pos(HALF_WIDTH, BANNER_TOP, 0.0).tex(1.0, 0.0).endVertex();
-//            tessellator.draw();
-//            GlStateManager.popMatrix();
+//            pose.pushPose();
+//            pose.translate(dx, dy, dz);
+//            VertexConsumer consumer = buffers.getBuffer(RenderType.entityCutout(texture));
+//            Matrix4f mat = pose.last().pose();
+//            consumer.vertex(mat, (float) -HALF_WIDTH, (float) BANNER_TOP, 0.0F).color(255, 255, 255, 255).uv(0.0F, 0.0F).uv2(packedLight).normal(0, 0, 1).endVertex();
+//            consumer.vertex(mat, (float) -HALF_WIDTH, (float) BANNER_BOTTOM, 0.0F).color(255, 255, 255, 255).uv(0.0F, 1.0F).uv2(packedLight).normal(0, 0, 1).endVertex();
+//            consumer.vertex(mat, (float) HALF_WIDTH, (float) BANNER_BOTTOM, 0.0F).color(255, 255, 255, 255).uv(1.0F, 1.0F).uv2(packedLight).normal(0, 0, 1).endVertex();
+//            consumer.vertex(mat, (float) HALF_WIDTH, (float) BANNER_TOP, 0.0F).color(255, 255, 255, 255).uv(1.0F, 0.0F).uv2(packedLight).normal(0, 0, 1).endVertex();
+//            pose.popPose();
 //        }
 //
-//        if (begun) {
-//            end();
-//        }
+//        buffers.endBatch();
     }
 
     private void begin() {
-        GlStateManager.pushMatrix();
-        GlStateManager.disableLighting();
-        RenderHelper.disableStandardItemLighting();
-        GlStateManager.disableCull();
-        GlStateManager.enableBlend();
-        GlStateManager.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA);
-        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        RenderSystem.disableCull();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
     private void end() {
-        GlStateManager.disableBlend();
-        GlStateManager.enableCull();
-        RenderHelper.enableStandardItemLighting();
-        GlStateManager.enableLighting();
-        GlStateManager.popMatrix();
+        RenderSystem.disableBlend();
+        RenderSystem.enableCull();
     }
 }
