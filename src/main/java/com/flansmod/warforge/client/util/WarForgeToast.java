@@ -78,8 +78,9 @@ public class WarForgeToast implements Toast {
 
         int textX = iconPadding;
         if (this.playerId != null) {
-            int iconY = (this.targetHeight - 8) / 2;
-            SkinUtil.drawFace(guiGraphics, this.playerId, 10, iconY, 8);
+            int iconSize = 20;
+            int iconY = (this.targetHeight - iconSize) / 2;
+            SkinUtil.drawFace(guiGraphics, this.playerId, 10, iconY, iconSize);
         }
 
         int textY = (this.targetHeight - contentHeight) / 2;

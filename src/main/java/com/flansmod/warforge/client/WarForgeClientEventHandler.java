@@ -77,11 +77,15 @@ public final class WarForgeClientEventHandler {
         if (!(event.getEntity() instanceof Player)) {
             return;
         }
+        // Don't draw your own faction tag over yourself (only ever visible in third-person / F5).
+        if (event.getEntity() == Minecraft.getInstance().player) {
+            return;
+        }
         //SOOO minecraft puts this symbol in player nicknames...? the fuck?
         PlayerNametagCache.NamePlateData faction = WarForgeMod.NAMETAG_CACHE.requestIfAbsent(event.getContent().getString().replaceAll("§.", ""));
         if (faction == null) {
             return;
         }
-        FullColorNameplate.drawNameplate(Minecraft.getInstance().font, Component.literal(faction.name), event.getPoseStack(), event.getMultiBufferSource(), -10, event.getEntity().isDiscrete(), faction.color, faction.darkerColor, event.getPackedLight());
+        FullColorNameplate.drawNameplate(Minecraft.getInstance().font, Component.literal(faction.name), event.getEntity(), event.getPoseStack(), event.getMultiBufferSource(), -10, event.getEntity().isDiscrete(), faction.color, faction.darkerColor, event.getPackedLight());
     }
 }
