@@ -2307,7 +2307,12 @@ public class FactionStorage {
     }
 
     public PacketClaimChunksData createClaimChunksData(ServerPlayer player, DimChunkPos center, int radius) {
-        int clampedRadius = Math.max(1, Math.min(radius, WarForgeConfig.CLAIM_MANAGER_RADIUS));
+        return createClaimChunksData(player, center, radius, false);
+    }
+
+    public PacketClaimChunksData createClaimChunksData(ServerPlayer player, DimChunkPos center, int radius, boolean outlineOnly) {
+        int maxRadius = outlineOnly ? WarForgeConfig.BORDER_SYNC_MAX_RADIUS : WarForgeConfig.CLAIM_MANAGER_RADIUS;
+        int clampedRadius = Math.max(1, Math.min(radius, maxRadius));
         if (!center.dim.equals(player.level().dimension())) {
             center = new DimChunkPos(player.level().dimension(), player.blockPosition());
         }
@@ -2320,6 +2325,7 @@ public class FactionStorage {
         packet.centerX = center.x;
         packet.centerZ = center.z;
         packet.radius = clampedRadius;
+        packet.outlineOnly = outlineOnly;
         packet.playerFactionId = faction == null ? Faction.nullUuid : faction.uuid;
         packet.forceLoadedCount = faction == null ? 0 : faction.forcedChunks.size();
         packet.forceLoadedMax = faction == null ? 0 : faction.getMaxForceLoadedChunks();
@@ -2366,13 +2372,15 @@ public class FactionStorage {
                     info.outlineStyle = ClaimChunkInfo.OUTLINE_CLAIM;
                 }
 
-                var veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, MC_SERVER.overworld().getSeed());
-                if (veinInfo != null) {
-                    info.vein = veinInfo.getLeft();
-                    info.oreQuality = veinInfo.getRight();
+                if (!outlineOnly) {
+                    var veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, MC_SERVER.overworld().getSeed());
+                    if (veinInfo != null) {
+                        info.vein = veinInfo.getLeft();
+                        info.oreQuality = veinInfo.getRight();
+                    }
                 }
 
-                if (faction != null && ownerFaction != null && ownerFaction.uuid.equals(faction.uuid)) {
+                if (!outlineOnly && faction != null && ownerFaction != null && ownerFaction.uuid.equals(faction.uuid)) {
                     info.flags |= ClaimChunkInfo.FLAG_OWNED_BY_PLAYER;
                     if (faction.forcedChunks.contains(chunk)) {
                         info.flags |= ClaimChunkInfo.FLAG_FORCE_LOADED;
@@ -2385,7 +2393,7 @@ public class FactionStorage {
                     }
                 }
 
-                if (canManage) {
+                if (!outlineOnly && canManage) {
                     if (ownerFaction == null) {
                         if (canClaimChunkNoTile(player, faction, chunk, false)) {
                             info.flags |= ClaimChunkInfo.FLAG_CAN_CLAIM;
@@ -2399,7 +2407,10 @@ public class FactionStorage {
                     }
                 }
 
-                packet.chunks.add(info);
+                // The border sync only carries chunks that actually have an outline.
+                if (!outlineOnly || info.hasVisibleOutline()) {
+                    packet.chunks.add(info);
+                }
             }
         }
 
@@ -2407,7 +2418,11 @@ public class FactionStorage {
     }
 
     public void sendClaimChunks(ServerPlayer player, DimChunkPos center, int radius) {
-        PacketClaimChunksData packet = createClaimChunksData(player, center, radius);
+        sendClaimChunks(player, center, radius, false);
+    }
+
+    public void sendClaimChunks(ServerPlayer player, DimChunkPos center, int radius, boolean outlineOnly) {
+        PacketClaimChunksData packet = createClaimChunksData(player, center, radius, outlineOnly);
         WarForgeMod.NETWORK.sendTo(packet, player);
     }
 

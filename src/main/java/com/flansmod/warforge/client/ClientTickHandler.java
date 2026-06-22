@@ -83,6 +83,12 @@ public class ClientTickHandler {
     // Vertical padding (blocks) added around the chunk's perimeter surface band when scanning the
     // per-block border silhouette, so the loop covers the surface step without walking the full column.
     private static final int BORDER_Y_SCAN_MARGIN = 4;
+    // Border claim sync: prefetch this many chunks beyond the render-distance cull so movement never
+    // reveals unsynced borders, and only re-request after the player drifts this far from the last
+    // sync centre (the request "cache" that stops per-chunk flooding). Plus a slow safety resync to
+    // pick up claim changes inside the synced window.
+    private static final int BORDER_SYNC_PREFETCH = 4;
+    private static final int BORDER_SAFETY_RESYNC_TICKS = 100;
     // Identity: border meshes are built in chunk-local space and offset per frame via the model-view
     // matrix at draw time, so the cached buffer never depends on the camera position.
     private static final Matrix4f BORDER_LOCAL_MATRIX = new Matrix4f();
@@ -105,6 +111,9 @@ public class ClientTickHandler {
     private int areaMessageColour = 0xFF_FF_FF_FF;
     private String areaFlagId = "";
     private HashMap<DimChunkPos, BorderRenderData> renderData = new HashMap<>();
+    // Coverage cache for the passive border sync: the centre/radius of the last window we requested.
+    private DimChunkPos lastBorderSyncCenter = null;
+    private int lastBorderSyncRadius = 0;
 
     // -1 indicates the chunk wasn't the targeting of previous probe(s)
     private static ArrayList<String> cachedCompStrings = null;
@@ -125,6 +134,8 @@ public class ClientTickHandler {
             data.disposeVbo();
         }
         renderData.clear();
+        ClientBorderCache.clear();
+        lastBorderSyncCenter = null;
     }
 
     @SubscribeEvent
@@ -236,15 +247,32 @@ public class ClientTickHandler {
 
         boolean guiOpen = mc.screen != null;
         if (!guiOpen) {
-            if (!standing.equals(lastClaimSyncChunk) || player.tickCount % 40 == 0) {
-                requestClaimChunkData(standing);
-                lastClaimSyncChunk = standing;
+            // Sync claim outlines for borders over the render distance (clamped to min of client and
+            // server view distance via getEffectiveRenderDistance), plus a prefetch ring. Only
+            // re-request when the player drifts past the prefetch from the last sync centre, the
+            // radius changes, or a slow safety interval elapses — so we don't flood the server.
+            int renderDist = WarForgeConfig.BORDER_RENDER_DISTANCE > 0
+                    ? WarForgeConfig.BORDER_RENDER_DISTANCE
+                    : mc.options.getEffectiveRenderDistance();
+            int syncRadius = Math.min(renderDist + BORDER_SYNC_PREFETCH, WarForgeConfig.BORDER_SYNC_MAX_RADIUS);
+            boolean resync = lastBorderSyncCenter == null
+                    || !lastBorderSyncCenter.dim.equals(playerDim)
+                    || syncRadius != lastBorderSyncRadius
+                    || Math.max(Math.abs(standing.x - lastBorderSyncCenter.x), Math.abs(standing.z - lastBorderSyncCenter.z)) > BORDER_SYNC_PREFETCH
+                    || player.tickCount % BORDER_SAFETY_RESYNC_TICKS == 0;
+            if (resync) {
+                requestClaimChunkData(standing, syncRadius, true);
+                lastBorderSyncCenter = standing;
+                lastBorderSyncRadius = syncRadius;
             }
+            lastClaimSyncChunk = standing;
         } else if (player.tickCount % 40 == 0 && lastClaimSyncChunk.dim.equals(playerDim)
                 && !ClaimManagerGuiFactory.isRemoteSiegeView()) {
             // While a stage-2 siege picker is open on a remote target, don't clobber its
             // target-centered claim window with a player-centered refresh.
             requestClaimChunkData(lastClaimSyncChunk);
+            // Force a fresh border sync once the GUI closes.
+            lastBorderSyncCenter = null;
         }
 
         if (claimManagerKey.consumeClick()) {
@@ -266,8 +294,8 @@ public class ClientTickHandler {
 
             // Only perform claim checks if the player has moved to a new chunk
             if (!standing.equals(playerChunkPos)) {
-                ClaimChunkInfo preClaim = ClientClaimChunkCache.get(playerChunkPos);
-                ClaimChunkInfo postClaim = ClientClaimChunkCache.get(standing);
+                ClaimChunkInfo preClaim = ClientBorderCache.get(playerChunkPos);
+                ClaimChunkInfo postClaim = ClientBorderCache.get(standing);
                 boolean hadPreClaim = preClaim != null && !preClaim.factionId.equals(Faction.nullUuid);
                 boolean hasPostClaim = postClaim != null && !postClaim.factionId.equals(Faction.nullUuid);
 
@@ -305,9 +333,14 @@ public class ClientTickHandler {
     }
 
     private void requestClaimChunkData(DimChunkPos center) {
+        requestClaimChunkData(center, WarForgeConfig.CLAIM_MANAGER_RADIUS, false);
+    }
+
+    private void requestClaimChunkData(DimChunkPos center, int radius, boolean outlineOnly) {
         PacketRequestClaimChunks packet = new PacketRequestClaimChunks();
         packet.center = center;
-        packet.radius = WarForgeConfig.CLAIM_MANAGER_RADIUS;
+        packet.radius = radius;
+        packet.outlineOnly = outlineOnly;
         WarForgeMod.NETWORK.sendToServer(packet);
     }
 
@@ -702,7 +735,7 @@ public class ClientTickHandler {
         HashMap<DimChunkPos, BorderRenderData> tempData = new HashMap<DimChunkPos, BorderRenderData>();
 
         // Find all synced claim chunks in our current dimension.
-        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientBorderCache.getChunks()).entrySet()) {
             DimChunkPos chunkPos = kvp.getKey();
             if (!chunkPos.dim.equals(worldDim)) {
                 continue;
@@ -1197,7 +1230,7 @@ public class ClientTickHandler {
         boolean canPlace = true;
         List<DimChunkPos> siegeablePositions = new ArrayList<>();
 
-        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientClaimChunkCache.getChunks()).entrySet()) {
+        for (HashMap.Entry<DimChunkPos, ClaimChunkInfo> kvp : new HashMap<>(ClientBorderCache.getChunks()).entrySet()) {
             DimChunkPos chunkPos = kvp.getKey();
             ClaimChunkInfo info = kvp.getValue();
             if (info == null || info.factionId.equals(Faction.nullUuid)) {

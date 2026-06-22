@@ -144,6 +144,7 @@ public class WarForgeConfig {
     public static int INVITE_DECAY_TIME = 5;
     public static int RANDOM_BORDER_REDRAW_DENOMINATOR = 5;
     public static int BORDER_RENDER_DISTANCE = 0; // in chunks; claim borders farther than this from the camera are not rendered. 0 = follow the client's render distance
+    public static final int BORDER_SYNC_MAX_RADIUS = 48; // hard cap (chunks) on the sparse border-outline sync radius the server will serve
     public static int FACTION_NAME_LENGTH_MAX = 32;
     public static String[] FACTION_NAME_BANLIST = new String[]{"admin", "mod", "staff"};
     public static boolean BLOCK_ENDER_CHEST = false;

@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.api.vein.Quality;
+import com.flansmod.warforge.client.ClientBorderCache;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.ClientTickHandler;
@@ -29,6 +30,9 @@ public class PacketClaimChunksData extends PacketBase {
     public int forceLoadedMax;
     public int claimCount;
     public int claimMax;
+    // When true this is the sparse, wide border-outline payload; route it to the border cache instead
+    // of the dense claim-manager cache (and skip the claim-map texture rebuild).
+    public boolean outlineOnly = false;
     public List<ClaimChunkInfo> chunks = new ArrayList<ClaimChunkInfo>();
 
     @Override
@@ -37,6 +41,7 @@ public class PacketClaimChunksData extends PacketBase {
         data.writeInt(centerX);
         data.writeInt(centerZ);
         data.writeByte(radius);
+        data.writeBoolean(outlineOnly);
         writeUUID(data, playerFactionId);
         data.writeShort(forceLoadedCount);
         data.writeShort(forceLoadedMax);
@@ -67,6 +72,7 @@ public class PacketClaimChunksData extends PacketBase {
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
+        outlineOnly = data.readBoolean();
         playerFactionId = readUUID(data);
         forceLoadedCount = data.readShort();
         forceLoadedMax = data.readShort();
@@ -103,6 +109,13 @@ public class PacketClaimChunksData extends PacketBase {
 
     @Override
     public void handleClientSide(Player clientPlayer) {
+        if (outlineOnly) {
+            // Lightweight border payload: fill the sparse border cache and rebuild meshes; no
+            // claim-manager state and no claim-map texture work.
+            ClientBorderCache.replaceAll(dim, chunks);
+            ClientTickHandler.CLAIMS_DIRTY = true;
+            return;
+        }
         ClientClaimChunkCache.replaceAll(dim, centerX, centerZ, radius, playerFactionId, forceLoadedCount, forceLoadedMax, claimCount, claimMax, chunks);
         java.util.HashMap<Long, Integer> tintByChunk = new java.util.HashMap<Long, Integer>();
         for (ClaimChunkInfo info : chunks) {

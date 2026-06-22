@@ -60,7 +60,7 @@ public final class GuiIslandCollector {
 
         ModularPanel panel = ModularPanel.defaultPanel("island_collector", WIDTH, HEIGHT)
                 .topRel(0.40f);
-        panel.child(SlotGroupWidget.playerInventory(true).top(100));
+        panel.child(ModularGuiStyle.playerInventoryPanel(202));
 
         panel.child(new IDrawable.DrawableWidget(new Rectangle().color(HEADER_FILL))
                 .name("island_collector_header_backdrop")
