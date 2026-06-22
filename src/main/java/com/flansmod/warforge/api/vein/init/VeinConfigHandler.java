@@ -1,5 +1,9 @@
 package com.flansmod.warforge.api.vein.init;
 
+import com.electronwill.nightconfig.core.CommentedConfig;
+import com.electronwill.nightconfig.core.Config;
+import com.electronwill.nightconfig.toml.TomlParser;
+import com.electronwill.nightconfig.toml.TomlWriter;
 import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -16,13 +20,12 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
-import org.yaml.snakeyaml.Yaml;
 
 import javax.naming.ConfigurationException;
-import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -37,15 +40,9 @@ import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 public class VeinConfigHandler {
     public record Tuple4<A, B, C, D>(A _1, B _2, C _3, D _4) {}
 
-    static Yaml yaml;
-
-    static {
-        yaml = new Yaml();
-    }
-
-    public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.yml");
+    public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.toml");
     public final static Path LEGACY_CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.cfg");
-    public static final List<String> EXAMPLE_YAML = Collections.unmodifiableList(Arrays.asList(
+    public static final List<String> EXAMPLE_TOML = Collections.unmodifiableList(Arrays.asList(
             "# It should be said that it is RECOMMENDED to BACKUP ANY vein config files with significant time invested into them; ",
             "# trying to update the file when auto-generated vein ids are present may cause data loss if a poorly timed error occurs.",
             "# Additionally, all comments will be removed when auto-generated vein ids are used.",
@@ -56,58 +53,40 @@ public class VeinConfigHandler {
             "# There must be a global megachunk_length which is the side length [4, 180] of the regions in which the weight minimums are respected.",
             "# There is no guarantee of veins occurring at least once, but they are guaranteed floor(megachunk_length^2 * weight)",
             "#",
-            "# Example vein definition format.",
-            "# Each vein entry must contain:",
-            "# - id: An auto-generated unique identifier [0, 8191] which allows for vein properties to change; leave as '~' to auto-gen.",
+            "# Example vein definition format (TOML). Each vein is an entry in the [[veins]] array of tables:",
+            "# - id: An auto-generated unique identifier [0, 8191] which allows for vein properties to change;",
+            "#       OMIT this key entirely to have one assigned automatically.",
             "# - key: A unique translation key used for localization or identification.",
-            "# - quals: A list of quality overrides for this vein, with ommitted qualities using the global default in cfg",
-            "#     - <Qual Name>: <float multiplier>",
-            "# - dims: A list of dimension weights, where:",
-            "#     - id: The dimension ResourceLocation (e.g. minecraft:overworld, minecraft:the_nether, minecraft:the_end, or a modded dim).",
+            "# - quals: An inline table of quality overrides for this vein, with omitted qualities using the global default in cfg",
+            "#       quals = { <Qual Name> = <float multiplier>, ... }",
+            "# - dims: An array of inline tables of dimension weights, where:",
+            "#       id: The dimension ResourceLocation (e.g. minecraft:overworld, minecraft:the_nether, minecraft:the_end, or a modded dim).",
             "#       weight: A float between 0.0 and 1.0 indicating the relative generation chance in that dimension.",
             "#       mult: A float between 0.0 and 1.0 which scales the yield of a vein based on the dimension; omission => 1.",
-            "# - components: A list of ore components for the vein, where:",
-            "#     - item: The item ID (e.g. minecraft:iron_ore) to generate in the vein.",
+            "# - components: An array of inline tables of ore components for the vein, where:",
+            "#       item: The item ID (e.g. minecraft:iron_ore) to generate in the vein.",
             "#       yield: How many of this item the vein yields when selected. [float w/ decimal value contributed to bonus chance]",
-            "#       weights: A list of chances to appear on any given harvest of this vein for this component in each dim (omitted dimensions assume a weight of 1.0)",
-            "#          - id [dimension ResourceLocation] : weight [chance to appear as float between 0 and 1]",
-            "#       mults: A list of multipliers for this comp in each dim (omitted dimensions use the vein dim multiplier)",
-            "#          - id [dimension ResourceLocation] : mult [yield multiplier as float >= 0.0]",
+            "#       weights: An array of { id = <dimension ResourceLocation>, weight = <float 0..1> } tables (omitted dimensions assume a weight of 1.0)",
+            "#       mults: An array of { id = <dimension ResourceLocation>, mult = <float >= 0.0> } tables (omitted dimensions use the vein dim multiplier)",
             "#     NOTE: If component weights are omitted or empty, all are assumed to have a weight of 1.0.",
             "#",
             "# All fields are mandatory unless otherwise specified.",
-            "# The number of dimension weights must match the number of dimension IDs.",
-            "# The number of component weights must match the number of components.",
             "#",
-            "# iteration: 0",
-            "# megachunk_length: 32",
-            "# veins:",
-            "#   - id: ~",
-            "#     key: warforge.veins.iron_mix",
-            "#     quals:",
-            "#       - RICH: 10",
-            "#         POOR: 0.1",
-            "#     dims:",
-            "#       - id: minecraft:the_nether",
-            "#         weight: 0.5",
-            "#         mult: 2",
-            "#       - id: minecraft:overworld",
-            "#         weight: 0.4215",
-            "#       - id: minecraft:the_end",
-            "#         weight: 1.0",
-            "#     components:",
-            "#       - item: minecraft:iron_ore",
-            "#         yield: 2",
-            "#         weights: ",
-            "#           - \"minecraft:the_nether\" : 0.75",
-            "#           - \"minecraft:overworld\" : 1.0",
-            "#           [implicit 1.0 weight for any dim not listed]",
-            "#       - item: minecraft:coal_ore",
-            "#         yield: 1",
-            "#         mults: ",
-            "#           - \"minecraft:the_nether\": 4",
-            "#           [implicit 1.0 multiplier for the remaining dimension(s)]",
-            "#    - id: ~",
+            "# iteration = 0",
+            "# megachunk_length = 32",
+            "#",
+            "# [[veins]]",
+            "# key = \"warforge.veins.iron_mix\"",
+            "# quals = { RICH = 10.0, POOR = 0.1 }",
+            "# dims = [",
+            "#     { id = \"minecraft:the_nether\", weight = 0.5, mult = 2.0 },",
+            "#     { id = \"minecraft:overworld\", weight = 0.4215 },",
+            "#     { id = \"minecraft:the_end\", weight = 1.0 },",
+            "# ]",
+            "# components = [",
+            "#     { item = \"minecraft:iron_ore\", yield = 2.0, weights = [ { id = \"minecraft:the_nether\", weight = 0.75 }, { id = \"minecraft:overworld\", weight = 1.0 } ] },",
+            "#     { item = \"minecraft:coal_ore\", yield = 1.0, mults = [ { id = \"minecraft:the_nether\", mult = 4.0 } ] },",
+            "# ]",
             "#..."
     ));
 
@@ -117,7 +96,7 @@ public class VeinConfigHandler {
             Files.createDirectories(CONFIG_PATH.getParent());
             Files.write(
                     CONFIG_PATH,
-                    EXAMPLE_YAML,
+                    EXAMPLE_TOML,
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING,
                     StandardOpenOption.WRITE
@@ -145,7 +124,7 @@ public class VeinConfigHandler {
             return;
         }
 
-        List<LinkedHashMap<String, Object>> allVeinData = veinData.getRight();
+        List<Config> allVeinData = veinData.getRight();
         if (allVeinData == null) {
             VEIN_HANDLER.populateVeinMap(null);
             return;
@@ -197,17 +176,19 @@ public class VeinConfigHandler {
                 // for each vein without an id, update its id in the config file
                 var noIDEntriesIndices = noIdEntries.keySet();  // it's not saved, so store a copy here
                 for (int noIDVeinIndex : noIDEntriesIndices) {
-                    allVeinData.get(noIDVeinIndex).put("id", posToId.get(noIDVeinIndex));
+                    allVeinData.get(noIDVeinIndex).set("id", (int) posToId.get(noIDVeinIndex));
                 }
 
                 // wipe all previous text in the file and write the info string
-                String infoString = String.join("\n", EXAMPLE_YAML) + "\n\n";
-                FileWriter infoWriter = new FileWriter(CONFIG_PATH.toFile());
-                infoWriter.write(infoString);
-                infoWriter.close();
+                String infoString = String.join("\n", EXAMPLE_TOML) + "\n\n";
+                try (FileWriter infoWriter = new FileWriter(CONFIG_PATH.toFile())) {
+                    infoWriter.write(infoString);
+                }
 
-                // write the yaml data to the file
-                yaml.dump(veinData.getLeft(), new FileWriter(CONFIG_PATH.toFile(), true));  // write data
+                // write the toml data to the file (appended after the comment block)
+                try (FileWriter dataWriter = new FileWriter(CONFIG_PATH.toFile(), true)) {
+                    new TomlWriter().write(veinData.getLeft(), dataWriter);
+                }
             } catch (Exception exception) {
                 WarForgeMod.LOGGER.atError().log("Could not write back to vein file; id's will not be updated.");
             }
@@ -217,12 +198,11 @@ public class VeinConfigHandler {
     }
 
     // attempts to read the global vein data, falling back to defaults for the VEIN_HANDLER if an error occurs
-    private static Pair<LinkedHashMap<String, Object>, List<LinkedHashMap<String, Object>>> parseGlobalVeinData() {
-        LinkedHashMap<String, Object> globalVeinData;  // used to rewrite to file
-        List<LinkedHashMap<String, Object>> rawVeins;
-        try {
-            InputStream inputStream = new FileInputStream(CONFIG_PATH.toFile());  // will throw if no file exists
-            globalVeinData = yaml.load(inputStream);  // get a mapping of keys to objects
+    private static Pair<CommentedConfig, List<Config>> parseGlobalVeinData() {
+        CommentedConfig globalVeinData;  // used to rewrite to file
+        List<Config> rawVeins;
+        try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {  // will throw if no file exists
+            globalVeinData = new TomlParser().parse(reader);  // get a mapping of keys to objects
             short iterationId = ((Number) globalVeinData.get("iteration")).shortValue();
 
             short megachunkLength = ((Number) globalVeinData.get("megachunk_length")).shortValue();
@@ -232,7 +212,7 @@ public class VeinConfigHandler {
             }
 
             VEIN_HANDLER = new VeinUtils(iterationId, megachunkLength);
-            rawVeins = (List<LinkedHashMap<String, Object>>) globalVeinData.get("veins");
+            rawVeins = globalVeinData.get("veins");
         } catch (Exception e) {
             WarForgeMod.LOGGER.error("Failed to parse veins: ", e);
             VEIN_HANDLER = new VeinUtils((short) 0, (short) 32);
@@ -248,20 +228,20 @@ public class VeinConfigHandler {
     }
 
     // returns the number of occupiedIds found
-    private static int parseVeinEntries(List<LinkedHashMap<String, Object>> rawVeins, List<VeinEntry> entries,
+    private static int parseVeinEntries(List<Config> rawVeins, List<VeinEntry> entries,
                                         Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>,
                                             Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>>> noIdEntries,
                                         short[] occupiedIds) {
         int numIds = 0;
         int veinIndex = -1;
         // parse all veins
-        for (LinkedHashMap<String, Object> veinData : rawVeins) {
+        for (Config veinData : rawVeins) {
             ++veinIndex;
             try {
                 // try to get the id, or determine if it is invalid
                 short absoluteId = NULL_VEIN_ID;  // start off with the null vein id
                 try {
-                    Number idNum = (Number) veinData.get("id");
+                    Number idNum = veinData.get("id");
                     short currId = NULL_VEIN_ID;
                     if (idNum != null) { currId = idNum.shortValue(); }
                     if (currId >= 0 && currId < 8192) { absoluteId = currId; }
@@ -270,10 +250,10 @@ public class VeinConfigHandler {
                 }
 
                 // get key and try to get quality overrides, if there any
-                String translationKey = (String) veinData.get("key");
-                Map<String, Object> qualsRaw = null;
+                String translationKey = veinData.get("key");
+                Config qualsRaw = null;
                 try {
-                    qualsRaw = ((List<Map<String, Object>>) veinData.get("quals")).get(0);
+                    qualsRaw = veinData.get("quals");
                 } catch (Exception e) {
                     WarForgeMod.LOGGER.atDebug().log("Failed to get quality overrides for vein with key " + translationKey);
                 }
@@ -281,21 +261,20 @@ public class VeinConfigHandler {
                 // try to extract qualities
                 Object2FloatOpenHashMap<Quality> quals = null;  // null by default to indicate no overrides
                 if (qualsRaw != null) {
-                    quals = new Object2FloatOpenHashMap<>(qualsRaw.size());
+                    quals = new Object2FloatOpenHashMap<>(Quality.values().length);
                     for (Quality qual : Quality.values()) {
-                        if (!qualsRaw.containsKey(qual.toString())) { continue; }
+                        if (!qualsRaw.contains(qual.toString())) { continue; }
                         quals.put(qual, ((Number) qualsRaw.get(qual.toString())).floatValue());
                     }
                 }
 
                 // get dim info
-                List<Map<String, Object>> dimsRaw = (List<Map<String, Object>>) veinData.get("dims");
+                List<Config> dimsRaw = veinData.get("dims");
 
-                // lack of dash on weight indicates singular id, weight object in .cfg yml file
                 Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dims = new Object2ObjectOpenHashMap<>(dimsRaw.size());
-                for (Map<String, Object> dimRaw : dimsRaw) {
+                for (Config dimRaw : dimsRaw) {
                     float multiplier = 1;
-                    if (dimRaw.containsKey("mult")) { multiplier = ((Number) dimRaw.get("mult")).floatValue(); }
+                    if (dimRaw.contains("mult")) { multiplier = ((Number) dimRaw.get("mult")).floatValue(); }
                     ResourceKey<Level> dimKey = ResourceKey.create(Registries.DIMENSION,
                             parseDimId(dimRaw.get("id")));
                     dims.put(dimKey, new DimWeight(dimKey,
@@ -304,13 +283,13 @@ public class VeinConfigHandler {
                 }
 
                 // read the component data
-                List<Map<String, Object>> componentsRaw = (List<Map<String, Object>>) veinData.get("components");
+                List<Config> componentsRaw = veinData.get("components");
                 List<Component> components = componentsRaw.stream()
                         .map(comp -> new Component(
-                            (String) comp.get("item"),
+                            comp.get("item"),
                             ((Number) comp.get("yield")).floatValue(),
-                            Component.parseMapF2S((List<Map<Object, Object>>) comp.get("weights")),
-                            Component.parseFloatMap((List<Map<Object, Object>>) comp.get("mults"))))
+                            Component.parseMapF2S(comp.get("weights")),
+                            Component.parseFloatMap(comp.get("mults"))))
                         .collect(Collectors.toList());
 
                 if (absoluteId == NULL_VEIN_ID) {
@@ -472,24 +451,24 @@ public class VeinConfigHandler {
         final public Object2ShortOpenHashMap<ResourceKey<Level>> weights;
         final public Object2FloatOpenHashMap<ResourceKey<Level>> multipliers;
 
-        public static Object2FloatOpenHashMap<ResourceKey<Level>> parseFloatMap(List<Map<Object, Object>> floatEntries) {
+        // mults entries are { id = <dimension>, mult = <float> } tables
+        public static Object2FloatOpenHashMap<ResourceKey<Level>> parseFloatMap(List<? extends Config> multEntries) {
             Object2FloatOpenHashMap<ResourceKey<Level>> result = new Object2FloatOpenHashMap<>();
-            if (floatEntries == null) { return result; }
-            for (Map<Object, Object> dimEntry : floatEntries) {
-                var e = dimEntry.entrySet().iterator().next();
-                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(e.getKey()));
-                result.put(key, ((Number) e.getValue()).floatValue());
+            if (multEntries == null) { return result; }
+            for (Config dimEntry : multEntries) {
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(dimEntry.get("id")));
+                result.put(key, ((Number) dimEntry.get("mult")).floatValue());
             }
             return result;
         }
 
-        public static Object2ShortOpenHashMap<ResourceKey<Level>> parseMapF2S(List<Map<Object, Object>> floatEntries) {
+        // weights entries are { id = <dimension>, weight = <float> } tables
+        public static Object2ShortOpenHashMap<ResourceKey<Level>> parseMapF2S(List<? extends Config> weightEntries) {
             Object2ShortOpenHashMap<ResourceKey<Level>> result = new Object2ShortOpenHashMap<>();
-            if (floatEntries == null) { return result; }
-            for (Map<Object, Object> dimEntry : floatEntries) {
-                var e = dimEntry.entrySet().iterator().next();
-                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(e.getKey()));
-                result.put(key, VeinUtils.percentToShort(((Number) e.getValue()).floatValue()));
+            if (weightEntries == null) { return result; }
+            for (Config dimEntry : weightEntries) {
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, parseDimId(dimEntry.get("id")));
+                result.put(key, VeinUtils.percentToShort(((Number) dimEntry.get("weight")).floatValue()));
             }
             return result;
         }

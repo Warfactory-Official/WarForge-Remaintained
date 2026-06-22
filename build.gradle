@@ -74,9 +74,6 @@ mixin {
     config "mixins.${project.modId}.json"
 }
 
-// Bundle runtime libraries the mod loads (snakeyaml) into the mod-visible layer for dev + prod.
-jarJar.enable()
-
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 // Dependency refmaps are remapped SRG -> named at dev runtime (see the run-config mixin.env props);
@@ -128,10 +125,8 @@ dependencies {
     compileOnly 'org.projectlombok:lombok:1.18.42'
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 
-    // Upgrade-config / vein YAML parser. Kept on the runtime classpath (implementation) so it exists as
-    // a dev module; ModuleBridge wires it into the mod's module at runtime. (jarJar would reserve it for
-    // production bundling and drop it from the dev classpath, so it is NOT jarJar'd here.)
-    implementation 'org.yaml:snakeyaml:1.33'
+    // Upgrade-config and vein config parsing use Forge's bundled night-config TOML library
+    // (com.electronwill.nightconfig, the same parser backing ForgeConfigSpec) — no extra dependency.
 
     // ModularUI (brachy84's modern Forge-1.20.1 port, 3.3.0) — consumed from CurseForge via CurseMaven.
     // fg.deobf so its SRG members + mixin refmap are remapped to named for the dev runtime.

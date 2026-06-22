@@ -1,7 +1,10 @@
 package com.flansmod.warforge.server;
 
+import com.electronwill.nightconfig.core.Config;
+import com.electronwill.nightconfig.toml.TomlFormat;
+import com.electronwill.nightconfig.toml.TomlParser;
+import com.electronwill.nightconfig.toml.TomlWriter;
 import com.flansmod.warforge.common.WarForgeMod;
-import org.yaml.snakeyaml.Yaml;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -14,37 +17,34 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 public class UpgradeHandler {
     public static final String STUB = """
-            levels:
-              - level: 0
-                claim_limit: 5
-                insurance_slots: 0
-                requirements: []
+            [[levels]]
+            level = 0
+            claim_limit = 5
+            insurance_slots = 0
+            requirements = []
 
-              - level: 1
-                claim_limit: 10
-                insurance_slots: 9
-                requirements:
-                  - type: ore
-                    id: forge:ingots/iron
-                    count: 64
-                  - type: item
-                    id: minecraft:diamond
-                    count: 1
+            [[levels]]
+            level = 1
+            claim_limit = 10
+            insurance_slots = 9
+            requirements = [
+                { type = "ore", id = "forge:ingots/iron", count = 64 },
+                { type = "item", id = "minecraft:diamond", count = 1 },
+            ]
 
-              - level: 2
-                claim_limit: 15
-                insurance_slots: 18
-                requirements:
-                  - type: item
-                    id: minecraft:netherite_ingot
-                    count: 1
+            [[levels]]
+            level = 2
+            claim_limit = 15
+            insurance_slots = 18
+            requirements = [
+                { type = "item", id = "minecraft:netherite_ingot", count = 1 },
+            ]
             """;
 
     protected HashMap<ItemMatcher, Integer>[] LEVELS;
@@ -81,13 +81,13 @@ public class UpgradeHandler {
         INSURANCE_SLOTS[level] = insuranceSlots;
     }
 
-    public static void migrateLegacyConfigIfNeeded(Path legacyCfg, Path yamlPath) throws IOException {
-        if (Files.exists(yamlPath) || !Files.exists(legacyCfg)) {
+    public static void migrateLegacyConfigIfNeeded(Path legacyCfg, Path tomlPath) throws IOException {
+        if (Files.exists(tomlPath) || !Files.exists(legacyCfg)) {
             return;
         }
 
         LegacyConfigData migrated = parseLegacyConfig(legacyCfg);
-        writeYamlConfig(yamlPath, migrated.levels, migrated.claims, migrated.insuranceSlots);
+        writeTomlConfig(tomlPath, migrated.levels, migrated.claims, migrated.insuranceSlots);
         Files.move(legacyCfg, legacyCfg.resolveSibling(legacyCfg.getFileName() + ".migrated"), StandardCopyOption.REPLACE_EXISTING);
     }
 
@@ -99,18 +99,14 @@ public class UpgradeHandler {
     }
 
     public static void parseConfig(Path path) throws IOException {
-        Yaml yaml = new Yaml();
-        Object loaded;
-        try (Reader reader = Files.newBufferedReader(path)) {
-            loaded = yaml.load(reader);
-        }
-        if (!(loaded instanceof Map<?, ?> root)) {
-            throw new IllegalStateException("Upgrade config must be a YAML object");
+        Config root;
+        try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
+            root = new TomlParser().parse(reader);
         }
 
         Object rawLevels = root.get("levels");
         if (!(rawLevels instanceof List<?> rawLevelList)) {
-            throw new IllegalStateException("Upgrade config must contain a 'levels' list");
+            throw new IllegalStateException("Upgrade config must contain a 'levels' array of tables");
         }
 
         List<Map<ItemMatcher, Integer>> levels = new ArrayList<>();
@@ -118,8 +114,8 @@ public class UpgradeHandler {
         List<Integer> insuranceSlots = new ArrayList<>();
 
         for (Object rawLevel : rawLevelList) {
-            if (!(rawLevel instanceof Map<?, ?> levelMap)) {
-                throw new IllegalArgumentException("Each level entry must be a map");
+            if (!(rawLevel instanceof Config levelMap)) {
+                throw new IllegalArgumentException("Each level entry must be a table");
             }
 
             int level = readRequiredInt(levelMap, "level");
@@ -142,8 +138,8 @@ public class UpgradeHandler {
             Object rawRequirements = levelMap.get("requirements");
             if (rawRequirements instanceof List<?> requirementList) {
                 for (Object rawRequirement : requirementList) {
-                    if (!(rawRequirement instanceof Map<?, ?> requirementMap)) {
-                        throw new IllegalArgumentException("Requirement entries must be maps");
+                    if (!(rawRequirement instanceof Config requirementMap)) {
+                        throw new IllegalArgumentException("Requirement entries must be tables");
                     }
                     String type = String.valueOf(requirementMap.get("type")).toLowerCase(Locale.ROOT);
                     String id = String.valueOf(requirementMap.get("id"));
@@ -219,7 +215,7 @@ public class UpgradeHandler {
         }
     }
 
-    private static int readRequiredInt(Map<?, ?> map, String key) {
+    private static int readRequiredInt(Config map, String key) {
         Object value = map.get(key);
         if (value == null) {
             throw new IllegalArgumentException("Missing required key: " + key);
@@ -227,40 +223,36 @@ public class UpgradeHandler {
         return Integer.parseInt(String.valueOf(value));
     }
 
-    private static int readOptionalInt(Map<?, ?> map, String key, int fallback) {
+    private static int readOptionalInt(Config map, String key, int fallback) {
         Object value = map.get(key);
         return value == null ? fallback : Integer.parseInt(String.valueOf(value));
     }
 
-    private static void writeYamlConfig(Path path, List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) throws IOException {
-        List<Map<String, Object>> yamlLevels = new ArrayList<>();
+    private static void writeTomlConfig(Path path, List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) throws IOException {
+        List<Config> tomlLevels = new ArrayList<>();
         for (int i = 0; i < levels.size(); i++) {
-            Map<String, Object> levelMap = new LinkedHashMap<>();
-            levelMap.put("level", i);
-            levelMap.put("claim_limit", claims.get(i));
-            levelMap.put("insurance_slots", insuranceSlots.get(i));
+            Config levelMap = TomlFormat.newConfig();
+            levelMap.set("level", i);
+            levelMap.set("claim_limit", claims.get(i));
+            levelMap.set("insurance_slots", insuranceSlots.get(i));
 
-            List<Map<String, Object>> requirements = new ArrayList<>();
+            List<Config> requirements = new ArrayList<>();
             for (Map.Entry<ItemMatcher, Integer> entry : levels.get(i).entrySet()) {
-                Map<String, Object> requirementMap = new LinkedHashMap<>();
-                if (entry.getKey().isTag()) {
-                    requirementMap.put("type", "ore");
-                } else {
-                    requirementMap.put("type", "item");
-                }
-                requirementMap.put("id", entry.getKey().id());
-                requirementMap.put("count", entry.getValue());
+                Config requirementMap = TomlFormat.newConfig();
+                requirementMap.set("type", entry.getKey().isTag() ? "ore" : "item");
+                requirementMap.set("id", entry.getKey().id());
+                requirementMap.set("count", entry.getValue());
                 requirements.add(requirementMap);
             }
-            levelMap.put("requirements", requirements);
-            yamlLevels.add(levelMap);
+            levelMap.set("requirements", requirements);
+            tomlLevels.add(levelMap);
         }
 
-        Map<String, Object> root = new LinkedHashMap<>();
-        root.put("levels", yamlLevels);
+        Config root = TomlFormat.newConfig();
+        root.set("levels", tomlLevels);
         Files.createDirectories(path.getParent());
-        try (Writer writer = Files.newBufferedWriter(path, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
-            new Yaml().dump(root, writer);
+        try (Writer writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)) {
+            new TomlWriter().write(root, writer);
         }
     }
 

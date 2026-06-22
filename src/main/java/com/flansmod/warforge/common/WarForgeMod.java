@@ -123,7 +123,6 @@ public class WarForgeMod {
     public static TimeHelper timeHelper = new TimeHelper();
 
     public WarForgeMod() {
-        ModuleBridge.bridge("org.yaml.snakeyaml.Yaml");
         INSTANCE = this;
         LOGGER = LogManager.getLogger(Tags.MODID);
         proxy = DistExecutor.safeRunForDist(
@@ -199,7 +198,7 @@ public class WarForgeMod {
             return;
         }
 
-        Path configFile = Paths.get("config", Tags.MODID, "upgrade_levels.yml");
+        Path configFile = Paths.get("config", Tags.MODID, "upgrade_levels.toml");
         try {
             UpgradeHandler.writeStubIfEmpty(configFile);
             UpgradeHandler.parseConfig(configFile);
