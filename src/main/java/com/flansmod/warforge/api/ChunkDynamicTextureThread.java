@@ -118,13 +118,32 @@ public class ChunkDynamicTextureThread extends Thread {
 
 
     public void applyHeightMap(int[] colorBuffer, int[] heightMap) {
+        // Relief brightness is normalized against the visible elevation span, not a fixed 0..256
+        // range, so it scales to 1.20.1 worlds (-64..320) and any custom dimension. A collapsed
+        // span (flat / void / single-height server data) has no relief to show: grade everything
+        // to the mid brightness instead of dividing by log(1)=0 and producing NaN pixels.
+        int span = maxHeight - minHeight;
+        if (span <= 0) {
+            for (int i = 0; i < colorBuffer.length; i++) {
+                colorBuffer[i] = Color4i.fromRGB(colorBuffer[i]).withHSVBrightness(0.8f).toRGB();
+            }
+            return;
+        }
+
+        float logSpan = (float) Math.log(span + 1);
         for (int i = 0; i < colorBuffer.length; i++) {
-            float normalized = (float) Math.log(heightMap[i] - minHeight + 1) / (float) Math.log(maxHeight - minHeight + 1);
+            int delta = heightMap[i] - minHeight;
+            if (delta < 0) {
+                delta = 0;
+            } else if (delta > span) {
+                delta = span;
+            }
+            float normalized = (float) Math.log(delta + 1) / logSpan;
             float brightness = 0.6f + normalized * 0.4f;
 
-            Color4i color = Color4i.fromRGB(colorBuffer[i])
-                    .withHSVBrightness(brightness);
-            colorBuffer[i] = color.toRGB();
+            colorBuffer[i] = Color4i.fromRGB(colorBuffer[i])
+                    .withHSVBrightness(brightness)
+                    .toRGB();
         }
     }
 

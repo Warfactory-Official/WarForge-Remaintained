@@ -139,15 +139,21 @@ public final class ModularCitadelGui {
                 .right(220)
         );
 
+        // Rows fill the panel's content width and use horizontal-only padding/margin so the 18px-tall
+        // buttons fit within the row height and the row fits within the column (vertical padding/margin
+        // would push the children past the parent's content box).
+        int actionRowWidth = PANEL_WIDTH - CONTENT_LEFT * 2 - 10;
         var firstRow = new Flow(GuiAxis.X)
-                .padding(2)
-                .margin(2)
-                .height(18);
+                .padding(2, 0)
+                .margin(0, 2)
+                .width(actionRowWidth);
         actionsPanel.child(firstRow);
         if (hasFaction) {
+            firstRow.height(18);
             var secondRow = new Flow(GuiAxis.X)
-                    .padding(2)
-                    .margin(2)
+                    .padding(2, 0)
+                    .margin(0, 2)
+                    .width(actionRowWidth)
                     .height(18);
             firstRow.child(openButton("Insurance", 75, () -> FactionInsuranceGuiFactory.INSTANCE.openClientChild(reopenCitadel, citadel.getFaction())));
             firstRow.child(openButton("Faction Stats", 75, () -> FactionStatsGuiFactory.INSTANCE.openClientChild(reopenCitadel, citadel.getFaction())));
@@ -160,6 +166,7 @@ public final class ModularCitadelGui {
             secondRow.child(dangerButton("Disband", 75));
             actionsPanel.child(secondRow);
         } else {
+            firstRow.coverChildrenHeight();
             var columnStart = new Flow(GuiAxis.Y);
             columnStart.child(openButton("Create Faction", 100, () -> Minecraft.getInstance().setScreen(new GuiCreateFaction(citadel, false))).margin(2));
             columnStart.child(Text.str("The placer can establish the faction from here.").asWidget()
@@ -190,13 +197,13 @@ public final class ModularCitadelGui {
 
     private static ButtonWidget<?> openButton(String label, int width, Runnable action) {
         ButtonWidget<?> button = ModularGuiStyle.actionButton(label, width, action);
-        button.margin(10, 1);
+        button.margin(10, 0);
         return button;
     }
 
     private static ButtonWidget<?> dangerButton(String label, int width) {
         ButtonWidget<?> button = ModularGuiStyle.dangerButton(label, width, () -> WarForgeMod.NETWORK.sendToServer(new PacketDisbandFaction()));
-        button.margin(10, 1);
+        button.margin(10, 0);
         return button;
     }
 }

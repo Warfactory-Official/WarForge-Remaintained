@@ -3,37 +3,39 @@
 This document explains the three configuration layers used by WarForge:
 
 1. The main Forge config: `config/warforge.cfg`
-2. The citadel upgrade config: `config/warforge/upgrade_levels.yml`
-3. The vein config: `config/warforge/veins.yml`
+2. The citadel upgrade config: `config/warforge/upgrade_levels.toml`
+3. The vein config: `config/warforge/veins.toml`
 
 The goal here is practical administration. This is written around how the current code actually loads and validates these files.
+
+> Format note: the upgrade and vein configs use **TOML** (parsed by Forge's bundled night-config library, the same parser behind `ForgeConfigSpec`). Earlier versions used YAML; if you are coming from an old `.yml` file, recreate it as `.toml` using the examples below.
 
 ## Overview
 
 WarForge uses three different config systems for three different jobs:
 
 - `warforge.cfg` controls the main gameplay rules, protections, timers, UI behavior, whitelist and blacklist settings, and most siege and claim behavior.
-- `upgrade_levels.yml` controls citadel progression, claim limits per level, insurance slots per level, and upgrade material requirements.
-- `veins.yml` controls generated vein definitions, dimension weights, quality overrides, and component yields.
+- `upgrade_levels.toml` controls citadel progression, claim limits per level, insurance slots per level, and upgrade material requirements.
+- `veins.toml` controls generated vein definitions, dimension weights, quality overrides, and component yields.
 
 ## File Locations
 
 In the current project, the files are loaded from these locations:
 
 - Main config: `config/warforge.cfg`
-- Upgrade config: `config/warforge/upgrade_levels.yml`
+- Upgrade config: `config/warforge/upgrade_levels.toml`
 - Legacy upgrade config: `config/warforge/upgrade_levels.cfg`
-- Vein config: `config/warforge/veins.yml`
+- Vein config: `config/warforge/veins.toml`
 
 Notes:
 
 - The main config is loaded from Forge's suggested config path for the `warforge` mod id.
 - Upgrade config is only loaded if `Enable Citadel Upgrade System` is enabled in the main config.
-- If `upgrade_levels.yml` does not exist and the legacy `upgrade_levels.cfg` exists, the legacy file is migrated to YAML and renamed to `upgrade_levels.cfg.migrated`.
-- If `upgrade_levels.yml` is missing or empty, WarForge writes a stub file automatically.
+- If `upgrade_levels.toml` does not exist and the legacy `upgrade_levels.cfg` exists, the legacy file is migrated to TOML and renamed to `upgrade_levels.cfg.migrated`.
+- If `upgrade_levels.toml` is missing or empty, WarForge writes a stub file automatically.
 - Legacy vein config path: `config/warforge/veins.cfg`
-- If `veins.yml` does not exist and `veins.cfg` does, WarForge migrates the old file to the new `.yml` name automatically.
-- If `veins.yml` is missing or empty, WarForge writes a stub file automatically.
+- If `veins.toml` does not exist and `veins.cfg` does, WarForge migrates the old file to the new `.toml` name automatically.
+- If `veins.toml` is missing or empty, WarForge writes a stub file automatically.
 
 ## When Changes Apply
 
@@ -320,7 +322,7 @@ Yields {
 }
 ```
 
-## Part 2: Citadel Upgrade Config (`config/warforge/upgrade_levels.yml`)
+## Part 2: Citadel Upgrade Config (`config/warforge/upgrade_levels.toml`)
 
 ### When It Is Used
 
@@ -332,13 +334,11 @@ If upgrades are disabled in `warforge.cfg`, this file is ignored.
 
 ### Format Overview
 
-The file is YAML and has one root key:
+The file is TOML. It has one top-level key, `levels`, written as an **array of tables** — each `[[levels]]` block describes one citadel level:
 
-```yaml
-levels:
+```toml
+[[levels]]
 ```
-
-Each entry under `levels` describes one citadel level.
 
 Required keys per level:
 
@@ -357,11 +357,11 @@ WarForge currently enforces these rules:
 - `claim_limit` must be greater than `0`, or exactly `-1` for unlimited.
 - `insurance_slots` must be `>= 0`.
 - Claim limits must not go backwards between levels, unless one of them is `-1`.
-- `requirements` entries must be maps.
+- `requirements` entries must be tables (inline `{ ... }` tables are the usual form).
 - Requirement `type` must be either `ore` or `item`.
-- Item requirement ids must be:
-  - `modid:item`
-  - `modid:item:meta`
+- `ore` ids are item **tags** (`namespace:path`).
+- `item` ids are item ids (`modid:item`). A legacy `modid:item:meta` suffix is accepted but the `:meta` part is **ignored** — 1.20.1 has no item metadata.
+- A requirement whose tag/item does not resolve is logged and skipped.
 - `count` defaults to `1` if omitted.
 
 Best practice:
@@ -372,101 +372,89 @@ Best practice:
 
 ### Requirement Types
 
-### Ore Dictionary Requirement
+### Tag (`ore`) Requirement
 
-```yaml
-- type: ore
-  id: ingotIron
-  count: 64
+```toml
+requirements = [
+    { type = "ore", id = "forge:ingots/iron", count = 64 },
+]
 ```
 
-This accepts any item matching that ore dictionary entry.
+This accepts any item in that item tag.
 
 ### Item Requirement
 
-```yaml
-- type: item
-  id: minecraft:diamond
-  count: 4
-```
-
-### Item Requirement with Meta
-
-```yaml
-- type: item
-  id: gregtech:meta_item_1:32700
-  count: 2
+```toml
+requirements = [
+    { type = "item", id = "minecraft:diamond", count = 4 },
+]
 ```
 
 ### Example: Simple Three-Level Upgrade Tree
 
-```yaml
-levels:
-  - level: 0
-    claim_limit: 5
-    insurance_slots: 0
-    requirements: []
+```toml
+[[levels]]
+level = 0
+claim_limit = 5
+insurance_slots = 0
+requirements = []
 
-  - level: 1
-    claim_limit: 10
-    insurance_slots: 9
-    requirements:
-      - type: ore
-        id: ingotIron
-        count: 64
-      - type: item
-        id: minecraft:diamond
-        count: 2
+[[levels]]
+level = 1
+claim_limit = 10
+insurance_slots = 9
+requirements = [
+    { type = "ore", id = "forge:ingots/iron", count = 64 },
+    { type = "item", id = "minecraft:diamond", count = 2 },
+]
 
-  - level: 2
-    claim_limit: 15
-    insurance_slots: 18
-    requirements:
-      - type: ore
-        id: ingotSteel
-        count: 128
-      - type: item
-        id: minecraft:nether_star
-        count: 1
+[[levels]]
+level = 2
+claim_limit = 15
+insurance_slots = 18
+requirements = [
+    { type = "ore", id = "forge:ingots/steel", count = 128 },
+    { type = "item", id = "minecraft:nether_star", count = 1 },
+]
 ```
 
 ### Example: Unlimited Final Level
 
-```yaml
-levels:
-  - level: 0
-    claim_limit: 5
-    insurance_slots: 0
-    requirements: []
+```toml
+[[levels]]
+level = 0
+claim_limit = 5
+insurance_slots = 0
+requirements = []
 
-  - level: 1
-    claim_limit: 10
-    insurance_slots: 9
-    requirements:
-      - type: ore
-        id: ingotIron
-        count: 64
+[[levels]]
+level = 1
+claim_limit = 10
+insurance_slots = 9
+requirements = [
+    { type = "ore", id = "forge:ingots/iron", count = 64 },
+]
 
-  - level: 2
-    claim_limit: -1
-    insurance_slots: 27
-    requirements:
-      - type: item
-        id: minecraft:dragon_egg
-        count: 1
+[[levels]]
+level = 2
+claim_limit = -1
+insurance_slots = 27
+requirements = [
+    { type = "item", id = "minecraft:dragon_egg", count = 1 },
+]
 ```
 
 ### Migration from Legacy `.cfg`
 
 If these conditions are true:
 
-- `config/warforge/upgrade_levels.yml` does not exist
+- `config/warforge/upgrade_levels.toml` does not exist
 - `config/warforge/upgrade_levels.cfg` does exist
 
 Then WarForge will:
 
 1. Parse the legacy file
-2. Write a YAML replacement
+2. Write a TOML replacement
 3. Rename the old file to `upgrade_levels.cfg.migrated`
 
 This migration happens automatically at startup.
@@ -477,51 +465,46 @@ This migration happens automatically at startup.
 
 Bad:
 
-```yaml
-levels:
-  - level: 0
-    claim_limit: 10
-  - level: 1
-    claim_limit: 5
+```toml
+[[levels]]
+level = 0
+claim_limit = 10
+
+[[levels]]
+level = 1
+claim_limit = 5
 ```
 
 This fails validation.
 
-### Invalid item id format
+### Wrong id type
 
-Bad:
-
-```yaml
-- type: item
-  id: minecraft
-```
-
-The item id must be `modid:item` or `modid:item:meta`.
+A `type = "ore"` id must be an item **tag** that exists (e.g. `forge:ingots/iron`), and a `type = "item"` id must be a registered item (e.g. `minecraft:diamond`). A bare `minecraft` with no `:path` is invalid; an unresolved tag/item is logged and skipped.
 
 ### Missing `levels`
 
 Bad:
 
-```yaml
-upgrade_levels:
-  - level: 0
+```toml
+[[upgrade_levels]]
+level = 0
 ```
 
-The root key must be exactly `levels`.
+The array of tables must be named exactly `levels` (`[[levels]]`).
 
-## Part 3: Vein Config (`config/warforge/veins.yml`)
+## Part 3: Vein Config (`config/warforge/veins.toml`)
 
-### Important: This File Is YAML
+### Important: This File Is TOML
 
 The canonical file is:
 
-- `config/warforge/veins.yml`
+- `config/warforge/veins.toml`
 
 An older install may still have:
 
 - `config/warforge/veins.cfg`
 
-If that old file exists and the new one does not, WarForge renames it to `veins.yml` during startup.
+If that old file exists and the new one does not, WarForge renames it to `veins.toml` during startup.
 
 ### Startup Behavior
 
@@ -531,26 +514,26 @@ If parsing fails badly, WarForge logs an error and falls back to safe defaults f
 
 ### Root Keys
 
-The root YAML object must contain:
+The file must contain:
 
 - `iteration`
 - `megachunk_length`
-- `veins`
+- `veins` — an array of tables (`[[veins]]`), one block per vein
 
 Example:
 
-```yaml
-iteration: 0
-megachunk_length: 32
-veins:
-  - id: ~
-    key: warforge.veins.iron_mix
-    dims:
-      - id: 0
-        weight: 1.0
-    components:
-      - item: minecraft:iron_ore
-        yield: 2
+```toml
+iteration = 0
+megachunk_length = 32
+
+[[veins]]
+key = "warforge.veins.iron_mix"
+dims = [
+    { id = "minecraft:overworld", weight = 1.0 },
+]
+components = [
+    { item = "minecraft:iron_ore", yield = 2.0 },
+]
 ```
 
 ### What `iteration` Means
@@ -590,7 +573,7 @@ Each vein entry supports:
 ### `id`
 
 - Valid explicit ids are `0` to `8191`
-- Use `~` to auto-generate an id
+- **Omit the `id` key** to auto-generate an id
 
 Important warning:
 
@@ -602,22 +585,18 @@ Important warning:
 
 A unique translation key for the vein name, for example:
 
-```yaml
-key: warforge.veins.iron_mix
+```toml
+key = "warforge.veins.iron_mix"
 ```
 
 ### `quals`
 
-This is optional, but the shape is easy to get wrong.
-
-The parser expects `quals` to be a one-entry YAML list whose first item is a map.
+This is optional. It is an **inline table** mapping quality names to multipliers.
 
 Correct shape:
 
-```yaml
-quals:
-  - POOR: 0.5
-    RICH: 2.5
+```toml
+quals = { POOR = 0.5, RICH = 2.5 }
 ```
 
 If a quality is omitted:
@@ -632,25 +611,22 @@ Valid qualities in current code:
 
 ### `dims`
 
-`dims` is required and is a list of dimension entries.
+`dims` is required and is an **array of inline tables**, one per dimension.
 
 Each dimension entry supports:
 
-- `id`
+- `id` — the dimension ResourceLocation (e.g. `minecraft:overworld`, `minecraft:the_nether`, `minecraft:the_end`, or a modded dimension id)
 - `weight`
 - `mult` (optional, defaults to `1`)
 
 Example:
 
-```yaml
-dims:
-  - id: -1
-    weight: 0.25
-    mult: 2.0
-  - id: 0
-    weight: 1.0
-  - id: 1
-    weight: 0.15
+```toml
+dims = [
+    { id = "minecraft:the_nether", weight = 0.25, mult = 2.0 },
+    { id = "minecraft:overworld", weight = 1.0 },
+    { id = "minecraft:the_end", weight = 0.15 },
+]
 ```
 
 Meaning:
@@ -660,7 +636,7 @@ Meaning:
 
 ### `components`
 
-Each component entry supports:
+`components` is an **array of inline tables**. Each component entry supports:
 
 - `item`
 - `yield`
@@ -669,89 +645,70 @@ Each component entry supports:
 
 Example:
 
-```yaml
-components:
-  - item: minecraft:iron_ore
-    yield: 2
-    weights:
-      - 0: 1.0
-      - -1: 0.3
-    mults:
-      - -1: 2.0
-
-  - item: minecraft:coal_ore
-    yield: 1
+```toml
+components = [
+    { item = "minecraft:iron_ore", yield = 2.0, weights = [ { id = "minecraft:overworld", weight = 1.0 }, { id = "minecraft:the_nether", weight = 0.3 } ], mults = [ { id = "minecraft:the_nether", mult = 2.0 } ] },
+    { item = "minecraft:coal_ore", yield = 1.0 },
+]
 ```
 
 Notes:
 
-- `weights` is a list of one-entry maps keyed by dimension id
+- `weights` is an array of `{ id = <dimension>, weight = <0..1> }` tables
 - Omitted component weights default to `1.0`
-- `mults` is also a list of one-entry maps keyed by dimension id
+- `mults` is an array of `{ id = <dimension>, mult = <float> }` tables
 - Omitted component multipliers fall back to the dimension `mult`
 - If both are omitted, the component just uses its base `yield`
 
 ### What Can `item` Be
 
-Although the example comments focus on item ids, the current code accepts:
+A component `item` is resolved with auto-detection, so it accepts:
 
 - A normal item registry id like `minecraft:iron_ore`
-- An item registry id with metadata like `modid:item:3`
-- An ore dictionary name, if that ore dictionary entry exists
+- An item **tag** like `forge:ores/copper`, if that tag exists (it is preferred when both a tag and an item share the id)
+
+A legacy `modid:item:meta` suffix is accepted but the `:meta` part is ignored — 1.20.1 has no item metadata. Unresolved ids are logged and the component is skipped.
 
 Best practice:
 
-- Use explicit item ids unless you intentionally want ore dictionary behavior
+- Use explicit item ids unless you intentionally want tag-based matching
 
 ### Example: Simple Overworld Vein
 
-```yaml
-iteration: 0
-megachunk_length: 32
-veins:
-  - id: ~
-    key: warforge.veins.starter_iron
-    dims:
-      - id: 0
-        weight: 1.0
-    components:
-      - item: minecraft:iron_ore
-        yield: 2
-      - item: minecraft:coal_ore
-        yield: 1
+```toml
+iteration = 0
+megachunk_length = 32
+
+[[veins]]
+key = "warforge.veins.starter_iron"
+dims = [
+    { id = "minecraft:overworld", weight = 1.0 },
+]
+components = [
+    { item = "minecraft:iron_ore", yield = 2.0 },
+    { item = "minecraft:coal_ore", yield = 1.0 },
+]
 ```
 
 This creates a simple Overworld-only vein with no special quality or dimension behavior.
 
 ### Example: Multi-Dimension Vein with Quality Overrides
 
-```yaml
-iteration: 1
-megachunk_length: 32
-veins:
-  - id: ~
-    key: warforge.veins.nether_mixed_metals
-    quals:
-      - POOR: 0.4
-        FAIR: 1.0
-        RICH: 3.0
-    dims:
-      - id: -1
-        weight: 0.8
-        mult: 2.0
-      - id: 0
-        weight: 0.2
-        mult: 0.75
-    components:
-      - item: minecraft:gold_ore
-        yield: 2
-        weights:
-          - -1: 1.0
-          - 0: 0.4
-      - item: minecraft:quartz_ore
-        yield: 4
-        mults:
-          - -1: 2.5
+```toml
+iteration = 1
+megachunk_length = 32
+
+[[veins]]
+key = "warforge.veins.nether_mixed_metals"
+quals = { POOR = 0.4, FAIR = 1.0, RICH = 3.0 }
+dims = [
+    { id = "minecraft:the_nether", weight = 0.8, mult = 2.0 },
+    { id = "minecraft:overworld", weight = 0.2, mult = 0.75 },
+]
+components = [
+    { item = "minecraft:gold_ore", yield = 2.0, weights = [ { id = "minecraft:the_nether", weight = 1.0 }, { id = "minecraft:overworld", weight = 0.4 } ] },
+    { item = "minecraft:nether_quartz_ore", yield = 4.0, mults = [ { id = "minecraft:the_nether", mult = 2.5 } ] },
+]
 ```
 
 This does all of the following:
@@ -760,67 +717,64 @@ This does all of the following:
 - Spawns mainly in the Nether
 - Gives the whole vein a higher yield multiplier in the Nether
 - Makes gold less common in the Overworld
-- Gives quartz an even bigger Nether-only yield multiplier
+- Gives nether quartz an even bigger Nether-only yield multiplier
 
-### Example: Ore Dictionary Component
+### Example: Tag Component
 
-```yaml
-iteration: 0
-megachunk_length: 32
-veins:
-  - id: ~
-    key: warforge.veins.any_copper_mix
-    dims:
-      - id: 0
-        weight: 1.0
-    components:
-      - item: oreCopper
-        yield: 2
+```toml
+iteration = 0
+megachunk_length = 32
+
+[[veins]]
+key = "warforge.veins.any_copper_mix"
+dims = [
+    { id = "minecraft:overworld", weight = 1.0 },
+]
+components = [
+    { item = "forge:ores/copper", yield = 2.0 },
+]
 ```
 
-Use this only if you intentionally want the vein to resolve through ore dictionary behavior instead of a specific block or item.
+Use this only if you intentionally want the vein to resolve through tag-based matching instead of a specific item.
 
 ### Common Vein Config Mistakes
 
-### Using normal map syntax for `quals`
+### Wrong shape for `quals`
+
+`quals` must be an inline table whose keys are exactly `POOR`, `FAIR`, and/or `RICH`.
 
 Bad:
 
-```yaml
-quals:
-  POOR: 0.5
-  RICH: 2.0
-```
-
-The current parser expects a list:
-
-```yaml
-quals:
-  - POOR: 0.5
-    RICH: 2.0
-```
-
-### Forgetting that `weights` and `mults` are lists
-
-Bad:
-
-```yaml
-weights:
-  0: 1.0
-  -1: 0.2
+```toml
+quals = [ { POOR = 0.5, RICH = 2.0 } ]
 ```
 
 Correct:
 
-```yaml
-weights:
-  - 0: 1.0
-  - -1: 0.2
+```toml
+quals = { POOR = 0.5, RICH = 2.0 }
+```
+
+### `weights` / `mults` keyed by dimension instead of being tables
+
+Bad:
+
+```toml
+weights = { "minecraft:overworld" = 1.0, "minecraft:the_nether" = 0.2 }
+```
+
+Correct — an array of `{ id, weight }` tables:
+
+```toml
+weights = [
+    { id = "minecraft:overworld", weight = 1.0 },
+    { id = "minecraft:the_nether", weight = 0.2 },
+]
 ```
 
 ### Reordering auto-generated ids without backing up
 
-If you use `id: ~`, WarForge may rewrite the file with assigned ids. The code explicitly warns that comments may be stripped during this rewrite.
+If you omit `id`, WarForge may rewrite the file with assigned ids. The code explicitly warns that comments may be stripped during this rewrite.
 
 Best practice:
 
@@ -832,12 +786,12 @@ Best practice:
 For safe config changes:
 
 1. Edit `warforge.cfg` first if you are changing global rules, quality multipliers, or enabling upgrades.
-2. Edit `upgrade_levels.yml` if you are changing progression.
-3. Edit `veins.yml` if you are changing ore generation and yield behavior.
+2. Edit `upgrade_levels.toml` if you are changing progression.
+3. Edit `veins.toml` if you are changing ore generation and yield behavior.
 4. Restart the server.
 5. Watch the startup log for:
    - unknown item or block warnings
-   - YAML parse errors
+   - TOML parse errors
    - invalid claim limit or requirement format errors
 6. Join with a client and verify:
    - claim limits
@@ -847,9 +801,9 @@ For safe config changes:
 
 ### Practical Admin Advice
 
-- Keep `upgrade_levels.yml` and `veins.yml` under version control.
-- Back up `veins.yml` before using `id: ~` heavily.
-- Prefer exact item ids unless you truly want ore dictionary matching.
+- Keep `upgrade_levels.toml` and `veins.toml` under version control.
+- Back up `veins.toml` before relying on auto-generated ids (omitted `id`) heavily.
+- Prefer exact item ids unless you truly want tag-based matching.
 - Use `mm:ss` for siege momentum times, because that is what the shipped defaults use.
 - Document any custom protection overrides for your players and staff, especially `Sieger`, `SiegeOther`, and `ClaimDefended`.
 
@@ -863,12 +817,12 @@ For safe config changes:
 
 ### Upgrade config
 
-- Path: `config/warforge/upgrade_levels.yml`
-- Syntax: YAML
+- Path: `config/warforge/upgrade_levels.toml`
+- Syntax: TOML
 - Controls: claim limit progression, insurance slot progression, level requirements
 
 ### Vein config
 
-- Path: `config/warforge/veins.yml`
-- Syntax: YAML
+- Path: `config/warforge/veins.toml`
+- Syntax: TOML
 - Controls: vein generation, dimension weights, qualities, and yields

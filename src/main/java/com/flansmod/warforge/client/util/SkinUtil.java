@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.util;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.PlayerFaceRenderer;
@@ -43,6 +44,10 @@ public class SkinUtil {
 
     /** Draws the player's head face plus hat overlay at the given position via {@link PlayerFaceRenderer}. */
     public static void drawFace(GuiGraphics graphics, UUID uuid, int x, int y, int size) {
+        // GuiGraphics.blit modulates by the RenderSystem shader color; a sibling widget (e.g. a tinted
+        // draw in a roster row) can leave it non-white, which renders the face tinted or invisible.
+        // Force it back to opaque white first, like other face draws in this mod do.
+        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         PlayerFaceRenderer.draw(graphics, getPlayerFace(uuid), x, y, size);
     }
 }

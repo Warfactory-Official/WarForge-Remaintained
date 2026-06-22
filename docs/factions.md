@@ -98,25 +98,25 @@ Each citadel level can grant:
 
 ### The upgrade config
 
-Levels and their costs are defined in `config/warforge/upgrade_levels.yml`. (A legacy `upgrade_levels.cfg` is migrated automatically, and a stub file is written if the file is missing or empty.)
+Levels and their costs are defined in `config/warforge/upgrade_levels.toml`. (A legacy `upgrade_levels.cfg` is migrated automatically, and a stub file is written if the file is missing or empty.)
 
-Each level entry has:
+Each level is a `[[levels]]` table with:
 
 - `level` — the level number.
 - `claim_limit` — must be greater than `0`, or `-1` for unlimited. Claim limits must not decrease as levels rise.
 - `insurance_slots` — optional, default `0`.
-- `requirements` — a list of materials needed to advance **into** this level. Each requirement has:
-  - `type` — `ore` (an OreDictionary name) or `item` (a `modid:item` or `modid:item:meta` id).
-  - `id` — the ore name or item id.
+- `requirements` — an array of inline tables listing materials needed to advance **into** this level. Each requirement has:
+  - `type` — `ore` (an item **tag**, e.g. `forge:ingots/iron`) or `item` (an item id, e.g. `minecraft:diamond`).
+  - `id` — the tag or item id.
   - `count` — optional, default `1`.
 
 The shipped stub is an example, not a guarantee — admins are expected to edit it:
 
 - **Level 0:** 5 claims, 0 insurance, no cost.
-- **Level 1:** 10 claims, 9 insurance, costs 64 iron ingots (`ingotIron`) + 1 diamond.
-- **Level 2:** 15 claims, 18 insurance, costs a placeholder item.
+- **Level 1:** 10 claims, 9 insurance, costs 64 iron ingots (`forge:ingots/iron` tag) + 1 diamond.
+- **Level 2:** 15 claims, 18 insurance, costs 1 netherite ingot.
 
-> Admin note: the stub's level 2 requirement is a non-existent placeholder item (`modid:custom_item:3`). If you enable upgrades, **edit `upgrade_levels.yml`** to use real items, or level 2 will be unreachable. Restart the server after editing.
+> Admin note: the stub costs are just an example. If you enable upgrades, **edit `upgrade_levels.toml`** to fit your modpack's progression. Restart the server after editing.
 
 ### The upgrade flow
 
@@ -208,6 +208,6 @@ The most relevant options (full details in the [Configuration Guide](configurati
 - `Max Claims Per Faction` — global claim cap. **Default: unlimited.**
 - `Enabled Isolated Claims` — whether claims must touch an existing claim. **Default: allowed.**
 - `Force-loaded Chunks Base Limit` / `Force-loaded Chunks Per Citadel Level` — offline chunk-loading capacity (**4** + **1** per level).
-- Upgrade levels: `config/warforge/upgrade_levels.yml`.
+- Upgrade levels: `config/warforge/upgrade_levels.toml`.
 
 Restart the server after changing any of these.

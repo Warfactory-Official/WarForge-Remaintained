@@ -60,9 +60,9 @@ The same item can be listed as several components to create a spread of outcomes
 
 > Note on the Citadel: although the Citadel's collector declares a 2× yield multiplier, that multiplier is **not currently applied** in the yield math — a citadel chunk yields the same as a basic claim chunk of the same vein and quality. Don't rely on citadels producing more.
 
-## The vein config (`veins.yml`)
+## The vein config (`veins.toml`)
 
-Veins are defined in `config/warforge/veins.yml`. A legacy `veins.cfg` is migrated automatically, and a commented example stub is written if the file is empty. Veins are loaded at startup and synced to clients — **restart the server after editing.**
+Veins are defined in `config/warforge/veins.toml`. A legacy `veins.cfg` is migrated automatically, and a commented example stub is written if the file is empty. Veins are loaded at startup and synced to clients — **restart the server after editing.**
 
 ### Global keys
 
@@ -72,18 +72,18 @@ Veins are defined in `config/warforge/veins.yml`. A legacy `veins.cfg` is migrat
 
 ### Per-vein fields
 
-- `id` — a unique numeric id (0–8191). Leave it as `~` (null) to have the system auto-assign one. **Auto-assignment rewrites the file and strips comments — back the file up first** (the in-file example warns about this too).
+- `id` — a unique numeric id (0–8191). **Omit this key** to have the system auto-assign one. **Auto-assignment rewrites the file and strips comments — back the file up first** (the in-file example warns about this too).
 - `key` — the translation/identifier key, e.g. `warforge.veins.iron_mix`.
-- `quals` — optional per-quality multiplier overrides, e.g. `RICH: 10`, `POOR: 0.1`. Omitted qualities use the global multiplier.
-- `dims` — a list of dimensions this vein appears in. Each entry has:
-  - `id` — dimension id (`-1` Nether, `0` Overworld, `1` End, or modded).
+- `quals` — optional inline table of per-quality multiplier overrides, e.g. `quals = { RICH = 10.0, POOR = 0.1 }`. Omitted qualities use the global multiplier.
+- `dims` — an array of inline tables for the dimensions this vein appears in. Each entry has:
+  - `id` — dimension ResourceLocation (`minecraft:the_nether`, `minecraft:overworld`, `minecraft:the_end`, or a modded dimension id).
   - `weight` — generation weight in that dimension, `0.0`–`1.0`.
   - `mult` — optional yield multiplier for that dimension (default `1.0`).
-- `components` — the ores this vein can produce. Each entry has:
+- `components` — the ores this vein can produce, an array of inline tables. Each entry has:
   - `item` — the item id, e.g. `minecraft:iron_ore`.
   - `yield` — base amount. The whole part is guaranteed; the decimal is a bonus chance for one extra.
-  - `weights` — optional per-dimension appearance chance (`0`–`1`); omitted dims default to `1.0`.
-  - `mults` — optional per-dimension yield multiplier; omitted dims fall back to the vein's `dims.mult`.
+  - `weights` — optional array of `{ id = <dimension>, weight = <0..1> }` tables (per-dimension appearance chance); omitted dims default to `1.0`.
+  - `mults` — optional array of `{ id = <dimension>, mult = <float> }` tables (per-dimension yield multiplier); omitted dims fall back to the vein's `dims.mult`.
 
 > Validation: if the total weight of all veins in one dimension exceeds `1.0`, the offending vein is logged as an error and ignored. Keep each dimension's weights summing to at most 1.0 (the remainder is empty chunks).
 
@@ -137,4 +137,4 @@ In `config/warforge.cfg`, category **Yields**:
 
 Client display (category **Client**): the vein overlay position and the `Vein Member Display Time` (how long each ore is shown, default 1000 ms).
 
-Vein definitions: `config/warforge/veins.yml`. See the [Configuration Guide](configuration.md) for the full picture.
+Vein definitions: `config/warforge/veins.toml`. See the [Configuration Guide](configuration.md) for the full picture.

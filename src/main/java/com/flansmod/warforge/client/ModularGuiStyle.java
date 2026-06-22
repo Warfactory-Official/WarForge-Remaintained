@@ -73,7 +73,9 @@ public final class ModularGuiStyle {
     }
 
     public static ButtonWidget<?> panelCloseButton(int panelWidth) {
-        return ButtonWidget.panelCloseButton().name("panel_close_button").pos(panelWidth - 18, 8).size(10);
+        // panelCloseButton() already anchors with right()/top(); keep using those units (not pos(), which
+        // adds a conflicting LEFT unit on the X axis). right(8) == pos(panelWidth - 18) for a width-10 button.
+        return ButtonWidget.panelCloseButton().name("panel_close_button").top(8).right(8).size(10);
     }
 
     /**

@@ -7,7 +7,6 @@ import brachy.modularui.screen.viewport.GuiContext;
 import brachy.modularui.theme.WidgetTheme;
 import brachy.modularui.utils.Color;
 import com.flansmod.warforge.api.Color4i;
-import com.flansmod.warforge.client.util.SkinUtil;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
 import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
@@ -16,6 +15,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.PlayerFaceRenderer;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -158,11 +158,9 @@ public class MapDrawable implements IDrawable, Interactable {
                 int xOffset = x + (width - 24) / 2;
                 int yOffset = y + (height - 24) / 2;
                 setShaderColor();
-                // centerIcon is the full skin sheet: crop the 8x8 head face, then the hat overlay on top.
-                GuiDraw.drawTexture(pose, chunkState.getCenterIcon(), xOffset, yOffset, xOffset + 24, yOffset + 24,
-                        SkinUtil.FACE_U0, SkinUtil.FACE_V0, SkinUtil.FACE_U1, SkinUtil.FACE_V1, true);
-                GuiDraw.drawTexture(pose, chunkState.getCenterIcon(), xOffset, yOffset, xOffset + 24, yOffset + 24,
-                        SkinUtil.HAT_U0, SkinUtil.HAT_V0, SkinUtil.HAT_U1, SkinUtil.HAT_V1, true);
+                // centerIcon is the full skin sheet; PlayerFaceRenderer crops the head face + hat overlay.
+                // (The manual GuiDraw path does not reliably draw dynamically-loaded skin textures.)
+                PlayerFaceRenderer.draw(graphics, chunkState.getCenterIcon(), xOffset, yOffset, 24);
                 Color.resetGlColor();
             }
             case CUSTOM_TEXTURE -> {

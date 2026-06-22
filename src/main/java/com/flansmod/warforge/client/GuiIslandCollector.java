@@ -76,7 +76,7 @@ public final class GuiIslandCollector {
         panel.child(new IDrawable.DrawableWidget(new Rectangle().color(0xFF000000 | ((hasFaction ? collector.colour : 0x4A4A4A) & 0x00FFFFFF)))
                 .name("island_collector_color_stripe")
                 .size(6, HEIGHT));
-        panel.child(ButtonWidget.panelCloseButton().name("panel_close_button").pos(WIDTH - 18, 8).size(10));
+        panel.child(ButtonWidget.panelCloseButton().name("panel_close_button").top(8).right(8).size(10));
 
         panel.child(Text.str("Faction Yield Storage").asWidget()
                 .pos(CONTENT_LEFT, HEADER_Y)

@@ -161,6 +161,12 @@ public class ChunkMapTextureDaemon {
             maxY = 1;
         }
 
+        if (MapBlockColorSampler.DEBUG_LOGGING) {
+            com.flansmod.warforge.common.WarForgeMod.LOGGER.info(
+                    "[MapRelief] {} grading elevation span minY={} maxY={} (span={})",
+                    dim.location(), minY, maxY, maxY - minY);
+        }
+
         for (int x = centerX - radius; x <= centerX + radius; x++) {
             for (int z = centerZ - radius; z <= centerZ + radius; z++) {
                 AtomicInteger current = GENERATIONS.get(namespace);

@@ -72,6 +72,11 @@ public final class WarForgeClientEventHandler {
 
     @SubscribeEvent
     public static void onRenderNameTag(RenderNameTagEvent event) {
+        // RenderNameTagEvent fires for any named entity (mobs, armor stands, ...); faction nameplates
+        // only apply to players, so don't request faction data for non-player names.
+        if (!(event.getEntity() instanceof Player)) {
+            return;
+        }
         //SOOO minecraft puts this symbol in player nicknames...? the fuck?
         PlayerNametagCache.NamePlateData faction = WarForgeMod.NAMETAG_CACHE.requestIfAbsent(event.getContent().getString().replaceAll("§.", ""));
         if (faction == null) {
