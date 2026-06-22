@@ -2449,7 +2449,9 @@ public class FactionStorage {
                             colors[idx] = 0;
                             continue;
                         }
-                        BlockPos worldPos = new BlockPos((cx << 4) + lx, y - 1, (cz << 4) + lz);
+                        // getHeight(WORLD_SURFACE) is the topmost SOLID block's Y, so sample at y
+                        // (sampling y-1 grabbed the block under the surface, e.g. dirt beneath grass).
+                        BlockPos worldPos = new BlockPos((cx << 4) + lx, y, (cz << 4) + lz);
                         try {
                             colors[idx] = chunk.getBlockState(worldPos).getMapColor(world, worldPos).col & 0x00FFFFFF;
                         } catch (Throwable ignored) {

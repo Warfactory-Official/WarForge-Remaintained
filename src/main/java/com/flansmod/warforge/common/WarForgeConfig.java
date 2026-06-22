@@ -143,6 +143,7 @@ public class WarForgeConfig {
     public static float SHOW_NEW_AREA_TIMER = 200.0f;
     public static int INVITE_DECAY_TIME = 5;
     public static int RANDOM_BORDER_REDRAW_DENOMINATOR = 5;
+    public static int BORDER_RENDER_DISTANCE = 0; // in chunks; claim borders farther than this from the camera are not rendered. 0 = follow the client's render distance
     public static int FACTION_NAME_LENGTH_MAX = 32;
     public static String[] FACTION_NAME_BANLIST = new String[]{"admin", "mod", "staff"};
     public static boolean BLOCK_ENDER_CHEST = false;
@@ -382,6 +383,7 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.ConfigValue<String> POS_VEIN_INDICATOR_V;
     private static ForgeConfigSpec.BooleanValue DO_FANCY_RENDERING_V;
     private static ForgeConfigSpec.IntValue RANDOM_BORDER_REDRAW_DENOMINATOR_V;
+    private static ForgeConfigSpec.IntValue BORDER_RENDER_DISTANCE_V;
 
     // General
     private static ForgeConfigSpec.BooleanValue BLOCK_ENDER_CHEST_V;
@@ -537,6 +539,7 @@ public class WarForgeConfig {
         POS_VEIN_INDICATOR_V = cfg.comment("Position of the  chunk vein indicator").define("Chunk vein indicator position", "TOP");
         DO_FANCY_RENDERING_V = cfg.comment("Controls whether or not fancy graphics will be enabled for this mod's rendering.").define("Enable WarForge Fancy Rendering", DO_FANCY_RENDERING);
         RANDOM_BORDER_REDRAW_DENOMINATOR_V = cfg.comment("Sets the bound on a random number generated, which when equal to 0 calls the border redraw. Effectively 1/this chance to redraw every frame").defineInRange("Random Border Redraw Denominator", RANDOM_BORDER_REDRAW_DENOMINATOR, 1, Integer.MAX_VALUE);
+        BORDER_RENDER_DISTANCE_V = cfg.comment("Maximum distance in chunks from the camera at which claim borders are rendered. 0 (default) follows the client's render distance so borders never extend into unloaded terrain; a positive value overrides it.").defineInRange("Border Render Distance", BORDER_RENDER_DISTANCE, 0, 256);
         cfg.pop();
 
         // Display
@@ -748,6 +751,7 @@ public class WarForgeConfig {
         // Graphics controls
         DO_FANCY_RENDERING = DO_FANCY_RENDERING_V.get();
         RANDOM_BORDER_REDRAW_DENOMINATOR = RANDOM_BORDER_REDRAW_DENOMINATOR_V.get();
+        BORDER_RENDER_DISTANCE = BORDER_RENDER_DISTANCE_V.get();
 
         FACTIONS_BOT_CHANNEL_ID = Long.parseLong(FACTIONS_BOT_CHANNEL_ID_V.get());
 

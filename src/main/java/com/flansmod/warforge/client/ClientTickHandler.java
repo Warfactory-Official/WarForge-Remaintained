@@ -6,6 +6,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import org.apache.commons.lang3.tuple.Pair;
@@ -33,6 +34,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -44,8 +46,10 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -53,6 +57,7 @@ import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.event.level.ChunkEvent;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.client.settings.KeyModifier;
 import net.minecraftforge.event.TickEvent;
@@ -73,6 +78,14 @@ import static com.flansmod.warforge.client.util.RenderUtil.*;
 public class ClientTickHandler {
     final static double alignment = 0.25d;
     final static double smaller_alignment = alignment - 0.125d;
+    // Border meshes are cached per chunk; only rebuild a few per frame so a mass invalidation
+    private static final int MAX_BORDER_REBUILDS_PER_FRAME = 8;
+    // Vertical padding (blocks) added around the chunk's perimeter surface band when scanning the
+    // per-block border silhouette, so the loop covers the surface step without walking the full column.
+    private static final int BORDER_Y_SCAN_MARGIN = 4;
+    // Identity: border meshes are built in chunk-local space and offset per frame via the model-view
+    // matrix at draw time, so the cached buffer never depends on the camera position.
+    private static final Matrix4f BORDER_LOCAL_MATRIX = new Matrix4f();
     private static final ResourceLocation texture = new ResourceLocation(Tags.MODID, "world/borders.png");
     private static final ResourceLocation textureConquered = new ResourceLocation(Tags.MODID, "world/borders_restricted.png");
     private static final ResourceLocation fastTexture = new ResourceLocation(Tags.MODID, "world/borders_fast.png");
@@ -108,6 +121,9 @@ public class ClientTickHandler {
     public static KeyMapping toggleVeinOverlayKey = new KeyMapping("key.warforge.toggleveinoverlay", KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_O, "key.warforge.cathegory");
 
     private void cleanupBorderRenderData() {
+        for (BorderRenderData data : renderData.values()) {
+            data.disposeVbo();
+        }
         renderData.clear();
     }
 
@@ -148,6 +164,21 @@ public class ClientTickHandler {
     @SubscribeEvent
     public void onScreenInit(ScreenEvent.Init.Post event) {
         DeferredGuiOpen.onScreenOpened();
+    }
+
+    // A claim chunk's border traces its terrain, so when that chunk's block data (re)loads on the
+    // client its cached mesh is stale — mark it for rebuild. (Block edits within an already-loaded
+    // chunk are picked up by the periodic CLAIMS_DIRTY refresh in onTick.)
+    @SubscribeEvent
+    public void onChunkLoad(ChunkEvent.Load event) {
+        if (!(event.getLevel() instanceof Level level) || !level.isClientSide()) {
+            return;
+        }
+        ChunkPos cp = event.getChunk().getPos();
+        BorderRenderData data = renderData.get(new DimChunkPos(level.dimension(), cp.x, cp.z));
+        if (data != null) {
+            data.dirty = true;
+        }
     }
 
     @SubscribeEvent
@@ -687,6 +718,9 @@ public class ClientTickHandler {
                 existing.factionId = info.outlineFactionId;
                 existing.colour = info.outlineColour;
                 existing.outlineStyle = info.outlineStyle;
+                // The claim set changed, which can change this chunk's colour or its neighbour-based
+                // edge culling, so its cached mesh must be rebuilt.
+                existing.dirty = true;
                 tempData.put(chunkPos, existing);
             } else {
                 BorderRenderData data = new BorderRenderData();
@@ -694,6 +728,13 @@ public class ClientTickHandler {
                 data.colour = info.outlineColour;
                 data.outlineStyle = info.outlineStyle;
                 tempData.put(chunkPos, data);
+            }
+        }
+
+        // Free GPU buffers for chunks that are no longer claimed/visible.
+        for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
+            if (!tempData.containsKey(kvp.getKey())) {
+                kvp.getValue().disposeVbo();
             }
         }
 
@@ -709,6 +750,33 @@ public class ClientTickHandler {
 
         int minY = world.getMinBuildHeight();
         int maxY = world.getMaxBuildHeight();
+
+        // The per-block silhouette only needs the elevation band around this chunk's perimeter
+        // surface, not the full world column (-64..320 in 1.20.1). Sample the four edge rows and scan
+        // only [surfMin-margin, surfMax+margin]. This misses enclosed caves/overhangs entirely below
+        // the lowest perimeter surface (invisible from outside anyway) but slashes the scan; the faint
+        // corner walls below still span minY..128 unconditionally.
+        int scanMin = minY;
+        int scanMax = maxY;
+        int originX = pos.getMinBlockX();
+        int originZ = pos.getMinBlockZ();
+        int surfMin = Integer.MAX_VALUE;
+        int surfMax = Integer.MIN_VALUE;
+        for (int i = 0; i < 16; i++) {
+            int hN = world.getHeight(Heightmap.Types.WORLD_SURFACE, originX + i, originZ);
+            int hS = world.getHeight(Heightmap.Types.WORLD_SURFACE, originX + i, originZ + 15);
+            int hW = world.getHeight(Heightmap.Types.WORLD_SURFACE, originX, originZ + i);
+            int hE = world.getHeight(Heightmap.Types.WORLD_SURFACE, originX + 15, originZ + i);
+            surfMin = Math.min(surfMin, Math.min(Math.min(hN, hS), Math.min(hW, hE)));
+            surfMax = Math.max(surfMax, Math.max(Math.max(hN, hS), Math.max(hW, hE)));
+        }
+        if (surfMin != Integer.MAX_VALUE) {
+            scanMin = Math.max(minY, surfMin - BORDER_Y_SCAN_MARGIN);
+            scanMax = Math.min(maxY, surfMax + BORDER_Y_SCAN_MARGIN);
+        }
+
+        // Reused across the many world.isEmptyBlock samples below to avoid a BlockPos alloc each call.
+        BlockPos.MutableBlockPos mp = new BlockPos.MutableBlockPos();
 
         boolean renderNorth = true, renderEast = true, renderWest = true, renderSouth = true, renderNorthWest = true, renderNorthEast = true, renderSouthWest = true, renderSouthEast = true;
         if (renderData.containsKey(pos.north()))
@@ -802,23 +870,23 @@ public class ClientTickHandler {
 
         if (renderNorth || renderSouth) {
             for (int x = 0; x < 16; x++) {
-                for (int y = minY; y < maxY; y++) {
+                for (int y = scanMin; y < scanMax; y++) {
                     if (x < 15) {
                         if (renderNorth) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x + 1, y, pos.getMinBlockZ()));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x + 1, y, pos.getMinBlockZ()));
                             renderZEdge(world, matrix, buffer, color, x, y, pos.getMinBlockZ(), smaller_alignment + 0.001d, air0, air1, 0);
                         }
                         if (renderSouth) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x + 1, y, pos.getMaxBlockZ()));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x + 1, y, pos.getMaxBlockZ()));
                             renderZEdge(world, matrix, buffer, color, x, y, pos.getMaxBlockZ(), 16d - smaller_alignment + 0.001d, air0, air1, 0);
                         }
                     }
-                    if (y < maxY - 1) {
+                    if (y < scanMax - 1) {
                         if (renderNorth) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y + 1, pos.getMinBlockZ()));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y, pos.getMinBlockZ()));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y + 1, pos.getMinBlockZ()));
                             if (x == 15 && renderEast) {
                                 renderZVerticalCorner(world, matrix, buffer, color, x - smaller_alignment, y, smaller_alignment, air0, air1, 0, -smaller_alignment);
                             } else if (x == 0 && renderWest) {
@@ -828,8 +896,8 @@ public class ClientTickHandler {
                             }
                         }
                         if (renderSouth) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX() + x, y + 1, pos.getMaxBlockZ()));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y, pos.getMaxBlockZ()));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX() + x, y + 1, pos.getMaxBlockZ()));
                             if (x == 15 && renderEast) {
                                 renderZVerticalCorner(world, matrix, buffer, color, x - smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, -smaller_alignment);
                             } else if (x == 0 && renderWest) {
@@ -845,23 +913,23 @@ public class ClientTickHandler {
 
         if (renderEast || renderWest) {
             for (int z = 0; z < 16; z++) {
-                for (int y = minY; y < maxY; y++) {
+                for (int y = scanMin; y < scanMax; y++) {
                     if (z < 15) {
                         if (renderWest) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z + 1));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y, pos.getMinBlockZ() + z + 1));
                             renderXEdge(world, matrix, buffer, color, pos.getMinBlockX(), y, z, smaller_alignment + 0.001d, air0, air1, 0);
                         }
                         if (renderEast) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z + 1));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z + 1));
                             renderXEdge(world, matrix, buffer, color, pos.getMaxBlockX(), y, z, 16d - smaller_alignment + 0.001d, air0, air1, 0);
                         }
                     }
-                    if (y < maxY - 1) {
+                    if (y < scanMax - 1) {
                         if (renderWest) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMinBlockZ() + z));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y + 1, pos.getMinBlockZ() + z));
                             if (z == 15 && renderSouth) {
                                 renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
                             } else if (z == 0 && renderNorth) {
@@ -871,8 +939,8 @@ public class ClientTickHandler {
                             }
                         }
                         if (renderEast) {
-                            boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
-                            boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ() + z));
+                            boolean air0 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y, pos.getMinBlockZ() + z));
+                            boolean air1 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ() + z));
                             if (z == 15 && renderSouth) {
                                 renderXVerticalCorner(world, matrix, buffer, color, 16d - smaller_alignment, y, z - smaller_alignment, air0, air1, 0, -smaller_alignment);
                             } else if (z == 0 && renderNorth) {
@@ -890,9 +958,9 @@ public class ClientTickHandler {
 
         if (renderNorthEast) {
             if (!renderNorth && !renderEast) {
-                for (int y = minY; y < maxY; y++) {
-                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMinBlockZ()));
-                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ()));
+                for (int y = scanMin; y < scanMax; y++) {
+                    boolean air0 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y, pos.getMinBlockZ()));
+                    boolean air1 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y + 1, pos.getMinBlockZ()));
                     renderZVerticalCorner(world, matrix, buffer, color, 15, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                     renderXVerticalCorner(world, matrix, buffer, color, 16 - smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
                 }
@@ -900,9 +968,9 @@ public class ClientTickHandler {
         }
         if (renderNorthWest) {
             if (!renderNorth && !renderWest) {
-                for (int y = minY; y < maxY; y++) {
-                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMinBlockZ()));
-                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMinBlockZ()));
+                for (int y = scanMin; y < scanMax; y++) {
+                    boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y, pos.getMinBlockZ()));
+                    boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y + 1, pos.getMinBlockZ()));
                     renderZVerticalCorner(world, matrix, buffer, color, -1 + smaller_alignment, y, smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                     renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, smaller_alignment - 1, air0, air1, 0, smaller_alignment - 1.0);
                 }
@@ -910,9 +978,9 @@ public class ClientTickHandler {
         }
         if (renderSouthWest) {
             if (!renderSouth && !renderWest) {
-                for (int y = minY; y < maxY; y++) {
-                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y, pos.getMaxBlockZ()));
-                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMinBlockX(), y + 1, pos.getMaxBlockZ()));
+                for (int y = scanMin; y < scanMax; y++) {
+                    boolean air0 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y, pos.getMaxBlockZ()));
+                    boolean air1 = world.isEmptyBlock(mp.set(pos.getMinBlockX(), y + 1, pos.getMaxBlockZ()));
                     renderZVerticalCorner(world, matrix, buffer, color, -1 + smaller_alignment, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                     renderXVerticalCorner(world, matrix, buffer, color, smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
                 }
@@ -920,9 +988,9 @@ public class ClientTickHandler {
         }
         if (renderSouthEast) {
             if (!renderSouth && !renderEast) {
-                for (int y = minY; y < maxY; y++) {
-                    boolean air0 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y, pos.getMaxBlockZ()));
-                    boolean air1 = world.isEmptyBlock(new BlockPos(pos.getMaxBlockX(), y + 1, pos.getMaxBlockZ()));
+                for (int y = scanMin; y < scanMax; y++) {
+                    boolean air0 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y, pos.getMaxBlockZ()));
+                    boolean air1 = world.isEmptyBlock(mp.set(pos.getMaxBlockX(), y + 1, pos.getMaxBlockZ()));
                     renderZVerticalCorner(world, matrix, buffer, color, 15, y, 16 - smaller_alignment, air0, air1, 0, smaller_alignment - 1.0);
                     renderXVerticalCorner(world, matrix, buffer, color, 16 - smaller_alignment, y, 15, air0, air1, 0, smaller_alignment - 1.0);
                 }
@@ -983,8 +1051,20 @@ public class ClientTickHandler {
             return;
         }
 
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder builder = tesselator.getBuilder();
+        // The wall geometry is camera-independent and only changes when the claim set or the chunk's
+        // blocks change, so cache it in a per-chunk VertexBuffer and just replay it each frame (the
+        // modern stand-in for the old display lists). Dirty chunks are rebuilt lazily, capped per
+        // frame so a bulk invalidation does not hitch.
+        ShaderInstance shader = GameRenderer.getPositionColorTexShader();
+        Matrix4f projection = RenderSystem.getProjectionMatrix();
+        int rebuildBudget = MAX_BORDER_REBUILDS_PER_FRAME;
+        // 0 = follow the client's render distance so borders never float in unloaded terrain;
+        // a positive config value overrides it.
+        int borderDistChunks = WarForgeConfig.BORDER_RENDER_DISTANCE > 0
+                ? WarForgeConfig.BORDER_RENDER_DISTANCE
+                : Minecraft.getInstance().options.getEffectiveRenderDistance();
+        double maxBorderDist = borderDistChunks * 16.0;
+        double maxBorderDistSq = maxBorderDist * maxBorderDist;
 
         for (HashMap.Entry<DimChunkPos, BorderRenderData> kvp : renderData.entrySet()) {
             DimChunkPos pos = kvp.getKey();
@@ -994,18 +1074,60 @@ public class ClientTickHandler {
             if (desiredTexture == null) {
                 continue;
             }
+
+            // Distance cull: skip (and don't rebuild) claim chunks beyond the configured render
+            // distance from the camera, so dense far-off claims cost nothing.
+            double dxCam = (pos.x * 16 + 8) - x;
+            double dzCam = (pos.z * 16 + 8) - z;
+            if (dxCam * dxCam + dzCam * dzCam > maxBorderDistSq) {
+                continue;
+            }
+
+            // Rebuild only when dirty, or not yet built and not known-empty (empty stays vbo == null,
+            // so this must not retrigger every frame).
+            if ((data.dirty || (data.vbo == null && !data.empty)) && rebuildBudget > 0) {
+                rebuildBorderMesh(world, pos, data);
+                rebuildBudget--;
+            }
+            if (data.empty || data.vbo == null) {
+                continue;
+            }
+
             RenderSystem.setShaderTexture(0, desiredTexture);
 
             pose.pushPose();
             pose.translate(pos.x * 16 - x, 0 - y, pos.z * 16 - z);
-
-            Matrix4f matrix = pose.last().pose();
-            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
-            buildBorderMesh(world, matrix, builder, pos, data);
-            tesselator.end();
-
+            Matrix4f modelView = new Matrix4f(pose.last().pose());
             pose.popPose();
+
+            data.vbo.bind();
+            data.vbo.drawWithShader(modelView, projection, shader);
+            VertexBuffer.unbind();
         }
+    }
+
+    // Regenerate the chunk's cached border mesh into its VertexBuffer. Geometry is built in chunk-local
+    // space (BORDER_LOCAL_MATRIX) so the buffer is camera-independent; the per-chunk offset is applied
+    // by the model-view matrix at draw time. endOrDiscardIfEmpty() returns null for chunks that produce
+    // no geometry (e.g. interior chunks fully surrounded by same-faction claims).
+    private void rebuildBorderMesh(Level world, DimChunkPos pos, BorderRenderData data) {
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR_TEX);
+        buildBorderMesh(world, BORDER_LOCAL_MATRIX, builder, pos, data);
+        BufferBuilder.RenderedBuffer rendered = builder.endOrDiscardIfEmpty();
+
+        data.dirty = false;
+        data.empty = rendered == null;
+        if (data.empty) {
+            return;
+        }
+
+        if (data.vbo == null) {
+            data.vbo = new VertexBuffer(VertexBuffer.Usage.STATIC);
+        }
+        data.vbo.bind();
+        data.vbo.upload(rendered);
+        VertexBuffer.unbind();
     }
 
     private boolean sameBorderGroup(BorderRenderData first, BorderRenderData second) {
@@ -1099,5 +1221,19 @@ public class ClientTickHandler {
         public UUID factionId = Faction.nullUuid;
         public int colour = 0xFFFFFF;
         public byte outlineStyle = ClaimChunkInfo.OUTLINE_NONE;
+
+        // Cached GPU mesh (the modern equivalent of the old display list). Rebuilt only when the
+        // claim/terrain that produced it changed (dirty); empty == the build produced no geometry
+        // (interior chunk fully surrounded by same-faction claims), so there is nothing to draw.
+        public VertexBuffer vbo = null;
+        public boolean dirty = true;
+        public boolean empty = false;
+
+        void disposeVbo() {
+            if (this.vbo != null) {
+                this.vbo.close();
+                this.vbo = null;
+            }
+        }
     }
 }

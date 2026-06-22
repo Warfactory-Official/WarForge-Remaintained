@@ -190,10 +190,14 @@ public class ChunkMapTextureDaemon {
 
                         LevelChunk neighbor = loadedChunks.get(new ChunkPos(neighborCX, neighborCZ));
                         if (neighbor != null) {
+                            // ChunkAccess.getHeight(WORLD_SURFACE) already returns the topmost SOLID
+                            // block's Y (getFirstAvailable() - 1), so sample at y, not y-1. The old
+                            // y-1 sampled the block under the surface, e.g. the dirt beneath grass.
                             int y = neighbor.getHeight(Heightmap.Types.WORLD_SURFACE, localX, localZ);
                             heightMap17[index] = y;
-                            BlockState state = neighbor.getBlockState(new BlockPos(worldX, y - 1, worldZ));
-                            int rgb = MapBlockColorSampler.sampleColor(world, state, new BlockPos(worldX, y - 1, worldZ));
+                            BlockPos surfacePos = new BlockPos(worldX, y, worldZ);
+                            BlockState state = neighbor.getBlockState(surfacePos);
+                            int rgb = MapBlockColorSampler.sampleColor(world, state, surfacePos);
                             rawChunk17[index] = 0xFF000000 | (rgb & 0x00FFFFFF);
                         } else {
                             int serverColor = ServerTerrainCache.colorAt(dim, worldX, worldZ);
