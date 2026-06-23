@@ -4,7 +4,6 @@
 	"block.warforge.reinforcedclaimblock": "Reinforced Claim Block",
 	"block.warforge.siegecampblock": "Siege Camp Block",
 	"block.warforge.islandcollector": "Faction Yield Storage",
-	"block.warforge.adminclaimblock": "Admin Claim Block",
 	"block.warforge.topleaderboard": "Top Leaderboard Block",
 	"block.warforge.wealthleaderboard": "Wealth Leaderboard Block",
 	"block.warforge.legacyleaderboard": "Legacy Leaderboard Block",
@@ -18,6 +17,8 @@
 	"item.minecraft.splash_potion.effect.tprequestpotion": "Splash Potion of Teleportation",
 	"item.minecraft.lingering_potion.effect.tpacceptpotion": "Lingering Potion of Telereception",
 	"item.minecraft.lingering_potion.effect.tprequestpotion": "Lingering Potion of Teleportation",
+
+	"itemGroup.warforge": "Warforge",
 
 	"warforge.info.vein.rich": "Rich",
 	"warforge.info.vein.fair": "Fair",

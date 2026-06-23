@@ -120,14 +120,15 @@ public class CommandFactions {
             root.then(Commands.literal(alias).executes(ctx -> doLeaderboard(ctx, FactionStat.LEGACY, "**Legacy Leaderboard**")));
         }
 
-        // Op-gated zone claims
-        for (String alias : new String[]{"safe", "safezone", "claimsafe"}) {
+        // Op-gated special zone claims (citadel-less SafeZone / WarZone). One command:
+        //   /f zone safe | war   -> claim the chunk you stand in for that zone
+        //   /f zone remove        -> remove the zone claim in the chunk you stand in
+        for (String alias : new String[]{"zone", "zones"}) {
             root.then(Commands.literal(alias).requires(CommandFactions::isOp)
-                    .executes(ctx -> doOpClaim(ctx, FactionStorage.SAFE_ZONE_ID)));
-        }
-        for (String alias : new String[]{"warzone", "war", "claimwarzone"}) {
-            root.then(Commands.literal(alias).requires(CommandFactions::isOp)
-                    .executes(ctx -> doOpClaim(ctx, FactionStorage.WAR_ZONE_ID)));
+                    .executes(CommandFactions::doZoneUsage)
+                    .then(Commands.literal("safe").executes(ctx -> doZoneClaim(ctx, FactionStorage.SAFE_ZONE_ID)))
+                    .then(Commands.literal("war").executes(ctx -> doZoneClaim(ctx, FactionStorage.WAR_ZONE_ID)))
+                    .then(Commands.literal("remove").executes(CommandFactions::doZoneUnclaim)));
         }
 
         // Op protection override toggle
@@ -232,8 +233,7 @@ public class CommandFactions {
         src.sendSuccess(() -> Component.literal("/f vault redeem"), false);
         if (isOp(src)) {
             src.sendSuccess(() -> Component.literal("/f offlineprotection <faction> <enable|disable|status>"), false);
-            src.sendSuccess(() -> Component.literal("/f safezone"), false);
-            src.sendSuccess(() -> Component.literal("/f warzone"), false);
+            src.sendSuccess(() -> Component.literal("/f zone <safe|war|remove>"), false);
             src.sendSuccess(() -> Component.literal("/f rename <oldFactionName> <newFactionName>"), false);
             src.sendSuccess(() -> Component.literal("/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]"), false);
         }
@@ -460,11 +460,29 @@ public class CommandFactions {
         return Command.SINGLE_SUCCESS;
     }
 
-    private static int doOpClaim(CommandContext<CommandSourceStack> ctx, UUID zoneID) {
+    private static int doZoneUsage(CommandContext<CommandSourceStack> ctx) {
+        ctx.getSource().sendFailure(Component.literal("Usage: /f zone <safe|war|remove>"));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int doZoneClaim(CommandContext<CommandSourceStack> ctx, UUID zoneID) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof Player player) {
             DimChunkPos pos = new DimBlockPos(player).toChunkPos();
-            WarForgeMod.FACTIONS.requestOpClaim(player, pos, zoneID);
+            WarForgeMod.FACTIONS.requestZoneClaim(player, pos, zoneID);
+            refreshClaimViews(src);
+        } else {
+            src.sendFailure(Component.literal("Use an in-game operator account."));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int doZoneUnclaim(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        if (src.getEntity() instanceof Player player) {
+            DimChunkPos pos = new DimBlockPos(player).toChunkPos();
+            WarForgeMod.FACTIONS.requestZoneUnclaim(player, pos);
+            refreshClaimViews(src);
         } else {
             src.sendFailure(Component.literal("Use an in-game operator account."));
         }

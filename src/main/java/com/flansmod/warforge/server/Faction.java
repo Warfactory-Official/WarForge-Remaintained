@@ -5,7 +5,6 @@ import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.IClaim;
-import com.flansmod.warforge.common.blocks.TileEntityAdminClaim;
 import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
@@ -703,7 +702,16 @@ public class Faction {
             }
             claimTypes.put(pos, claimType);
         }
-        if (!claims.containsKey(citadelPos)) {
+        // Neutral zones (SafeZone / WarZone) are citadel-less: they have no real citadel, so skip the
+        // force-claim that would otherwise pin a phantom claim onto their (0,0,0) sentinel citadelPos.
+        if (FactionStorage.IsNeutralZone(uuid)) {
+            // Drop any legacy phantom claim a pre-rework save force-pinned at the sentinel citadelPos
+            // (always serialized as a CITADEL claim; real zone claims are ADMIN / WARZONE).
+            if (claimTypes.get(citadelPos) == ClaimType.CITADEL) {
+                claims.remove(citadelPos);
+                claimTypes.remove(citadelPos);
+            }
+        } else if (!claims.containsKey(citadelPos)) {
             WarForgeMod.LOGGER.error("Citadel was not claimed by the faction. Forcing claim");
             claims.put(citadelPos, 0);
             claimTypes.put(citadelPos, ClaimType.CITADEL);
@@ -954,7 +962,11 @@ public class Faction {
         BASIC("basic", "B", WarForgeConfig.CLAIM_STRENGTH_BASIC, WarForgeConfig.SUPPORT_STRENGTH_BASIC),
         REINFORCED("reinforced", "R", WarForgeConfig.CLAIM_STRENGTH_REINFORCED, WarForgeConfig.SUPPORT_STRENGTH_REINFORCED),
         CITADEL("citadel", "C", WarForgeConfig.CLAIM_STRENGTH_CITADEL, WarForgeConfig.SUPPORT_STRENGTH_CITADEL),
+        // ADMIN backs the SafeZone special claim; WARZONE backs the WarZone special claim. Both are
+        // citadel-less, blockless, unsiegeable zone claims whose protection is driven by their owning
+        // pseudo-faction UUID (see WarForgeConfig.SAFE_ZONE / WAR_ZONE), not by these strengths.
         ADMIN("admin", "A", 0, 0),
+        WARZONE("warzone", "W", 0, 0),
         SIEGE("siege", "S", 0, 0);
 
         public final String serializedName;
@@ -973,7 +985,6 @@ public class Faction {
             if (claim instanceof TileEntityCitadel) return CITADEL;
             if (claim instanceof TileEntityReinforcedClaim) return REINFORCED;
             if (claim instanceof TileEntityBasicClaim) return BASIC;
-            if (claim instanceof TileEntityAdminClaim) return ADMIN;
             if (claim instanceof TileEntitySiegeCamp) return SIEGE;
             return NONE;
         }

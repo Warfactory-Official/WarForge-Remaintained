@@ -42,7 +42,6 @@ public class Content
 	public static final RegistryObject<Block> BASIC_CLAIM_BLOCK = BLOCKS.register("basicclaimblock", BlockBasicClaim::new);
 	public static final RegistryObject<Block> REINFORCED_CLAIM_BLOCK = BLOCKS.register("reinforcedclaimblock", BlockBasicClaim::new);
 	public static final RegistryObject<Block> SIEGE_CAMP_BLOCK = BLOCKS.register("siegecampblock", BlockSiegeCamp::new);
-	public static final RegistryObject<Block> ADMIN_CLAIM_BLOCK = BLOCKS.register("adminclaimblock", BlockAdminClaim::new);
 	public static final RegistryObject<Block> ISLAND_COLLECTOR_BLOCK = BLOCKS.register("islandcollector", BlockIslandCollector::new);
 	public static final RegistryObject<Block> STATUE = BLOCKS.register("dummy", BlockDummy::new);
 	public static final RegistryObject<Block> DUMMY_TRANSLUSENT = BLOCKS.register("dummy_translusent", BlockDummyTransparent::new);
@@ -56,7 +55,6 @@ public class Content
 	public static final RegistryObject<Item> BASIC_CLAIM_BLOCK_ITEM = ITEMS.register("basicclaimblock", () -> new BlockItem(BASIC_CLAIM_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<Item> REINFORCED_CLAIM_BLOCK_ITEM = ITEMS.register("reinforcedclaimblock", () -> new BlockItem(REINFORCED_CLAIM_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<Item> SIEGE_CAMP_BLOCK_ITEM = ITEMS.register("siegecampblock", () -> new BlockItem(SIEGE_CAMP_BLOCK.get(), new Item.Properties()));
-	public static final RegistryObject<Item> ADMIN_CLAIM_BLOCK_ITEM = ITEMS.register("adminclaimblock", () -> new BlockItem(ADMIN_CLAIM_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<Item> ISLAND_COLLECTOR_ITEM = ITEMS.register("islandcollector", () -> new BlockItem(ISLAND_COLLECTOR_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<Item> TOP_LEADERBOARD_ITEM = ITEMS.register("topleaderboard", () -> new BlockItem(TOP_LEADERBOARD_BLOCK.get(), new Item.Properties()));
 	public static final RegistryObject<Item> WEALTH_LEADERBOARD_ITEM = ITEMS.register("wealthleaderboard", () -> new BlockItem(WEALTH_LEADERBOARD_BLOCK.get(), new Item.Properties()));
@@ -79,9 +77,6 @@ public class Content
 	public static final RegistryObject<BlockEntityType<TileEntityIslandCollector>> TE_ISLAND_COLLECTOR =
 			BLOCK_ENTITIES.register("islandcollector",
 					() -> BlockEntityType.Builder.of(TileEntityIslandCollector::new, ISLAND_COLLECTOR_BLOCK.get()).build(null));
-	public static final RegistryObject<BlockEntityType<TileEntityAdminClaim>> TE_ADMIN_CLAIM =
-			BLOCK_ENTITIES.register("adminclaim",
-					() -> BlockEntityType.Builder.of(TileEntityAdminClaim::new, ADMIN_CLAIM_BLOCK.get()).build(null));
 	public static final RegistryObject<BlockEntityType<TileEntityLeaderboard>> TE_LEADERBOARD =
 			BLOCK_ENTITIES.register("leaderboard",
 					() -> BlockEntityType.Builder.of(TileEntityLeaderboard::new,
@@ -101,7 +96,6 @@ public class Content
 						output.accept(BASIC_CLAIM_BLOCK_ITEM.get());
 						output.accept(REINFORCED_CLAIM_BLOCK_ITEM.get());
 						output.accept(SIEGE_CAMP_BLOCK_ITEM.get());
-						output.accept(ADMIN_CLAIM_BLOCK_ITEM.get());
 						output.accept(ISLAND_COLLECTOR_ITEM.get());
 						output.accept(TOP_LEADERBOARD_ITEM.get());
 						output.accept(WEALTH_LEADERBOARD_ITEM.get());
@@ -115,9 +109,6 @@ public class Content
 	public static Item citadelBlockItem, basicClaimBlockItem, reinforcedClaimBlockItem, siegeCampBlockItem;
 	public static Block islandCollectorBlock;
 	public static Item islandCollectorItem;
-
-	public static Block adminClaimBlock;
-	public static Item adminClaimBlockItem;
 
 	public static Block topLeaderboardBlock, notorietyLeaderboardBlock, wealthLeaderboardBlock, legacyLeaderboardBlock;
 	public static Item topLeaderboardItem, notorietyLeaderboardItem, wealthLeaderboardItem, legacyLeaderboardItem;
@@ -138,7 +129,6 @@ public class Content
 		basicClaimBlock = BASIC_CLAIM_BLOCK.get();
 		reinforcedClaimBlock = REINFORCED_CLAIM_BLOCK.get();
 		siegeCampBlock = SIEGE_CAMP_BLOCK.get();
-		adminClaimBlock = ADMIN_CLAIM_BLOCK.get();
 		islandCollectorBlock = ISLAND_COLLECTOR_BLOCK.get();
 		statue = STATUE.get();
 		dummyTranslusent = DUMMY_TRANSLUSENT.get();
@@ -151,7 +141,6 @@ public class Content
 		basicClaimBlockItem = BASIC_CLAIM_BLOCK_ITEM.get();
 		reinforcedClaimBlockItem = REINFORCED_CLAIM_BLOCK_ITEM.get();
 		siegeCampBlockItem = SIEGE_CAMP_BLOCK_ITEM.get();
-		adminClaimBlockItem = ADMIN_CLAIM_BLOCK_ITEM.get();
 		islandCollectorItem = ISLAND_COLLECTOR_ITEM.get();
 		topLeaderboardItem = TOP_LEADERBOARD_ITEM.get();
 		wealthLeaderboardItem = WEALTH_LEADERBOARD_ITEM.get();

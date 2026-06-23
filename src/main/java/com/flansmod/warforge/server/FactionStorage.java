@@ -262,6 +262,9 @@ public class FactionStorage {
         if (attacker == null || defender == null) {
             return null;
         }
+        if (IsNeutralZone(defender.uuid)) {
+            return "You cannot siege a protected zone.";
+        }
         if (attacker.isAllyOf(defender.uuid)) {
             return "You are allied with " + defender.name + " and cannot siege them. Break the alliance first.";
         }
@@ -2057,10 +2060,13 @@ public class FactionStorage {
         }
     }
 
-    public void requestOpClaim(Player op, DimChunkPos pos, UUID factionID) {
-        Faction zone = getFaction(factionID);
-        if (zone == null) {
-            op.sendSystemMessage(Component.literal("Could not find that faction"));
+    // Claims a chunk for one of the citadel-less special zones (SafeZone / WarZone). These are
+    // data-only claims: no physical block, no tile entity. SafeZone carries the ADMIN claim type
+    // (the former admin claim); WarZone carries the WARZONE claim type.
+    public void requestZoneClaim(Player op, DimChunkPos pos, UUID zoneID) {
+        Faction zone = getFaction(zoneID);
+        if (zone == null || !IsNeutralZone(zoneID)) {
+            op.sendSystemMessage(Component.literal("Unknown zone"));
             return;
         }
 
@@ -2070,20 +2076,32 @@ public class FactionStorage {
             return;
         }
 
-        // Place a bedrock tile entity at 0,0,0 chunk coords
-        // This might look a bit dodge in End. It's only for admin claims though
-        DimBlockPos tePos = new DimBlockPos(pos.dim, pos.getMinBlockX(), 0, pos.getMinBlockZ());
-        op.level().setBlockAndUpdate(tePos.toRegularPos(), Content.adminClaimBlock.defaultBlockState());
-        BlockEntity te = op.level().getBlockEntity(tePos.toRegularPos());
-        if (te == null || !(te instanceof IClaim)) {
-            op.sendSystemMessage(Component.literal("Placing admin claim block failed"));
+        Faction.ClaimType claimType = zoneID.equals(SAFE_ZONE_ID) ? Faction.ClaimType.ADMIN : Faction.ClaimType.WARZONE;
+        mClaims.put(pos, zone.uuid);
+        zone.claimNoTileEntity(pos, op.blockPosition().getY(), claimType);
+
+        op.sendSystemMessage(Component.literal("Claimed [" + pos.x + ", " + pos.z + "] for " + zone.name));
+    }
+
+    // Removes a SafeZone / WarZone claim at the given chunk. Mirror of requestZoneClaim; data-only,
+    // so there is no block or tile entity to clean up.
+    public void requestZoneUnclaim(Player op, DimChunkPos pos) {
+        UUID existingClaim = getClaim(pos);
+        if (!IsNeutralZone(existingClaim)) {
+            op.sendSystemMessage(Component.literal("There is no zone claim here"));
             return;
         }
 
-        onNonCitadelClaimPlaced((IClaim) te, zone);
+        Faction zone = getFaction(existingClaim);
+        DimBlockPos claimPos = zone == null ? null : zone.getSpecificPosForClaim(pos);
+        if (claimPos != null) {
+            zone.claims.remove(claimPos);
+            zone.claimTypes.remove(claimPos);
+        }
+        mClaims.remove(pos);
 
-        op.sendSystemMessage(Component.literal("Claimed " + pos + " for faction " + zone.name));
-
+        op.sendSystemMessage(Component.literal("Removed the " + (zone == null ? "zone" : zone.name)
+                + " claim at [" + pos.x + ", " + pos.z + "]"));
     }
 
     public void sendSiegeInfoToNearby(DimChunkPos siegePos) {
