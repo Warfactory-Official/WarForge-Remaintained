@@ -1,11 +1,14 @@
 package com.flansmod.warforge.common;
 
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
+import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.FactionStorage;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.Level;
@@ -19,6 +22,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.EntityEvent.EnteringSection;
 import net.minecraftforge.event.entity.EntityMountEvent;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
+import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
@@ -45,7 +49,7 @@ public class ProtectionsModule {
     // It is generally expected that you are asking about a loaded chunk, not that that should matter
     @Nonnull
     public static ProtectionConfig GetProtections(UUID playerID, DimChunkPos pos) {
-        FactionStorage.SiegeZoneRelation siegeRelation = WarForgeMod.FACTIONS.getSiegeZoneRelation(playerID, pos);
+        FactionStorage.SiegeZoneResult siegeZone = WarForgeMod.FACTIONS.getSiegeZone(pos);
 
         UUID factionID = WarForgeMod.FACTIONS.getClaim(pos);
         if (factionID.equals(FactionStorage.SAFE_ZONE_ID))
@@ -55,22 +59,27 @@ public class ProtectionsModule {
             return WarForgeConfig.WAR_ZONE;
 
         Faction faction = WarForgeMod.FACTIONS.getFaction(factionID);
-        if (faction != null) {
-            boolean playerIsInFaction = playerID != null && !playerID.equals(Faction.nullUuid) && faction.isPlayerInFaction(playerID);
-            Faction.ClaimType claimType = faction.getClaimType(pos);
+        boolean playerIsInFaction = faction != null && playerID != null && !playerID.equals(Faction.nullUuid) && faction.isPlayerInFaction(playerID);
 
-            // A faction's own siege-camp claim should still behave like a friendly claim for its members.
-            if (playerIsInFaction && claimType == Faction.ClaimType.SIEGE)
-                return WarForgeConfig.CLAIM_FRIEND;
+        // A faction's own siege-camp claim still behaves like a friendly claim for its members, even
+        // inside a siege zone, so attackers keep control of their own camp.
+        if (playerIsInFaction && faction.getClaimType(pos) == Faction.ClaimType.SIEGE)
+            return WarForgeConfig.CLAIM_FRIEND;
+
+        // Siege zones override claim ownership. Friend = member of the besieged (defending) faction;
+        // everyone else (attackers, neutrals) is a foe. Inner Sieged zone takes priority over War zone.
+        if (siegeZone.zone != FactionStorage.SiegeZone.NONE) {
+            boolean defender = playerID != null && !playerID.equals(Faction.nullUuid)
+                    && siegeZone.defendingFaction != null
+                    && WarForgeMod.FACTIONS.IsPlayerInFaction(playerID, siegeZone.defendingFaction);
+            if (siegeZone.zone == FactionStorage.SiegeZone.SIEGED)
+                return defender ? WarForgeConfig.SIEGED_FRIEND : WarForgeConfig.SIEGED_FOE;
+            return defender ? WarForgeConfig.WAR_FRIEND : WarForgeConfig.WAR_FOE;
         }
 
-        if (siegeRelation == FactionStorage.SiegeZoneRelation.ATTACKER) {
-            return WarForgeConfig.SIEGECAMP_SIEGER;
-        }
-
         if (faction != null) {
-            boolean playerIsInFaction = playerID != null && !playerID.equals(Faction.nullUuid) && faction.isPlayerInFaction(playerID);
-            if (playerIsInFaction && siegeRelation == FactionStorage.SiegeZoneRelation.DEFENDER)
+            // Lowest-priority siege state: the besieged faction's own claims outside the War/Sieged zones.
+            if (playerIsInFaction && faction.isCurrentlyDefending)
                 return WarForgeConfig.CLAIM_DEFENDED;
 
             if (faction.citadelPos.toChunkPos().equals(pos))
@@ -272,17 +281,60 @@ public class ProtectionsModule {
 
         DimBlockPos pos = new DimBlockPos(event.getPlayer().level().dimension(), event.getPos());
         ProtectionConfig config = GetProtections(event.getPlayer().getUUID(), pos);
+        Block block = event.getState().getBlock();
 
+        if (!breakDenied(config, block))
+            return;
+
+        // MineTime turns a denied break into a slow break (paced by OnBreakSpeed). Keep the hard cancel
+        // when MineTime opts this block out, AND whenever slowing is impossible — creative instabuild
+        // and instant-break (hardness <= 0) blocks ignore break speed, so un-cancelling them would hand
+        // out a free break in protected territory.
+        boolean slowable = MineTime.resolve(block) != null
+                && !event.getPlayer().getAbilities().instabuild
+                && event.getState().getDestroySpeed(event.getLevel(), event.getPos()) > 0;
+        if (slowable)
+            return;
+
+        event.setCanceled(true);
+    }
+
+    // Mirrors the territory break rules: true when protection forbids breaking this block here.
+    public static boolean breakDenied(ProtectionConfig config, Block block) {
         if (!config.BREAK_BLOCKS || !config.BLOCK_REMOVAL) {
-            if (!config.BLOCK_BREAK_WHITELIST.contains(event.getState().getBlock())) {
-                event.setCanceled(true);
-            }
-        } else {
-            if (config.BLOCK_BREAK_BLACKLIST.contains(event.getState().getBlock())) {
-                event.setCanceled(true);
-            }
+            return !config.BLOCK_BREAK_WHITELIST.contains(block);
         }
+        return config.BLOCK_BREAK_BLACKLIST.contains(block);
+    }
 
+    @SubscribeEvent
+    public void OnBreakSpeed(PlayerEvent.BreakSpeed event) {
+        Player player = event.getEntity();
+        Level level = player.level();
+        // Server-authoritative: the client lacks claim-ownership data, and the server paces the
+        // survival break, so MineTime only adjusts the speed here.
+        if (level.isClientSide)
+            return;
+
+        if (OP_OVERRIDE && WarForgeMod.isOp(player))
+            return;
+
+        BlockPos blockPos = event.getPosition().orElse(null);
+        if (blockPos == null)
+            return;
+
+        DimBlockPos pos = new DimBlockPos(level.dimension(), blockPos);
+        ProtectionConfig config = GetProtections(player.getUUID(), pos);
+        Block block = event.getState().getBlock();
+
+        if (!breakDenied(config, block))
+            return;
+
+        MineTime.Rule rule = MineTime.resolve(block);
+        if (rule == null)
+            return; // hard-protected; BlockRemoved cancels the break outright
+
+        event.setNewSpeed(MineTime.applySpeed(rule, event.getNewSpeed(), event.getState(), level, blockPos, player));
     }
 
     @SubscribeEvent
@@ -358,6 +410,23 @@ public class ProtectionsModule {
         }
     }
 
+    // Warns a player with a toast when they cross out of a siege warzone their faction is involved in,
+    // since their absence is what starts the abandon timer.
+    private static void handleWarzoneBoundary(ServerPlayer player, SectionPos oldPos, SectionPos newPos) {
+        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        if (faction == null) {
+            return;
+        }
+        ResourceKey<Level> dim = player.level().dimension();
+        DimChunkPos from = new DimChunkPos(dim, oldPos.x(), oldPos.z());
+        DimChunkPos to = new DimChunkPos(dim, newPos.x(), newPos.z());
+        if (WarForgeMod.FACTIONS.isInOwnSiegeWarzone(faction.uuid, from)
+                && !WarForgeMod.FACTIONS.isInOwnSiegeWarzone(faction.uuid, to)) {
+            WarForgeMod.notifyPlayer(player, "warforge.leaving_warzone", "Leaving Siege Warzone",
+                    "Your absence will start the siege abandon timer.", PacketClientNotification.COLOR_WARNING, 6000);
+        }
+    }
+
     @SubscribeEvent
     public void OnMobSpawn(PotentialSpawns event) {
         ResourceKey<Level> dim = ((Level) event.getLevel()).dimension();
@@ -371,6 +440,11 @@ public class ProtectionsModule {
     public void LivingUpdate(EnteringSection event) {
         if (!event.didChunkChange())
             return;
+
+        if (event.getEntity() instanceof ServerPlayer player) {
+            handleWarzoneBoundary(player, event.getOldPos(), event.getNewPos());
+            return;
+        }
 
         if (!inLoop) {
             if (!(event.getEntity() instanceof Player)) {

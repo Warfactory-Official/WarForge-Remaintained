@@ -3,9 +3,9 @@ package com.flansmod.warforge.server;
 import com.flansmod.warforge.api.WarforgeAPI;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.IClaim;
 import com.flansmod.warforge.common.blocks.TileEntitySiegeCamp;
+import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -31,10 +31,13 @@ public class Siege {
     public long timeRemainingMillis;
     public long siegeEndTimeStamp = 999L;
     public boolean finished = false; //Used for controlling whenever siege has been concluded, Does not require saving
-    private int battleRadius = WarForgeConfig.SIEGE_BATTLE_RADIUS;
-
     public int mBaseDifficulty = 5;
-
+    // True for UI-declared sieges that have no physical siege camp block. Such sieges are anchored
+    // logically at the chosen start-from chunk (stored as attackingCamps[0]) and run their
+    // attacker-presence / abandon check from the server siege loop instead of a camp TileEntity.
+    public boolean campless = false;
+    private int battleRadius = WarForgeConfig.SIEGE_BATTLE_RADIUS; // outer "War" zone radius (kills count, foes cannot break)
+    private int siegedRadius = WarForgeConfig.SIEGE_SIEGED_RADIUS; // inner "Sieged" zone radius (chunk protection disabled)
     /**
      * The base progress comes from passive sources and must be recalculated whenever checking progress.
      * Sources for the attackers are:
@@ -55,11 +58,6 @@ public class Siege {
      * - Elapsed days with no attacker logins
      */
     private int mAttackProgress = 0;
-
-    // True for UI-declared sieges that have no physical siege camp block. Such sieges are anchored
-    // logically at the chosen start-from chunk (stored as attackingCamps[0]) and run their
-    // attacker-presence / abandon check from the server siege loop instead of a camp TileEntity.
-    public boolean campless = false;
     private int attackerAbsenceTicks = 0;
 
     public Siege() {
@@ -116,6 +114,26 @@ public class Siege {
         return clearSiegesPacket;
     }
 
+    // Sends the WarForge abandon notification (toast) to both factions plus a global announcement.
+    // attackersDeserted = the attackers left the warzone (siege fails); otherwise the defenders left.
+    public static void notifyAbandoned(Faction attacking, Faction defending, boolean attackersDeserted) {
+        String attackerName = attacking != null ? attacking.name : "The attackers";
+        String defenderName = defending != null ? defending.name : "The defenders";
+        if (attackersDeserted) {
+            WarForgeMod.notifyFaction(attacking, "warforge.siege_abandoned", "Siege Abandoned",
+                    "Your faction left the siege warzone for too long.", PacketClientNotification.COLOR_DANGER, 8000);
+            WarForgeMod.notifyFaction(defending, "warforge.siege_abandoned", "Siege Repelled",
+                    attackerName + " abandoned their siege.", PacketClientNotification.COLOR_SUCCESS, 8000);
+            WarForgeMod.INSTANCE.messageAll(Component.literal(attackerName + "'s siege on " + defenderName + " was abandoned."), true);
+        } else {
+            WarForgeMod.notifyFaction(defending, "warforge.siege_abandoned", "Defence Abandoned",
+                    "Your faction left the warzone for too long.", PacketClientNotification.COLOR_DANGER, 8000);
+            WarForgeMod.notifyFaction(attacking, "warforge.siege_abandoned", "Siege Won",
+                    defenderName + " abandoned their defence.", PacketClientNotification.COLOR_SUCCESS, 8000);
+            WarForgeMod.INSTANCE.messageAll(Component.literal(defenderName + " abandoned the defence against " + attackerName + "."), true);
+        }
+    }
+
     // Attack progress starts at 0 and can be moved to -5 or mAttackSuccessThreshold
     public int GetAttackProgress() {
         return mAttackProgress;
@@ -127,6 +145,14 @@ public class Siege {
 
     public void setBattleRadius(int battleRadius) {
         this.battleRadius = Math.max(0, battleRadius);
+    }
+
+    public int getSiegedRadius() {
+        return siegedRadius;
+    }
+
+    public void setSiegedRadius(int siegedRadius) {
+        this.siegedRadius = Math.max(0, siegedRadius);
     }
 
     public void setAttackProgress(int progress) {
@@ -145,16 +171,9 @@ public class Siege {
         boolean endByAttack = GetAttackProgress() >= GetAttackSuccessThreshold();
         boolean endByDef = GetDefenceProgress() >= 5;
 
+        // A non-null abandoned camp blocks completion; the attacker abandon countdown is now surfaced
+        // on the siege HUD instead of repeated chat messages here.
         TileEntitySiegeCamp abandonedCamp = hasAbandonedSieges();
-
-        // if a siege could complete, but an abandoned camp is stopping it from happening, notify the attackers
-        if (!endByDef && endByAttack && abandonedCamp != null && (WarForgeMod.currTickTimestamp % 60000 > 30000)) {
-            Faction attacking = WarForgeMod.FACTIONS.getFaction(attackingFaction);
-            attacking.messageAll(Component.literal(
-                    "Passing of siege delayed due to abandon timer greater than 0 [" +
-                            abandonedCamp.getAttackerAbandonTickTimer() + " ticks @ " + abandonedCamp.getBlockPos() +
-                            "]; ensure abandon timer is 0 to complete siege."));
-        }
 
         return endByDef || (abandonedCamp == null && endByAttack);
     }
@@ -214,6 +233,10 @@ public class Siege {
         info.defendingName = defenders.name;
         info.defendingColour = defenders.colour;
         info.battleRadius = battleRadius;
+        info.siegedRadius = siegedRadius;
+        info.defendingFactionId = defendingFaction;
+        info.attackingFactionId = attackingFaction;
+        info.attackerAbandonSeconds = computeAttackerAbandonSeconds();
         info.progress = GetAttackProgress();
         info.completionPoint = GetAttackSuccessThreshold();
         info.timeProgress = timeRemainingMillis;
@@ -221,6 +244,29 @@ public class Siege {
         info.finished = finished;
 
         return info;
+    }
+
+    // Seconds until the siege is considered abandoned by the attackers, derived from the camp closest
+    // to deserting (the largest abandon timer across camps). 0 when attackers are present (not at risk).
+    private int computeAttackerAbandonSeconds() {
+        // Campless (UI-declared) sieges track attacker absence themselves rather than via a camp TE.
+        if (campless) {
+            if (!WarForgeConfig.SIEGE_DECLARE_REQUIRE_PRESENCE || attackerAbsenceTicks <= 0) return 0;
+            return Math.max(0, WarForgeConfig.ATTACKER_DESERTION_TIMER - attackerAbsenceTicks / 20);
+        }
+        if (WarForgeMod.MC_SERVER == null) return 0;
+        int maxTimerTicks = 0;
+        for (DimBlockPos campPos : attackingCamps) {
+            if (campPos == null) continue;
+            Level world = WarForgeMod.MC_SERVER.getLevel(campPos.dim);
+            if (world == null) continue;
+            BlockEntity te = world.getBlockEntity(campPos.toRegularPos());
+            if (te instanceof TileEntitySiegeCamp camp) {
+                maxTimerTicks = Math.max(maxTimerTicks, camp.getAttackerAbandonTickTimer());
+            }
+        }
+        if (maxTimerTicks <= 0) return 0;
+        return Math.max(0, WarForgeConfig.ATTACKER_DESERTION_TIMER - maxTimerTicks / 20);
     }
 
     public boolean start() {
@@ -282,10 +328,17 @@ public class Siege {
         boolean present = !attackers.getOnlinePlayers(p -> p != null && !p.isRemoved()
                 && isPlayerInRadius(anchor, new DimChunkPos(p.level().dimension(), p.blockPosition()), WarForgeConfig.SIEGE_ATTACKER_RADIUS)).isEmpty();
         if (present) {
-            attackerAbsenceTicks = 0;
+            if (attackerAbsenceTicks != 0) {
+                attackerAbsenceTicks = 0;
+                WarForgeMod.FACTIONS.sendSiegeInfoToNearby(defendingClaim.toChunkPos()); // clear HUD countdown
+            }
             return false;
         }
-        return ++attackerAbsenceTicks >= limitTicks;
+        boolean abandoned = ++attackerAbsenceTicks >= limitTicks;
+        if (attackerAbsenceTicks % 20 == 0) {
+            WarForgeMod.FACTIONS.sendSiegeInfoToNearby(defendingClaim.toChunkPos()); // live HUD countdown
+        }
+        return abandoned;
     }
 
     public void AdvanceDay() {
@@ -331,7 +384,7 @@ public class Siege {
         }
 
         // Add a point for each defender flag in place
-        mExtraDifficulty = defenders.members.entrySet().size() * WarForgeConfig.SIEGE_DIFF_PER_MEMBER;
+        mExtraDifficulty = defenders.members.size() * WarForgeConfig.SIEGE_DIFF_PER_MEMBER;
         if (mExtraDifficulty > 5) {
             mExtraDifficulty = 5;
         }  // cap at 5
@@ -370,7 +423,7 @@ public class Siege {
 
     // called when siege is ended for any reason and not detected as completed normally
     public void onCancelled() {
-        FACTION_STORAGE.getFaction(defendingFaction).isCurrentlyDefending =false;
+        FACTION_STORAGE.getFaction(defendingFaction).isCurrentlyDefending = false;
         // canceling is only run inside EndSiege, which is only run in TE, so no need for this to do anything
     }
 
@@ -392,14 +445,22 @@ public class Siege {
         }
     }
 
-    private boolean isPlayerInWarzone(DimBlockPos siegeCampPos, ServerPlayer player) {
-        // convert siege camp pos to chunk pos and player to chunk pos for clarity
-        DimChunkPos siegeCampChunkPos = siegeCampPos.toChunkPos();
-        DimChunkPos playerChunkPos = new DimChunkPos(player.level().dimension(), player.blockPosition());
-
-        return isPlayerInRadius(siegeCampChunkPos, playerChunkPos, battleRadius);
+    // The zone in which kills/deaths count is the union of the War and Sieged zones, i.e. the larger radius.
+    private boolean isChunkInKillZone(DimChunkPos chunkPos) {
+        int killRadius = Math.max(battleRadius, siegedRadius);
+        for (DimBlockPos siegeCamp : attackingCamps) {
+            if (siegeCamp != null && isPlayerInRadius(siegeCamp.toChunkPos(), chunkPos, killRadius)) {
+                return true;
+            }
+        }
+        return false;
     }
 
+    private boolean isPlayerInKillZone(ServerPlayer player) {
+        return isChunkInKillZone(new DimChunkPos(player.level().dimension(), player.blockPosition()));
+    }
+
+    // Outer War zone (kills count, foes cannot break) around each siege camp.
     public boolean isChunkInBattleZone(DimChunkPos chunkPos) {
         for (DimBlockPos siegeCamp : attackingCamps) {
             if (siegeCamp != null && isPlayerInRadius(siegeCamp.toChunkPos(), chunkPos, battleRadius)) {
@@ -409,10 +470,22 @@ public class Siege {
         return false;
     }
 
-    public void onPVPKill(ServerPlayer killer, ServerPlayer killed) {
+    // Inner Sieged zone (chunk protection disabled) around each siege camp.
+    public boolean isChunkInSiegedZone(DimChunkPos chunkPos) {
+        for (DimBlockPos siegeCamp : attackingCamps) {
+            if (siegeCamp != null && isPlayerInRadius(siegeCamp.toChunkPos(), chunkPos, siegedRadius)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Advances siege progress from a participant death inside the kill zone. killer may be null
+    // (environmental/mob death). With SIEGE_COUNT_ALL_ZONE_DEATHS off this only counts kills where an
+    // opposing player landed the blow; with it on, any attacker/defender death in the zone counts.
+    public void onParticipantDeath(ServerPlayer killer, ServerPlayer killed) {
         Faction attackers = WarForgeMod.FACTIONS.getFaction(attackingFaction);
         Faction defenders = WarForgeMod.FACTIONS.getFaction(defendingFaction);
-        Faction killerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(killer.getUUID());
         Faction killedFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(killed.getUUID());
 
         if (attackers == null || defenders == null || WarForgeMod.MC_SERVER == null) {
@@ -420,20 +493,24 @@ public class Siege {
             return;
         }
 
-        boolean attackValid = false;
-        boolean defendValid = false;
+        boolean attackValid = false; // a defender died -> attackers gain progress
+        boolean defendValid = false; // an attacker died -> defenders gain progress
 
-        // there may be multiple siege camps per siege, so ensure kill occurred in radius of any
-        for (DimBlockPos siegeCamp : attackingCamps) {
-            if (isPlayerInWarzone(siegeCamp, killer)) {
-                // First case, an attacker killed a defender
+        if (WarForgeConfig.SIEGE_COUNT_ALL_ZONE_DEATHS) {
+            // Any participant death inside the zone counts, regardless of the damage source.
+            if (isPlayerInKillZone(killed)) {
+                if (killedFaction == defenders) attackValid = true;
+                else if (killedFaction == attackers) defendValid = true;
+            }
+        } else {
+            // Confirmed PVP only: an opposing player must have landed the kill while in the zone.
+            Faction killerFaction = killer == null ? null : WarForgeMod.FACTIONS.getFactionOfPlayer(killer.getUUID());
+            if (killer != null && isPlayerInKillZone(killer)) {
                 if (killerFaction == attackers && killedFaction == defenders) {
                     attackValid = true;
-                    // Other case, a defender killed an attacker
                 } else if (killerFaction == defenders && killedFaction == attackers) {
                     defendValid = true;
                 }
-
             }
         }
 
@@ -469,6 +546,7 @@ public class Siege {
 
         defendingClaim = DimBlockPos.readFromNBT(tags, "defendLocation");
         battleRadius = tags.contains("battleRadius") ? Math.max(0, tags.getInt("battleRadius")) : WarForgeConfig.SIEGE_BATTLE_RADIUS;
+        siegedRadius = tags.contains("siegedRadius") ? Math.max(0, tags.getInt("siegedRadius")) : WarForgeConfig.SIEGE_SIEGED_RADIUS;
         mAttackProgress = tags.getInt("progress");
         mBaseDifficulty = tags.getInt("baseDifficulty");
         mExtraDifficulty = tags.getInt("extraDifficulty");
@@ -495,6 +573,7 @@ public class Siege {
         tags.put("attackLocations", claimsList);
         tags.put("defendLocation", defendingClaim.writeToNBT());
         tags.putInt("battleRadius", battleRadius);
+        tags.putInt("siegedRadius", siegedRadius);
         tags.putInt("progress", mAttackProgress);
         tags.putInt("baseDifficulty", mBaseDifficulty);
         tags.putInt("extraDifficulty", mExtraDifficulty);

@@ -54,6 +54,7 @@ import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ChunkWatchEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.server.ServerAboutToStartEvent;
+import net.minecraftforge.event.server.ServerStartedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -163,6 +164,7 @@ public class WarForgeMod {
             // Register MUI factories on BOTH sides: the server must resolve the factory by name when it
             // decodes the OpenGuiPacket a client sends via GuiManager.openFromClient(factory, data).
             WarForgeGuiFactories.init();
+            CHUNK_LOADING_MANAGER.initialize();
             POTIONS.registerBrewingRecipes();
             findVaultBlocks();
             Content.bake();
@@ -177,6 +179,11 @@ public class WarForgeMod {
             WarForgeConfig.CLAIM_FOE.findBlocks();
             WarForgeConfig.SIEGECAMP_SIEGER.findBlocks();
             WarForgeConfig.SIEGECAMP_OTHER.findBlocks();
+            WarForgeConfig.CLAIM_DEFENDED.findBlocks();
+            WarForgeConfig.SIEGED_FRIEND.findBlocks();
+            WarForgeConfig.SIEGED_FOE.findBlocks();
+            WarForgeConfig.WAR_FRIEND.findBlocks();
+            WarForgeConfig.WAR_FOE.findBlocks();
         });
     }
 
@@ -260,6 +267,26 @@ public class WarForgeMod {
             var packet = claim.getUpdatePacket();
             if (packet != null) {
                 serverPlayer.connection.send(packet);
+            }
+        }
+    }
+
+    // Sends a WarForge toast notification (not chat) to one player.
+    public static void notifyPlayer(ServerPlayer player, String token, String title, String subtitle, int accentColor, int durationMs) {
+        if (player == null) {
+            return;
+        }
+        NETWORK.sendTo(new com.flansmod.warforge.common.network.PacketClientNotification(token, title, subtitle, accentColor, durationMs, null), player);
+    }
+
+    // Sends a WarForge toast notification (not chat) to every online member of a faction.
+    public static void notifyFaction(com.flansmod.warforge.server.Faction faction, String token, String title, String subtitle, int accentColor, int durationMs) {
+        if (faction == null) {
+            return;
+        }
+        for (Player player : faction.getOnlinePlayers(java.util.Objects::nonNull)) {
+            if (player instanceof ServerPlayer serverPlayer) {
+                notifyPlayer(serverPlayer, token, title, subtitle, accentColor, durationMs);
             }
         }
     }
@@ -380,30 +407,6 @@ public class WarForgeMod {
 
         if (event.getEntity() instanceof ServerPlayer player) {
             FACTIONS.playerDied(player, event.getSource());
-        }
-    }
-
-    private void blockPlacedOrRemoved(BlockEvent event, BlockState state) {
-        if (WarForgeConfig.VAULT_BLOCKS.contains(state.getBlock())) {
-            Level level = (Level) event.getLevel();
-            DimChunkPos chunkPos = new DimBlockPos(level.dimension(), event.getPos()).toChunkPos();
-            UUID factionID = FACTIONS.getClaim(chunkPos);
-            if (!factionID.equals(Faction.nullUuid)) {
-                Faction faction = FACTIONS.getFaction(factionID);
-                if (faction != null) {
-                    if (faction.citadelPos.toChunkPos().equals(chunkPos)) {
-                        faction.evaluateVault();
-                    }
-                }
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void blockPlaced(BlockEvent.EntityPlaceEvent event) {
-        Level level = (Level) event.getLevel();
-        if (!level.isClientSide) {
-            blockPlacedOrRemoved(event, event.getPlacedBlock());
         }
     }
 
@@ -603,9 +606,10 @@ public class WarForgeMod {
                 final HashMap<ItemMatcher, Integer> requirements = UPGRADE_HANDLER.getLEVELS()[i];
                 final int limit = UPGRADE_HANDLER.getLIMITS()[i];
                 final int insuranceSlots = UPGRADE_HANDLER.getINSURANCE_SLOTS()[i];
+                final int loadedChunks = UPGRADE_HANDLER.getLOADED_CHUNKS()[i];
 
                 SyncQueueHandler.enqueue(player, () ->
-                        NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots), player)
+                        NETWORK.sendTo(new PacketCitadelUpgradeRequirement(level, requirements, limit, insuranceSlots, loadedChunks), player)
                 );
             }
         }
@@ -685,13 +689,19 @@ public class WarForgeMod {
             }
 
             readFromNBT(tags);
-            CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.getAllFactions());
             LOGGER.info("Successfully loaded " + dataFile.getFileName());
         } catch (Exception e) {
             throw new RuntimeException("Failed to load data from warforgefactions.dat", e);
         }
 
         currTickTimestamp = System.currentTimeMillis();
+    }
+
+    @SubscribeEvent
+    public void serverStarted(ServerStartedEvent event) {
+        CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.getAllFactions());
+        // Veins are loaded by now; recompute vein-based wealth for all loaded factions.
+        FACTIONS.recalculateAllWealth();
     }
 
     @SubscribeEvent

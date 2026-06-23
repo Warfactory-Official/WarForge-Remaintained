@@ -533,6 +533,12 @@ public class FactionStorage {
         return mFactions.values();
     }
 
+    public void recalculateAllWealth() {
+        for (Faction faction : mFactions.values()) {
+            faction.recalculateWealth();
+        }
+    }
+
     public boolean IsPlayerRoleInFaction(UUID playerID, UUID factionID, Faction.Role role) {
         if (mFactions.containsKey(factionID))
             return mFactions.get(factionID).isPlayerRoleInFaction(playerID, role);
@@ -872,6 +878,61 @@ public class FactionStorage {
         return bestRelation;
     }
 
+    public enum SiegeZone {
+        NONE,
+        WAR,
+        SIEGED
+    }
+
+    public static final class SiegeZoneResult {
+        public static final SiegeZoneResult NONE = new SiegeZoneResult(SiegeZone.NONE, null);
+        public final SiegeZone zone;
+        public final UUID defendingFaction;
+
+        private SiegeZoneResult(SiegeZone zone, UUID defendingFaction) {
+            this.zone = zone;
+            this.defendingFaction = defendingFaction;
+        }
+    }
+
+    // Resolves the siege zone a chunk sits in across all active sieges. The inner Sieged zone takes
+    // priority over the outer War zone. Carries the defending faction of the governing siege so the
+    // caller can decide friend (defending member) vs foe.
+    public SiegeZoneResult getSiegeZone(DimChunkPos chunkPos) {
+        UUID warDefender = null;
+        for (Siege siege : sieges.values()) {
+            if (siege.isChunkInSiegedZone(chunkPos)) {
+                return new SiegeZoneResult(SiegeZone.SIEGED, siege.defendingFaction);
+            }
+            if (warDefender == null && siege.isChunkInBattleZone(chunkPos)) {
+                warDefender = siege.defendingFaction;
+            }
+        }
+        return warDefender == null ? SiegeZoneResult.NONE : new SiegeZoneResult(SiegeZone.WAR, warDefender);
+    }
+
+    // True if the faction is the attacker or defender of any active siege and the chunk is within that
+    // side's presence radius of a siege camp (the area whose occupancy keeps the siege from abandoning).
+    public boolean isInOwnSiegeWarzone(UUID factionId, DimChunkPos pos) {
+        if (factionId == null || factionId.equals(Faction.nullUuid)) {
+            return false;
+        }
+        for (Siege siege : sieges.values()) {
+            boolean attacker = factionId.equals(siege.attackingFaction);
+            boolean defender = factionId.equals(siege.defendingFaction);
+            if (!attacker && !defender) {
+                continue;
+            }
+            int radius = attacker ? WarForgeConfig.SIEGE_ATTACKER_RADIUS : WarForgeConfig.SIEGE_DEFENDER_RADIUS;
+            for (DimBlockPos camp : siege.attackingCamps) {
+                if (camp != null && Siege.isPlayerInRadius(camp.toChunkPos(), pos, radius)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public void update() {
         for (HashMap.Entry<UUID, Faction> entry : mFactions.entrySet()) {
             entry.getValue().update();
@@ -915,6 +976,7 @@ public class FactionStorage {
             siege.updateSiegeTimer();
             // Camp-less declared sieges have no camp TE to enforce attacker presence; do it here.
             if (siege.tickCamplessPresence()) {
+                Siege.notifyAbandoned(getFaction(siege.attackingFaction), getFaction(siege.defendingFaction), true);
                 siege.setAttackProgress(-5); // attacker abandoned -> defenders hold
             }
             if (siege.isCompleted())
@@ -936,19 +998,23 @@ public class FactionStorage {
     }
 
     public void playerDied(ServerPlayer playerWhoDied, DamageSource source) {
-        if (source.getEntity() instanceof ServerPlayer killer) {
+        ServerPlayer killer = source.getEntity() instanceof ServerPlayer p ? p : null;
+
+        // Siege progress from deaths in the War/Sieged zone. In confirmed-kill mode this needs an
+        // opposing player killer; in count-all mode any participant death in the zone counts, so the
+        // handler runs even when there is no player killer (mob, fall, etc.).
+        if (!sieges.isEmpty()) {
+            for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
+                kvp.getValue().onParticipantDeath(killer, playerWhoDied);
+                if (kvp.getValue().isCompleted())
+                    finishedSiegeQueue.add(kvp.getKey());
+            }
+            processCompleteSieges();
+        }
+
+        if (killer != null) {
             Faction killedFac = getFactionOfPlayer(playerWhoDied.getUUID());
             Faction killerFac = getFactionOfPlayer(killer.getUUID());
-
-            if (killedFac != null && killerFac != null) {
-                for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
-                    kvp.getValue().onPVPKill(killer, playerWhoDied);
-                    if (kvp.getValue().isCompleted())
-                        finishedSiegeQueue.add(kvp.getKey());
-                }
-
-                processCompleteSieges();
-            }
 
             if (killerFac != null) {
                 int numTimesKilled = 0;
@@ -1254,7 +1320,10 @@ public class FactionStorage {
         faction.colour = colour;
         faction.notoriety = 0;
         faction.legacy = 0;
-        faction.wealth = 0;
+        faction.recalculateWealth(); // wealth of the citadel chunk's vein (if any)
+        if (WarForgeConfig.ENABLE_SIEGE_GRACE_PERIOD && WarForgeConfig.SIEGE_GRACE_PERIOD_HOURS > 0) {
+            faction.siegeGraceUntil = System.currentTimeMillis() + TimeUnit.HOURS.toMillis(WarForgeConfig.SIEGE_GRACE_PERIOD_HOURS);
+        }
 
         mFactions.put(proposedID, faction);
         citadel.onServerCreateFaction(faction);
@@ -1820,6 +1889,16 @@ public class FactionStorage {
         return faction.onlinePlayerCount <= 0 && System.currentTimeMillis() < faction.offlineRaidProtectionUntil;
     }
 
+    // New-faction grace: a freshly created faction is unsiegeable until its grace window expires. Disabling
+    // the feature in config drops grace for everyone immediately. A graced faction forfeits grace the moment
+    // it starts a siege of its own (see createSiege).
+    public boolean isSiegeGraceProtected(Faction faction) {
+        if (!WarForgeConfig.ENABLE_SIEGE_GRACE_PERIOD || faction == null) {
+            return false;
+        }
+        return System.currentTimeMillis() < faction.siegeGraceUntil;
+    }
+
     // runs on the server only
     public void requestStartSiege(Player factionOfficer, DimBlockPos siegeCampPos, Vec3i direction) {
         Faction attacking = getFactionOfPlayer(factionOfficer.getUUID());
@@ -1900,6 +1979,11 @@ public class FactionStorage {
             return;
         }
 
+        if (isSiegeGraceProtected(defending)) {
+            factionOfficer.sendSystemMessage(Component.literal("That faction is too new to be sieged. Grace expires in " + TimeHelper.formatTime(defending.siegeGraceUntil - System.currentTimeMillis())));
+            return;
+        }
+
         DimBlockPos defendingPos = defending.getSpecificPosForClaim(defendingChunk);
         if (defendingPos == null) {
             factionOfficer.sendSystemMessage(Component.literal("Could not find a valid defending claim in that chunk"));
@@ -1930,6 +2014,7 @@ public class FactionStorage {
     private Siege createSiege(Faction attacking, Faction defending, DimBlockPos defendingPos,
                               DimChunkPos defendingChunk, DimBlockPos anchorPos, boolean campless) {
         long maxTime = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(attacking.getSiegeMomentum()) * 1000L;
+        attacking.siegeGraceUntil = 0L; // starting a siege forfeits any remaining new-faction grace
         Siege siege = new Siege(attacking.uuid, defending.uuid, defendingPos, maxTime);
         siege.setBattleRadius(WarForgeConfig.SIEGE_BATTLE_RADIUS);
         siege.campless = campless;
@@ -1999,6 +2084,11 @@ public class FactionStorage {
         }
         if (isOfflineRaidProtected(defending)) {
             officer.sendSystemMessage(Component.literal("That faction is offline and protected until " + TimeHelper.formatTime(defending.offlineRaidProtectionUntil - System.currentTimeMillis())));
+            return;
+        }
+
+        if (isSiegeGraceProtected(defending)) {
+            officer.sendSystemMessage(Component.literal("That faction is too new to be sieged. Grace expires in " + TimeHelper.formatTime(defending.siegeGraceUntil - System.currentTimeMillis())));
             return;
         }
 

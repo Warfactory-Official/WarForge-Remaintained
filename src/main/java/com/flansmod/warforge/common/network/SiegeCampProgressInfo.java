@@ -1,12 +1,14 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.server.Faction;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
+import java.util.UUID;
 
 @NoArgsConstructor
 @AllArgsConstructor
@@ -19,6 +21,10 @@ public class SiegeCampProgressInfo {
     public String attackingName;
     public String defendingName;
     public int battleRadius = 1;
+    public int siegedRadius = 0;
+    public UUID defendingFactionId = Faction.nullUuid;
+    public UUID attackingFactionId = Faction.nullUuid;
+    public int attackerAbandonSeconds = 0; // seconds until the attacking siege is abandoned; 0 = not at risk
 
     public int completionPoint = 5;
     public int mPreviousProgress = 0;

@@ -54,6 +54,7 @@ public class ClientProxy extends CommonProxy
 		MinecraftForge.EVENT_BUS.register(new ClientTickHandler());
 		MinecraftForge.EVENT_BUS.register(new AnimatedEffectHandler());
 		MinecraftForge.EVENT_BUS.register(new ClaimFlagRenderer());
+		MinecraftForge.EVENT_BUS.register(new ClientMineTimePredictor());
 
 		// MUI factories are registered in WarForgeMod.commonSetup (needed on both sides).
 

@@ -1,6 +1,8 @@
 package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.api.Time;
+import com.flansmod.warforge.api.vein.Quality;
+import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -19,6 +21,7 @@ import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 import com.mojang.authlib.GameProfile;
 import lombok.Getter;
+import org.apache.commons.lang3.tuple.Pair;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -84,6 +87,9 @@ public class Faction {
     public short citadelLevel = 0;
     public long offlineRaidProtectionUntil = 0L;
     public boolean offlineRaidProtectionDisabled = false;
+    // New-faction siege grace: unsiegeable while now < this. 0 = none (never granted, expired, or
+    // forfeited by the faction starting a siege of its own).
+    public long siegeGraceUntil = 0L;
     public int citadelMoveCooldown = 0;
     public boolean isCurrentlyDefending = false;
     //Only for new system
@@ -372,8 +378,10 @@ public class Faction {
     }
 
     public int getMaxForceLoadedChunks() {
-        int levelBonus = citadelLevel * WarForgeConfig.FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL;
-        return Math.max(0, WarForgeConfig.FORCE_LOADED_CHUNKS_BASE + levelBonus);
+        if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
+            return Math.max(0, WarForgeMod.UPGRADE_HANDLER.getLoadedChunksForLevel(citadelLevel));
+        }
+        return Math.max(0, WarForgeConfig.FORCE_LOADED_CHUNKS_TOTAL);
     }
 
     public int getInsuranceSlotCount() {
@@ -442,6 +450,7 @@ public class Faction {
     public void onClaimPlaced(IClaim claim) {
         claims.put(claim.getClaimPos(), 0);
         claimTypes.put(claim.getClaimPos(), ClaimType.fromClaim(claim));
+        wealth += chunkWealth(claim.getClaimPos().toChunkPos());
     }
 
     // for methods where claim block is actually being removed
@@ -492,6 +501,7 @@ public class Faction {
 
             claims.remove(claimBlockPos);
             claimTypes.remove(claimBlockPos);
+            wealth -= chunkWealth(claimBlockPos.toChunkPos());
             ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
             for (DimBlockPos collectorPos : islandCollectors) {
                 if (collectorPos.toChunkPos().equals(claimBlockPos.toChunkPos())) {
@@ -524,6 +534,7 @@ public class Faction {
         DimBlockPos blockPos = new DimBlockPos(pos.dim, pos.getMinBlockX(), y, pos.getMinBlockZ());
         claims.put(blockPos, 0);
         claimTypes.put(blockPos, claimType);
+        wealth += chunkWealth(pos);
     }
 
     public ClaimType getClaimType(DimChunkPos pos) {
@@ -572,27 +583,31 @@ public class Faction {
         return null;
     }
 
-    public void evaluateVault() {
-        ServerLevel world = WarForgeMod.MC_SERVER.getLevel(citadelPos.dim);
-        DimChunkPos chunkPos = citadelPos.toChunkPos();
-
-        int count = 0;
-        int minBlockX = chunkPos.getMinBlockX();
-        int minBlockZ = chunkPos.getMinBlockZ();
-        int minY = world.getMinBuildHeight();
-        int maxY = world.getMaxBuildHeight();
-        for (int x = 0; x < 16; x++) {
-            for (int z = 0; z < 16; z++) {
-                for (int y = minY; y < maxY; y++) {
-                    BlockPos blockPos = new BlockPos(minBlockX + x, y, minBlockZ + z);
-                    BlockState state = world.getBlockState(blockPos);
-                    if (WarForgeConfig.VAULT_BLOCKS.contains(state.getBlock()))
-                        count++;
-                }
-            }
+    // Wealth contributed by a single claimed chunk: the wealth of the yield-providing vein it holds, or
+    // 0 if the chunk has no vein. Returns 0 until the vein handler is ready (startup recompute covers it).
+    public static int chunkWealth(DimChunkPos chunk) {
+        if (VEIN_HANDLER == null || !VEIN_HANDLER.hasFinishedInit || WarForgeMod.MC_SERVER == null) {
+            return 0;
         }
+        ServerLevel level = WarForgeMod.MC_SERVER.getLevel(chunk.dim);
+        if (level == null) {
+            level = WarForgeMod.MC_SERVER.overworld();
+        }
+        if (level == null) {
+            return 0;
+        }
+        Pair<Vein, Quality> veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, level.getSeed());
+        return veinInfo == null || veinInfo.getLeft() == null ? 0 : veinInfo.getLeft().wealth;
+    }
 
-        wealth = count;
+    // Full recompute of wealth from current claims. Used on server start (migration / vein-config
+    // changes); runtime claim gain/loss adjusts wealth incrementally instead to avoid redundant scans.
+    public void recalculateWealth() {
+        int total = 0;
+        for (DimBlockPos claimPos : claims.keySet()) {
+            total += chunkWealth(claimPos.toChunkPos());
+        }
+        wealth = total;
     }
 
     public void awardYields() {
@@ -752,6 +767,7 @@ public class Faction {
 
         offlineRaidProtectionUntil = tags.getLong("offlineRaidProtectionUntil");
         offlineRaidProtectionDisabled = tags.getBoolean("offlineRaidProtectionDisabled");
+        siegeGraceUntil = tags.getLong("siegeGraceUntil");
         citadelMoveCooldown = tags.getInt("citadelMoveCooldown");
         citadelMoveTimeStamp = tags.getLong("citadelMoveTimestamp");
         lastSiegeTimestamp = tags.getLong("lastSiegeTimestamp");
@@ -857,6 +873,7 @@ public class Faction {
 
         tags.putLong("offlineRaidProtectionUntil", offlineRaidProtectionUntil);
         tags.putBoolean("offlineRaidProtectionDisabled", offlineRaidProtectionDisabled);
+        tags.putLong("siegeGraceUntil", siegeGraceUntil);
         tags.putInt("citadelMoveCooldown", citadelMoveCooldown);
         tags.putLong("citadelMoveTimestamp", citadelMoveTimeStamp);
         tags.putLong("lastSiegeTimestamp", lastSiegeTimestamp);

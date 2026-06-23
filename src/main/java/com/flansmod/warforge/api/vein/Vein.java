@@ -37,6 +37,7 @@ public class Vein {
     // Packet Data:
     public final FriendlyByteBuf SERIALIZED_ENTRY;
     private final short id;
+    public final int wealth;  // relative wealth a claimed chunk holding this vein adds to a faction
 
     public Vein(final FriendlyByteBuf veinEntryBuf) {
         this(VeinConfigHandler.VeinEntry.deserialize(veinEntryBuf), false);
@@ -54,6 +55,7 @@ public class Vein {
         this.translationKey = veinEntry.translationKey;
         qualMults = veinEntry.qualMults;
         id = veinEntry.id;
+        wealth = veinEntry.wealth;
         dimWeights = new Object2ObjectOpenHashMap<>(veinEntry.dimWeights.size());
         dimWeights.defaultReturnValue(new short[]{0, 0});
 

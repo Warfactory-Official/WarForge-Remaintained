@@ -10,6 +10,13 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import java.util.UUID;
 
 public class PacketClientNotification extends PacketBase {
+    // Common accent colours (mirror WarForgeNotifications) so server code can pick one without loading
+    // the client-only notification class.
+    public static final int COLOR_INFO = 0x708A97;
+    public static final int COLOR_SUCCESS = 0x55AA55;
+    public static final int COLOR_WARNING = 0xC79A3A;
+    public static final int COLOR_DANGER = 0xB34747;
+
     public String token = "";
     public String title = "";
     public String subtitle = "";

@@ -38,7 +38,7 @@ import static com.flansmod.warforge.api.vein.init.VeinUtils.NULL_VEIN_ID;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 
 public class VeinConfigHandler {
-    public record Tuple4<A, B, C, D>(A _1, B _2, C _3, D _4) {}
+    public record Tuple5<A, B, C, D, E>(A _1, B _2, C _3, D _4, E _5) {}
 
     public final static Path CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.toml");
     public final static Path LEGACY_CONFIG_PATH = Paths.get("config/" + Tags.MODID + "/veins.cfg");
@@ -57,6 +57,7 @@ public class VeinConfigHandler {
             "# - id: An auto-generated unique identifier [0, 8191] which allows for vein properties to change;",
             "#       OMIT this key entirely to have one assigned automatically.",
             "# - key: A unique translation key used for localization or identification.",
+            "# - wealth: An integer (default 1) added to a faction's wealth for each claimed chunk holding this vein.",
             "# - quals: An inline table of quality overrides for this vein, with omitted qualities using the global default in cfg",
             "#       quals = { <Qual Name> = <float multiplier>, ... }",
             "# - dims: An array of inline tables of dimension weights, where:",
@@ -77,6 +78,7 @@ public class VeinConfigHandler {
             "#",
             "# [[veins]]",
             "# key = \"warforge.veins.iron_mix\"",
+            "# wealth = 1",
             "# quals = { RICH = 10.0, POOR = 0.1 }",
             "# dims = [",
             "#     { id = \"minecraft:the_nether\", weight = 0.5, mult = 2.0 },",
@@ -131,7 +133,7 @@ public class VeinConfigHandler {
         }
 
         List<VeinEntry> entries = new ArrayList<>();
-        Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>>> noIdEntries = new Int2ObjectOpenHashMap<>();
+        Int2ObjectOpenHashMap<Tuple5<String, Object2FloatOpenHashMap<Quality>, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>, Integer>> noIdEntries = new Int2ObjectOpenHashMap<>();
 
         // we need this for further id processing
         short[] occupiedIds = new short[allVeinData.size()];
@@ -166,7 +168,7 @@ public class VeinConfigHandler {
             }
 
             short id = (short) (occupiedIds[idSpaces[0]] + currIdOffset++);
-            entries.add(new VeinEntry(id, noIdEntryVal._1(), noIdEntryVal._2(), noIdEntryVal._3(), noIdEntryVal._4()));
+            entries.add(new VeinEntry(id, noIdEntryVal._1(), noIdEntryVal._2(), noIdEntryVal._3(), noIdEntryVal._4(), noIdEntryVal._5()));
             posToId.put(noIdEntryOGIndex, id);
         }
 
@@ -203,9 +205,14 @@ public class VeinConfigHandler {
         List<Config> rawVeins;
         try (Reader reader = Files.newBufferedReader(CONFIG_PATH, StandardCharsets.UTF_8)) {  // will throw if no file exists
             globalVeinData = new TomlParser().parse(reader);  // get a mapping of keys to objects
-            short iterationId = ((Number) globalVeinData.get("iteration")).shortValue();
 
-            short megachunkLength = ((Number) globalVeinData.get("megachunk_length")).shortValue();
+            // A stub config holds only the commented example block, so both globals parse as absent.
+            // Treat missing globals as defaults instead of dereferencing null (no veins is valid).
+            Number iterationRaw = globalVeinData.get("iteration");
+            short iterationId = iterationRaw != null ? iterationRaw.shortValue() : 0;
+
+            Number megachunkRaw = globalVeinData.get("megachunk_length");
+            short megachunkLength = megachunkRaw != null ? megachunkRaw.shortValue() : 32;
             if (megachunkLength < 4 || megachunkLength > 180) {
                 WarForgeMod.LOGGER.atError().log("Invalid megachunk length provided; defaulting to 32");
                 megachunkLength = 32;
@@ -229,8 +236,8 @@ public class VeinConfigHandler {
 
     // returns the number of occupiedIds found
     private static int parseVeinEntries(List<Config> rawVeins, List<VeinEntry> entries,
-                                        Int2ObjectOpenHashMap<Tuple4<String, Object2FloatOpenHashMap<Quality>,
-                                            Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>>> noIdEntries,
+                                        Int2ObjectOpenHashMap<Tuple5<String, Object2FloatOpenHashMap<Quality>,
+                                            Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight>, List<Component>, Integer>> noIdEntries,
                                         short[] occupiedIds) {
         int numIds = 0;
         int veinIndex = -1;
@@ -292,12 +299,16 @@ public class VeinConfigHandler {
                             Component.parseFloatMap(comp.get("mults"))))
                         .collect(Collectors.toList());
 
+                // relative wealth contributed by a claimed chunk holding this vein; defaults to 1
+                Number wealthNum = veinData.get("wealth");
+                int wealth = wealthNum != null ? wealthNum.intValue() : 1;
+
                 if (absoluteId == NULL_VEIN_ID) {
-                    noIdEntries.put(veinIndex, new Tuple4<>(translationKey, quals, dims, components));
+                    noIdEntries.put(veinIndex, new Tuple5<>(translationKey, quals, dims, components, wealth));
                     continue;
                 }
 
-                entries.add(new VeinEntry(absoluteId, translationKey, quals, dims, components));
+                entries.add(new VeinEntry(absoluteId, translationKey, quals, dims, components, wealth));
                 occupiedIds[numIds++] = absoluteId;  // we want positive numbers to assign id's
             } catch (ClassCastException e) {
                 WarForgeMod.LOGGER.error("Failed to parse vein: ", e);
@@ -329,12 +340,14 @@ public class VeinConfigHandler {
 
         final public Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights;
         final public List<Component> components;
+        final public int wealth;
 
-        public VeinEntry(short id, String translationKey, Object2FloatOpenHashMap<Quality> qualMults, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights, List<Component> components) {
+        public VeinEntry(short id, String translationKey, Object2FloatOpenHashMap<Quality> qualMults, Object2ObjectOpenHashMap<ResourceKey<Level>, DimWeight> dimWeights, List<Component> components, int wealth) {
             this.id = id;
             this.translationKey = translationKey;
             this.dimWeights = dimWeights;
             this.components = components;
+            this.wealth = wealth;
             if (qualMults == null) {
                 this.qualMults = null;
                 qualOverrideCount = 0;
@@ -370,6 +383,7 @@ public class VeinConfigHandler {
             // write id and translation key
             entryByteBuf.writeShort(id);
             entryByteBuf.writeUtf(translationKey);
+            entryByteBuf.writeInt(wealth);
 
             // store qual overrides
             entryByteBuf.writeByte(qualOverrideCount);
@@ -396,6 +410,7 @@ public class VeinConfigHandler {
         public static VeinEntry deserialize(FriendlyByteBuf buf) {
             short id = buf.readShort();
             String translationKey = buf.readUtf();
+            int wealth = buf.readInt();
 
             // prepare to read quality overrides
             int numQualOverrides = buf.readByte();
@@ -422,7 +437,7 @@ public class VeinConfigHandler {
                 comps.add(Component.deserialize(buf));
             }
 
-            return new VeinEntry(id, translationKey, qualMappings, dimWeights, comps);
+            return new VeinEntry(id, translationKey, qualMappings, dimWeights, comps, wealth);
         }
     }
 

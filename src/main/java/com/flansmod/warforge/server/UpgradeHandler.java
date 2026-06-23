@@ -12,7 +12,6 @@ import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -27,12 +26,14 @@ public class UpgradeHandler {
             level = 0
             claim_limit = 5
             insurance_slots = 0
+            loaded_chunks = 4
             requirements = []
 
             [[levels]]
             level = 1
             claim_limit = 10
             insurance_slots = 9
+            loaded_chunks = 8
             requirements = [
                 { type = "ore", id = "forge:ingots/iron", count = 64 },
                 { type = "item", id = "minecraft:diamond", count = 1 },
@@ -42,6 +43,7 @@ public class UpgradeHandler {
             level = 2
             claim_limit = 15
             insurance_slots = 18
+            loaded_chunks = 16
             requirements = [
                 { type = "item", id = "minecraft:netherite_ingot", count = 1 },
             ]
@@ -50,11 +52,13 @@ public class UpgradeHandler {
     protected HashMap<ItemMatcher, Integer>[] LEVELS;
     protected int[] LIMITS;
     protected int[] INSURANCE_SLOTS;
+    protected int[] LOADED_CHUNKS;
 
     public UpgradeHandler() {
         LEVELS = new HashMap[0];
         LIMITS = new int[0];
         INSURANCE_SLOTS = new int[0];
+        LOADED_CHUNKS = new int[0];
     }
 
     public int[] getLIMITS() {
@@ -69,26 +73,22 @@ public class UpgradeHandler {
         return INSURANCE_SLOTS;
     }
 
-    public void setLevelAndLimits(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots) {
+    public int[] getLOADED_CHUNKS() {
+        return LOADED_CHUNKS;
+    }
+
+    public void setLevelAndLimits(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots, int loadedChunks) {
         if (level >= LEVELS.length) {
             int newSize = Math.max(level + 1, Math.max(LEVELS.length * 2, 1));
             LEVELS = Arrays.copyOf(LEVELS, newSize);
             LIMITS = Arrays.copyOf(LIMITS, newSize);
             INSURANCE_SLOTS = Arrays.copyOf(INSURANCE_SLOTS, newSize);
+            LOADED_CHUNKS = Arrays.copyOf(LOADED_CHUNKS, newSize);
         }
         LEVELS[level] = requirements;
         LIMITS[level] = limit;
         INSURANCE_SLOTS[level] = insuranceSlots;
-    }
-
-    public static void migrateLegacyConfigIfNeeded(Path legacyCfg, Path tomlPath) throws IOException {
-        if (Files.exists(tomlPath) || !Files.exists(legacyCfg)) {
-            return;
-        }
-
-        LegacyConfigData migrated = parseLegacyConfig(legacyCfg);
-        writeTomlConfig(tomlPath, migrated.levels, migrated.claims, migrated.insuranceSlots);
-        Files.move(legacyCfg, legacyCfg.resolveSibling(legacyCfg.getFileName() + ".migrated"), StandardCopyOption.REPLACE_EXISTING);
+        LOADED_CHUNKS[level] = loadedChunks;
     }
 
     public static void writeStubIfEmpty(Path filePath) throws IOException {
@@ -112,6 +112,7 @@ public class UpgradeHandler {
         List<Map<ItemMatcher, Integer>> levels = new ArrayList<>();
         List<Integer> claims = new ArrayList<>();
         List<Integer> insuranceSlots = new ArrayList<>();
+        List<Integer> loadedChunks = new ArrayList<>();
 
         for (Object rawLevel : rawLevelList) {
             if (!(rawLevel instanceof Config levelMap)) {
@@ -121,17 +122,22 @@ public class UpgradeHandler {
             int level = readRequiredInt(levelMap, "level");
             int claimLimit = readRequiredInt(levelMap, "claim_limit");
             int insurance = readOptionalInt(levelMap, "insurance_slots", 0);
+            int loaded = readOptionalInt(levelMap, "loaded_chunks", 0);
             if (claimLimit != -1 && claimLimit <= 0) {
                 throw new IllegalArgumentException("Claim limit must be > 0 or -1");
             }
             if (insurance < 0) {
                 throw new IllegalArgumentException("Insurance slots must be >= 0");
             }
+            if (loaded < 0) {
+                throw new IllegalArgumentException("Loaded chunks must be >= 0");
+            }
 
             while (levels.size() <= level) {
                 levels.add(new HashMap<>());
                 claims.add(-1);
                 insuranceSlots.add(0);
+                loadedChunks.add(0);
             }
 
             HashMap<ItemMatcher, Integer> requirements = new HashMap<>();
@@ -141,8 +147,8 @@ public class UpgradeHandler {
                     if (!(rawRequirement instanceof Config requirementMap)) {
                         throw new IllegalArgumentException("Requirement entries must be tables");
                     }
-                    String type = String.valueOf(requirementMap.get("type")).toLowerCase(Locale.ROOT);
-                    String id = String.valueOf(requirementMap.get("id"));
+                    String type = coerceString(requirementMap.get("type")).toLowerCase(Locale.ROOT);
+                    String id = coerceString(requirementMap.get("id"));
                     int count = readOptionalInt(requirementMap, "count", 1);
 
                     ItemMatcher matcher;
@@ -168,10 +174,11 @@ public class UpgradeHandler {
             levels.set(level, requirements);
             claims.set(level, claimLimit);
             insuranceSlots.set(level, insurance);
+            loadedChunks.set(level, loaded);
         }
 
         validateMonotonicClaims(claims);
-        applyParsedData(levels, claims, insuranceSlots);
+        applyParsedData(levels, claims, insuranceSlots, loadedChunks);
     }
 
     public HashMap<ItemMatcher, Integer> getRequirementsFor(int level) {
@@ -195,15 +202,24 @@ public class UpgradeHandler {
         return INSURANCE_SLOTS[level];
     }
 
-    private static void applyParsedData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
+    public int getLoadedChunksForLevel(int level) {
+        if (level >= LOADED_CHUNKS.length || level < 0) {
+            return 0;
+        }
+        return LOADED_CHUNKS[level];
+    }
+
+    private static void applyParsedData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots, List<Integer> loadedChunks) {
         int size = levels.size();
         WarForgeMod.UPGRADE_HANDLER.LEVELS = new HashMap[size];
         WarForgeMod.UPGRADE_HANDLER.LIMITS = new int[size];
         WarForgeMod.UPGRADE_HANDLER.INSURANCE_SLOTS = new int[size];
+        WarForgeMod.UPGRADE_HANDLER.LOADED_CHUNKS = new int[size];
         for (int i = 0; i < size; i++) {
             WarForgeMod.UPGRADE_HANDLER.LEVELS[i] = new HashMap<>(levels.get(i));
             WarForgeMod.UPGRADE_HANDLER.LIMITS[i] = claims.get(i);
             WarForgeMod.UPGRADE_HANDLER.INSURANCE_SLOTS[i] = insuranceSlots.get(i);
+            WarForgeMod.UPGRADE_HANDLER.LOADED_CHUNKS[i] = loadedChunks.get(i);
         }
     }
 
@@ -220,21 +236,41 @@ public class UpgradeHandler {
         if (value == null) {
             throw new IllegalArgumentException("Missing required key: " + key);
         }
-        return Integer.parseInt(String.valueOf(value));
+        return coerceInt(value);
     }
 
     private static int readOptionalInt(Config map, String key, int fallback) {
         Object value = map.get(key);
-        return value == null ? fallback : Integer.parseInt(String.valueOf(value));
+        return value == null ? fallback : coerceInt(value);
     }
 
-    private static void writeTomlConfig(Path path, List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) throws IOException {
+    // night-config returns TOML integers as Number and strings as String/char[] depending on version;
+    // coerce defensively so a type mismatch can never throw a raw ClassCastException at parse time.
+    private static int coerceInt(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.parseInt(coerceString(value).trim());
+    }
+
+    private static String coerceString(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof char[] chars) {
+            return new String(chars);
+        }
+        return value.toString();
+    }
+
+    private static void writeTomlConfig(Path path, List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots, List<Integer> loadedChunks) throws IOException {
         List<Config> tomlLevels = new ArrayList<>();
         for (int i = 0; i < levels.size(); i++) {
             Config levelMap = TomlFormat.newConfig();
             levelMap.set("level", i);
             levelMap.set("claim_limit", claims.get(i));
             levelMap.set("insurance_slots", insuranceSlots.get(i));
+            levelMap.set("loaded_chunks", loadedChunks.get(i));
 
             List<Config> requirements = new ArrayList<>();
             for (Map.Entry<ItemMatcher, Integer> entry : levels.get(i).entrySet()) {
@@ -260,10 +296,12 @@ public class UpgradeHandler {
         List<Map<ItemMatcher, Integer>> levels = new ArrayList<>();
         List<Integer> claims = new ArrayList<>();
         List<Integer> insuranceSlots = new ArrayList<>();
+        List<Integer> loadedChunks = new ArrayList<>();
 
         levels.add(new HashMap<>());
         claims.add(-1);
         insuranceSlots.add(0);
+        loadedChunks.add(0);
 
         Map<ItemMatcher, Integer> current = null;
         int currentLevel = 0;
@@ -276,7 +314,7 @@ public class UpgradeHandler {
 
             if (line.startsWith("level:")) {
                 String levelSpec = line.substring(6).trim();
-                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+)\\[(\\d+|-1)](?:\\[(\\d+)])?").matcher(levelSpec);
+                java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("(\\d+)\\[(\\d+|-1)](?:\\[(\\d+)])?(?:\\[(\\d+)])?").matcher(levelSpec);
                 if (!matcher.matches()) {
                     throw new IllegalArgumentException("Invalid level format: " + line);
                 }
@@ -284,15 +322,18 @@ public class UpgradeHandler {
                 currentLevel = Integer.parseInt(matcher.group(1));
                 int claimLimit = Integer.parseInt(matcher.group(2));
                 int insurance = matcher.group(3) == null ? 0 : Integer.parseInt(matcher.group(3));
+                int loaded = matcher.group(4) == null ? 0 : Integer.parseInt(matcher.group(4));
 
                 while (levels.size() <= currentLevel) {
                     levels.add(new HashMap<>());
                     claims.add(-1);
                     insuranceSlots.add(0);
+                    loadedChunks.add(0);
                 }
 
                 claims.set(currentLevel, claimLimit);
                 insuranceSlots.set(currentLevel, insurance);
+                loadedChunks.set(currentLevel, loaded);
                 current = levels.get(currentLevel);
                 continue;
             }
@@ -337,18 +378,20 @@ public class UpgradeHandler {
         }
 
         validateMonotonicClaims(claims);
-        return new LegacyConfigData(levels, claims, insuranceSlots);
+        return new LegacyConfigData(levels, claims, insuranceSlots, loadedChunks);
     }
 
     private static final class LegacyConfigData {
         private final List<Map<ItemMatcher, Integer>> levels;
         private final List<Integer> claims;
         private final List<Integer> insuranceSlots;
+        private final List<Integer> loadedChunks;
 
-        private LegacyConfigData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots) {
+        private LegacyConfigData(List<Map<ItemMatcher, Integer>> levels, List<Integer> claims, List<Integer> insuranceSlots, List<Integer> loadedChunks) {
             this.levels = levels;
             this.claims = claims;
             this.insuranceSlots = insuranceSlots;
+            this.loadedChunks = loadedChunks;
         }
     }
 }

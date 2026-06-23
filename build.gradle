@@ -135,6 +135,7 @@ dependencies {
 
     // JourneyMap client API (compile-only; the JourneyMap mod supplies the runtime impl).
     compileOnly "info.journeymap:journeymap-api:1.20.2-1.9-SNAPSHOT"
+    runtimeOnly fg.deobf("curse.maven:journeymap-32274:5789363")
 
     // EffortlessBuilding (optional soft dep; SurvivalHelperMixin injects into its SurvivalHelper).
     compileOnly fg.deobf("curse.maven:effortlessbuilding-302113:6330928")

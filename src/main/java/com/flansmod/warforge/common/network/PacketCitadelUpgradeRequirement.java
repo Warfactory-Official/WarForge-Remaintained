@@ -15,12 +15,14 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
     public HashMap<ItemMatcher, Integer> requirements;
     public int limit;
     public int insuranceSlots;
+    public int loadedChunks;
 
-    public PacketCitadelUpgradeRequirement(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots) {
+    public PacketCitadelUpgradeRequirement(int level, HashMap<ItemMatcher, Integer> requirements, int limit, int insuranceSlots, int loadedChunks) {
         this.level = level;
         this.requirements = requirements;
         this.limit = limit;
         this.insuranceSlots = insuranceSlots;
+        this.loadedChunks = loadedChunks;
     }
 
     public PacketCitadelUpgradeRequirement() {
@@ -31,6 +33,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
         data.writeInt(level);
         data.writeInt(limit);
         data.writeInt(insuranceSlots);
+        data.writeInt(loadedChunks);
         data.writeVarInt(requirements.size());
         for (Map.Entry<ItemMatcher, Integer> entry : requirements.entrySet()) {
             entry.getKey().write(data);
@@ -43,6 +46,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
         level = data.readInt();
         limit = data.readInt();
         insuranceSlots = data.readInt();
+        loadedChunks = data.readInt();
         requirements = new HashMap<>();
 
         int count = data.readVarInt();
@@ -62,7 +66,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
 
     @Override
     public void handleClientSide(Player clientPlayer) {
-        WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit, insuranceSlots);
+        WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit, insuranceSlots, loadedChunks);
     }
 
 }

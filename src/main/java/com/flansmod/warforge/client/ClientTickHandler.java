@@ -628,6 +628,23 @@ public class ClientTickHandler {
         renderSiegeText(mc, graphics, infoToRender, xText, yText);
         if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER)
             renderSiegeTimer(mc, graphics, infoToRender, xText, yText + 5);
+
+        renderSiegeAbandonTimer(mc, graphics, infoToRender, xText, yText);
+    }
+
+    // Shows the attacking faction how long until their siege is considered abandoned. Only rendered for
+    // members of the attacking faction, and only while the abandon timer is actively counting.
+    private void renderSiegeAbandonTimer(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo info, int xText, int yText) {
+        if (info.attackerAbandonSeconds <= 0)
+            return;
+        UUID playerFaction = ClientClaimChunkCache.playerFactionId;
+        if (playerFaction == null || !playerFaction.equals(info.attackingFactionId))
+            return;
+
+        String text = "Siege abandoned in: " + formatPaddedTimer(info.attackerAbandonSeconds * 1000L);
+        int textWidth = mc.font.width(text);
+        int color = info.attackerAbandonSeconds <= 10 ? 0xFF5555 : 0xC79A3A;
+        graphics.drawString(mc.font, text, xText + (128 - textWidth / 2), yText + 44, color, true);
     }
 
     private void renderSiegeTimer(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo infoToRender, int xText, int yText) {

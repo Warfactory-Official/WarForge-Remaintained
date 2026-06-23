@@ -70,13 +70,14 @@ public class WarForgeConfig {
 
     public static int SUPPORT_STRENGTH_REINFORCED = 2;
     public static int SUPPORT_STRENGTH_BASIC = 1;
-    public static int FORCE_LOADED_CHUNKS_BASE = 4;
-    public static int FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = 1;
+    public static int FORCE_LOADED_CHUNKS_TOTAL = 8;
     public static int MAX_CLAIMS_PER_FACTION = -1;
     public static int CLAIM_MANAGER_RADIUS = 4;
     public static int ISLAND_COLLECTOR_SLOTS = 100;
     public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
     public static int OFFLINE_RAID_PROTECTION_HOURS = 24;
+    public static boolean ENABLE_SIEGE_GRACE_PERIOD = true;
+    public static int SIEGE_GRACE_PERIOD_HOURS = 24;
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
@@ -86,6 +87,13 @@ public class WarForgeConfig {
             "green", "cyan", "light_blue", "blue", "purple", "magenta", "pink", "brown"
     };
     public static String[] CUSTOM_FLAG_ALLOWLIST = new String[]{"*"};
+
+    // MineTime soft protection: slows protected block-breaking instead of cancelling it.
+    public static boolean MINETIME_ENABLED = false;
+    public static String MINETIME_MODE = "MULTIPLIER";
+    public static double MINETIME_VALUE = 5.0;
+    public static String[] MINETIME_WHITELIST = new String[]{};
+    public static String[] MINETIME_BLACKLIST = new String[]{};
 
     // Sieges
     public static boolean SIEGE_ENABLE_NEW_TIMER = true;
@@ -116,7 +124,9 @@ public class WarForgeConfig {
     public static int MAX_OFFLINE_PLAYER_COUNT_MINIMUM = 0; // # players which can be on before playerCount dropping to 0 subsequently is marked as a live quit; Exclusively used when negative
     public static float MAX_OFFLINE_PLAYER_PERCENT = 0.5f; // % member count which must be online at some point during a siege before live quit penalties apply
     public static int VERTICAL_SIEGE_DIST = 40; // inclusive distance in blocks siege can be placed/started from/on a potential target claim
-    public static int SIEGE_BATTLE_RADIUS = 1;
+    public static int SIEGE_BATTLE_RADIUS = 2; // outer "War" zone radius: kills count, foes cannot break
+    public static int SIEGE_SIEGED_RADIUS = 1; // inner "Sieged" zone radius: chunk protection disabled
+    public static boolean SIEGE_COUNT_ALL_ZONE_DEATHS = false;
     public static int SIEGE_ATTACKER_RADIUS = 1; // number of chunks player can be away from siege chunk in both directions
     public static int SIEGE_DEFENDER_RADIUS = 15;
 
@@ -200,9 +210,16 @@ public class WarForgeConfig {
     public static ProtectionConfig CLAIM_FRIEND = new ProtectionConfig();
     public static ProtectionConfig CLAIM_ALLY = new ProtectionConfig();
     public static ProtectionConfig CLAIM_FOE = new ProtectionConfig();
+    // Deprecated: superseded by the Sieged*/War* zone profiles below. Kept so existing configs still load.
     public static ProtectionConfig SIEGECAMP_SIEGER = new ProtectionConfig();
     public static ProtectionConfig SIEGECAMP_OTHER = new ProtectionConfig();
     public static ProtectionConfig CLAIM_DEFENDED = new ProtectionConfig();
+    // Inner "Sieged" zone (protection disabled, kills count) and outer "War" zone (kills count, foes
+    // cannot break) around an active siege. Friend = member of the defending (besieged) faction.
+    public static ProtectionConfig SIEGED_FRIEND = new ProtectionConfig();
+    public static ProtectionConfig SIEGED_FOE = new ProtectionConfig();
+    public static ProtectionConfig WAR_FRIEND = new ProtectionConfig();
+    public static ProtectionConfig WAR_FOE = new ProtectionConfig();
 
     // Init default perms
     static {
@@ -270,6 +287,33 @@ public class WarForgeConfig {
 
         CLAIM_DEFENDED.BREAK_BLOCKS = true;
 
+        // Sieged zone: chunk protection is disabled here. Defender and foe alike may breach, place and
+        // blow up blocks; PVP is on (kills count). This is where a base is physically broken into.
+        SIEGED_FRIEND.BREAK_BLOCKS = true;
+        SIEGED_FRIEND.PLACE_BLOCKS = true;
+        SIEGED_FRIEND.INTERACT = true;
+        SIEGED_FRIEND.USE_ITEM = true;
+        SIEGED_FRIEND.BLOCK_REMOVAL = true;
+        SIEGED_FRIEND.EXPLOSION_DAMAGE = true;
+        SIEGED_FOE.BREAK_BLOCKS = true;
+        SIEGED_FOE.PLACE_BLOCKS = true;
+        SIEGED_FOE.INTERACT = true;
+        SIEGED_FOE.USE_ITEM = true;
+        SIEGED_FOE.BLOCK_REMOVAL = true;
+        SIEGED_FOE.EXPLOSION_DAMAGE = true;
+
+        // War zone: kills count, but foes cannot break/place. The defending faction may still fortify.
+        WAR_FRIEND.BREAK_BLOCKS = true;
+        WAR_FRIEND.PLACE_BLOCKS = true;
+        WAR_FRIEND.INTERACT = true;
+        WAR_FRIEND.USE_ITEM = true;
+        WAR_FRIEND.BLOCK_REMOVAL = true;
+        WAR_FOE.BREAK_BLOCKS = false;
+        WAR_FOE.PLACE_BLOCKS = false;
+        WAR_FOE.INTERACT = false;
+        WAR_FOE.USE_ITEM = true;
+        WAR_FOE.EXPLOSION_DAMAGE = false;
+
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
         define(builder);
         SPEC = builder.build();
@@ -289,19 +333,25 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_CITADEL_V;
     private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_REINFORCED_V;
     private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_BASIC_V;
-    private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_BASE_V;
-    private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V;
+    private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_TOTAL_V;
     private static ForgeConfigSpec.IntValue MAX_CLAIMS_PER_FACTION_V;
     private static ForgeConfigSpec.IntValue CLAIM_MANAGER_RADIUS_V;
     private static ForgeConfigSpec.IntValue ISLAND_COLLECTOR_SLOTS_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_OFFLINE_RAID_PROTECTION_V;
     private static ForgeConfigSpec.IntValue OFFLINE_RAID_PROTECTION_HOURS_V;
+    private static ForgeConfigSpec.BooleanValue ENABLE_SIEGE_GRACE_PERIOD_V;
+    private static ForgeConfigSpec.IntValue SIEGE_GRACE_PERIOD_HOURS_V;
     private static ForgeConfigSpec.IntValue CITADEL_MOVE_NUM_DAYS_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_CITADEL_UPGRADES_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_ISOLATED_CLAIMS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> INSURANCE_BLACKLIST_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_FLAG_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> CUSTOM_FLAG_ALLOWLIST_V;
+    private static ForgeConfigSpec.BooleanValue MINETIME_ENABLED_V;
+    private static ForgeConfigSpec.ConfigValue<String> MINETIME_MODE_V;
+    private static ForgeConfigSpec.DoubleValue MINETIME_VALUE_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_WHITELIST_V;
+    private static ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_BLACKLIST_V;
 
     // Sieges
     private static ForgeConfigSpec.IntValue ATTACK_STRENGTH_SIEGE_CAMP_V;
@@ -321,6 +371,8 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.DoubleValue MAX_OFFLINE_PLAYER_PERCENT_V;
     private static ForgeConfigSpec.IntValue VERTICAL_SIEGE_DIST_V;
     private static ForgeConfigSpec.IntValue SIEGE_BATTLE_RADIUS_V;
+    private static ForgeConfigSpec.IntValue SIEGE_SIEGED_RADIUS_V;
+    private static ForgeConfigSpec.BooleanValue SIEGE_COUNT_ALL_ZONE_DEATHS_V;
     private static ForgeConfigSpec.IntValue SIEGE_ATTACKER_RADIUS_V;
     private static ForgeConfigSpec.IntValue SIEGE_DEFENDER_RADIUS_V;
     private static ForgeConfigSpec.IntValue SIEGE_SWING_PER_DEFENDER_DEATH_V;
@@ -417,9 +469,13 @@ public class WarForgeConfig {
         CLAIM_FRIEND.define(cfg, "ClaimFriend", "Claims of their Faction");
         CLAIM_ALLY.define(cfg, "ClaimAlly", "Claims of allied Factions (only applies when the owning faction enables ally interaction)");
         CLAIM_FOE.define(cfg, "ClaimFoe", "Claims of other Factions");
-        SIEGECAMP_SIEGER.define(cfg, "Sieger", "Sieges they started");
-        SIEGECAMP_OTHER.define(cfg, "SiegeOther", "Other sieges, defending or neutral");
-        CLAIM_DEFENDED.define(cfg, "ClaimDefended", "Claims under sieged faction that are not under direct siege");
+        SIEGECAMP_SIEGER.define(cfg, "Sieger", "[Deprecated] Sieges they started");
+        SIEGECAMP_OTHER.define(cfg, "SiegeOther", "[Deprecated] Other sieges, defending or neutral");
+        CLAIM_DEFENDED.define(cfg, "ClaimDefended", "Claims of a faction under siege that are outside the War/Sieged zones");
+        SIEGED_FRIEND.define(cfg, "SiegedFriend", "Inner sieged zone, member of the defending faction");
+        SIEGED_FOE.define(cfg, "SiegedFoe", "Inner sieged zone, attacker or other faction (chunk protection disabled)");
+        WAR_FRIEND.define(cfg, "WarFriend", "Outer war zone, member of the defending faction");
+        WAR_FOE.define(cfg, "WarFoe", "Outer war zone, attacker or other faction (kills count, cannot break blocks)");
 
         // Claim Settings
         cfg.push(CATEGORY_CLAIMS);
@@ -431,19 +487,36 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_CITADEL_V = cfg.comment("The support strength a citadel gives to adjacent claims").defineInRange("Citadel Support Strength", SUPPORT_STRENGTH_CITADEL, 1, 1024);
         SUPPORT_STRENGTH_REINFORCED_V = cfg.comment("The support strength a reinforced claim gives to adjacent claims").defineInRange("Reinforced Support Strength", SUPPORT_STRENGTH_REINFORCED, 1, 1024);
         SUPPORT_STRENGTH_BASIC_V = cfg.comment("The support strength a basic claim gives to adjacent claims").defineInRange("Basic Support Strength", SUPPORT_STRENGTH_BASIC, 1, 1024);
-        FORCE_LOADED_CHUNKS_BASE_V = cfg.comment("How many claim chunks each faction can force-load by default.").defineInRange("Force-loaded Chunks Base Limit", FORCE_LOADED_CHUNKS_BASE, 0, 1024);
-        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V = cfg.comment("Extra force-load chunk capacity granted per citadel level.").defineInRange("Force-loaded Chunks Per Citadel Level", FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL, 0, 128);
+        FORCE_LOADED_CHUNKS_TOTAL_V = cfg.comment("Total chunks each faction can force-load. Ignored when the citadel upgrade system is enabled; the per-level 'loaded_chunks' value from upgrade_levels.toml is used instead.").defineInRange("Force-loaded Chunks Total", FORCE_LOADED_CHUNKS_TOTAL, 0, 1024);
         MAX_CLAIMS_PER_FACTION_V = cfg.comment("Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.").defineInRange("Max Claims Per Faction", MAX_CLAIMS_PER_FACTION, -1, 1000000);
         CLAIM_MANAGER_RADIUS_V = cfg.comment("Square radius in chunks shown in the claim manager UI.").defineInRange("Claim Manager Radius", CLAIM_MANAGER_RADIUS, 1, 12);
         ISLAND_COLLECTOR_SLOTS_V = cfg.comment("Number of pull-only storage slots in the faction yield collector block. Shrinking this on an existing world relocates any items that no longer fit into remaining slots.").defineInRange("Island Collector Slot Count", ISLAND_COLLECTOR_SLOTS, 1, 1024);
         ENABLE_OFFLINE_RAID_PROTECTION_V = cfg.comment("If enabled, factions cannot be sieged for a limited period after all their members go offline.").define("Enable Offline Raid Protection", ENABLE_OFFLINE_RAID_PROTECTION);
         OFFLINE_RAID_PROTECTION_HOURS_V = cfg.comment("How many hours a faction remains protected from new sieges after the last member goes offline.").defineInRange("Offline Raid Protection Hours", OFFLINE_RAID_PROTECTION_HOURS, 0, 168);
+        ENABLE_SIEGE_GRACE_PERIOD_V = cfg.comment("If enabled, freshly created factions cannot be sieged for a grace period. If a graced faction starts a siege of its own, it forfeits its grace instantly.").define("Enable New Faction Siege Grace", ENABLE_SIEGE_GRACE_PERIOD);
+        SIEGE_GRACE_PERIOD_HOURS_V = cfg.comment("How many hours a newly created faction stays unsiegeable. Disabling the feature above removes grace from all existing factions immediately.").defineInRange("New Faction Siege Grace Hours", SIEGE_GRACE_PERIOD_HOURS, 0, 8760);
         CITADEL_MOVE_NUM_DAYS_V = cfg.comment("How many days a faction has to wait to move their citadel again").defineInRange("Days Between Citadel Moves", CITADEL_MOVE_NUM_DAYS, 0, 1024);
         ENABLE_CITADEL_UPGRADES_V = cfg.comment("Applies claim limits that require upgrading to extend your faction's claim limit").define("Enable Citadel Upgrade System", false);
         ENABLE_ISOLATED_CLAIMS_V = cfg.comment("If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.").define("Enabled Isolated Claims", ENABLE_ISOLATED_CLAIMS);
         INSURANCE_BLACKLIST_IDS_V = cfg.comment("Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.").defineList("Insurance Blacklist", asList(INSURANCE_BLACKLIST_IDS), o -> o instanceof String);
         DEFAULT_FLAG_IDS_V = cfg.comment("Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).").defineList("Available Default Flags", asList(DEFAULT_FLAG_IDS), o -> o instanceof String);
         CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
+        cfg.pop();
+
+        // MineTime soft protection
+        cfg.push("MineTime");
+        MINETIME_ENABLED_V = cfg.comment("If enabled, breaking a block that territory protection would normally block is instead slowed down rather than cancelled. Whitelisted per-block values below still apply even when this is false.").define("MineTime Enabled", MINETIME_ENABLED);
+        MINETIME_MODE_V = cfg.comment("Default slow-down mode: MULTIPLIER (break time = natural time x value) or FIXED (break time = value seconds).").define("MineTime Default Mode", MINETIME_MODE);
+        MINETIME_VALUE_V = cfg.comment("Default value for the chosen mode: a time multiplier for MULTIPLIER, or a break time in seconds for FIXED.").defineInRange("MineTime Default Value", MINETIME_VALUE, 0.0, 100000.0);
+        MINETIME_WHITELIST_V = cfg.comment(
+                        "Blocks that MineTime always slows (even when disabled above), optionally with a per-entry override. " +
+                        "Each entry is a pattern, optionally followed by '=' and a value spec. " +
+                        "Patterns: exact id ('gregtech:steam_macerator'), '*' globs ('gregtech:*', 'minecraft:*_ore') or block tags ('#forge:ores'). " +
+                        "Value specs: 'x10' or '10' = 10x time, '30s' = fixed 30 seconds; omit to use the default mode/value. " +
+                        "Example: 'gregtech:*=x20' slows every GregTech block to 20x break time.")
+                .defineList("MineTime Whitelist", asList(MINETIME_WHITELIST), o -> o instanceof String);
+        MINETIME_BLACKLIST_V = cfg.comment("Blocks excluded from MineTime (they keep full, uncancellable protection when the system is enabled). Same pattern syntax as the whitelist; no value spec. Whitelist entries win over the blacklist.")
+                .defineList("MineTime Blacklist", asList(MINETIME_BLACKLIST), o -> o instanceof String);
         cfg.pop();
 
         // Siege Camp Settings
@@ -464,7 +537,9 @@ public class WarForgeConfig {
         MAX_OFFLINE_PLAYER_COUNT_MINIMUM_V = cfg.comment("A static minimum for the maximum number of players which can have been online at some point during a siege before the faction online player count dropping to 0 indicates a live quit. Negative values override the percent").defineInRange("Max Players Before Online Status", MAX_OFFLINE_PLAYER_COUNT_MINIMUM, Integer.MIN_VALUE, Integer.MAX_VALUE);
         MAX_OFFLINE_PLAYER_PERCENT_V = cfg.comment("The maximum percent of players in a faction which can be online at some point during a siege before the online count dropping to 0 indicates a live quit.").defineInRange("Max Player % Before Online Status", (double) MAX_OFFLINE_PLAYER_PERCENT, 0d, 1.0d);
         VERTICAL_SIEGE_DIST_V = cfg.comment("The number of blocks up or down a siege block can be placed from a potential target, inclusively. Sieges may also only be started on targets within this vertical radius.").defineInRange("Maximum Vertical Siege Radius [Inclusive]", VERTICAL_SIEGE_DIST, 0, Integer.MAX_VALUE);
-        SIEGE_BATTLE_RADIUS_V = cfg.comment("The number of chunks in any direction from each active siege camp that count as the active battle area for siege progress and siege-zone protections.").defineInRange("Battle Square Chunk Radius From Siege", SIEGE_BATTLE_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_BATTLE_RADIUS_V = cfg.comment("Outer 'War' zone: chunks (square radius) from each active siege camp where kills count toward the siege and foes cannot break/place blocks (WarFriend/WarFoe profiles). Should be >= the Sieged radius.").defineInRange("Battle Square Chunk Radius From Siege", SIEGE_BATTLE_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_SIEGED_RADIUS_V = cfg.comment("Inner 'Sieged' zone: chunks (square radius) from each active siege camp where chunk protection is fully disabled - anyone may breach (SiegedFriend/SiegedFoe profiles). Kills also count here. Typically smaller than the War radius.").defineInRange("Sieged Square Chunk Radius From Siege", SIEGE_SIEGED_RADIUS, 0, Integer.MAX_VALUE);
+        SIEGE_COUNT_ALL_ZONE_DEATHS_V = cfg.comment("If true, ANY death of a participant inside the War/Sieged zone counts toward the siege goal (environmental, mob, fall, etc.), not only kills confirmed to be dealt by an opposing player.").define("Count All Zone Deaths", SIEGE_COUNT_ALL_ZONE_DEATHS);
         SIEGE_ATTACKER_RADIUS_V = cfg.comment("The number of chunks in any direction from the siege block that an attacker can be in to prevent siege abandon.").defineInRange("Attacker Square Chunk Radius From Siege", SIEGE_ATTACKER_RADIUS, 0, Integer.MAX_VALUE);
         SIEGE_DEFENDER_RADIUS_V = cfg.comment("The number of chunks in any direction from the siege block that a defender can be in to prevent siege abandon.").defineInRange("Defender Square Chunk Radius From Siege", SIEGE_DEFENDER_RADIUS, 0, Integer.MAX_VALUE);
         SIEGE_SWING_PER_DEFENDER_DEATH_V = cfg.comment("How much a siege progress swings when a defender dies in the siege").defineInRange("Siege Swing Per Defender Death", SIEGE_SWING_PER_DEFENDER_DEATH, 0, 1024);
@@ -618,6 +693,10 @@ public class WarForgeConfig {
         SIEGECAMP_SIEGER.bake();
         SIEGECAMP_OTHER.bake();
         CLAIM_DEFENDED.bake();
+        SIEGED_FRIEND.bake();
+        SIEGED_FOE.bake();
+        WAR_FRIEND.bake();
+        WAR_FOE.bake();
 
         // Claims
         CLAIM_DIM_WHITELIST = CLAIM_DIM_WHITELIST_V.get().toArray(new String[0]);
@@ -627,19 +706,27 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_CITADEL = SUPPORT_STRENGTH_CITADEL_V.get();
         SUPPORT_STRENGTH_REINFORCED = SUPPORT_STRENGTH_REINFORCED_V.get();
         SUPPORT_STRENGTH_BASIC = SUPPORT_STRENGTH_BASIC_V.get();
-        FORCE_LOADED_CHUNKS_BASE = FORCE_LOADED_CHUNKS_BASE_V.get();
-        FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL = FORCE_LOADED_CHUNKS_PER_CITADEL_LEVEL_V.get();
+        FORCE_LOADED_CHUNKS_TOTAL = FORCE_LOADED_CHUNKS_TOTAL_V.get();
         MAX_CLAIMS_PER_FACTION = MAX_CLAIMS_PER_FACTION_V.get();
         CLAIM_MANAGER_RADIUS = CLAIM_MANAGER_RADIUS_V.get();
         ISLAND_COLLECTOR_SLOTS = ISLAND_COLLECTOR_SLOTS_V.get();
         ENABLE_OFFLINE_RAID_PROTECTION = ENABLE_OFFLINE_RAID_PROTECTION_V.get();
         OFFLINE_RAID_PROTECTION_HOURS = OFFLINE_RAID_PROTECTION_HOURS_V.get();
+        ENABLE_SIEGE_GRACE_PERIOD = ENABLE_SIEGE_GRACE_PERIOD_V.get();
+        SIEGE_GRACE_PERIOD_HOURS = SIEGE_GRACE_PERIOD_HOURS_V.get();
         CITADEL_MOVE_NUM_DAYS = CITADEL_MOVE_NUM_DAYS_V.get();
         ENABLE_CITADEL_UPGRADES = ENABLE_CITADEL_UPGRADES_V.get();
         ENABLE_ISOLATED_CLAIMS = ENABLE_ISOLATED_CLAIMS_V.get();
         INSURANCE_BLACKLIST_IDS = toStringArray(INSURANCE_BLACKLIST_IDS_V.get());
         DEFAULT_FLAG_IDS = toStringArray(DEFAULT_FLAG_IDS_V.get());
         CUSTOM_FLAG_ALLOWLIST = toStringArray(CUSTOM_FLAG_ALLOWLIST_V.get());
+
+        MINETIME_ENABLED = MINETIME_ENABLED_V.get();
+        MINETIME_MODE = MINETIME_MODE_V.get();
+        MINETIME_VALUE = MINETIME_VALUE_V.get();
+        MINETIME_WHITELIST = toStringArray(MINETIME_WHITELIST_V.get());
+        MINETIME_BLACKLIST = toStringArray(MINETIME_BLACKLIST_V.get());
+        MineTime.configure(MINETIME_ENABLED, MINETIME_MODE, MINETIME_VALUE, MINETIME_WHITELIST, MINETIME_BLACKLIST);
 
         // Sieges
         ATTACK_STRENGTH_SIEGE_CAMP = ATTACK_STRENGTH_SIEGE_CAMP_V.get();
@@ -659,6 +746,8 @@ public class WarForgeConfig {
         MAX_OFFLINE_PLAYER_PERCENT = MAX_OFFLINE_PLAYER_PERCENT_V.get().floatValue();
         VERTICAL_SIEGE_DIST = VERTICAL_SIEGE_DIST_V.get();
         SIEGE_BATTLE_RADIUS = SIEGE_BATTLE_RADIUS_V.get();
+        SIEGE_SIEGED_RADIUS = SIEGE_SIEGED_RADIUS_V.get();
+        SIEGE_COUNT_ALL_ZONE_DEATHS = SIEGE_COUNT_ALL_ZONE_DEATHS_V.get();
         SIEGE_ATTACKER_RADIUS = SIEGE_ATTACKER_RADIUS_V.get();
         SIEGE_DEFENDER_RADIUS = SIEGE_DEFENDER_RADIUS_V.get();
         SIEGE_SWING_PER_DEFENDER_DEATH = SIEGE_SWING_PER_DEFENDER_DEATH_V.get();
@@ -784,6 +873,29 @@ public class WarForgeConfig {
         compoundNBT.putInt("islandCollectorSlots", ISLAND_COLLECTOR_SLOTS);
         compoundNBT.putInt("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
         compoundNBT.putInt("jmVeinMode", JOURNEYMAP_VEIN_MODE);
+
+        // MineTime soft protection + the break rules of the client-determinable zones, so the client can
+        // mirror breakDenied()/MineTime.resolve() and predict the slow-down (no rubber-banding).
+        compoundNBT.putBoolean("minetimeEnabled", MINETIME_ENABLED);
+        compoundNBT.putString("minetimeMode", MINETIME_MODE);
+        compoundNBT.putDouble("minetimeValue", MINETIME_VALUE);
+        compoundNBT.putString("minetimeWhitelist", String.join("\n", MINETIME_WHITELIST));
+        compoundNBT.putString("minetimeBlacklist", String.join("\n", MINETIME_BLACKLIST));
+
+        CompoundTag zones = new CompoundTag();
+        zones.put("unclaimed", UNCLAIMED.writeBreakSync());
+        zones.put("safe", SAFE_ZONE.writeBreakSync());
+        zones.put("war", WAR_ZONE.writeBreakSync());
+        zones.put("citadelFriend", CITADEL_FRIEND.writeBreakSync());
+        zones.put("citadelFoe", CITADEL_FOE.writeBreakSync());
+        zones.put("claimFriend", CLAIM_FRIEND.writeBreakSync());
+        zones.put("claimFoe", CLAIM_FOE.writeBreakSync());
+        zones.put("siegedFriend", SIEGED_FRIEND.writeBreakSync());
+        zones.put("siegedFoe", SIEGED_FOE.writeBreakSync());
+        zones.put("warFriend", WAR_FRIEND.writeBreakSync());
+        zones.put("warFoe", WAR_FOE.writeBreakSync());
+        compoundNBT.put("protectionZones", zones);
+
         packet.configNBT = compoundNBT.toString();
         return packet;
     }
@@ -923,6 +1035,28 @@ public class WarForgeConfig {
                 }
             }
             return output;
+        }
+
+        // Serialises only the break-relevant subset for the config-sync packet, so the client can run
+        // the same breakDenied() check locally and predict MineTime slow-downs without rubber-banding.
+        public CompoundTag writeBreakSync() {
+            CompoundTag tag = new CompoundTag();
+            tag.putBoolean("break", BREAK_BLOCKS);
+            tag.putBoolean("removal", BLOCK_REMOVAL);
+            tag.putString("bw", String.join("\n", BLOCK_BREAK_WHITELIST_IDS));
+            tag.putString("bb", String.join("\n", BLOCK_BREAK_BLACKLIST_IDS));
+            return tag;
+        }
+
+        public void readBreakSync(CompoundTag tag) {
+            BREAK_BLOCKS = tag.getBoolean("break");
+            BLOCK_REMOVAL = tag.getBoolean("removal");
+            String bw = tag.getString("bw");
+            String bb = tag.getString("bb");
+            BLOCK_BREAK_WHITELIST_IDS = bw.isEmpty() ? new String[0] : bw.split("\n");
+            BLOCK_BREAK_BLACKLIST_IDS = bb.isEmpty() ? new String[0] : bb.split("\n");
+            BLOCK_BREAK_WHITELIST = findBlocks(BLOCK_BREAK_WHITELIST_IDS);
+            BLOCK_BREAK_BLACKLIST = findBlocks(BLOCK_BREAK_BLACKLIST_IDS);
         }
 
         public void findBlocks() {
