@@ -290,7 +290,7 @@ public class ProtectionsModule {
         // when MineTime opts this block out, AND whenever slowing is impossible — creative instabuild
         // and instant-break (hardness <= 0) blocks ignore break speed, so un-cancelling them would hand
         // out a free break in protected territory.
-        boolean slowable = MineTime.resolve(block) != null
+        boolean slowable = config.mineTime.resolve(block) != null
                 && !event.getPlayer().getAbilities().instabuild
                 && event.getState().getDestroySpeed(event.getLevel(), event.getPos()) > 0;
         if (slowable)
@@ -330,7 +330,7 @@ public class ProtectionsModule {
         if (!breakDenied(config, block))
             return;
 
-        MineTime.Rule rule = MineTime.resolve(block);
+        MineTime.Rule rule = config.mineTime.resolve(block);
         if (rule == null)
             return; // hard-protected; BlockRemoved cancels the break outright
 

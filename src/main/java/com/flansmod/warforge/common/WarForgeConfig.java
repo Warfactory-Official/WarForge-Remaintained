@@ -88,13 +88,6 @@ public class WarForgeConfig {
     };
     public static String[] CUSTOM_FLAG_ALLOWLIST = new String[]{"*"};
 
-    // MineTime soft protection: slows protected block-breaking instead of cancelling it.
-    public static boolean MINETIME_ENABLED = false;
-    public static String MINETIME_MODE = "MULTIPLIER";
-    public static double MINETIME_VALUE = 5.0;
-    public static String[] MINETIME_WHITELIST = new String[]{};
-    public static String[] MINETIME_BLACKLIST = new String[]{};
-
     // Sieges
     public static boolean SIEGE_ENABLE_NEW_TIMER = true;
     public static byte SIEGE_MOMENTUM_MAX = 4;
@@ -347,11 +340,6 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> INSURANCE_BLACKLIST_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_FLAG_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> CUSTOM_FLAG_ALLOWLIST_V;
-    private static ForgeConfigSpec.BooleanValue MINETIME_ENABLED_V;
-    private static ForgeConfigSpec.ConfigValue<String> MINETIME_MODE_V;
-    private static ForgeConfigSpec.DoubleValue MINETIME_VALUE_V;
-    private static ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_WHITELIST_V;
-    private static ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_BLACKLIST_V;
 
     // Sieges
     private static ForgeConfigSpec.IntValue ATTACK_STRENGTH_SIEGE_CAMP_V;
@@ -501,22 +489,6 @@ public class WarForgeConfig {
         INSURANCE_BLACKLIST_IDS_V = cfg.comment("Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.").defineList("Insurance Blacklist", asList(INSURANCE_BLACKLIST_IDS), o -> o instanceof String);
         DEFAULT_FLAG_IDS_V = cfg.comment("Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).").defineList("Available Default Flags", asList(DEFAULT_FLAG_IDS), o -> o instanceof String);
         CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
-        cfg.pop();
-
-        // MineTime soft protection
-        cfg.push("MineTime");
-        MINETIME_ENABLED_V = cfg.comment("If enabled, breaking a block that territory protection would normally block is instead slowed down rather than cancelled. Whitelisted per-block values below still apply even when this is false.").define("MineTime Enabled", MINETIME_ENABLED);
-        MINETIME_MODE_V = cfg.comment("Default slow-down mode: MULTIPLIER (break time = natural time x value) or FIXED (break time = value seconds).").define("MineTime Default Mode", MINETIME_MODE);
-        MINETIME_VALUE_V = cfg.comment("Default value for the chosen mode: a time multiplier for MULTIPLIER, or a break time in seconds for FIXED.").defineInRange("MineTime Default Value", MINETIME_VALUE, 0.0, 100000.0);
-        MINETIME_WHITELIST_V = cfg.comment(
-                        "Blocks that MineTime always slows (even when disabled above), optionally with a per-entry override. " +
-                        "Each entry is a pattern, optionally followed by '=' and a value spec. " +
-                        "Patterns: exact id ('gregtech:steam_macerator'), '*' globs ('gregtech:*', 'minecraft:*_ore') or block tags ('#forge:ores'). " +
-                        "Value specs: 'x10' or '10' = 10x time, '30s' = fixed 30 seconds; omit to use the default mode/value. " +
-                        "Example: 'gregtech:*=x20' slows every GregTech block to 20x break time.")
-                .defineList("MineTime Whitelist", asList(MINETIME_WHITELIST), o -> o instanceof String);
-        MINETIME_BLACKLIST_V = cfg.comment("Blocks excluded from MineTime (they keep full, uncancellable protection when the system is enabled). Same pattern syntax as the whitelist; no value spec. Whitelist entries win over the blacklist.")
-                .defineList("MineTime Blacklist", asList(MINETIME_BLACKLIST), o -> o instanceof String);
         cfg.pop();
 
         // Siege Camp Settings
@@ -721,13 +693,6 @@ public class WarForgeConfig {
         DEFAULT_FLAG_IDS = toStringArray(DEFAULT_FLAG_IDS_V.get());
         CUSTOM_FLAG_ALLOWLIST = toStringArray(CUSTOM_FLAG_ALLOWLIST_V.get());
 
-        MINETIME_ENABLED = MINETIME_ENABLED_V.get();
-        MINETIME_MODE = MINETIME_MODE_V.get();
-        MINETIME_VALUE = MINETIME_VALUE_V.get();
-        MINETIME_WHITELIST = toStringArray(MINETIME_WHITELIST_V.get());
-        MINETIME_BLACKLIST = toStringArray(MINETIME_BLACKLIST_V.get());
-        MineTime.configure(MINETIME_ENABLED, MINETIME_MODE, MINETIME_VALUE, MINETIME_WHITELIST, MINETIME_BLACKLIST);
-
         // Sieges
         ATTACK_STRENGTH_SIEGE_CAMP = ATTACK_STRENGTH_SIEGE_CAMP_V.get();
         LEECH_PROPORTION_SIEGE_CAMP = LEECH_PROPORTION_SIEGE_CAMP_V.get().floatValue();
@@ -874,14 +839,8 @@ public class WarForgeConfig {
         compoundNBT.putInt("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
         compoundNBT.putInt("jmVeinMode", JOURNEYMAP_VEIN_MODE);
 
-        // MineTime soft protection + the break rules of the client-determinable zones, so the client can
-        // mirror breakDenied()/MineTime.resolve() and predict the slow-down (no rubber-banding).
-        compoundNBT.putBoolean("minetimeEnabled", MINETIME_ENABLED);
-        compoundNBT.putString("minetimeMode", MINETIME_MODE);
-        compoundNBT.putDouble("minetimeValue", MINETIME_VALUE);
-        compoundNBT.putString("minetimeWhitelist", String.join("\n", MINETIME_WHITELIST));
-        compoundNBT.putString("minetimeBlacklist", String.join("\n", MINETIME_BLACKLIST));
-
+        // The break rules + per-zone MineTime settings of the client-determinable zones, so the client
+        // can mirror breakDenied()/MineTime.resolve() and predict the slow-down (no rubber-banding).
         CompoundTag zones = new CompoundTag();
         zones.put("unclaimed", UNCLAIMED.writeBreakSync());
         zones.put("safe", SAFE_ZONE.writeBreakSync());
@@ -985,6 +944,15 @@ public class WarForgeConfig {
         private String[] BLOCK_INTERACT_WHITELIST_IDS = new String[]{"minecraft:ender_chest", "warforge:citadelblock", "warforge:basicclaimblock", "warforge:reinforcedclaimblock", "warforge:siegecampblock"};
         private String[] ITEM_USE_WHITELIST_IDS = new String[]{"minecraft:snowball"};
 
+        // MineTime soft protection, scoped to this profile: slows a break this profile would deny
+        // instead of cancelling it. Disabled by default so behaviour matches a hard cancel out of the box.
+        public final MineTime mineTime = new MineTime();
+        private boolean MINETIME_ENABLED = false;
+        private String MINETIME_MODE = "MULTIPLIER";
+        private double MINETIME_VALUE = 5.0;
+        private String[] MINETIME_WHITELIST_IDS = new String[]{};
+        private String[] MINETIME_BLACKLIST_IDS = new String[]{};
+
         // ForgeConfigSpec backing values for this protection category.
         private ForgeConfigSpec.BooleanValue BREAK_BLOCKS_V;
         private ForgeConfigSpec.BooleanValue PLACE_BLOCKS_V;
@@ -1008,6 +976,11 @@ public class WarForgeConfig {
         private ForgeConfigSpec.BooleanValue ALLOW_MOB_ENTRY_V;
         private ForgeConfigSpec.BooleanValue ALLOW_DISMOUNT_ENTITY_V;
         private ForgeConfigSpec.BooleanValue ALLOW_MOUNT_ENTITY_V;
+        private ForgeConfigSpec.BooleanValue MINETIME_ENABLED_V;
+        private ForgeConfigSpec.ConfigValue<String> MINETIME_MODE_V;
+        private ForgeConfigSpec.DoubleValue MINETIME_VALUE_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_WHITELIST_V;
+        private ForgeConfigSpec.ConfigValue<List<? extends String>> MINETIME_BLACKLIST_V;
 
         private Set<Block> findBlocks(String[] input) {
             Set<Block> output = new HashSet<>(input.length);
@@ -1045,6 +1018,11 @@ public class WarForgeConfig {
             tag.putBoolean("removal", BLOCK_REMOVAL);
             tag.putString("bw", String.join("\n", BLOCK_BREAK_WHITELIST_IDS));
             tag.putString("bb", String.join("\n", BLOCK_BREAK_BLACKLIST_IDS));
+            tag.putBoolean("mtEnabled", MINETIME_ENABLED);
+            tag.putString("mtMode", MINETIME_MODE);
+            tag.putDouble("mtValue", MINETIME_VALUE);
+            tag.putString("mtWl", String.join("\n", MINETIME_WHITELIST_IDS));
+            tag.putString("mtBl", String.join("\n", MINETIME_BLACKLIST_IDS));
             return tag;
         }
 
@@ -1057,6 +1035,15 @@ public class WarForgeConfig {
             BLOCK_BREAK_BLACKLIST_IDS = bb.isEmpty() ? new String[0] : bb.split("\n");
             BLOCK_BREAK_WHITELIST = findBlocks(BLOCK_BREAK_WHITELIST_IDS);
             BLOCK_BREAK_BLACKLIST = findBlocks(BLOCK_BREAK_BLACKLIST_IDS);
+
+            MINETIME_ENABLED = tag.getBoolean("mtEnabled");
+            MINETIME_MODE = tag.getString("mtMode");
+            MINETIME_VALUE = tag.getDouble("mtValue");
+            String mtWl = tag.getString("mtWl");
+            String mtBl = tag.getString("mtBl");
+            MINETIME_WHITELIST_IDS = mtWl.isEmpty() ? new String[0] : mtWl.split("\n");
+            MINETIME_BLACKLIST_IDS = mtBl.isEmpty() ? new String[0] : mtBl.split("\n");
+            mineTime.configure(MINETIME_ENABLED, MINETIME_MODE, MINETIME_VALUE, MINETIME_WHITELIST_IDS, MINETIME_BLACKLIST_IDS);
         }
 
         public void findBlocks() {
@@ -1111,6 +1098,22 @@ public class WarForgeConfig {
             ALLOW_DISMOUNT_ENTITY_V = cfg.comment("Can players dismount entities " + desc).define(name + " - Allow Dismount Entity", ALLOW_DISMOUNT_ENTITY);
             ALLOW_MOUNT_ENTITY_V = cfg.comment("Can players mount entities " + desc).define(name + " - Allow Mount Entity", ALLOW_MOUNT_ENTITY);
 
+            // MineTime soft protection for this profile.
+            cfg.push("MineTime");
+            MINETIME_ENABLED_V = cfg.comment("If enabled, breaking a block this profile would normally block is slowed down rather than cancelled in " + desc + ". Whitelisted per-block values below still apply even when this is false.").define(name + " - MineTime Enabled", MINETIME_ENABLED);
+            MINETIME_MODE_V = cfg.comment("Default slow-down mode: MULTIPLIER (break time = natural time x value) or FIXED (break time = value seconds).").define(name + " - MineTime Default Mode", MINETIME_MODE);
+            MINETIME_VALUE_V = cfg.comment("Default value for the chosen mode: a time multiplier for MULTIPLIER, or a break time in seconds for FIXED.").defineInRange(name + " - MineTime Default Value", MINETIME_VALUE, 0.0, 100000.0);
+            MINETIME_WHITELIST_V = cfg.comment(
+                            "Blocks that MineTime always slows in this profile (even when disabled above), optionally with a per-entry override. " +
+                            "Each entry is a pattern, optionally followed by '=' and a value spec. " +
+                            "Patterns: exact id ('gregtech:steam_macerator'), '*' globs ('gregtech:*', 'minecraft:*_ore') or block tags ('#forge:ores'). " +
+                            "Value specs: 'x10' or '10' = 10x time, '30s' = fixed 30 seconds; omit to use the default mode/value. " +
+                            "Example: 'gregtech:*=x20' slows every GregTech block to 20x break time.")
+                    .defineList(name + " - MineTime Whitelist", asList(MINETIME_WHITELIST_IDS), o -> o instanceof String);
+            MINETIME_BLACKLIST_V = cfg.comment("Blocks excluded from MineTime in this profile (they keep full, uncancellable protection when the system is enabled). Same pattern syntax as the whitelist; no value spec. Whitelist entries win over the blacklist.")
+                    .defineList(name + " - MineTime Blacklist", asList(MINETIME_BLACKLIST_IDS), o -> o instanceof String);
+            cfg.pop();
+
             cfg.pop();
         }
 
@@ -1140,6 +1143,13 @@ public class WarForgeConfig {
             ALLOW_MOB_ENTRY = ALLOW_MOB_ENTRY_V.get();
             ALLOW_DISMOUNT_ENTITY = ALLOW_DISMOUNT_ENTITY_V.get();
             ALLOW_MOUNT_ENTITY = ALLOW_MOUNT_ENTITY_V.get();
+
+            MINETIME_ENABLED = MINETIME_ENABLED_V.get();
+            MINETIME_MODE = MINETIME_MODE_V.get();
+            MINETIME_VALUE = MINETIME_VALUE_V.get();
+            MINETIME_WHITELIST_IDS = toStringArray(MINETIME_WHITELIST_V.get());
+            MINETIME_BLACKLIST_IDS = toStringArray(MINETIME_BLACKLIST_V.get());
+            mineTime.configure(MINETIME_ENABLED, MINETIME_MODE, MINETIME_VALUE, MINETIME_WHITELIST_IDS, MINETIME_BLACKLIST_IDS);
         }
     }
 }

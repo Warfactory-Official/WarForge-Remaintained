@@ -19,8 +19,11 @@ import java.util.regex.Pattern;
  * MineTime soft protection. Where territory rules would otherwise cancel a block break, MineTime
  * lets the break happen but slows it down — either by a time multiplier or to a fixed break time.
  *
+ * <p>Each {@link com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig} profile owns its own
+ * MineTime instance, so the system can be enabled (and tuned) per zone rather than globally.
+ *
  * <p>A blacklist excludes blocks from the system, and a whitelist both opts blocks in and lets each
- * entry carry its own value override that applies even when the system is globally disabled. Entries
+ * entry carry its own value override that applies even when the profile has MineTime disabled. Entries
  * accept exact ids ({@code gregtech:steam_macerator}), {@code *} globs ({@code gregtech:*},
  * {@code minecraft:*_ore}) and block tags ({@code #forge:ores}) so a single line can catch every
  * machine from a mod.
@@ -40,20 +43,17 @@ public final class MineTime {
     private record Entry(BlockPattern pattern, Rule rule) {
     }
 
-    public static boolean ENABLED = false;
-    public static Mode DEFAULT_MODE = Mode.MULTIPLIER;
-    public static double DEFAULT_VALUE = 5.0;
+    private boolean enabled = false;
+    private Mode defaultMode = Mode.MULTIPLIER;
+    private double defaultValue = 5.0;
 
-    private static List<Entry> WHITELIST = List.of();
-    private static List<BlockPattern> BLACKLIST = List.of();
+    private List<Entry> whitelist = List.of();
+    private List<BlockPattern> blacklist = List.of();
 
-    private MineTime() {
-    }
-
-    public static void configure(boolean enabled, String modeName, double defaultValue, String[] whitelist, String[] blacklist) {
-        ENABLED = enabled;
-        DEFAULT_MODE = parseMode(modeName, Mode.MULTIPLIER);
-        DEFAULT_VALUE = defaultValue;
+    public void configure(boolean enabled, String modeName, double defaultValue, String[] whitelist, String[] blacklist) {
+        this.enabled = enabled;
+        this.defaultMode = parseMode(modeName, Mode.MULTIPLIER);
+        this.defaultValue = defaultValue;
 
         List<Entry> parsedWhitelist = new ArrayList<>();
         for (String raw : whitelist) {
@@ -68,7 +68,7 @@ public final class MineTime {
             BlockPattern pattern = BlockPattern.parse(patternStr);
             if (pattern != null) parsedWhitelist.add(new Entry(pattern, rule));
         }
-        WHITELIST = parsedWhitelist;
+        this.whitelist = parsedWhitelist;
 
         List<BlockPattern> parsedBlacklist = new ArrayList<>();
         for (String raw : blacklist) {
@@ -76,7 +76,7 @@ public final class MineTime {
             BlockPattern pattern = BlockPattern.parse(raw);
             if (pattern != null) parsedBlacklist.add(pattern);
         }
-        BLACKLIST = parsedBlacklist;
+        this.blacklist = parsedBlacklist;
     }
 
     /**
@@ -84,17 +84,17 @@ public final class MineTime {
      *
      * @return the slow-down to apply, or {@code null} to keep the hard cancel (full protection).
      */
-    public static Rule resolve(Block block) {
-        for (Entry entry : WHITELIST) {
+    public Rule resolve(Block block) {
+        for (Entry entry : whitelist) {
             if (entry.pattern().matches(block)) {
-                return entry.rule() != null ? entry.rule() : new Rule(DEFAULT_MODE, DEFAULT_VALUE);
+                return entry.rule() != null ? entry.rule() : new Rule(defaultMode, defaultValue);
             }
         }
-        if (!ENABLED) return null;
-        for (BlockPattern pattern : BLACKLIST) {
+        if (!enabled) return null;
+        for (BlockPattern pattern : blacklist) {
             if (pattern.matches(block)) return null;
         }
-        return new Rule(DEFAULT_MODE, DEFAULT_VALUE);
+        return new Rule(defaultMode, defaultValue);
     }
 
     /** Computes the BreakSpeed the player should get under a resolved rule. */
@@ -145,7 +145,7 @@ public final class MineTime {
             }
             return new Rule(Mode.MULTIPLIER, Double.parseDouble(trimmed));
         } catch (NumberFormatException e) {
-            WarForgeMod.LOGGER.warn("MineTime: could not parse value spec '{}'; using global default", spec);
+            WarForgeMod.LOGGER.warn("MineTime: could not parse value spec '{}'; using profile default", spec);
             return null;
         }
     }

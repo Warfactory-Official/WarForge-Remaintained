@@ -3,7 +3,6 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.JourneyMapClaimCache;
 import com.flansmod.warforge.client.JourneyMapVeinCache;
-import com.flansmod.warforge.common.MineTime;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.nbt.CompoundTag;
@@ -99,17 +98,7 @@ public class PacketSyncConfig extends PacketBase {
         WarForgeConfig.JOURNEYMAP_CLAIM_MODE = compound.getInt("jmClaimMode");
         WarForgeConfig.JOURNEYMAP_VEIN_MODE = compound.getInt("jmVeinMode");
 
-        // MineTime soft protection + per-zone break rules (server-authoritative values for prediction).
-        WarForgeConfig.MINETIME_ENABLED = compound.getBoolean("minetimeEnabled");
-        WarForgeConfig.MINETIME_MODE = compound.getString("minetimeMode");
-        WarForgeConfig.MINETIME_VALUE = compound.getDouble("minetimeValue");
-        String mtWhitelist = compound.getString("minetimeWhitelist");
-        String mtBlacklist = compound.getString("minetimeBlacklist");
-        WarForgeConfig.MINETIME_WHITELIST = mtWhitelist.isEmpty() ? new String[0] : mtWhitelist.split("\n");
-        WarForgeConfig.MINETIME_BLACKLIST = mtBlacklist.isEmpty() ? new String[0] : mtBlacklist.split("\n");
-        MineTime.configure(WarForgeConfig.MINETIME_ENABLED, WarForgeConfig.MINETIME_MODE, WarForgeConfig.MINETIME_VALUE,
-                WarForgeConfig.MINETIME_WHITELIST, WarForgeConfig.MINETIME_BLACKLIST);
-
+        // Per-zone break rules + MineTime settings (server-authoritative values for prediction).
         if (compound.contains("protectionZones")) {
             CompoundTag zones = compound.getCompound("protectionZones");
             WarForgeConfig.UNCLAIMED.readBreakSync(zones.getCompound("unclaimed"));

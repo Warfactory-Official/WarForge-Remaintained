@@ -66,7 +66,7 @@ public class ClientMineTimePredictor {
         if (!ProtectionsModule.breakDenied(config, block))
             return;
 
-        MineTime.Rule rule = MineTime.resolve(block);
+        MineTime.Rule rule = config.mineTime.resolve(block);
         if (rule == null)
             return; // hard-protected: leave to the server cancel
         if (event.getState().getDestroySpeed(level, blockPos) <= 0)
