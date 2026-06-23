@@ -25,7 +25,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class MapDrawable implements IDrawable, Interactable {
-    private static final int MAP_TEXTURE_SIZE = 64;
 
     public final static int CB_THICKNESS = 2; //Controls border thickness
     public final static int HL_THICKNESS = 1; //Controls border thickness on highlighted chunks
@@ -79,7 +78,16 @@ public class MapDrawable implements IDrawable, Interactable {
             setShaderColor();
         }
 
-        AbstractTexture loadedTexture = Minecraft.getInstance().getTextureManager().getTexture(mapTexture);
+        // Probe the texture WITHOUT the single-arg getTexture's side effect. That overload synthesizes a
+        // SimpleTexture and loads it from the resource pack for any id it has not seen; for these
+        // runtime-generated claim-map textures the file does not exist, so it throws FileNotFoundException,
+        // spams the log, and caches a broken entry until the daemon overwrites it. There is also a race:
+        // a chunk's texture can be in the daemon's desired set but not yet registered (still building off
+        // -thread), or it may have just been released. The two-arg form is a pure lookup that returns the
+        // registered texture or, when it is absent/stale, our null fallback — in which case we draw a
+        // neutral placeholder. Only a confirmed DynamicTexture is bound for drawing, so the bind inside
+        // GuiDraw.drawTexture (which itself calls the single-arg getTexture) can never hit the load path.
+        AbstractTexture loadedTexture = Minecraft.getInstance().getTextureManager().getTexture(mapTexture, null);
         if (loadedTexture instanceof DynamicTexture) {
             GuiDraw.drawTexture(pose, mapTexture, x, y, x + width, y + height, 0f, 0f, 1f, 1f, true);
         } else {

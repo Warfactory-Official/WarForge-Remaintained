@@ -77,6 +77,7 @@ public class BlockIslandCollector extends Block implements EntityBlock {
                     && !WarForgeMod.isOp(player)) {
                 return InteractionResult.SUCCESS;
             }
+            WarForgeMod.syncClaimToPlayer(player, pos);
             BlockEntityUIFactory.INSTANCE.open(player, pos);
             return InteractionResult.SUCCESS;
         }

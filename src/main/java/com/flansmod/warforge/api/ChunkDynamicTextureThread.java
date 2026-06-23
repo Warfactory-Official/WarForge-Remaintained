@@ -8,11 +8,14 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ChunkDynamicTextureThread extends Thread {
-    public static Queue<RegisterTextureAction> queue = new ConcurrentLinkedQueue<>();
+    // Pending GL registrations keyed by texture name so a chunk that is rebuilt several times before the
+    // next flush collapses to its latest pixels instead of piling up. A plain FIFO queue with a per-tick
+    // cap let frequent rebuilds outrun the flush and permanently starve the tail entries (far map cells).
+    public static final Map<String, RegisterTextureAction> PENDING = new ConcurrentHashMap<>();
     final int[] rawChunk;
     final int[] heightMapCopy;
     final int maxHeight;
@@ -113,7 +116,7 @@ public class ChunkDynamicTextureThread extends Thread {
             System.arraycopy(scaled, srcOffset, finalBuffer, dstOffset, 16 * scale);
         }
 
-        queue.add(new RegisterTextureAction(finalBuffer, 16 * scale, name));
+        PENDING.put(name, new RegisterTextureAction(finalBuffer, 16 * scale, name));
     }
 
 

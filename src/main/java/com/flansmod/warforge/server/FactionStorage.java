@@ -1409,6 +1409,7 @@ public class FactionStorage {
                 claim.updateFactionFlag(flagId);
             }
         }
+        WarForgeMod.syncClaimToPlayer(player, faction.citadelPos.toRegularPos());
         for (ServerPlayer online : MC_SERVER.getPlayerList().getPlayers()) {
             sendClaimChunks(online, new DimChunkPos(online.level().dimension(), online.blockPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
         }
@@ -2696,6 +2697,9 @@ public class FactionStorage {
                 }
             }
         }
+        // Push the new colour straight to the recolourer so a freshly reopened citadel panel shows the
+        // updated accent band immediately rather than after the end-of-tick block-entity sync.
+        WarForgeMod.syncClaimToPlayer(player, faction.citadelPos.toRegularPos());
 
         ArrayList<Player> onlinePlayers = faction.getOnlinePlayers(
                 entityPlayer -> entityPlayer != null && entityPlayer.isAlive());

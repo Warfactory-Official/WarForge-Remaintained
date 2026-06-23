@@ -72,6 +72,7 @@ public class CitadelGuiFactory extends AbstractUIFactory<PosGuiData> {
 
     @Override
     public void writeGuiData(PosGuiData guiData, FriendlyByteBuf buffer) {
+        com.flansmod.warforge.common.WarForgeMod.syncClaimToPlayer(guiData.getPlayer(), guiData.getBlockPos());
         buffer.writeBlockPos(guiData.getBlockPos());
     }
 

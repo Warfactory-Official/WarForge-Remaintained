@@ -252,6 +252,18 @@ public class WarForgeMod {
                 || item.equals(Content.siegeCampBlockItem);
     }
 
+    public static void syncClaimToPlayer(Player player, BlockPos pos) {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
+        if (serverPlayer.serverLevel().getBlockEntity(pos) instanceof TileEntityClaim claim) {
+            var packet = claim.getUpdatePacket();
+            if (packet != null) {
+                serverPlayer.connection.send(packet);
+            }
+        }
+    }
+
     public static boolean isClaim(Block block, Block... notEquals) {
         for (Block invalidBlock : notEquals) {
             if (block.equals(invalidBlock)) {

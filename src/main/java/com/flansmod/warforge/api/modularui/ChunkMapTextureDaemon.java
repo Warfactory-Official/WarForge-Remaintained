@@ -15,6 +15,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.resources.ResourceKey;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -68,11 +69,18 @@ public class ChunkMapTextureDaemon {
     }
 
     public static void flushTextureQueue() {
-        ChunkDynamicTextureThread.RegisterTextureAction action;
-        int processed = 0;
-        while ((action = ChunkDynamicTextureThread.queue.poll()) != null && processed < 64) {
-            action.register();
-            processed++;
+        if (ChunkDynamicTextureThread.PENDING.isEmpty()) {
+            return;
+        }
+        // Drain every pending registration this tick. The map already collapses repeated rebuilds of a
+        // chunk to one entry, so the work is bounded by the visible grid (one texture per chunk) and the
+        // far cells can no longer be starved behind a per-tick cap. Snapshot the keys so concurrent puts
+        // from the build thread just land in the next flush.
+        for (String name : new ArrayList<>(ChunkDynamicTextureThread.PENDING.keySet())) {
+            ChunkDynamicTextureThread.RegisterTextureAction action = ChunkDynamicTextureThread.PENDING.remove(name);
+            if (action != null) {
+                action.register();
+            }
         }
     }
 
@@ -88,6 +96,7 @@ public class ChunkMapTextureDaemon {
         }
         Minecraft mc = Minecraft.getInstance();
         for (String name : active) {
+            ChunkDynamicTextureThread.PENDING.remove(name);
             mc.getTextureManager().release(new ResourceLocation(Tags.MODID, name));
         }
     }
@@ -106,6 +115,7 @@ public class ChunkMapTextureDaemon {
         Minecraft mc = Minecraft.getInstance();
         for (String old : current) {
             if (!desired.contains(old)) {
+                ChunkDynamicTextureThread.PENDING.remove(old);
                 mc.getTextureManager().release(new ResourceLocation(Tags.MODID, old));
             }
         }
