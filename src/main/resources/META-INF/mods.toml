@@ -17,6 +17,10 @@ logoFile=""
 [[mixins]]
 config="mixins.${mod_id}.json"
 
+# Superb Warfare explosion claim fix; SbwMixinPlugin no-ops the config when SBW is absent.
+[[mixins]]
+config="mixins.${mod_id}.sbw.json"
+
 [[dependencies.${mod_id}]]
     modId="forge"
     mandatory=true

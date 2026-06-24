@@ -72,6 +72,7 @@ minecraft {
 mixin {
     add sourceSets.main, "mixins.${project.modId}.refmap.json"
     config "mixins.${project.modId}.json"
+    config "mixins.${project.modId}.sbw.json"
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -132,6 +133,10 @@ dependencies {
     // fg.deobf so its SRG members + mixin refmap are remapped to named for the dev runtime.
     // (Reference source for API: ../ModularUI-Modern at tag v3.3.0.)
     implementation fg.deobf("curse.maven:modularui-624243:8118122")
+
+    compileOnly("curse.maven:superb-warfare-1218165:7292685") {
+        exclude group: "org.spongepowered", module: "mixin"
+    }
 
     // JourneyMap client API (compile-only; the JourneyMap mod supplies the runtime impl).
     compileOnly "info.journeymap:journeymap-api:1.20.2-1.9-SNAPSHOT"
