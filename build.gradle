@@ -72,7 +72,7 @@ minecraft {
 mixin {
     add sourceSets.main, "mixins.${project.modId}.refmap.json"
     config "mixins.${project.modId}.json"
-    config "mixins.${project.modId}.sbw.json"
+    config "mixins.${project.modId}.compat.json"
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -137,6 +137,19 @@ dependencies {
     compileOnly("curse.maven:superb-warfare-1218165:7292685") {
         exclude group: "org.spongepowered", module: "mixin"
     }
+
+    // compileOnly so the Mixin AP can resolve the @Mixin(targets=...) class names at compile time.
+    compileOnly("curse.maven:ashvehicle-1291715:7948580") {
+        exclude group: "org.spongepowered", module: "mixin"
+    }
+
+    // Dev-run only: load SBW (and its mandatory geckolib dep) so the explosion claim mixin can be
+    // smoke-tested in runClient/runServer. fg.deobf remaps the production jars to the named dev runtime;
+    // a raw jar would be SRG-mapped and crash. Not shipped — the real pack provides these at runtime.
+    runtimeOnly fg.deobf("curse.maven:superb-warfare-1218165:7292685")
+    runtimeOnly fg.deobf("curse.maven:geckolib-388172:8285794") // geckolib 4.8.4, SBW's mandatory dep
+    runtimeOnly fg.deobf("curse.maven:ashvehicle-1291715:7948580") // SBW addon, also bypasses claims on explosion
+
 
     // JourneyMap client API (compile-only; the JourneyMap mod supplies the runtime impl).
     compileOnly "info.journeymap:journeymap-api:1.20.2-1.9-SNAPSHOT"

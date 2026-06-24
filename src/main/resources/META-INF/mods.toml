@@ -17,9 +17,10 @@ logoFile=""
 [[mixins]]
 config="mixins.${mod_id}.json"
 
-# Superb Warfare explosion claim fix; SbwMixinPlugin no-ops the config when SBW is absent.
+# Soft-dependency compat mixins (SBW / Ash Vehicles explosion claim fixes); CompatMixinPlugin only
+# registers each one when its mod is present at runtime.
 [[mixins]]
-config="mixins.${mod_id}.sbw.json"
+config="mixins.${mod_id}.compat.json"
 
 [[dependencies.${mod_id}]]
     modId="forge"

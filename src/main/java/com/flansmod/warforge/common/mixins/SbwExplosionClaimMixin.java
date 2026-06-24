@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // explosion effect" / impact craters) that fire no event and therefore bypass claims. Re-route those
 // through the same claim check. Targets are listed by string so this compiles without SBW on the
 // classpath; missing targets (e.g. the other version's packaging) are skipped by required:false, and
-// the whole mixin is only registered when SBW is present (see SbwMixinPlugin).
+// the whole mixin is only registered when SBW is present (see CompatMixinPlugin).
 @Mixin(remap = false, targets = {
         // C4 and the TM-62 mine moved entity -> entity.projectile between 0.8.8 and 0.8.9; list both.
         "com.atsuishio.superbwarfare.entity.C4Entity",
@@ -38,6 +38,7 @@ import org.spongepowered.asm.mixin.injection.Redirect;
         "com.atsuishio.superbwarfare.entity.projectile.WireGuideMissileEntity",
         "com.atsuishio.superbwarfare.entity.vehicle.AnnihilatorEntity",
 })
+@SuppressWarnings("unused")
 public class SbwExplosionClaimMixin {
 
     // method = "*" so the redirect also catches destroyBlock calls inside the forEach lambdas SBW uses
