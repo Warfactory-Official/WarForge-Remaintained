@@ -63,6 +63,7 @@ public class PacketClaimChunksData extends PacketBase {
             writeUUID(data, chunk.outlineFactionId);
             data.writeInt(chunk.outlineColour);
             data.writeByte(chunk.outlineStyle);
+            data.writeInt(chunk.conqueredRemainingMs);
         }
     }
 
@@ -98,6 +99,7 @@ public class PacketClaimChunksData extends PacketBase {
             info.outlineFactionId = readUUID(data);
             info.outlineColour = data.readInt();
             info.outlineStyle = data.readByte();
+            info.conqueredRemainingMs = data.readInt();
             chunks.add(info);
         }
     }

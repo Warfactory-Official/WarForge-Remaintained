@@ -72,6 +72,7 @@ public class WarForgeConfig {
     public static int SUPPORT_STRENGTH_BASIC = 1;
     public static int FORCE_LOADED_CHUNKS_TOTAL = 8;
     public static int MAX_CLAIMS_PER_FACTION = -1;
+    public static int MIN_DISTANCE_BETWEEN_FACTIONS = 1;
     public static int CLAIM_MANAGER_RADIUS = 4;
     public static int ISLAND_COLLECTOR_SLOTS = 100;
     public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
@@ -81,6 +82,9 @@ public class WarForgeConfig {
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
     public static float LEECH_PROPORTION_SIEGE_CAMP = 0.25f;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
+    // Stop cross-claim-border griefing: foreign liquid flowing in (lavacasts) and pistons pushing in.
+    public static boolean BLOCK_FOREIGN_FLUID_INFLOW = true;
+    public static boolean BLOCK_FOREIGN_PISTON_PUSH = true;
     public static String[] INSURANCE_BLACKLIST_IDS = new String[]{"minecraft:*shulker_box", "appliedenergistics2:*cell*"};
     public static String[] DEFAULT_FLAG_IDS = new String[]{
             "white", "light_gray", "gray", "black", "red", "orange", "yellow", "lime",
@@ -328,6 +332,7 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.IntValue SUPPORT_STRENGTH_BASIC_V;
     private static ForgeConfigSpec.IntValue FORCE_LOADED_CHUNKS_TOTAL_V;
     private static ForgeConfigSpec.IntValue MAX_CLAIMS_PER_FACTION_V;
+    private static ForgeConfigSpec.IntValue MIN_DISTANCE_BETWEEN_FACTIONS_V;
     private static ForgeConfigSpec.IntValue CLAIM_MANAGER_RADIUS_V;
     private static ForgeConfigSpec.IntValue ISLAND_COLLECTOR_SLOTS_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_OFFLINE_RAID_PROTECTION_V;
@@ -337,6 +342,8 @@ public class WarForgeConfig {
     private static ForgeConfigSpec.IntValue CITADEL_MOVE_NUM_DAYS_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_CITADEL_UPGRADES_V;
     private static ForgeConfigSpec.BooleanValue ENABLE_ISOLATED_CLAIMS_V;
+    private static ForgeConfigSpec.BooleanValue BLOCK_FOREIGN_FLUID_INFLOW_V;
+    private static ForgeConfigSpec.BooleanValue BLOCK_FOREIGN_PISTON_PUSH_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> INSURANCE_BLACKLIST_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> DEFAULT_FLAG_IDS_V;
     private static ForgeConfigSpec.ConfigValue<List<? extends String>> CUSTOM_FLAG_ALLOWLIST_V;
@@ -477,6 +484,7 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_BASIC_V = cfg.comment("The support strength a basic claim gives to adjacent claims").defineInRange("Basic Support Strength", SUPPORT_STRENGTH_BASIC, 1, 1024);
         FORCE_LOADED_CHUNKS_TOTAL_V = cfg.comment("Total chunks each faction can force-load. Ignored when the citadel upgrade system is enabled; the per-level 'loaded_chunks' value from upgrade_levels.toml is used instead.").defineInRange("Force-loaded Chunks Total", FORCE_LOADED_CHUNKS_TOTAL, 0, 1024);
         MAX_CLAIMS_PER_FACTION_V = cfg.comment("Maximum number of chunks a single faction may claim. Set to -1 for unlimited. When the citadel upgrade system is enabled, the per-level limit is applied in addition to this cap.").defineInRange("Max Claims Per Faction", MAX_CLAIMS_PER_FACTION, -1, 1000000);
+        MIN_DISTANCE_BETWEEN_FACTIONS_V = cfg.comment("Minimum gap, in chunks, that must separate a new claim from an opposing (non-allied) faction's claims. A value of N forbids claiming within N chunks (square radius) of an opposing faction; allied factions are exempt. Set to 0 to disable.").defineInRange("Minimum Distance Between Opposing Factions", MIN_DISTANCE_BETWEEN_FACTIONS, 0, 64);
         CLAIM_MANAGER_RADIUS_V = cfg.comment("Square radius in chunks shown in the claim manager UI.").defineInRange("Claim Manager Radius", CLAIM_MANAGER_RADIUS, 1, 12);
         ISLAND_COLLECTOR_SLOTS_V = cfg.comment("Number of pull-only storage slots in the faction yield collector block. Shrinking this on an existing world relocates any items that no longer fit into remaining slots.").defineInRange("Island Collector Slot Count", ISLAND_COLLECTOR_SLOTS, 1, 1024);
         ENABLE_OFFLINE_RAID_PROTECTION_V = cfg.comment("If enabled, factions cannot be sieged for a limited period after all their members go offline.").define("Enable Offline Raid Protection", ENABLE_OFFLINE_RAID_PROTECTION);
@@ -486,6 +494,8 @@ public class WarForgeConfig {
         CITADEL_MOVE_NUM_DAYS_V = cfg.comment("How many days a faction has to wait to move their citadel again").defineInRange("Days Between Citadel Moves", CITADEL_MOVE_NUM_DAYS, 0, 1024);
         ENABLE_CITADEL_UPGRADES_V = cfg.comment("Applies claim limits that require upgrading to extend your faction's claim limit").define("Enable Citadel Upgrade System", false);
         ENABLE_ISOLATED_CLAIMS_V = cfg.comment("If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.").define("Enabled Isolated Claims", ENABLE_ISOLATED_CLAIMS);
+        BLOCK_FOREIGN_FLUID_INFLOW_V = cfg.comment("If true, liquids cannot flow from a chunk into a differently-claimed chunk (stops lavacast/water griefing across claim borders).").define("Block Foreign Fluid Inflow", BLOCK_FOREIGN_FLUID_INFLOW);
+        BLOCK_FOREIGN_PISTON_PUSH_V = cfg.comment("If true, pistons cannot push or pull blocks across a claim border into/out of a differently-claimed chunk.").define("Block Foreign Piston Push", BLOCK_FOREIGN_PISTON_PUSH);
         INSURANCE_BLACKLIST_IDS_V = cfg.comment("Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.").defineList("Insurance Blacklist", asList(INSURANCE_BLACKLIST_IDS), o -> o instanceof String);
         DEFAULT_FLAG_IDS_V = cfg.comment("Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).").defineList("Available Default Flags", asList(DEFAULT_FLAG_IDS), o -> o instanceof String);
         CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
@@ -498,7 +508,7 @@ public class WarForgeConfig {
         MAX_SIEGES_V = cfg.comment("How many sieges each faction is allowed to have, with any additional siege camps being unable to be placed by members").defineInRange("Siege Camp Max Count Per Faction", MAX_SIEGES, 1, 1000);
         ATTACKER_DESERTION_TIMER_V = cfg.comment("The number of seconds a siege can idle with no attackers in it before any action occurs. Setting to 0 results in checks being run every tick.").defineInRange("Attacker Desertion Timer [s]", ATTACKER_DESERTION_TIMER, 0, Integer.MAX_VALUE);
         DEFENDER_DESERTION_TIMER_V = cfg.comment("The number of seconds a siege can be undefended before any action occurs. Setting to 0 results in checks being run every tick.").defineInRange("Defender Desertion Timer [s]", DEFENDER_DESERTION_TIMER, 0, Integer.MAX_VALUE);
-        ATTACKER_CONQUERED_CHUNK_PERIOD_V = cfg.comment("The number of milliseconds to permit placement within a chunk only by the faction who last won a siege on it. Setting to 0 results in no grace period.").defineInRange("Attacker Conquered Chunk Grace Period [ms]", ATTACKER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE);
+        ATTACKER_CONQUERED_CHUNK_PERIOD_V = cfg.comment("Milliseconds a chunk stays conquered no-man's-land after attackers win a siege on it: unclaimable by everyone and unprotected (free-build wilderness) until it reverts to normal wilderness. Setting to 0 makes won chunks immediately claimable.").defineInRange("Attacker Conquered Chunk Grace Period [ms]", ATTACKER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE);
         DEFENDER_CONQUERED_CHUNK_PERIOD_V = cfg.comment("The number of milliseconds to deny sieging or claiming in previously sieged chunk in which the siege was won by the defenders. Setting to 0 results in no grace period.").defineInRange("Defender Conquered Chunk Grace Period [ms]", DEFENDER_CONQUERED_CHUNK_PERIOD, 0, Integer.MAX_VALUE);
         COMBAT_LOG_THRESHOLD_V = cfg.comment("The number of milliseconds before enforcement action is taken when a player leaves during a siege on any of their claims.").defineInRange("Time to Combat Log Action [ms]", COMBAT_LOG_THRESHOLD, 0, Integer.MAX_VALUE);
         LIVE_QUIT_TIMER_V = cfg.comment("The number of milliseconds before a defending team which went offline after a siege against them has begun is considered to have quit, forfeiting the siege.").defineInRange("Time to Live Quit Siege [ms]", LIVE_QUIT_TIMER, 0, Integer.MAX_VALUE);
@@ -680,6 +690,7 @@ public class WarForgeConfig {
         SUPPORT_STRENGTH_BASIC = SUPPORT_STRENGTH_BASIC_V.get();
         FORCE_LOADED_CHUNKS_TOTAL = FORCE_LOADED_CHUNKS_TOTAL_V.get();
         MAX_CLAIMS_PER_FACTION = MAX_CLAIMS_PER_FACTION_V.get();
+        MIN_DISTANCE_BETWEEN_FACTIONS = MIN_DISTANCE_BETWEEN_FACTIONS_V.get();
         CLAIM_MANAGER_RADIUS = CLAIM_MANAGER_RADIUS_V.get();
         ISLAND_COLLECTOR_SLOTS = ISLAND_COLLECTOR_SLOTS_V.get();
         ENABLE_OFFLINE_RAID_PROTECTION = ENABLE_OFFLINE_RAID_PROTECTION_V.get();
@@ -689,6 +700,8 @@ public class WarForgeConfig {
         CITADEL_MOVE_NUM_DAYS = CITADEL_MOVE_NUM_DAYS_V.get();
         ENABLE_CITADEL_UPGRADES = ENABLE_CITADEL_UPGRADES_V.get();
         ENABLE_ISOLATED_CLAIMS = ENABLE_ISOLATED_CLAIMS_V.get();
+        BLOCK_FOREIGN_FLUID_INFLOW = BLOCK_FOREIGN_FLUID_INFLOW_V.get();
+        BLOCK_FOREIGN_PISTON_PUSH = BLOCK_FOREIGN_PISTON_PUSH_V.get();
         INSURANCE_BLACKLIST_IDS = toStringArray(INSURANCE_BLACKLIST_IDS_V.get());
         DEFAULT_FLAG_IDS = toStringArray(DEFAULT_FLAG_IDS_V.get());
         CUSTOM_FLAG_ALLOWLIST = toStringArray(CUSTOM_FLAG_ALLOWLIST_V.get());

@@ -8,6 +8,7 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.*;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.TimeHelper;
 import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.server.Faction.PlayerData;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
@@ -99,6 +100,14 @@ public class CommandFactions {
                         .executes(CommandFactions::doSetLeader)));
 
         root.then(Commands.literal("time").executes(CommandFactions::doTime));
+
+        // conquered clear | set <time> — admin control over conquered no-man's-land on the current chunk
+        root.then(Commands.literal("conquered")
+                .requires(CommandFactions::isOp)
+                .then(Commands.literal("clear").executes(CommandFactions::doConqueredClear))
+                .then(Commands.literal("set")
+                        .then(Commands.argument("time", StringArgumentType.word())
+                                .executes(CommandFactions::doConqueredSet))));
 
         // info [factionName]
         root.then(Commands.literal("info")
@@ -353,6 +362,34 @@ public class CommandFactions {
         } else {
             WarForgeMod.FACTIONS.RequestTransferLeadership(player, targetFaction.uuid, profile.getId());
         }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int doConqueredClear(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        DimChunkPos chunk = new DimChunkPos(player.level().dimension(), player.blockPosition());
+        if (WarForgeMod.FACTIONS.clearConquered(chunk)) {
+            ctx.getSource().sendSuccess(() -> Component.literal("Cleared conquered status of chunk [" + chunk.x + ", " + chunk.z + "]"), true);
+        } else {
+            ctx.getSource().sendFailure(Component.literal("This chunk is not conquered"));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int doConqueredSet(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        ServerPlayer player = ctx.getSource().getPlayerOrException();
+        String timeArg = StringArgumentType.getString(ctx, "time");
+        long ms = TimeHelper.parseDurationMs(timeArg);
+        if (ms <= 0 || ms > Integer.MAX_VALUE) {
+            ctx.getSource().sendFailure(Component.literal("Invalid time '" + timeArg + "'. Use e.g. 30s, 15m, 2h, 1d (bare numbers are seconds)."));
+            return 0;
+        }
+        DimChunkPos chunk = new DimChunkPos(player.level().dimension(), player.blockPosition());
+        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        WarForgeMod.FACTIONS.setConquered(chunk, faction == null ? Faction.nullUuid : faction.uuid, (int) ms);
+        final long shownMs = ms;
+        ctx.getSource().sendSuccess(() -> Component.literal("Chunk [" + chunk.x + ", " + chunk.z
+                + "] is now conquered wilderness, reverting in " + TimeHelper.formatTime(shownMs)), true);
         return Command.SINGLE_SUCCESS;
     }
 

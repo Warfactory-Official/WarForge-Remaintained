@@ -742,6 +742,37 @@ public class FactionStorage {
         return true;
     }
 
+    // Enforces WarForgeConfig.MIN_DISTANCE_BETWEEN_FACTIONS: returns an opposing (non-self, non-allied,
+    // non-neutral) faction whose claim sits within that many chunks (square/Chebyshev radius) of chunkPos,
+    // or null if the surroundings are clear. `faction` is null when founding a new faction via a citadel,
+    // in which case every other faction is opposing. Only walks the small (2d+1)^2 square, on claim attempts.
+    public Faction findNearbyOpposingFaction(Faction faction, DimChunkPos chunkPos) {
+        int distance = WarForgeConfig.MIN_DISTANCE_BETWEEN_FACTIONS;
+        if (distance <= 0) {
+            return null;
+        }
+        UUID selfId = faction == null ? Faction.nullUuid : faction.uuid;
+        for (int dx = -distance; dx <= distance; dx++) {
+            for (int dz = -distance; dz <= distance; dz++) {
+                if (dx == 0 && dz == 0) {
+                    continue;
+                }
+                UUID owner = getClaim(new DimChunkPos(chunkPos.dim, chunkPos.x + dx, chunkPos.z + dz));
+                if (owner.equals(Faction.nullUuid) || owner.equals(selfId) || IsNeutralZone(owner)) {
+                    continue;
+                }
+                if (faction != null && faction.isAllyOf(owner)) {
+                    continue;
+                }
+                Faction opposing = getFaction(owner);
+                if (opposing != null) {
+                    return opposing;
+                }
+            }
+        }
+        return null;
+    }
+
     private boolean canClaimChunkNoTile(ServerPlayer player, Faction faction, DimChunkPos chunkPos, boolean notify) {
         if (!isOp(player) && !faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER)) {
             if (notify) {
@@ -781,6 +812,14 @@ public class FactionStorage {
             }
             return false;
         }
+        Faction tooClose = findNearbyOpposingFaction(faction, chunkPos);
+        if (tooClose != null) {
+            if (notify) {
+                player.sendSystemMessage(Component.literal("You cannot claim within " + WarForgeConfig.MIN_DISTANCE_BETWEEN_FACTIONS
+                        + " chunk(s) of opposing faction " + tooClose.name));
+            }
+            return false;
+        }
 
         // Prevent joining two collector-bearing islands into one.
         int collectorsInConnectedIslands = 0;
@@ -807,12 +846,13 @@ public class FactionStorage {
             return false;
         }
 
+        // Conquered chunks are unclaimable no-man's-land for everyone (including the conqueror) until the
+        // timer expires and they revert to normal wilderness.
         ObjectIntPair<UUID> conqueredChunkInfo = conqueredChunks.get(chunkPos);
-        if (conqueredChunkInfo != null && !Objects.equals(conqueredChunkInfo.getObj(), faction.uuid)) {
+        if (conqueredChunkInfo != null) {
             if (notify) {
-                Faction owner = getFaction(conqueredChunkInfo.getObj());
-                String ownerName = owner == null ? "Unknown" : owner.name;
-                player.sendSystemMessage(Component.translatable("warforge.info.chunk_is_conquered", ownerName, TimeHelper.formatTime(conqueredChunkInfo.getInteger())));
+                player.sendSystemMessage(Component.literal("This chunk is conquered wilderness; it becomes claimable in "
+                        + TimeHelper.formatTime(conqueredChunkInfo.getInteger())));
             }
             return false;
         }
@@ -937,6 +977,26 @@ public class FactionStorage {
         for (HashMap.Entry<UUID, Faction> entry : mFactions.entrySet()) {
             entry.getValue().update();
         }
+    }
+
+    // A conquered chunk with no current owner is reverting-to-wilderness no-man's-land: unclaimable and
+    // unprotected (it reads as UNCLAIMED everywhere) until its timer runs out.
+    public boolean isConqueredWilderness(DimChunkPos chunk) {
+        return conqueredChunks.containsKey(chunk) && getClaim(chunk).equals(Faction.nullUuid);
+    }
+
+    public int conqueredRemainingMs(DimChunkPos chunk) {
+        ObjectIntPair<UUID> entry = conqueredChunks.get(chunk);
+        return entry == null ? 0 : entry.getInteger();
+    }
+
+    // Admin control (/f conquered set/clear). factionId is cosmetic now (border colour / "conquered by").
+    public void setConquered(DimChunkPos chunk, UUID factionId, int periodMs) {
+        conqueredChunks.put(chunk, new ObjectIntPair<>(copyUUID(factionId == null ? Faction.nullUuid : factionId), periodMs));
+    }
+
+    public boolean clearConquered(DimChunkPos chunk) {
+        return conqueredChunks.remove(chunk) != null;
     }
 
     public void updateConqueredChunks(long msUpdateTime) {
@@ -2473,6 +2533,11 @@ public class FactionStorage {
                         info.outlineFactionId = conqueredFaction.uuid;
                         info.outlineColour = conqueredFaction.colour;
                         info.outlineStyle = ClaimChunkInfo.OUTLINE_CONQUERED;
+                    }
+                    // Only an unclaimed conquered chunk is reverting-to-wilderness no-man's-land; a claimed
+                    // one (defender held it) just carries a re-siege cooldown, so don't advertise a timer.
+                    if (ownerFaction == null) {
+                        info.conqueredRemainingMs = conqueredInfo.getInteger();
                     }
                 }
                 if (!info.hasVisibleOutline() && ownerFaction != null) {

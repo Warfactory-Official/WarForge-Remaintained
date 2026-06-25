@@ -461,17 +461,10 @@ public class WarForgeMod {
 
         ObjectIntPair<UUID> conqueredChunkInfo = FACTIONS.conqueredChunks.get(pos);
         if (conqueredChunkInfo != null) {
-            UUID playerFactionId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
-            if (conqueredChunkInfo.getObj() == null || conqueredChunkInfo.getObj().equals(Faction.nullUuid) || FACTIONS.getFaction(conqueredChunkInfo.getObj()) == null) {
-                WarForgeMod.LOGGER.atError().log("Found invalid conquered chunk at " + pos + "; removing and permitting placement.");
-                FACTIONS.conqueredChunks.remove(pos);
-            } else if (!conqueredChunkInfo.getObj().equals(playerFactionId)) {
-                player.sendSystemMessage(Component.translatable("warforge.info.chunk_is_conquered",
-                        WarForgeMod.FACTIONS.getFaction(FACTIONS.conqueredChunks.get(pos).getObj()).name,
-                        TimeHelper.formatTime(FACTIONS.conqueredChunks.get(pos).getInteger())));
-                event.setCanceled(true);
-                return;
-            }
+            player.sendSystemMessage(Component.literal("This chunk is conquered wilderness; it becomes claimable in "
+                    + TimeHelper.formatTime(conqueredChunkInfo.getInteger())));
+            event.setCanceled(true);
+            return;
         }
 
         if (!containsDimension(WarForgeConfig.CLAIM_DIM_WHITELIST, pos.dim)) {
@@ -484,6 +477,13 @@ public class WarForgeMod {
             if (playerFaction != null) {
                 player.sendSystemMessage(Component.literal("You are already in a faction"));
                 event.setCanceled(true);
+            } else {
+                Faction tooClose = FACTIONS.findNearbyOpposingFaction(null, pos);
+                if (tooClose != null) {
+                    player.sendSystemMessage(Component.literal("You cannot found a faction within " + WarForgeConfig.MIN_DISTANCE_BETWEEN_FACTIONS
+                            + " chunk(s) of faction " + tooClose.name));
+                    event.setCanceled(true);
+                }
             }
         } else if (block == Content.basicClaimBlock
                 || block == Content.reinforcedClaimBlock) {
@@ -508,6 +508,13 @@ public class WarForgeMod {
 
             if (!WarForgeConfig.ENABLE_ISOLATED_CLAIMS && BlockBasicClaim.hasAdjacent(pos, playerFaction) == null) {
                 player.sendSystemMessage(Component.literal("Isolated claims are disabled; you cannot put a claim here with no adjacent claims"));
+                event.setCanceled(true);
+            }
+
+            Faction tooClose = FACTIONS.findNearbyOpposingFaction(playerFaction, pos);
+            if (tooClose != null) {
+                player.sendSystemMessage(Component.literal("You cannot claim within " + WarForgeConfig.MIN_DISTANCE_BETWEEN_FACTIONS
+                        + " chunk(s) of opposing faction " + tooClose.name));
                 event.setCanceled(true);
             }
         } else {

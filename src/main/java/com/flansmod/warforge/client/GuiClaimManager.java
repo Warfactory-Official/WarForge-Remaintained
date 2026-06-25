@@ -9,6 +9,7 @@ import brachy.modularui.theme.WidgetTheme;
 import brachy.modularui.widgets.ButtonWidget;
 import brachy.modularui.widgets.ScrollingTextWidget;
 import brachy.modularui.widgets.layout.Flow;
+import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
 import com.flansmod.warforge.api.modularui.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapDrawable;
@@ -216,6 +217,9 @@ public final class GuiClaimManager {
                                 tooltip.addLine("Wilderness");
                             } else {
                                 tooltip.addLine("Faction: " + info.factionName);
+                            }
+                            if (info.conqueredRemainingMs > 0) {
+                                tooltip.addLine("Conquered — reverts to wilderness in " + TimeHelper.formatTime(info.conqueredRemainingMs));
                             }
                             tooltip.addLine("Claim Type: " + formatClaimType(info.claimType));
                             tooltip.addLine("Chunk: [" + info.x + ", " + info.z + "]");

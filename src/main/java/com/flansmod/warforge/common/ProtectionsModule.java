@@ -4,9 +4,11 @@ import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
 import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.FactionStorage;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.resources.ResourceKey;
@@ -18,6 +20,7 @@ import net.minecraft.world.entity.MoverType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.piston.PistonStructureResolver;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.event.entity.EntityEvent.EnteringSection;
 import net.minecraftforge.event.entity.EntityMountEvent;
@@ -26,6 +29,7 @@ import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.BlockEvent;
 import net.minecraftforge.event.level.ExplosionEvent;
+import net.minecraftforge.event.level.PistonEvent;
 import net.minecraftforge.event.level.LevelEvent.PotentialSpawns;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.registries.ForgeRegistries;
@@ -170,6 +174,50 @@ public class ProtectionsModule {
                 event.getAffectedBlocks().remove(i);
             }
         }
+    }
+
+    // Pistons can shove blocks across a claim border from outside, bypassing the per-claim break/place
+    // rules. Cancel any push/pull where a moved (or destroyed) block leaves or enters a chunk claimed by
+    // someone other than the piston's own chunk owner. Only runs on actual activation, so it is cold.
+    @SubscribeEvent
+    public void OnPistonMove(PistonEvent.Pre event) {
+        if (!WarForgeConfig.BLOCK_FOREIGN_PISTON_PUSH)
+            return;
+        if (!(event.getLevel() instanceof Level level) || level.isClientSide)
+            return;
+
+        ResourceKey<Level> dim = level.dimension();
+        UUID pistonOwner = WarForgeMod.FACTIONS.getClaim(new DimBlockPos(dim, event.getPos()));
+
+        PistonStructureResolver resolver = event.getStructureHelper();
+        if (resolver != null && resolver.resolve()) {
+            Direction moveDir = resolver.getPushDirection();
+            for (BlockPos pushed : resolver.getToPush()) {
+                if (crossesForeignClaim(dim, pistonOwner, pushed)
+                        || crossesForeignClaim(dim, pistonOwner, pushed.relative(moveDir))) {
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+            for (BlockPos destroyed : resolver.getToDestroy()) {
+                if (crossesForeignClaim(dim, pistonOwner, destroyed)) {
+                    event.setCanceled(true);
+                    return;
+                }
+            }
+        }
+
+        // The extending head itself occupies the cell directly in front of the piston.
+        if (event.getPistonMoveType() == PistonEvent.PistonMoveType.EXTEND
+                && crossesForeignClaim(dim, pistonOwner, event.getFaceOffsetPos())) {
+            event.setCanceled(true);
+        }
+    }
+
+    // True when pos sits in a chunk claimed by a faction other than the piston's chunk owner.
+    private static boolean crossesForeignClaim(ResourceKey<Level> dim, UUID pistonOwner, BlockPos pos) {
+        UUID owner = WarForgeMod.FACTIONS.getClaim(new DimBlockPos(dim, pos));
+        return !owner.equals(Faction.nullUuid) && !owner.equals(pistonOwner);
     }
 
     @SubscribeEvent
@@ -427,6 +475,22 @@ public class ProtectionsModule {
         }
     }
 
+    // Tells a player how long until a conquered chunk reverts to wilderness when they walk into one.
+    private static void notifyConqueredEntry(ServerPlayer player, SectionPos oldPos, SectionPos newPos) {
+        ResourceKey<Level> dim = player.level().dimension();
+        DimChunkPos to = new DimChunkPos(dim, newPos.x(), newPos.z());
+        if (!WarForgeMod.FACTIONS.isConqueredWilderness(to)) {
+            return;
+        }
+        DimChunkPos from = new DimChunkPos(dim, oldPos.x(), oldPos.z());
+        if (WarForgeMod.FACTIONS.isConqueredWilderness(from)) {
+            return; // already inside conquered land; only notify on the way in
+        }
+        WarForgeMod.notifyPlayer(player, "warforge.entered_conquered", "Conquered Territory",
+                "Reverts to wilderness in " + TimeHelper.formatTime(WarForgeMod.FACTIONS.conqueredRemainingMs(to)),
+                PacketClientNotification.COLOR_WARNING, 6000);
+    }
+
     @SubscribeEvent
     public void OnMobSpawn(PotentialSpawns event) {
         ResourceKey<Level> dim = ((Level) event.getLevel()).dimension();
@@ -443,6 +507,7 @@ public class ProtectionsModule {
 
         if (event.getEntity() instanceof ServerPlayer player) {
             handleWarzoneBoundary(player, event.getOldPos(), event.getNewPos());
+            notifyConqueredEntry(player, event.getOldPos(), event.getNewPos());
             return;
         }
 

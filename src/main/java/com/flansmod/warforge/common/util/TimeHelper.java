@@ -37,6 +37,36 @@ public class TimeHelper {
         );
     }
 
+    // Parses a duration like "30s", "15m", "2h", "1d", or a bare number (treated as seconds) into
+    // milliseconds.
+    public static long parseDurationMs(String input) {
+        if (input == null || input.isEmpty()) {
+            return -1;
+        }
+        String value = input.trim().toLowerCase();
+        long unitMs = 1000L; // default: seconds
+        char last = value.charAt(value.length() - 1);
+        if (!Character.isDigit(last)) {
+            switch (last) {
+                case 's' -> unitMs = 1000L;
+                case 'm' -> unitMs = 60L * 1000L;
+                case 'h' -> unitMs = 60L * 60L * 1000L;
+                case 'd' -> unitMs = 24L * 60L * 60L * 1000L;
+                default -> { return -1; }
+            }
+            value = value.substring(0, value.length() - 1);
+        }
+        try {
+            long amount = Long.parseLong(value.trim());
+            if (amount < 0) {
+                return -1;
+            }
+            return amount * unitMs;
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
     public static String formatTime(long ms) {
         long seconds = ms / 1000;
         long minutes = seconds / 60;
