@@ -124,6 +124,9 @@ public class WarForgeMod implements ILateMixinLoader {
 
 	// Border toggle
     public static boolean showBorders = true;
+
+    public static volatile boolean isDirty = true;
+    private int lastSaveDim = Integer.MIN_VALUE;
     public static TimeHelper timeHelper = new TimeHelper();
 
     public static boolean containsInt(final int[] base, int compare) {
@@ -323,6 +326,7 @@ public class WarForgeMod implements ILateMixinLoader {
         }
 
         if (shouldUpdate) {
+            isDirty = true;
             PacketTimeUpdates packet = new PacketTimeUpdates();
 
             if (!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER)
@@ -357,6 +361,7 @@ public class WarForgeMod implements ILateMixinLoader {
 
         if (event.getEntityLiving() instanceof EntityPlayerMP) {
             FACTIONS.playerDied((EntityPlayerMP) event.getEntityLiving(), event.getSource());
+            isDirty = true;
         }
     }
 
@@ -743,9 +748,13 @@ public class WarForgeMod implements ILateMixinLoader {
 
     @SubscribeEvent
     public void saveEvent(WorldEvent.Save event) {
-        if (!event.getWorld().isRemote) {
+        if (!event.getWorld().isRemote && isDirty) {
             int dimensionID = event.getWorld().provider.getDimension();
-            save("World Save - DIM " + dimensionID);
+            if (dimensionID == 0 || lastSaveDim == Integer.MIN_VALUE) {
+                lastSaveDim = dimensionID;
+                isDirty = false;
+                save("World Save - DIM " + dimensionID);
+            }
         }
     }
 

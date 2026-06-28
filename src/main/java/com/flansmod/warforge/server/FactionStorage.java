@@ -2269,7 +2269,7 @@ public class FactionStorage {
     }
 
     public PacketClaimChunksData createClaimChunksData(EntityPlayerMP player, DimChunkPos center, int radius) {
-        int clampedRadius = Math.max(1, Math.min(radius, WarForgeConfig.CLAIM_MANAGER_RADIUS));
+        int clampedRadius = Math.clamp(radius, 1, WarForgeConfig.CLAIM_MANAGER_RADIUS);
         if (center.dim != player.dimension) {
             center = new DimChunkPos(player.dimension, player.getPosition());
         }
