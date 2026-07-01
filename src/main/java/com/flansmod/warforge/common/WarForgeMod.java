@@ -99,7 +99,6 @@ public class WarForgeMod {
     public static final FactionChunkLoadingManager CHUNK_LOADING_MANAGER = new FactionChunkLoadingManager();
     public static final ServerFlagRegistry FLAG_REGISTRY = new ServerFlagRegistry();
     public static VeinUtils VEIN_HANDLER = null;
-    public static final ModelEventHandler MODEL_EVENT_HANDLER = new ModelEventHandler();
 
     private static final HashMap<String, UUID> discordUserIdMap = new HashMap<>();
 
@@ -126,7 +125,7 @@ public class WarForgeMod {
     public WarForgeMod() {
         INSTANCE = this;
         LOGGER = LogManager.getLogger(Tags.MODID);
-        proxy = DistExecutor.safeRunForDist(
+        proxy = DistExecutor.unsafeRunForDist(
                 () -> ClientProxy::new,
                 () -> CommonProxy::new
         );
@@ -143,10 +142,9 @@ public class WarForgeMod {
         modBus.addListener(this::commonSetup);
         modBus.addListener((ModConfigEvent event) -> WarForgeConfig.bake());
         modBus.addListener(WarForgeCapabilities::register);
-        modBus.register(MODEL_EVENT_HANDLER);
-
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             NAMETAG_CACHE = new PlayerNametagCache(60_000, 200);
+            modBus.register(new ModelEventHandler());
             modBus.addListener(((ClientProxy) proxy)::clientSetup);
             modBus.addListener(((ClientProxy) proxy)::registerRenderers);
             modBus.addListener(((ClientProxy) proxy)::registerKeyMappings);

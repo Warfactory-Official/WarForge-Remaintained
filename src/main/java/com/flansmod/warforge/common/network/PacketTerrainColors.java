@@ -9,6 +9,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +84,7 @@ public class PacketTerrainColors extends PacketBase {
     }
 
     @Override
+    @OnlyIn(Dist.CLIENT)
     public void handleClientSide(Player clientPlayer) {
         for (int i = 0; i < chunkCoords.size(); i++) {
             int[] coord = chunkCoords.get(i);

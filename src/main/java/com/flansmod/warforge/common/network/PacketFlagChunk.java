@@ -4,6 +4,8 @@ import com.flansmod.warforge.client.ClientFlagRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 public class PacketFlagChunk extends PacketBase {
     public String flagId = "";
@@ -41,6 +43,7 @@ public class PacketFlagChunk extends PacketBase {
     }
 
     @Override
+    @OnlyIn(Dist.CLIENT)
     public void handleClientSide(Player clientPlayer) {
         ClientFlagRegistry.receiveCustomFlagChunk(flagId, width, height, partIndex, totalParts, data);
     }

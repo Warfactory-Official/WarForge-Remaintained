@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.client.ClientPacketHandler;
 
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -95,7 +95,7 @@ public class PacketHandler
 							msg.handleServerSide(ctx.getSender());
 						else
 							DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-									() -> () -> msg.handleClientSide(Minecraft.getInstance().player));
+									() -> () -> ClientPacketHandler.handle(msg));
 					});
 					ctx.setPacketHandled(true);
 				});
@@ -189,6 +189,6 @@ public class PacketHandler
 	public void sendToServer(Packet<?> packet)
 	{
 		DistExecutor.unsafeRunWhenOn(Dist.CLIENT,
-				() -> () -> Minecraft.getInstance().getConnection().send(packet));
+				() -> () -> ClientPacketHandler.sendToServer(packet));
 	}
 }

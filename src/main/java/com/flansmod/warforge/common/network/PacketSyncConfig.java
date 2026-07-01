@@ -10,6 +10,8 @@ import net.minecraft.nbt.TagParser;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +35,7 @@ public class PacketSyncConfig extends PacketBase {
     }
 
     @Override
+    @OnlyIn(Dist.CLIENT)
     public void handleClientSide(Player clientPlayer) {
         CompoundTag compound;
         try {

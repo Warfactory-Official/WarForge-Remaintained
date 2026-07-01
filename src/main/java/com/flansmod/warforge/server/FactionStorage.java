@@ -3010,6 +3010,10 @@ public class FactionStorage {
         ListTag list = tags.getList("factions", Tag.TAG_COMPOUND);
         for (Tag baseTag : list) {
             CompoundTag factionTags = ((CompoundTag) baseTag);
+            if (!factionTags.hasUUID("id")) {
+                WarForgeMod.LOGGER.warn("Skipping faction entry with missing/invalid id while loading warforgefactions.dat");
+                continue;
+            }
             UUID uuid = factionTags.getUUID("id");
             Faction faction;
 

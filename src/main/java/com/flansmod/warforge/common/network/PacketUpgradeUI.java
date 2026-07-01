@@ -7,6 +7,8 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.api.distmarker.OnlyIn;
 
 import java.util.UUID;
 
@@ -42,6 +44,7 @@ public class PacketUpgradeUI extends PacketBase {
     }
 
     @Override
+    @OnlyIn(Dist.CLIENT)
     public void handleClientSide(Player clientPlayer) {
         ClientGUI.open(GUIUpgradePanel.createGui(
                 mFactionID,
