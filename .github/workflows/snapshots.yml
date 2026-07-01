@@ -43,10 +43,8 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x ./gradlew
 
-      # Same task the version-tagged releases use, so the snapshot jar is the
-      # reobfuscated release build.
       - name: Build
-        run: ./gradlew releaseBuild --no-daemon --stacktrace
+        run: ./gradlew build --no-daemon --stacktrace
 
       - name: Locate snapshot jar
         id: jar
