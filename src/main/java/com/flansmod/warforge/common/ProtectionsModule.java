@@ -306,17 +306,16 @@ public class ProtectionsModule {
         DimBlockPos pos = new DimBlockPos(eventEntity.level().dimension(), event.getPos());
         ProtectionConfig config = GetProtections(eventEntity.getUUID(), pos);
 
+        if (placeDenied(config, placedBlock))
+            event.setCanceled(true);
+    }
+
+    // Mirrors the territory place rules: true when protection forbids placing this block here.
+    public static boolean placeDenied(ProtectionConfig config, Block block) {
         if (!config.PLACE_BLOCKS) {
-            if (!config.BLOCK_PLACE_WHITELIST.contains(placedBlock)) {
-                //WarForgeMod.LOGGER.info("Cancelled block placement event");
-                event.setCanceled(true);
-            }
-        } else {
-            if (config.BLOCK_PLACE_BLACKLIST.contains(placedBlock)) {
-                //WarForgeMod.LOGGER.info("Cancelled block placement event");
-                event.setCanceled(true);
-            }
+            return !config.BLOCK_PLACE_WHITELIST.contains(block);
         }
+        return config.BLOCK_PLACE_BLACKLIST.contains(block);
     }
 
     @SubscribeEvent

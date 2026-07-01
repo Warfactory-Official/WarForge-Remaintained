@@ -852,20 +852,19 @@ public class WarForgeConfig {
         compoundNBT.putInt("jmClaimMode", JOURNEYMAP_CLAIM_MODE);
         compoundNBT.putInt("jmVeinMode", JOURNEYMAP_VEIN_MODE);
 
-        // The break rules + per-zone MineTime settings of the client-determinable zones, so the client
-        // can mirror breakDenied()/MineTime.resolve() and predict the slow-down (no rubber-banding).
+        // The break/place rules + per-zone MineTime settings of the client-determinable zones
         CompoundTag zones = new CompoundTag();
-        zones.put("unclaimed", UNCLAIMED.writeBreakSync());
-        zones.put("safe", SAFE_ZONE.writeBreakSync());
-        zones.put("war", WAR_ZONE.writeBreakSync());
-        zones.put("citadelFriend", CITADEL_FRIEND.writeBreakSync());
-        zones.put("citadelFoe", CITADEL_FOE.writeBreakSync());
-        zones.put("claimFriend", CLAIM_FRIEND.writeBreakSync());
-        zones.put("claimFoe", CLAIM_FOE.writeBreakSync());
-        zones.put("siegedFriend", SIEGED_FRIEND.writeBreakSync());
-        zones.put("siegedFoe", SIEGED_FOE.writeBreakSync());
-        zones.put("warFriend", WAR_FRIEND.writeBreakSync());
-        zones.put("warFoe", WAR_FOE.writeBreakSync());
+        zones.put("unclaimed", UNCLAIMED.writeProtectionSync());
+        zones.put("safe", SAFE_ZONE.writeProtectionSync());
+        zones.put("war", WAR_ZONE.writeProtectionSync());
+        zones.put("citadelFriend", CITADEL_FRIEND.writeProtectionSync());
+        zones.put("citadelFoe", CITADEL_FOE.writeProtectionSync());
+        zones.put("claimFriend", CLAIM_FRIEND.writeProtectionSync());
+        zones.put("claimFoe", CLAIM_FOE.writeProtectionSync());
+        zones.put("siegedFriend", SIEGED_FRIEND.writeProtectionSync());
+        zones.put("siegedFoe", SIEGED_FOE.writeProtectionSync());
+        zones.put("warFriend", WAR_FRIEND.writeProtectionSync());
+        zones.put("warFoe", WAR_FOE.writeProtectionSync());
         compoundNBT.put("protectionZones", zones);
 
         packet.configNBT = compoundNBT.toString();
@@ -1023,14 +1022,18 @@ public class WarForgeConfig {
             return output;
         }
 
-        // Serialises only the break-relevant subset for the config-sync packet, so the client can run
-        // the same breakDenied() check locally and predict MineTime slow-downs without rubber-banding.
-        public CompoundTag writeBreakSync() {
+        // Serialises the break/place-relevant subset for the config-sync packet, so the client can run
+        // the same breakDenied()/placeDenied() checks locally and predict MineTime slow-downs and denied
+        // placements without rubber-banding.
+        public CompoundTag writeProtectionSync() {
             CompoundTag tag = new CompoundTag();
             tag.putBoolean("break", BREAK_BLOCKS);
             tag.putBoolean("removal", BLOCK_REMOVAL);
             tag.putString("bw", String.join("\n", BLOCK_BREAK_WHITELIST_IDS));
             tag.putString("bb", String.join("\n", BLOCK_BREAK_BLACKLIST_IDS));
+            tag.putBoolean("place", PLACE_BLOCKS);
+            tag.putString("pw", String.join("\n", BLOCK_PLACE_WHITELIST_IDS));
+            tag.putString("pb", String.join("\n", BLOCK_PLACE_BLACKLIST_IDS));
             tag.putBoolean("mtEnabled", MINETIME_ENABLED);
             tag.putString("mtMode", MINETIME_MODE);
             tag.putDouble("mtValue", MINETIME_VALUE);
@@ -1039,7 +1042,7 @@ public class WarForgeConfig {
             return tag;
         }
 
-        public void readBreakSync(CompoundTag tag) {
+        public void readProtectionSync(CompoundTag tag) {
             BREAK_BLOCKS = tag.getBoolean("break");
             BLOCK_REMOVAL = tag.getBoolean("removal");
             String bw = tag.getString("bw");
@@ -1048,6 +1051,14 @@ public class WarForgeConfig {
             BLOCK_BREAK_BLACKLIST_IDS = bb.isEmpty() ? new String[0] : bb.split("\n");
             BLOCK_BREAK_WHITELIST = findBlocks(BLOCK_BREAK_WHITELIST_IDS);
             BLOCK_BREAK_BLACKLIST = findBlocks(BLOCK_BREAK_BLACKLIST_IDS);
+
+            PLACE_BLOCKS = tag.getBoolean("place");
+            String pw = tag.getString("pw");
+            String pb = tag.getString("pb");
+            BLOCK_PLACE_WHITELIST_IDS = pw.isEmpty() ? new String[0] : pw.split("\n");
+            BLOCK_PLACE_BLACKLIST_IDS = pb.isEmpty() ? new String[0] : pb.split("\n");
+            BLOCK_PLACE_WHITELIST = findBlocks(BLOCK_PLACE_WHITELIST_IDS);
+            BLOCK_PLACE_BLACKLIST = findBlocks(BLOCK_PLACE_BLACKLIST_IDS);
 
             MINETIME_ENABLED = tag.getBoolean("mtEnabled");
             MINETIME_MODE = tag.getString("mtMode");

@@ -101,20 +101,20 @@ public class PacketSyncConfig extends PacketBase {
         WarForgeConfig.JOURNEYMAP_CLAIM_MODE = compound.getInt("jmClaimMode");
         WarForgeConfig.JOURNEYMAP_VEIN_MODE = compound.getInt("jmVeinMode");
 
-        // Per-zone break rules + MineTime settings (server-authoritative values for prediction).
+        // Per-zone break/place rules + MineTime settings (server-authoritative values for prediction).
         if (compound.contains("protectionZones")) {
             CompoundTag zones = compound.getCompound("protectionZones");
-            WarForgeConfig.UNCLAIMED.readBreakSync(zones.getCompound("unclaimed"));
-            WarForgeConfig.SAFE_ZONE.readBreakSync(zones.getCompound("safe"));
-            WarForgeConfig.WAR_ZONE.readBreakSync(zones.getCompound("war"));
-            WarForgeConfig.CITADEL_FRIEND.readBreakSync(zones.getCompound("citadelFriend"));
-            WarForgeConfig.CITADEL_FOE.readBreakSync(zones.getCompound("citadelFoe"));
-            WarForgeConfig.CLAIM_FRIEND.readBreakSync(zones.getCompound("claimFriend"));
-            WarForgeConfig.CLAIM_FOE.readBreakSync(zones.getCompound("claimFoe"));
-            WarForgeConfig.SIEGED_FRIEND.readBreakSync(zones.getCompound("siegedFriend"));
-            WarForgeConfig.SIEGED_FOE.readBreakSync(zones.getCompound("siegedFoe"));
-            WarForgeConfig.WAR_FRIEND.readBreakSync(zones.getCompound("warFriend"));
-            WarForgeConfig.WAR_FOE.readBreakSync(zones.getCompound("warFoe"));
+            WarForgeConfig.UNCLAIMED.readProtectionSync(zones.getCompound("unclaimed"));
+            WarForgeConfig.SAFE_ZONE.readProtectionSync(zones.getCompound("safe"));
+            WarForgeConfig.WAR_ZONE.readProtectionSync(zones.getCompound("war"));
+            WarForgeConfig.CITADEL_FRIEND.readProtectionSync(zones.getCompound("citadelFriend"));
+            WarForgeConfig.CITADEL_FOE.readProtectionSync(zones.getCompound("citadelFoe"));
+            WarForgeConfig.CLAIM_FRIEND.readProtectionSync(zones.getCompound("claimFriend"));
+            WarForgeConfig.CLAIM_FOE.readProtectionSync(zones.getCompound("claimFoe"));
+            WarForgeConfig.SIEGED_FRIEND.readProtectionSync(zones.getCompound("siegedFriend"));
+            WarForgeConfig.SIEGED_FOE.readProtectionSync(zones.getCompound("siegedFoe"));
+            WarForgeConfig.WAR_FRIEND.readProtectionSync(zones.getCompound("warFriend"));
+            WarForgeConfig.WAR_FOE.readProtectionSync(zones.getCompound("warFoe"));
         }
         // Each connection starts from a clean slate; the server re-sends whatever this client is allowed to see.
         JourneyMapClaimCache.applyClear();
