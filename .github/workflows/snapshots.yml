@@ -1,0 +1,85 @@
+name: Snapshots
+
+# The 1.20.1 modpack tracks WarForge's `port/1.20.1` branch (the only branch that
+# matters here). On every push to it this builds the current mod and publishes a
+# rolling `snapshots` prerelease, then directly pings warfactory-lite to rebuild.
+#
+# The modpack dispatch is folded into this job on purpose: a standalone
+# `release: published` workflow only runs from the repo's DEFAULT branch, and the
+# 1.20.1 work lives on `port/1.20.1`, so relying on the release event would never
+# fire. Doing the dispatch here keeps it tied to the branch that matters.
+#
+# Previously WarForge only produced version-tagged releases (GitHub's newest was a
+# stale v2.0.0 while `port/1.20.1` had advanced), so the modpack's `pakku --gh`
+# was pinned to an old build. `pakku --gh` selects the newest release by date
+# (prereleases included) and its main reobf jar, so this snapshot supersedes it.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ port/1.20.1 ]
+
+concurrency:
+  group: snapshots
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: graalvm
+          java-version: '25'
+          cache: gradle
+
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
+      # Same task the version-tagged releases use, so the snapshot jar is the
+      # reobfuscated release build.
+      - name: Build
+        run: ./gradlew releaseBuild --no-daemon --stacktrace
+
+      - name: Locate snapshot jar
+        id: jar
+        run: |
+          JAR=$(find build/libs -maxdepth 1 -name '*.jar' \
+            ! -name '*-dev.jar' ! -name '*-sources.jar' ! -name '*-slim.jar' | head -n1)
+          if [ -z "$JAR" ]; then echo "::error::No publishable jar in build/libs"; exit 1; fi
+          echo "Found: $JAR"
+          echo "path=$JAR" >> "$GITHUB_OUTPUT"
+
+      - name: Publish rolling snapshot release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete snapshots --yes --cleanup-tag || true
+          gh release create snapshots "${{ steps.jar.outputs.path }}" \
+            --target "$GITHUB_SHA" \
+            --title "Snapshots" \
+            --notes "Rolling snapshot build of \`${GITHUB_REF_NAME}\` @ ${GITHUB_SHA}." \
+            --prerelease
+
+      - name: Trigger warfactory-lite rebuild
+        env:
+          TOKEN: ${{ secrets.MODPACK_DISPATCH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::MODPACK_DISPATCH_TOKEN not set - skipping modpack rebuild trigger"
+            exit 0
+          fi
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/Warfactory-Official/warfactory-lite/dispatches \
+            -d "{\"event_type\":\"wf-mod-updated\",\"client_payload\":{\"repo\":\"${GITHUB_REPOSITORY}\",\"tag\":\"snapshots\",\"ref\":\"${GITHUB_REF_NAME}\"}}"
+          echo "Dispatched wf-mod-updated to warfactory-lite"
