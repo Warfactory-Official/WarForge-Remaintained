@@ -38,7 +38,7 @@ public class PacketRemoveClaim extends PacketBase
 	@Override
 	public void decodeInto(FriendlyByteBuf data)
 	{
-		ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+		ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
 		int x = data.readInt();
 		int y = data.readInt();
 		int z = data.readInt();
@@ -48,6 +48,11 @@ public class PacketRemoveClaim extends PacketBase
 	@Override
 	public void handleServerSide(ServerPlayer playerEntity)
 	{
+		// Sent from the claim/siege-camp block GUI, so the player is always standing at the claim.
+		// requestRemoveClaim then checks officer rank in the owning faction.
+		if (!PacketSecurity.requireChunkInClaimRange(playerEntity, pos == null ? null : pos.toChunkPos(), "remove claim"))
+			return;
+
 		WarForgeMod.FACTIONS.requestRemoveClaim(playerEntity, pos);
 	}
 

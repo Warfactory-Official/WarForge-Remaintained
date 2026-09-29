@@ -65,7 +65,7 @@ public class PacketSiegeCampProgressUpdate extends PacketBase
 	{
 		info = new SiegeCampProgressInfo();
 
-		ResourceKey<Level> attackingDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+		ResourceKey<Level> attackingDim = PacketSecurity.readDimOrOverworld(data);
 		int x = data.readInt();
 		int y = data.readInt();
 		int z = data.readInt();
@@ -73,7 +73,7 @@ public class PacketSiegeCampProgressUpdate extends PacketBase
 		info.attackingColour = data.readInt();
 		info.attackingName = readUTF(data);
 
-		ResourceKey<Level> defendingDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+		ResourceKey<Level> defendingDim = PacketSecurity.readDimOrOverworld(data);
 		x = data.readInt();
 		y = data.readInt();
 		z = data.readInt();

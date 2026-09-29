@@ -35,7 +35,7 @@ public class PacketRequestLeaderboardInfo extends PacketBase
 	public void decodeInto(FriendlyByteBuf data)
 	{
 		firstIndex = data.readInt();
-		stat = FactionStat.values()[data.readInt()];
+		stat = PacketSecurity.readEnumInt(data, FactionStat.values(), FactionStat.TOTAL);
 	}
 
 	@Override

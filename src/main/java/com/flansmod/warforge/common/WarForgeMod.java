@@ -11,6 +11,8 @@ import com.flansmod.warforge.client.WarForgeClientInit;
 import com.flansmod.warforge.client.PlayerNametagCache;
 import com.flansmod.warforge.common.factories.WarForgeGuiFactories;
 import com.flansmod.warforge.common.blocks.BlockBasicClaim;
+import com.flansmod.warforge.common.blocks.BlockFob;
+import com.flansmod.warforge.common.blocks.TileEntityFob;
 import com.flansmod.warforge.common.blocks.IMultiBlockInit;
 import com.flansmod.warforge.common.blocks.TileEntityClaim;
 import com.flansmod.warforge.common.network.*;
@@ -33,6 +35,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -139,6 +142,7 @@ public class WarForgeMod {
     public static long graceClock() { return getTime(WarForgeConfig.TICK_SIEGE_GRACE); }
     public static long citadelMoveClock() { return getTime(WarForgeConfig.TICK_CITADEL_MOVE); }
     public static long truceClock() { return getTime(WarForgeConfig.TICK_TRUCES); }
+    public static long factionRejoinClock() { return getTime(WarForgeConfig.TICK_FACTION_REJOIN); }
 
     public static boolean showBorders = true;
     public static TimeHelper timeHelper = new TimeHelper();
@@ -429,6 +433,8 @@ public class WarForgeMod {
             FACTIONS.updateSiegeTimers();
         }
 
+        FACTIONS.tickSiegeInfoHeartbeat();
+
         long yieldDayLength = TimeHelper.getYieldDayLengthMs();
         long yieldDayNumber = (yieldClock() - timestampOfFirstDay) / yieldDayLength;
 
@@ -452,6 +458,25 @@ public class WarForgeMod {
 
             NETWORK.sendToAll(packet);
         }
+    }
+
+
+    @SubscribeEvent
+    public void fobPickupInteract(RightClickBlock event) {
+        Level level = event.getLevel();
+        if (level.isClientSide || event.getHand() != InteractionHand.MAIN_HAND) {
+            return;
+        }
+        Player player = event.getEntity();
+        if (!player.isSecondaryUseActive()) {
+            return;
+        }
+        if (!(level.getBlockState(event.getPos()).getBlock() instanceof BlockFob)
+                || !(level.getBlockEntity(event.getPos()) instanceof TileEntityFob fobTe)) {
+            return;
+        }
+        event.setCanceled(true);
+        BlockFob.tryPickUp(level, event.getPos(), player, fobTe);
     }
 
     @SubscribeEvent
@@ -738,6 +763,7 @@ public class WarForgeMod {
             FACTIONS.onFactionMemberLoggedOut(player.getUUID());
             JOURNEYMAP_SYNC.onPlayerLogout(player);
             JOURNEYMAP_VEIN_SYNC.onPlayerLogout(player);
+            com.flansmod.warforge.common.network.PacketSecurity.forget(player.getUUID());
         }
     }
 

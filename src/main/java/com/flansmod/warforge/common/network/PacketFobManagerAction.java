@@ -47,16 +47,15 @@ public class PacketFobManagerAction extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        int actionOrd = Byte.toUnsignedInt(data.readByte());
-        action = actionOrd < Action.values().length ? Action.values()[actionOrd] : Action.values()[0];
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data, 256)));
+        action = PacketSecurity.readEnum(data, Action.values(), Action.WARP);
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
         target = new DimBlockPos(dim, x, y, z);
         name = readUTF(data, 32);
-        int pageOrd = Byte.toUnsignedInt(data.readByte());
-        page = pageOrd < FactionMemberManagerGuiData.Page.values().length ? FactionMemberManagerGuiData.Page.values()[pageOrd] : FactionMemberManagerGuiData.Page.values()[0];
+        page = PacketSecurity.readEnum(data, FactionMemberManagerGuiData.Page.values(),
+                FactionMemberManagerGuiData.Page.ALLIANCES);
     }
 
     @Override
@@ -68,6 +67,12 @@ public class PacketFobManagerAction extends PacketBase {
     }
 
     private boolean handleEstablish(ServerPlayer playerEntity) {
+        // Same rule as PacketEstablishFob: this comes from the FOB block's GUI, and the lookup below
+        // used the player's own level while ignoring target.dim.
+        if (!PacketSecurity.requireReach(playerEntity, target, "establish FOB")) {
+            return false;
+        }
+
         if (name == null || name.trim().isEmpty()) {
             return false;
         }
@@ -85,9 +90,9 @@ public class PacketFobManagerAction extends PacketBase {
             return false;
         }
 
-        BlockEntity te = playerEntity.level().getBlockEntity(target.toRegularPos());
-        if (te instanceof TileEntityFob) {
-            WarForgeMod.FOBS.requestCreateFob((TileEntityFob) te, playerEntity, name);
+        TileEntityFob te = PacketSecurity.blockEntityAt(playerEntity, target, TileEntityFob.class, "establish FOB");
+        if (te != null) {
+            WarForgeMod.FOBS.requestCreateFob(te, playerEntity, name);
             return true;
         }
         return false;

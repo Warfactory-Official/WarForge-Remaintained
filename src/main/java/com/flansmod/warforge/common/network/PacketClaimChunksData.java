@@ -75,9 +75,12 @@ public class PacketClaimChunksData extends PacketBase {
         }
     }
 
+    /** The outline sync is the widest window the server ever serves: (2 * 48 + 1)^2. */
+    private static final int MAX_CHUNKS = 9409;
+
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        dim = PacketSecurity.readDimOrOverworld(data);
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
@@ -89,20 +92,21 @@ public class PacketClaimChunksData extends PacketBase {
         claimMax = data.readShort();
 
         chunks.clear();
-        int size = data.readShort();
+        int size = PacketSecurity.clampCount(data.readShort(), MAX_CHUNKS);
         for (int i = 0; i < size; i++) {
             ClaimChunkInfo info = new ClaimChunkInfo();
             info.x = data.readInt();
             info.z = data.readInt();
             info.factionId = readUUID(data);
-            info.factionName = readUTF(data);
-            info.flagId = readUTF(data);
+            info.factionName = readUTF(data, PacketSecurity.MAX_NAME);
+            info.flagId = readUTF(data, PacketSecurity.MAX_FLAG_ID);
             info.colour = data.readInt();
-            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data));
+            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
             short veinId = data.readShort();
             info.vein = veinId < 0 ? null : ClientProxy.VEIN_ENTRIES.get(veinId);
             int qualityOrdinal = data.readByte();
-            info.oreQuality = qualityOrdinal < 0 ? null : Quality.values()[qualityOrdinal];
+            info.oreQuality = (qualityOrdinal < 0 || qualityOrdinal >= Quality.values().length)
+                    ? null : Quality.values()[qualityOrdinal];
             info.flags = data.readByte();
             info.outlineFactionId = readUUID(data);
             info.outlineColour = data.readInt();

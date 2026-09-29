@@ -40,7 +40,7 @@ public class PacketEstablishFob extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data, 256)));
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
@@ -50,8 +50,8 @@ public class PacketEstablishFob extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        if (!playerEntity.level().dimension().equals(mPos.dim)) {
-            WarForgeMod.LOGGER.error("Player requested establishing a FOB in the wrong dim");
+        // Establishing a FOB is driven from the FOB block's own GUI, so the officer is standing at it.
+        if (!PacketSecurity.requireReach(playerEntity, mPos, "establish FOB")) {
             return;
         }
 
@@ -72,9 +72,9 @@ public class PacketEstablishFob extends PacketBase {
             return;
         }
 
-        BlockEntity te = playerEntity.level().getBlockEntity(mPos.toRegularPos());
-        if (te instanceof TileEntityFob) {
-            WarForgeMod.FOBS.requestCreateFob((TileEntityFob) te, playerEntity, mName);
+        TileEntityFob te = PacketSecurity.blockEntityAt(playerEntity, mPos, TileEntityFob.class, "establish FOB");
+        if (te != null) {
+            WarForgeMod.FOBS.requestCreateFob(te, playerEntity, mName);
         }
     }
 

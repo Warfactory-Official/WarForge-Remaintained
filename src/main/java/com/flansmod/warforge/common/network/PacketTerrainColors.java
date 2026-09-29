@@ -61,13 +61,16 @@ public class PacketTerrainColors extends PacketBase {
         }
     }
 
+    /** (2 * 12 + 1)^2 with 12 the configurable ceiling on the claim-manager radius. */
+    private static final int MAX_CHUNKS = 625;
+
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        dim = PacketSecurity.readDimOrOverworld(data);
         centerX = data.readInt();
         centerZ = data.readInt();
         radius = data.readByte();
-        int count = data.readInt();
+        int count = PacketSecurity.readCount(data, MAX_CHUNKS);
         for (int i = 0; i < count; i++) {
             int cx = data.readInt();
             int cz = data.readInt();

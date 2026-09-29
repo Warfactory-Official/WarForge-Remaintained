@@ -41,37 +41,35 @@ public class PacketCreateFaction extends PacketBase
 		data.writeInt(mCitadelPos.getY());
 		data.writeInt(mCitadelPos.getZ());
 		data.writeInt(mColour);
-		writeUTF(data, mFactionName);
+		writeUTF(data, mFactionName, PacketSecurity.MAX_NAME);
 	}
 
 	@Override
 	public void decodeInto(FriendlyByteBuf data)
 	{
-		ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data)));
+		ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
 		int x = data.readInt();
 		int y = data.readInt();
 		int z = data.readInt();
 		mCitadelPos = new DimBlockPos(dim, x, y, z);
 		mColour = data.readInt();
-		mFactionName = readUTF(data);
+		mFactionName = readUTF(data, PacketSecurity.MAX_NAME);
 	}
 
 	@Override
 	public void handleServerSide(ServerPlayer playerEntity)
 	{
-		if(!playerEntity.level().dimension().equals(mCitadelPos.dim))
-		{
-			WarForgeMod.LOGGER.warn("Player requested creating a faction in the wrong dim");
-			playerEntity.sendSystemMessage(Component.literal("You must be in the same dimension as the citadel to create a faction."));
-		}
-		else
-		{
-			BlockEntity te = playerEntity.level().getBlockEntity(mCitadelPos.toRegularPos());
-			if(te instanceof TileEntityCitadel)
-			{
-				WarForgeMod.FACTIONS.requestCreateFaction((TileEntityCitadel)te, playerEntity, mFactionName, mColour);
-			}
-		}
+		// The create-faction GUI only opens when the player is standing at the citadel they placed,
+		// so require the same here rather than trusting a position the client picked.
+		if(!PacketSecurity.requireReach(playerEntity, mCitadelPos, "create faction"))
+			return;
+
+		TileEntityCitadel citadel = PacketSecurity.blockEntityAt(playerEntity, mCitadelPos, TileEntityCitadel.class, "create faction");
+		if(citadel == null)
+			return;
+
+		// requestCreateFaction owns the rest: citadel unowned, chunk unclaimed, caller is the placer.
+		WarForgeMod.FACTIONS.requestCreateFaction(citadel, playerEntity, mFactionName, mColour & 0xffffff);
 	}
 
 	@Override

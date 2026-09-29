@@ -38,13 +38,19 @@ public class PacketMoveCitadel extends PacketBase
 	@Override
 	public void decodeInto(FriendlyByteBuf data)
 	{
-		ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+		ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
 		pos = new DimBlockPos(dim, data.readInt(), data.readInt(), data.readInt());
 	}
 
 	@Override
 	public void handleServerSide(ServerPlayer player)
 	{
+		// The GUI's "Move Citadel" button sends an empty packet to prompt the player to look at a
+		// block; requestMoveCitadel answers that with an instruction message. A real destination is
+		// ray-picked within 10 blocks, so anything further away did not come from the client UI.
+		if (!pos.equals(DimBlockPos.ZERO) && !PacketSecurity.requireReach(player, pos, "move citadel"))
+			return;
+
 		WarForgeMod.FACTIONS.requestMoveCitadel(player, pos);
 	}
 

@@ -51,7 +51,7 @@ public class PacketChunkPosVeinID extends PacketBase {
     @Override
     public void decodeInto(FriendlyByteBuf data) {
         try {
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+            ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
             veinLocation = new DimChunkPos(dim, data.readInt(), data.readInt());
             resultInfo = data.readShort();
         } catch (Exception exception) {
@@ -64,7 +64,7 @@ public class PacketChunkPosVeinID extends PacketBase {
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
         if (veinLocation == null) {
-            WarForgeMod.LOGGER.atError().log("Decoded ChunkPosVeinID packet without position; ignoring packet.");
+            PacketSecurity.violation(playerEntity, "vein query with no position");
             return;
         }
 

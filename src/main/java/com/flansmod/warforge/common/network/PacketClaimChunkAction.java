@@ -47,16 +47,34 @@ public class PacketClaimChunkAction extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> chunkDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> chunkDim = PacketSecurity.readDimOrOverworld(data);
         chunk = new DimChunkPos(chunkDim, data.readInt(), data.readInt());
         action = data.readByte();
-        ResourceKey<Level> centerDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> centerDim = PacketSecurity.readDimOrOverworld(data);
         center = new DimChunkPos(centerDim, data.readInt(), data.readInt());
         radius = data.readByte();
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
+        // These three all mutate faction land, and the claim-manager UI can only ever target a chunk
+        // inside the window it draws around the player. Enforce that window here so a crafted packet
+        // can't claim, unclaim or force-load land on the other side of the world (or another
+        // dimension) - FactionStorage's own checks are about rank and limits, not about location.
+        String label = switch (action) {
+            case ACTION_CLAIM -> "claim chunk";
+            case ACTION_UNCLAIM -> "unclaim chunk";
+            case ACTION_TOGGLE_FORCELOAD -> "toggle force-load";
+            default -> null;
+        };
+        if (label == null) {
+            PacketSecurity.violation(playerEntity, "unknown claim action " + action);
+            return;
+        }
+        if (!PacketSecurity.requireChunkInClaimRange(playerEntity, chunk, label)) {
+            return;
+        }
+
         switch (action) {
             case ACTION_CLAIM:
                 WarForgeMod.FACTIONS.requestClaimChunkNoTile(playerEntity, chunk);

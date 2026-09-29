@@ -99,7 +99,7 @@ public class PacketOperationsData extends PacketBase {
         int fobCount = data.readShort();
         for (int i = 0; i < fobCount; i++) {
             OperationsGuiData.FobEntry fob = new OperationsGuiData.FobEntry();
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data)));
+            ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
             int x = data.readInt();
             int y = data.readInt();
             int z = data.readInt();

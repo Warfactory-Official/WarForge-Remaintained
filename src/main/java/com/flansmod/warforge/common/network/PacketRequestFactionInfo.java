@@ -30,14 +30,14 @@ public class PacketRequestFactionInfo extends PacketBase
 	public void encodeInto(FriendlyByteBuf data)
 	{
 		writeUUID(data, mFactionIDRequest);
-		writeUTF(data, mFactionNameRequest);
+		writeUTF(data, mFactionNameRequest, PacketSecurity.MAX_NAME);
 	}
 
 	@Override
 	public void decodeInto(FriendlyByteBuf data)
 	{
 		mFactionIDRequest = readUUID(data);
-		mFactionNameRequest = readUTF(data);
+		mFactionNameRequest = readUTF(data, PacketSecurity.MAX_NAME);
 	}
 
 	@Override
@@ -60,7 +60,7 @@ public class PacketRequestFactionInfo extends PacketBase
 		if(faction != null)
 		{
 			PacketFactionInfo packet = new PacketFactionInfo();
-			packet.info = faction.createInfo();
+			packet.info = faction.createInfo(playerEntity.getUUID());
 			WarForgeMod.NETWORK.sendTo(packet, playerEntity);
 		}
 		else

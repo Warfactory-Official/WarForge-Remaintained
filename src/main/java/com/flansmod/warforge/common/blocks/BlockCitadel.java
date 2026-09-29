@@ -247,7 +247,7 @@ public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMult
                         Faction f = WarForgeMod.FACTIONS.getFaction(citadel.getFaction());
                         if (f != null) {
                             PacketFactionInfo packet = new PacketFactionInfo();
-                            packet.info = f.createInfo();
+                            packet.info = f.createInfo(sp.getUUID());
                             WarForgeMod.NETWORK.sendTo(packet, sp);
                         }
                     }

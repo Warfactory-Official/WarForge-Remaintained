@@ -40,7 +40,7 @@ public class PacketStartSiege extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
@@ -52,6 +52,11 @@ public class PacketStartSiege extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
+        // The siege camp GUI is opened by clicking the camp, so the officer is standing at it.
+        // requestStartSiege validates the direction, rank, cooldown and camp ownership from there.
+        if (!PacketSecurity.requireReach(playerEntity, mSiegeCampPos, "start siege"))
+            return;
+
         WarForgeMod.FACTIONS.requestStartSiege(playerEntity, mSiegeCampPos, mOffset);
     }
 

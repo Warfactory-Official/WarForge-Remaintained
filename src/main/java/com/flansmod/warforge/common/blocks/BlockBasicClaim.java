@@ -151,7 +151,7 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
                 Faction citadelFaction = FACTIONS.getFaction(claimTE.factionUUID);
                 if (citadelFaction != null) {
                     PacketFactionInfo packet = new PacketFactionInfo();
-                    packet.info = citadelFaction.createInfo();
+                    packet.info = citadelFaction.createInfo(((ServerPlayer) player).getUUID());
                     WarForgeMod.NETWORK.sendTo(packet, (ServerPlayer) player);
                 } else {
                     player.sendSystemMessage(Component.literal("This claim has no faction."));
@@ -203,7 +203,7 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
                     Faction faction = WarForgeMod.FACTIONS.getFaction(claim.getFaction());
                     if (faction != null) {
                         PacketFactionInfo packet = new PacketFactionInfo();
-                        packet.info = faction.createInfo();
+                        packet.info = faction.createInfo(sp.getUUID());
                         WarForgeMod.NETWORK.sendTo(packet, sp);
                     }
                 }

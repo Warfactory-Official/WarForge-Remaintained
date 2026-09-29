@@ -36,7 +36,7 @@ public class PacketRequestTerrainColors extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         center = new DimChunkPos(dim, data.readInt(), data.readInt());
         radius = data.readByte();
     }

@@ -79,17 +79,20 @@ public class PacketJourneyMapClaims extends PacketBase {
         }
     }
 
+    /** Each entry costs at least 12 bytes on the wire; well past any real sync batch. */
+    private static final int MAX_ENTRIES = 1 << 16;
+
     @Override
     public void decodeInto(FriendlyByteBuf data) {
         clear = data.readBoolean();
-        int setCount = data.readInt();
+        int setCount = PacketSecurity.readCount(data, MAX_ENTRIES);
         for (int i = 0; i < setCount; i++) {
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+            ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
             sets.add(new Set(dim, data.readInt(), data.readInt(), data.readInt()));
         }
-        int removeCount = data.readInt();
+        int removeCount = PacketSecurity.readCount(data, MAX_ENTRIES);
         for (int i = 0; i < removeCount; i++) {
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+            ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
             removes.add(new Remove(dim, data.readInt(), data.readInt()));
         }
     }

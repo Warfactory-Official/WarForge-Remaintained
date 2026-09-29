@@ -37,7 +37,7 @@ public class PacketOpenCreateFaction extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data)));
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();

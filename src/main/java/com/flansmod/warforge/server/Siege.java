@@ -66,6 +66,7 @@ public class Siege {
     private int attackerAbsenceTicks = 0;
     private int mStallMultiplier = 1;
     private final HashSet<UUID> presentAttackers = new HashSet<>();
+    private Boolean forcedAttackerVictory = null;
 
     public Siege() {
         attackingCamps = new ArrayList<>(4);
@@ -170,8 +171,9 @@ public class Siege {
         return -mAttackProgress;
     }
 
+
     public int GetAttackSuccessThreshold() {
-        return mBaseDifficulty + mExtraDifficulty;
+        return Math.max(1, mBaseDifficulty + mExtraDifficulty);
     }
 
     public int GetDefenceThreshold() {
@@ -179,7 +181,17 @@ public class Siege {
     }
 
     public boolean isCompleted() {
-        return GetAttackProgress() >= GetAttackSuccessThreshold() || GetDefenceProgress() >= GetDefenceThreshold();
+        return hasForcedOutcome()
+                || GetAttackProgress() >= GetAttackSuccessThreshold()
+                || GetDefenceProgress() >= GetDefenceThreshold();
+    }
+
+    public void forceOutcome(boolean attackersWin) {
+        forcedAttackerVictory = attackersWin;
+    }
+
+    public boolean hasForcedOutcome() {
+        return forcedAttackerVictory != null;
     }
 
     public Set<DimChunkPos> getDefenderSiegedIsland() {
@@ -226,6 +238,9 @@ public class Siege {
     }
 
     public boolean WasSuccessful() {
+        if (forcedAttackerVictory != null) {
+            return forcedAttackerVictory;
+        }
         return GetAttackProgress() >= GetAttackSuccessThreshold();
     }
 
@@ -235,6 +250,11 @@ public class Siege {
 
         if (attackers == null || defenders == null) {
             WarForgeMod.LOGGER.error("Invalid factions in siege. Can't display info");
+            return null;
+        }
+
+        if (attackingCamps.isEmpty() || attackingCamps.get(0) == null) {
+            WarForgeMod.LOGGER.error("Siege on {} has no anchor camp. Can't display info", defendingClaim);
             return null;
         }
 

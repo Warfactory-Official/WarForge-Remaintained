@@ -26,6 +26,9 @@ public class PacketFlagChunk extends PacketBase {
     public int totalParts;
     public byte[] data = new byte[0];
 
+    /** Flag images are shipped in chunks well under the vanilla custom-payload size limit. */
+    private static final int MAX_CHUNK_BYTES = 1 << 20;
+
     @Override
     public void encodeInto(FriendlyByteBuf out) {
         writeUTF(out, flagId);
@@ -39,12 +42,14 @@ public class PacketFlagChunk extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf in) {
-        flagId = readUTF(in);
+        flagId = readUTF(in, PacketSecurity.MAX_FLAG_ID);
         width = in.readShort();
         height = in.readShort();
         partIndex = in.readShort();
         totalParts = in.readShort();
-        int length = in.readInt();
+        // Never size the array from the length field alone: cap it at both the chunking limit and
+        // what the buffer actually still holds, so a 4-byte lie can't ask for a 2GB allocation.
+        int length = Math.min(PacketSecurity.clampCount(in.readInt(), MAX_CHUNK_BYTES), in.readableBytes());
         data = new byte[length];
         in.readBytes(data);
     }

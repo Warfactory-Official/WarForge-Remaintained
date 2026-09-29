@@ -70,20 +70,20 @@ public class PacketSiegeCampInfo extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
         mSiegeCampPos = new DimBlockPos(dim, x, y, z);
 
-        int numAttacks = data.readByte();
+        int numAttacks = PacketSecurity.clampCount(data.readByte(), 64);
         mPossibleAttacks.clear();
         for (int i = 0; i < numAttacks; i++) {
             SiegeCampAttackInfo info = new SiegeCampAttackInfo();
 
             info.canAttack = data.readBoolean();
             info.mFactionUUID = readUUID(data);
-            info.mFactionName = readUTF(data);
+            info.mFactionName = readUTF(data, PacketSecurity.MAX_NAME);
             int dx = data.readByte();
             int dz = data.readByte();
             info.mOffset = new Vec3i(dx, 0, dz);
@@ -91,8 +91,8 @@ public class PacketSiegeCampInfo extends PacketBase {
 
             short possibleVein = data.readShort();
             info.mWarforgeVein = possibleVein < 0 ? null : ClientProxy.VEIN_ENTRIES.get(possibleVein);
-            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data));
-            info.mOreQuality = Quality.values()[data.readByte()];
+            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
+            info.mOreQuality = PacketSecurity.readEnum(data, Quality.values(), Quality.values()[0]);
             info.conquered = data.readBoolean();
 
             mPossibleAttacks.add(info);

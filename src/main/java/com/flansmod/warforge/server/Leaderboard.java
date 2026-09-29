@@ -126,7 +126,7 @@ public class Leaderboard
 		{
 			Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerAsking);
 			if(faction != null)
-				info.myFaction = faction.createInfo();
+				info.myFaction = faction.createInfo(playerAsking);
 		}
 		ArrayList<Faction> sorted = new ArrayList<Faction>(mFactions.size());
 		GetSortedList(stat, sorted);
@@ -135,7 +135,7 @@ public class Leaderboard
 			// Only fill in in-range ones, leave rest null, handle on client
 			if(0 <= i && i < sorted.size())
 			{
-				info.factionInfos[i - firstIndex] = sorted.get(i).createInfo();
+				info.factionInfos[i - firstIndex] = sorted.get(i).createInfo(playerAsking);
 			}
 		}
 

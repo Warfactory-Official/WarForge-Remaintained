@@ -42,9 +42,9 @@ public class PacketDeclareSiege extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        ResourceKey<Level> targetDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> targetDim = PacketSecurity.readDimOrOverworld(data);
         targetChunk = new DimChunkPos(targetDim, data.readInt(), data.readInt());
-        ResourceKey<Level> fromDim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(data.readUtf()));
+        ResourceKey<Level> fromDim = PacketSecurity.readDimOrOverworld(data);
         fromChunk = new DimChunkPos(fromDim, data.readInt(), data.readInt());
     }
 

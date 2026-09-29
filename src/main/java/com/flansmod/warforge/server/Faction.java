@@ -206,7 +206,24 @@ public class Faction {
         loggedInToday = false;
     }
 
+    /**
+     * Builds display info with the citadel position redacted, for callers that have no viewer to
+     * check against. Anything shipped to a player should use {@link #createInfo(UUID)}.
+     */
     public FactionDisplayInfo createInfo() {
+        return createInfo(null);
+    }
+
+    /**
+     * Builds display info for a specific viewer ({@code viewerId} may be null, meaning no viewer).
+     *
+     * <p>The citadel position is only filled in for members of this faction. It is exact block
+     * coordinates, and the info panel, the leaderboard and every foreign claim block used to hand it
+     * to anyone who asked - which is precisely what made the citadel a findable, aimable target.
+     * Outsiders get {@link DimBlockPos#ZERO}; nothing on the client renders the field, so there is no
+     * visible difference for them.
+     */
+    public FactionDisplayInfo createInfo(UUID viewerId) {
         FactionDisplayInfo info = new FactionDisplayInfo();
         info.factionId = uuid;
         info.factionName = name;
@@ -222,7 +239,7 @@ public class Faction {
         info.totalRank = WarForgeMod.LEADERBOARD.GetOneIndexedRankOf(this, FactionStat.TOTAL);
 
         info.mNumClaims = claims.size();
-        info.mCitadelPos = citadelPos;
+        info.mCitadelPos = (viewerId != null && isPlayerInFaction(viewerId)) ? citadelPos : DimBlockPos.ZERO;
 
         for (HashMap.Entry<UUID, PlayerData> entry : members.entrySet()) {
             if (entry.getValue().role == Role.LEADER)

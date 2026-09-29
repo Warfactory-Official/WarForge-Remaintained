@@ -36,9 +36,9 @@ public class PacketFlagManifest extends PacketBase {
     @Override
     public void decodeInto(FriendlyByteBuf data) {
         flagIds.clear();
-        int size = data.readShort();
+        int size = PacketSecurity.clampCount(data.readShort(), 4096);
         for (int i = 0; i < size; i++) {
-            flagIds.add(readUTF(data));
+            flagIds.add(readUTF(data, PacketSecurity.MAX_FLAG_ID));
         }
     }
 

@@ -82,7 +82,7 @@ public class PacketFactionInfo extends PacketBase
 			info = new FactionDisplayInfo();
 
 			info.factionId = readUUID(data);
-			info.factionName = readUTF(data);
+			info.factionName = readUTF(data, PacketSecurity.MAX_NAME);
 			info.colour = data.readInt();
 
 			info.notoriety = data.readInt();
@@ -97,19 +97,19 @@ public class PacketFactionInfo extends PacketBase
 
 			info.mNumClaims = data.readInt();
 
-			ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(readUTF(data)));
+			ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
 			int x =	data.readInt();
 			int y =	data.readInt();
 			int z =	data.readInt();
 			info.mCitadelPos = new DimBlockPos(dim, x, y, z);
 
-			int count = data.readInt();
+			int count = PacketSecurity.readCount(data, 4096);
 			for(int i = 0; i < count; i++)
 			{
 				PlayerDisplayInfo playerInfo = new PlayerDisplayInfo();
 				playerInfo.playerUuid = readUUID(data);
-				playerInfo.username = readUTF(data);
-				playerInfo.role = Role.values()[data.readInt()];
+				playerInfo.username = readUTF(data, PacketSecurity.MAX_NAME);
+				playerInfo.role = PacketSecurity.readEnumInt(data, Role.values(), Role.MEMBER);
 				info.members.add(playerInfo);
 			}
 			info.mLeaderID = readUUID(data);

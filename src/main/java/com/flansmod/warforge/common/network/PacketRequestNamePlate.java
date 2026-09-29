@@ -23,12 +23,12 @@ public class PacketRequestNamePlate extends PacketBase {
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        writeUTF(data, name);
+        writeUTF(data, name, PacketSecurity.MAX_NAME);
     }
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        name = readUTF(data);
+        name = readUTF(data, PacketSecurity.MAX_NAME);
     }
 
     @Override

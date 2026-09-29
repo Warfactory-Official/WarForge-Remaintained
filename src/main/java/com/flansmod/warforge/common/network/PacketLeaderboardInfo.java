@@ -48,7 +48,7 @@ public class PacketLeaderboardInfo extends PacketBase
 		info = new LeaderboardInfo();
 
 		info.firstIndex = data.readInt();
-		info.stat = FactionStat.values()[data.readInt()];
+		info.stat = PacketSecurity.readEnumInt(data, FactionStat.values(), FactionStat.TOTAL);
 
 		PacketFactionInfo subPacket = new PacketFactionInfo();
 		subPacket.decodeInto(data);

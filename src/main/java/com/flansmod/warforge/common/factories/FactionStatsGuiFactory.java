@@ -47,7 +47,7 @@ public final class FactionStatsGuiFactory {
         Faction faction = WarForgeMod.FACTIONS.getFaction(effectiveFactionId);
         if (faction != null) {
             PacketFactionInfo packet = new PacketFactionInfo();
-            packet.info = faction.createInfo();
+            packet.info = faction.createInfo(serverPlayer.getUUID());
             WarForgeMod.NETWORK.sendTo(packet, serverPlayer);
         }
     }

@@ -517,7 +517,7 @@ public class CommandFactions {
                     src.sendFailure(Component.literal("Information cannot be provided to non-faction members"));
                 } else {
                     PacketFactionInfo packet = new PacketFactionInfo();
-                    packet.info = factionToSend.createInfo();
+                    packet.info = factionToSend.createInfo(sender.getUUID());
                     WarForgeMod.NETWORK.sendTo(packet, sender);
                 }
             }

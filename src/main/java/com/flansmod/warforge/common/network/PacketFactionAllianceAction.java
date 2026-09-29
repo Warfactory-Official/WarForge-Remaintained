@@ -44,9 +44,10 @@ public class PacketFactionAllianceAction extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        action = Action.values()[data.readByte()];
+        action = PacketSecurity.readEnum(data, Action.values(), Action.INVITE);
         target = readUUID(data);
-        page = FactionMemberManagerGuiData.Page.values()[data.readByte()];
+        page = PacketSecurity.readEnum(data, FactionMemberManagerGuiData.Page.values(),
+                FactionMemberManagerGuiData.Page.ALLIANCES);
     }
 
     @Override

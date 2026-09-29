@@ -62,7 +62,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
         loadedChunks = data.readInt();
         requirements = new HashMap<>();
 
-        int count = data.readVarInt();
+        int count = PacketSecurity.clampCount(data.readVarInt(), 4096);
         for (int i = 0; i < count; i++) {
             ItemMatcher matcher = ItemMatcher.read(data);
             int amount = data.readVarInt();

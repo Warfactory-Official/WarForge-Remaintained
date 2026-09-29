@@ -61,6 +61,14 @@ public class PacketRequestInsurance extends PacketBase {
         response.canWithdraw = WarForgeMod.isOp(player)
                 || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.LEADER);
 
+        // factionId is the client's, so this must not become "read any faction's stash": the vault
+        // contents only go to members of that faction (ops included for moderation).
+        if (!WarForgeMod.isOp(player) && !faction.isPlayerInFaction(player.getUUID())) {
+            PacketSecurity.violation(player, "insurance request for a faction they are not in (" + effectiveId + ")");
+            WarForgeMod.NETWORK.sendTo(new PacketInsuranceData(), player);
+            return;
+        }
+
         int slotCount = faction.getInsuranceSlotCount();
         List<ItemStack> stacks = new ArrayList<>();
         for (int i = 0; i < slotCount; i++) {

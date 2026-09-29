@@ -58,9 +58,15 @@ repositories {
         url = 'https://cursemaven.com'
         content { includeGroup 'curse.maven' }
     }
-    maven {
+    maven { // JourneyMap's own maven, the only place the client API is published
         name = 'JourneyMap'
         url = 'https://jm.gserv.me/repository/maven-public/'
+        content { includeGroup 'info.journeymap' }
+    }
+    maven { // Modrinth, for the JourneyMap mod itself at dev runtime. Scoped so it cannot shadow anything.
+        name = 'Modrinth'
+        url = 'https://api.modrinth.com/maven'
+        content { includeGroup 'maven.modrinth' }
     }
     maven { // GeckoLib (SBW runtime dep for dev runs)
         name = 'GeckoLib'
@@ -159,10 +165,21 @@ dependencies {
     // AshVehicle (mixin @targets only need to resolve at compile time).
     // compileOnly "curse.maven:ashvehicle-1291715:<neo_1211_file_id>"
 
-    // JourneyMap client API (@ClientPlugin) — compileOnly; JourneyMap mod supplies runtime impl.
-    // The version-stable client API is vendored in libs/; the installed JourneyMap mod provides the impl.
-    compileOnly files('libs/journeymap-api-1.20.2-1.9.jar')
-    // localRuntime "curse.maven:journeymap-32274:<neo_1211_file_id>"
+    // JourneyMap client API (@JourneyMapPlugin) - compileOnly; the JourneyMap mod supplies the impl,
+    // which it jar-in-jars, so this must never be shaded. This is the 2.0 API (journeymap.api.v2.*);
+    // the vendored 1.20.2 jar this replaced was the 1.x API, whose types JourneyMap 6.x no longer
+    // ships, so both plugins below were silently never discovered.
+    compileOnly "info.journeymap:journeymap-api-neoforge:${project.journeymapApiVersion}"
+
+    // The mod itself, dev-runtime only and never published. Without it there is nothing to draw on,
+    // and more to the point nothing to prove the plugins are discovered at all: a plugin whose
+    // annotation class is missing is simply never scanned, with no error anywhere.
+    //
+    // Client runs only. JourneyMap jar-in-jars lwjgl-ktx, whose module descriptor upsets a dev
+    // server launch, and a minimap is client-side anyway.
+    if (!gradle.startParameter.taskNames.any { it.toLowerCase().contains('server') }) {
+        localRuntime "maven.modrinth:journeymap:${project.journeymapVersion}"
+    }
 
     // EffortlessBuilding (SurvivalHelperMixin) — verify 1.21.1 NeoForge availability in Phase 5;
     // if unavailable, move SurvivalHelperMixin to the gated compat config.

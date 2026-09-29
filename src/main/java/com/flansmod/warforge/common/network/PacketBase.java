@@ -41,6 +41,21 @@ public abstract class PacketBase implements CustomPacketPayload
 	}
 
 	/**
+	 * Writes a string with the same cap the reader enforces, truncating instead of throwing so an
+	 * over-long value can never blow up the encoder. The receiving side validates the content
+	 * properly and reports a real error to the player.
+	 */
+	public static void writeUTF(FriendlyByteBuf data, String s, int maxLength)
+	{
+		String value = s == null ? "" : s;
+		if (value.length() > maxLength)
+		{
+			value = value.substring(0, maxLength);
+		}
+		data.writeUtf(value, maxLength);
+	}
+
+	/**
 	 * Util method for quickly reading strings
 	 */
 	public static String readUTF(FriendlyByteBuf data)

@@ -8,13 +8,10 @@ import com.flansmod.warforge.client.JourneyMapVeinCache;
 import com.flansmod.warforge.client.util.LayeredItemIconCache;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.ItemMatcher;
-import journeymap.client.api.ClientPlugin;
-import journeymap.client.api.IClientAPI;
-import journeymap.client.api.IClientPlugin;
-import journeymap.client.api.display.DisplayType;
-import journeymap.client.api.display.MarkerOverlay;
-import journeymap.client.api.event.ClientEvent;
-import journeymap.client.api.model.MapImage;
+import journeymap.api.v2.client.IClientAPI;
+import journeymap.api.v2.client.display.DisplayType;
+import journeymap.api.v2.client.display.MarkerOverlay;
+import journeymap.api.v2.client.model.MapImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -26,7 +23,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import javax.annotation.ParametersAreNonnullByDefault;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -36,8 +32,7 @@ import java.util.Map;
  * from the already-synced vein definitions.
  */
 @ParametersAreNonnullByDefault
-@ClientPlugin
-public class WarForgeVeinJourneyMapPlugin implements IClientPlugin, JourneyMapVeinCache.Listener {
+public class VeinMapLayer implements JourneyMapVeinCache.Listener {
     private static final Logger LOGGER = LogManager.getLogger(Tags.MODNAME);
     private static final int VEIN_MARKER_Y = 70;
     private static final int ICON_SIZE = 16;
@@ -45,21 +40,14 @@ public class WarForgeVeinJourneyMapPlugin implements IClientPlugin, JourneyMapVe
     private final Map<DimChunkPos, MarkerOverlay> markers = new HashMap<>();
     private IClientAPI jmAPI;
 
-    @Override
-    public void initialize(final IClientAPI jmClientApi) {
+    void attach(final IClientAPI jmClientApi) {
         this.jmAPI = jmClientApi;
-        jmClientApi.subscribe(getModId(), EnumSet.noneOf(ClientEvent.Type.class));
         // Register last so the cache replay (inside setListener) sees a live API reference.
         JourneyMapVeinCache.setListener(this);
     }
 
-    @Override
-    public String getModId() {
+    private String getModId() {
         return Tags.MODID;
-    }
-
-    @Override
-    public void onEvent(final ClientEvent event) {
     }
 
     @Override
@@ -114,9 +102,8 @@ public class WarForgeVeinJourneyMapPlugin implements IClientPlugin, JourneyMapVe
         image.centerAnchors();
 
         BlockPos center = new BlockPos((key.x << 4) + 8, VEIN_MARKER_Y, (key.z << 4) + 8);
-        String displayId = "vein_" + key.dim.location() + "_" + key.x + "_" + key.z;
 
-        MarkerOverlay overlay = new MarkerOverlay(getModId(), displayId, center, image);
+        MarkerOverlay overlay = new MarkerOverlay(getModId(), center, image);
         overlay.setDimension(key.dim)
                 .setOverlayGroupName("WarForge Veins")
                 .setLabel(icon.getHoverName().getString())
