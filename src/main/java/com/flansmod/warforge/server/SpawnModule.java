@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Players;
+
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -16,17 +18,18 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.portal.DimensionTransition;
+import com.flansmod.warforge.compat.Teleports;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerSetSpawnEvent;
 import net.neoforged.bus.api.SubscribeEvent;
+import com.flansmod.warforge.compat.Levels;
 
 public class SpawnModule {
     private static BlockPos findCitadelSpawn(ServerLevel level, DimBlockPos citadel) {
-        int startY = Math.max(citadel.getY(), level.getMinBuildHeight());
+        int startY = Math.max(citadel.getY(), Levels.minY(level));
         BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos(citadel.getX(), startY, citadel.getZ());
-        int maxY = level.getMaxBuildHeight() - 1;
+        int maxY = Levels.maxYExclusive(level) - 1;
         while (cursor.getY() < maxY && !level.getBlockState(cursor).isAir()) {
             cursor.move(Direction.UP);
         }
@@ -42,15 +45,15 @@ public class SpawnModule {
     }
 
     private static boolean hasSpawnInOwnedClaim(ServerPlayer player) {
-        BlockPos spawn = player.getRespawnPosition();
+        BlockPos spawn = Players.respawnPosition(player);
         if (spawn == null) {
             return false;
         }
-        ResourceKey<Level> dim = player.getRespawnDimension();
+        ResourceKey<Level> dim = Players.respawnDimension(player);
         if (!isOwnedClaim(player, dim, spawn)) {
             return false;
         }
-        ServerLevel level = player.server.getLevel(dim);
+        ServerLevel level = player.level().getServer().getLevel(dim);
         if (level == null) {
             return false;
         }
@@ -110,7 +113,7 @@ public class SpawnModule {
             return;
         }
 
-        ServerLevel level = player.server.getLevel(citadel.dim);
+        ServerLevel level = player.level().getServer().getLevel(citadel.dim);
         if (level == null) {
             return;
         }
@@ -118,9 +121,7 @@ public class SpawnModule {
         BlockPos spawn = findCitadelSpawn(level, citadel);
 
         if (player.level().dimension() != citadel.dim) {
-            Entity result = player.changeDimension(new DimensionTransition(level,
-                    new Vec3(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D),
-                    player.getDeltaMovement(), player.getYRot(), player.getXRot(), DimensionTransition.DO_NOTHING));
+            Entity result = Teleports.changeDimension(player, level, new Vec3(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D));
             if (result == null) return;
         }
 

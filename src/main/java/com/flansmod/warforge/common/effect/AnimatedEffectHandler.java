@@ -1,8 +1,6 @@
 package com.flansmod.warforge.common.effect;
 
 import net.neoforged.bus.api.EventPriority;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.client.event.ClientTickEvent;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,8 +12,7 @@ public class AnimatedEffectHandler {
         effectQueue.add(effect);
     }
 
-    @SubscribeEvent(priority = EventPriority.LOWEST)
-    public void onClientTick(ClientTickEvent.Post event) {
+    public void onClientTick() {
         effectQueue.removeIf(effect -> {
             effect.tick();
             return effect.isComplete();

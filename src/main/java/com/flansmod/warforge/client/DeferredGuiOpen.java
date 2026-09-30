@@ -1,5 +1,7 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.compat.ClientCompat;
+
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -52,7 +54,7 @@ public final class DeferredGuiOpen {
         if (reopenParent != null) {
             reopenParent.run();
         } else {
-            Minecraft.getInstance().setScreen(null);
+            ClientCompat.setScreen(null);
         }
     }
 
@@ -79,7 +81,7 @@ public final class DeferredGuiOpen {
         }
         restoreMouse = false;
         Minecraft mc = Minecraft.getInstance();
-        GLFW.glfwSetCursorPos(mc.getWindow().getWindow(), restoreMouseX, restoreMouseY);
+        GLFW.glfwSetCursorPos(ClientCompat.windowHandle(), restoreMouseX, restoreMouseY);
     }
 
     private static void schedule(Runnable opener) {
@@ -90,7 +92,7 @@ public final class DeferredGuiOpen {
         restoreMouseY = mc.mouseHandler.ypos();
         restoreMouse = true;
         // Close the current screen first so the server returns to the inventory menu before the child opens.
-        mc.setScreen(null);
+        ClientCompat.setScreen(null);
         pending = opener;
     }
 }

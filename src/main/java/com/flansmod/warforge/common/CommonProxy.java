@@ -4,6 +4,7 @@ import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.compat.Keys;
 
 public class CommonProxy
 {
@@ -27,7 +28,7 @@ public class CommonProxy
 		if (level != null)
 			return level.getBlockEntity(pos.toRegularPos());
 
-		WarForgeMod.LOGGER.error("GetTile failed; dimension {} is not loaded on the server", pos.dim.location());
+		WarForgeMod.LOGGER.error("GetTile failed; dimension {} is not loaded on the server", Keys.id(pos.dim));
 		return null;
 	}
 

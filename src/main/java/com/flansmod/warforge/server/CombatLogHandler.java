@@ -1,12 +1,17 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.PlayerDataFile;
+import java.util.List;
+
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.PlayerRef;
+
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.mojang.authlib.GameProfile;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.players.PlayerList;
@@ -21,6 +26,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.NbtFiles;
+import com.flansmod.warforge.compat.Stacks;
 
 
 public class CombatLogHandler {
@@ -54,7 +62,7 @@ public class CombatLogHandler {
 
         // Retrieve player profile and data file
         UUID playerUUID = player.playerID;
-        GameProfile profile = server.getProfileCache().get(playerUUID).orElse(null);
+        PlayerRef profile = Profiles.get(server, playerUUID).orElse(null);
         if (profile == null) return;
 
         Path worldDir = server.getWorldPath(LevelResource.ROOT);
@@ -62,20 +70,15 @@ public class CombatLogHandler {
 
         if (playerDataFile.toFile().exists() && playerDataFile.toFile().isFile()) {
             try {
-                CompoundTag playerData = NbtIo.readCompressed(playerDataFile, NbtAccounter.unlimitedHeap());
+                CompoundTag playerData = NbtFiles.readCompressed(playerDataFile);
                 if (playerData != null) {
-                    ListTag inventoryList = playerData.getList("Inventory", Tag.TAG_COMPOUND).copy();
+                    List<ItemStack> items = PlayerDataFile.takeInventory(playerData, server.registryAccess());
                     DimBlockPos logoffPos = player.logoffPos;
                     ServerLevel world = server.getLevel(logoffPos.dim);
 
-                    playerData.put("Inventory", new ListTag());
+                    NbtFiles.writeCompressed(playerData, playerDataFile);
 
-                    NbtIo.writeCompressed(playerData, playerDataFile);
-
-                    for (int i = 0; i < inventoryList.size(); i++) {
-                        CompoundTag itemCompound = inventoryList.getCompound(i);
-                        ItemStack stack = ItemStack.parseOptional(server.registryAccess(), itemCompound);
-
+                    for (ItemStack stack : items) {
                         ItemEntity entityItem = new ItemEntity(world, logoffPos.getX(), logoffPos.getY(), logoffPos.getZ(), stack);
                         world.addFreshEntity(entityItem);
                     }

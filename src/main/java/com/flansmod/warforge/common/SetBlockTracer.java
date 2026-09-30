@@ -24,7 +24,7 @@ public final class SetBlockTracer {
         if (!WarForgeConfig.DEBUG_TRACE_SETBLOCK) {
             return;
         }
-        if (level == null || level.isClientSide || pos == null) {
+        if (level == null || level.isClientSide() || pos == null) {
             return;
         }
 

@@ -1,33 +1,21 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketCreateFaction extends PacketBase
 {
-	public static final CustomPacketPayload.Type<PacketCreateFaction> TYPE =
-		new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetcreatefaction"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, PacketCreateFaction> STREAM_CODEC =
-		StreamCodec.ofMember(PacketCreateFaction::encodeInto, buf -> { PacketCreateFaction p = new PacketCreateFaction(); p.decodeInto(buf); return p; });
-
-	@Override
-	public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
 	public DimBlockPos mCitadelPos;
 	public String mFactionName = "";
 	public int mColour = 0xffffff;
@@ -36,7 +24,7 @@ public class PacketCreateFaction extends PacketBase
 	@Override
 	public void encodeInto(FriendlyByteBuf data)
 	{
-		writeUTF(data, mCitadelPos.dim.location().toString());
+		writeUTF(data, Keys.id(mCitadelPos.dim).toString());
 		data.writeInt(mCitadelPos.getX());
 		data.writeInt(mCitadelPos.getY());
 		data.writeInt(mCitadelPos.getZ());

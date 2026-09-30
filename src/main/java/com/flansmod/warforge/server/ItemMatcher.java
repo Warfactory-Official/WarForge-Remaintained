@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Regs;
+
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
@@ -8,8 +10,10 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+import java.util.List;
 
 import javax.annotation.Nullable;
+import com.flansmod.warforge.compat.Ids;
 
 /**
  * A value-equal reference to either a concrete {@link Item} or an item {@link TagKey}. Matching and
@@ -57,27 +61,27 @@ public sealed interface ItemMatcher permits ItemMatcher.OfItem, ItemMatcher.OfTa
         // 1.20.1 has no item metadata; drop any legacy "mod:item:meta" suffix
         int last = itemId.lastIndexOf(':');
         String stripped = (last != itemId.indexOf(':')) ? itemId.substring(0, last) : itemId;
-        ResourceLocation rl = ResourceLocation.tryParse(stripped);
+        ResourceLocation rl = Ids.tryParse(stripped);
         if (rl == null || !BuiltInRegistries.ITEM.containsKey(rl)) {
             return null;
         }
-        return new OfItem(BuiltInRegistries.ITEM.get(rl));
+        return new OfItem(Regs.get(BuiltInRegistries.ITEM, rl));
     }
 
     /** Build a tag matcher; null if the id is not a valid resource location. */
     @Nullable
     static ItemMatcher ofTag(String tagId) {
-        ResourceLocation rl = ResourceLocation.tryParse(tagId);
+        ResourceLocation rl = Ids.tryParse(tagId);
         return rl == null ? null : new OfTag(TagKey.create(Registries.ITEM, rl));
     }
 
     /** Auto-detect: an existing item tag becomes a tag matcher, otherwise an item matcher. */
     @Nullable
     static ItemMatcher parse(String resource) {
-        ResourceLocation rl = ResourceLocation.tryParse(resource);
+        ResourceLocation rl = Ids.tryParse(resource);
         if (rl != null) {
             TagKey<Item> tag = TagKey.create(Registries.ITEM, rl);
-            if (BuiltInRegistries.ITEM.getTag(tag).isPresent()) {
+            if (Regs.hasTag(BuiltInRegistries.ITEM, tag)) {
                 return new OfTag(tag);
             }
         }
@@ -132,16 +136,16 @@ public sealed interface ItemMatcher permits ItemMatcher.OfItem, ItemMatcher.OfTa
 
         @Override
         public Ingredient toIngredient() {
-            return Ingredient.of(tag);
+            return Regs.ingredient(tag);
         }
 
         @Override
         public ItemStack toStack(int amount, int index) {
-            ItemStack[] items = Ingredient.of(tag).getItems();
-            if (index < 0 || index >= items.length) {
+            List<ItemStack> items = Regs.stacks(tag);
+            if (index < 0 || index >= items.size()) {
                 return ItemStack.EMPTY;
             }
-            ItemStack stack = items[index].copy();
+            ItemStack stack = items.get(index).copy();
             stack.setCount(amount);
             return stack;
         }

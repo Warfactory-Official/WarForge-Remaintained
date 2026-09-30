@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server.fob;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
@@ -34,8 +36,8 @@ public class FobPresence {
             if (!player.level().dimension().equals(dim)) {
                 continue;
             }
-            ChunkPos playerChunk = new ChunkPos(player.blockPosition());
-            if (playerChunk.x != fobChunk.x || playerChunk.z != fobChunk.z) {
+            ChunkPos playerChunk = Chunks.of(player.blockPosition());
+            if (Chunks.x(playerChunk) != fobChunk.x || Chunks.z(playerChunk) != fobChunk.z) {
                 continue;
             }
             if (player.getY() <= beY) {
@@ -77,8 +79,8 @@ public class FobPresence {
             if (!player.level().dimension().equals(dim)) {
                 continue;
             }
-            ChunkPos playerChunk = new ChunkPos(player.blockPosition());
-            if (playerChunk.x != fobChunk.x || playerChunk.z != fobChunk.z) {
+            ChunkPos playerChunk = Chunks.of(player.blockPosition());
+            if (Chunks.x(playerChunk) != fobChunk.x || Chunks.z(playerChunk) != fobChunk.z) {
                 continue;
             }
             if (player.getY() <= beY) {

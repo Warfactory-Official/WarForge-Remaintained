@@ -12,11 +12,13 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.platform.WFBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import java.util.UUID;
+import com.flansmod.warforge.compat.Nbt;
 
-public class TileEntityFob extends BlockEntity {
+public class TileEntityFob extends WFBlockEntity {
     public UUID ownerFaction = new UUID(0, 0);
     public UUID placer = new UUID(0, 0);
     public String name = "";
@@ -36,14 +38,14 @@ public class TileEntityFob extends BlockEntity {
 
     public void setPoleLength(float length) {
         poleLength = length;
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide()) {
             level.sendBlockUpdated(getBlockPos(), getBlockState(), getBlockState(), 3);
             setChanged();
         }
     }
 
     public void tick() {
-        if (level == null || level.isClientSide) {
+        if (level == null || level.isClientSide()) {
             return;
         }
         if (ownerFaction.equals(Faction.nullUuid)) {
@@ -96,10 +98,10 @@ public class TileEntityFob extends BlockEntity {
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.putUUID("ownerFaction", ownerFaction);
-        nbt.putUUID("placer", placer);
+    protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.writeData(nbt, registries);
+        Nbt.putUUID(nbt, "ownerFaction", ownerFaction);
+        Nbt.putUUID(nbt, "placer", placer);
         nbt.putString("name", name);
         nbt.putInt("tickets", tickets);
         nbt.putInt("maxTickets", maxTickets);
@@ -108,46 +110,35 @@ public class TileEntityFob extends BlockEntity {
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
-        ownerFaction = nbt.hasUUID("ownerFaction") ? nbt.getUUID("ownerFaction") : Faction.nullUuid;
-        placer = nbt.hasUUID("placer") ? nbt.getUUID("placer") : Faction.nullUuid;
-        name = nbt.getString("name");
-        tickets = nbt.getInt("tickets");
-        maxTickets = nbt.getInt("maxTickets");
-        factionFlagId = nbt.getString("flagId");
-        poleLength = nbt.contains("poleLength") ? nbt.getFloat("poleLength") : TileEntityClaim.DEFAULT_POLE_LENGTH;
+    protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.readData(nbt, registries);
+        ownerFaction = Nbt.hasUUID(nbt, "ownerFaction") ? Nbt.getUUID(nbt, "ownerFaction") : Faction.nullUuid;
+        placer = Nbt.hasUUID(nbt, "placer") ? Nbt.getUUID(nbt, "placer") : Faction.nullUuid;
+        name = Nbt.getString(nbt, "name");
+        tickets = Nbt.getInt(nbt, "tickets");
+        maxTickets = Nbt.getInt(nbt, "maxTickets");
+        factionFlagId = Nbt.getString(nbt, "flagId");
+        poleLength = nbt.contains("poleLength") ? Nbt.getFloat(nbt, "poleLength") : TileEntityClaim.DEFAULT_POLE_LENGTH;
     }
 
     @Override
-    public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket.create(this);
-    }
-
-    @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider registries) {
-        handleUpdateTag(packet.getTag(), registries);
-    }
-
-    @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tags = super.getUpdateTag(registries);
-        tags.putUUID("ownerFaction", ownerFaction);
+    protected void writeSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        super.writeSyncData(tags, registries);
+        Nbt.putUUID(tags, "ownerFaction", ownerFaction);
         tags.putString("name", name);
         tags.putInt("tickets", tickets);
         tags.putInt("maxTickets", maxTickets);
         tags.putString("flagId", factionFlagId);
         tags.putFloat("poleLength", poleLength);
-        return tags;
     }
 
     @Override
-    public void handleUpdateTag(CompoundTag tags, HolderLookup.Provider registries) {
-        ownerFaction = tags.hasUUID("ownerFaction") ? tags.getUUID("ownerFaction") : Faction.nullUuid;
-        name = tags.getString("name");
-        tickets = tags.getInt("tickets");
-        maxTickets = tags.getInt("maxTickets");
-        factionFlagId = tags.getString("flagId");
-        poleLength = tags.contains("poleLength") ? tags.getFloat("poleLength") : TileEntityClaim.DEFAULT_POLE_LENGTH;
+    protected void readSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        ownerFaction = Nbt.hasUUID(tags, "ownerFaction") ? Nbt.getUUID(tags, "ownerFaction") : Faction.nullUuid;
+        name = Nbt.getString(tags, "name");
+        tickets = Nbt.getInt(tags, "tickets");
+        maxTickets = Nbt.getInt(tags, "maxTickets");
+        factionFlagId = Nbt.getString(tags, "flagId");
+        poleLength = tags.contains("poleLength") ? Nbt.getFloat(tags, "poleLength") : TileEntityClaim.DEFAULT_POLE_LENGTH;
     }
 }

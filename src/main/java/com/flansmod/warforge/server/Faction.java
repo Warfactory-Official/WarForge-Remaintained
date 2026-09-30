@@ -1,5 +1,9 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.PlayerRef;
+
 import com.flansmod.warforge.api.Time;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
@@ -36,7 +40,6 @@ import net.minecraft.network.chat.Style;
 import net.minecraft.network.protocol.game.ClientboundSoundPacket;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
@@ -56,6 +59,10 @@ import java.util.UUID;
 import java.util.function.Predicate;
 
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.Stacks;
 
 /**
  * Data class for faction, responsible for storing faction info
@@ -117,7 +124,7 @@ public class Faction {
     }
 
     private static String getPlayerName(UUID playerID) {
-        GameProfile p = WarForgeMod.MC_SERVER.getProfileCache().get(playerID).orElse(null);
+        PlayerRef p = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
         return p != null ? p.getName() : playerID.toString();
     }
 
@@ -246,7 +253,7 @@ public class Faction {
                 info.mLeaderID = entry.getKey();
 
             PlayerDisplayInfo playerInfo = new PlayerDisplayInfo();
-            GameProfile profile = WarForgeMod.MC_SERVER.getProfileCache().get(entry.getKey()).orElse(null);
+            PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, entry.getKey()).orElse(null);
             playerInfo.username = profile == null ? "Unknown Player" : profile.getName();
             playerInfo.playerUuid = entry.getKey();
             playerInfo.role = entry.getValue().role;
@@ -712,7 +719,7 @@ public class Faction {
         if (data != null) {
             if (data.role == Role.MEMBER) {
                 data.role = Role.OFFICER;
-                GameProfile profile = WarForgeMod.MC_SERVER.getProfileCache().get(playerID).orElse(null);
+                PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
                 if (profile != null)
                     messageAll(Component.literal(profile.getName() + " was promoted to officer"));
             }
@@ -724,7 +731,7 @@ public class Faction {
         if (data != null) {
             if (data.role == Role.OFFICER) {
                 data.role = Role.MEMBER;
-                GameProfile profile = WarForgeMod.MC_SERVER.getProfileCache().get(playerID).orElse(null);
+                PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
                 if (profile != null)
                     messageAll(Component.literal(profile.getName() + " was demoted to member"));
             }
@@ -750,22 +757,22 @@ public class Faction {
         truces.clear();
 
         // Get citadel pos and defining params
-        uuid = tags.getUUID("uuid");
-        name = tags.getString("name");
-        colour = tags.getInt("colour");
-        citadelLevel = tags.getShort("citadel_lvl");
+        uuid = Nbt.getUUID(tags, "uuid");
+        name = Nbt.getString(tags, "name");
+        colour = Nbt.getInt(tags, "colour");
+        citadelLevel = Nbt.getShort(tags, "citadel_lvl");
 
         // Get our claims and citadel
         citadelPos = DimBlockPos.readFromNBT(tags, "citadelPos");
 
 
-        ListTag claimList = tags.getList("claims", Tag.TAG_COMPOUND);
+        ListTag claimList = Nbt.getList(tags, "claims", Tag.TAG_COMPOUND);
         for (Tag base : claimList) {
             CompoundTag claimInfo = (CompoundTag) base;
-            DimBlockPos pos = DimBlockPos.readFromNBT(claimInfo.getCompound("pos"));
-            int pendingYields = claimInfo.getInt("pendingYields");
+            DimBlockPos pos = DimBlockPos.readFromNBT(Nbt.getCompound(claimInfo, "pos"));
+            int pendingYields = Nbt.getInt(claimInfo, "pendingYields");
             claims.put(pos, pendingYields);
-            ClaimType claimType = ClaimType.fromSerialized(claimInfo.getString("type"));
+            ClaimType claimType = ClaimType.fromSerialized(Nbt.getString(claimInfo, "type"));
             if (claimType == ClaimType.NONE && pos.equals(citadelPos)) {
                 claimType = ClaimType.CITADEL;
             }
@@ -786,16 +793,16 @@ public class Faction {
             claimTypes.put(citadelPos, ClaimType.CITADEL);
         }
 
-        ListTag killList = tags.getList("kills", Tag.TAG_COMPOUND);
+        ListTag killList = Nbt.getList(tags, "kills", Tag.TAG_COMPOUND);
         for (Tag base : killList) {
             CompoundTag killInfo = (CompoundTag) base;
-            UUID uuid = killInfo.getUUID("id");
-            int kills = killInfo.getInt("count");
+            UUID uuid = Nbt.getUUID(killInfo, "id");
+            int kills = Nbt.getInt(killInfo, "count");
 
             killCounter.put(uuid, kills);
         }
 
-        ListTag forceLoadList = tags.getList("forcedChunks", Tag.TAG_COMPOUND);
+        ListTag forceLoadList = Nbt.getList(tags, "forcedChunks", Tag.TAG_COMPOUND);
         for (Tag base : forceLoadList) {
             DimChunkPos chunkPos = readChunkPosFromNBT((CompoundTag) base);
             if (chunkPos != null) {
@@ -803,7 +810,7 @@ public class Faction {
             }
         }
 
-        ListTag collectorList = tags.getList("collectors", Tag.TAG_COMPOUND);
+        ListTag collectorList = Nbt.getList(tags, "collectors", Tag.TAG_COMPOUND);
         for (Tag base : collectorList) {
             DimBlockPos collectorPos = DimBlockPos.readFromNBT((CompoundTag) base);
             if (!collectorPos.equals(DimBlockPos.ZERO)) {
@@ -811,7 +818,7 @@ public class Faction {
             }
         }
 
-        ListTag fobList = tags.getList("fobs", Tag.TAG_COMPOUND);
+        ListTag fobList = Nbt.getList(tags, "fobs", Tag.TAG_COMPOUND);
         for (Tag base : fobList) {
             Fob fob = new Fob();
             fob.readFromNBT((CompoundTag) base);
@@ -822,61 +829,61 @@ public class Faction {
         }
 
 
-        flagId = tags.getString("flagId");
+        flagId = Nbt.getString(tags, "flagId");
 
         // Get gameplay params
-        notoriety = tags.getInt("notoriety");
-        wealth = tags.getInt("wealth");
-        legacy = tags.getInt("legacy");
+        notoriety = Nbt.getInt(tags, "notoriety");
+        wealth = Nbt.getInt(tags, "wealth");
+        legacy = Nbt.getInt(tags, "legacy");
 
-        offlineRaidProtectionUntil = tags.getLong("offlineRaidProtectionUntil");
-        offlineRaidProtectionDisabled = tags.getBoolean("offlineRaidProtectionDisabled");
-        siegeGraceUntil = tags.getLong("siegeGraceUntil");
-        citadelMoveTimeStamp = tags.getLong("citadelMoveTimestamp");
-        lastSiegeTimestamp = tags.getLong("lastSiegeTimestamp");
-        siegeMomentum = tags.getByte("siegeMomentum");
-        momentumExpireryTimestamp = tags.getLong("momentumExpireryTimestamp");
-        isCurrentlyDefending = tags.getBoolean("isDefending");
-        loggedInToday = tags.getBoolean("loggedInToday");
+        offlineRaidProtectionUntil = Nbt.getLong(tags, "offlineRaidProtectionUntil");
+        offlineRaidProtectionDisabled = Nbt.getBoolean(tags, "offlineRaidProtectionDisabled");
+        siegeGraceUntil = Nbt.getLong(tags, "siegeGraceUntil");
+        citadelMoveTimeStamp = Nbt.getLong(tags, "citadelMoveTimestamp");
+        lastSiegeTimestamp = Nbt.getLong(tags, "lastSiegeTimestamp");
+        siegeMomentum = Nbt.getByte(tags, "siegeMomentum");
+        momentumExpireryTimestamp = Nbt.getLong(tags, "momentumExpireryTimestamp");
+        isCurrentlyDefending = Nbt.getBoolean(tags, "isDefending");
+        loggedInToday = Nbt.getBoolean(tags, "loggedInToday");
 
 
         // Get member data
-        ListTag memberList = tags.getList("members", Tag.TAG_COMPOUND);
+        ListTag memberList = Nbt.getList(tags, "members", Tag.TAG_COMPOUND);
         for (Tag base : memberList) {
             CompoundTag memberTags = (CompoundTag) base;
-            UUID uuid = memberTags.getUUID("uuid");
+            UUID uuid = Nbt.getUUID(memberTags, "uuid");
             PlayerData data = new PlayerData();
             data.readFromNBT(memberTags);
             members.put(uuid, data);
         }
 
-        ListTag inviteList = tags.getList("pendingInvites", Tag.TAG_COMPOUND);
+        ListTag inviteList = Nbt.getList(tags, "pendingInvites", Tag.TAG_COMPOUND);
         for (Tag base : inviteList) {
             CompoundTag inviteTags = (CompoundTag) base;
-            pendingInvites.add(inviteTags.getUUID("uuid"));
+            pendingInvites.add(Nbt.getUUID(inviteTags, "uuid"));
         }
 
-        allowAllyInteraction = tags.getBoolean("allowAllyInteraction");
-        ListTag allyList = tags.getList("allies", Tag.TAG_COMPOUND);
+        allowAllyInteraction = Nbt.getBoolean(tags, "allowAllyInteraction");
+        ListTag allyList = Nbt.getList(tags, "allies", Tag.TAG_COMPOUND);
         for (Tag base : allyList) {
-            allies.add(((CompoundTag) base).getUUID("uuid"));
+            allies.add(Nbt.getUUID(((CompoundTag) base), "uuid"));
         }
-        ListTag allyRequestList = tags.getList("pendingAllianceRequests", Tag.TAG_COMPOUND);
+        ListTag allyRequestList = Nbt.getList(tags, "pendingAllianceRequests", Tag.TAG_COMPOUND);
         for (Tag base : allyRequestList) {
-            pendingAllianceRequests.add(((CompoundTag) base).getUUID("uuid"));
+            pendingAllianceRequests.add(Nbt.getUUID(((CompoundTag) base), "uuid"));
         }
-        ListTag truceList = tags.getList("truces", Tag.TAG_COMPOUND);
+        ListTag truceList = Nbt.getList(tags, "truces", Tag.TAG_COMPOUND);
         for (Tag base : truceList) {
             CompoundTag truceTag = (CompoundTag) base;
-            truces.put(truceTag.getUUID("uuid"), truceTag.getLong("expiry"));
+            truces.put(Nbt.getUUID(truceTag, "uuid"), Nbt.getLong(truceTag, "expiry"));
         }
 
         insuranceStacks.clear();
-        ListTag insuranceList = tags.getList("insurance", Tag.TAG_COMPOUND);
+        ListTag insuranceList = Nbt.getList(tags, "insurance", Tag.TAG_COMPOUND);
         for (Tag base : insuranceList) {
             CompoundTag insuranceTag = (CompoundTag) base;
-            int slot = insuranceTag.getInt("slot");
-            ItemStack stack = ItemStack.parseOptional(WarForgeMod.MC_SERVER.registryAccess(), insuranceTag.getCompound("stack"));
+            int slot = Nbt.getInt(insuranceTag, "slot");
+            ItemStack stack = Stacks.parse(WarForgeMod.MC_SERVER.registryAccess(), Nbt.getCompound(insuranceTag, "stack"));
             ensureInsuranceSize(slot + 1);
             insuranceStacks.set(slot, stack);
         }
@@ -884,7 +891,7 @@ public class Faction {
 
     public void writeToNBT(CompoundTag tags) {
         // Set citadel pos and core params
-        tags.putUUID("uuid", uuid);
+        Nbt.putUUID(tags, "uuid", uuid);
         tags.putString("name", name);
         tags.putString("flagId", flagId);
         tags.putInt("colour", colour);
@@ -906,7 +913,7 @@ public class Faction {
         ListTag killsList = new ListTag();
         for (HashMap.Entry<UUID, Integer> kvp : killCounter.entrySet()) {
             CompoundTag killTags = new CompoundTag();
-            killTags.putUUID("id", kvp.getKey());
+            Nbt.putUUID(killTags, "id", kvp.getKey());
             killTags.putInt("count", kvp.getValue());
 
             killsList.add(killTags);
@@ -954,7 +961,7 @@ public class Faction {
         ListTag memberList = new ListTag();
         for (HashMap.Entry<UUID, PlayerData> kvp : members.entrySet()) {
             CompoundTag memberTags = new CompoundTag();
-            memberTags.putUUID("uuid", kvp.getKey());
+            Nbt.putUUID(memberTags, "uuid", kvp.getKey());
             kvp.getValue().writeToNBT(memberTags);
             memberList.add(memberTags);
         }
@@ -963,7 +970,7 @@ public class Faction {
         ListTag inviteList = new ListTag();
         for (UUID invitee : pendingInvites) {
             CompoundTag inviteTags = new CompoundTag();
-            inviteTags.putUUID("uuid", invitee);
+            Nbt.putUUID(inviteTags, "uuid", invitee);
             inviteList.add(inviteTags);
         }
         tags.put("pendingInvites", inviteList);
@@ -972,21 +979,21 @@ public class Faction {
         ListTag allyList = new ListTag();
         for (UUID ally : allies) {
             CompoundTag allyTag = new CompoundTag();
-            allyTag.putUUID("uuid", ally);
+            Nbt.putUUID(allyTag, "uuid", ally);
             allyList.add(allyTag);
         }
         tags.put("allies", allyList);
         ListTag allyRequestList = new ListTag();
         for (UUID requester : pendingAllianceRequests) {
             CompoundTag requestTag = new CompoundTag();
-            requestTag.putUUID("uuid", requester);
+            Nbt.putUUID(requestTag, "uuid", requester);
             allyRequestList.add(requestTag);
         }
         tags.put("pendingAllianceRequests", allyRequestList);
         ListTag truceList = new ListTag();
         for (Map.Entry<UUID, Long> entry : truces.entrySet()) {
             CompoundTag truceTag = new CompoundTag();
-            truceTag.putUUID("uuid", entry.getKey());
+            Nbt.putUUID(truceTag, "uuid", entry.getKey());
             truceTag.putLong("expiry", entry.getValue());
             truceList.add(truceTag);
         }
@@ -1000,8 +1007,7 @@ public class Faction {
             }
             CompoundTag insuranceTag = new CompoundTag();
             insuranceTag.putInt("slot", i);
-            CompoundTag stackTag = new CompoundTag();
-            stack.save(WarForgeMod.MC_SERVER.registryAccess(), stackTag);
+            CompoundTag stackTag = Stacks.save(stack, WarForgeMod.MC_SERVER.registryAccess());
             insuranceTag.put("stack", stackTag);
             insuranceList.add(insuranceTag);
         }
@@ -1013,16 +1019,16 @@ public class Faction {
     // forced-chunk persistence: dimension is a ResourceKey<Level> stored as its location string
     private static CompoundTag writeChunkPosToNBT(DimChunkPos chunkPos) {
         CompoundTag tag = new CompoundTag();
-        tag.putString("dim", chunkPos.dim.location().toString());
+        tag.putString("dim", Keys.id(chunkPos.dim).toString());
         tag.putIntArray("pos", new int[]{chunkPos.x, chunkPos.z});
         return tag;
     }
 
     private static DimChunkPos readChunkPosFromNBT(CompoundTag tag) {
         if (tag.contains("dim") && tag.contains("pos")) {
-            int[] data = tag.getIntArray("pos");
+            int[] data = Nbt.getIntArray(tag, "pos");
             if (data.length == 2) {
-                ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("dim")));
+                ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(tag, "dim")));
                 return new DimChunkPos(dim, data[0], data[1]);
             }
         }
@@ -1100,8 +1106,8 @@ public class Faction {
 
         public void readFromNBT(CompoundTag tags) {
             // Read and write role by string so enum order can change
-            try { role = Faction.Role.valueOf(tags.getString("role")); }
-            catch (IllegalArgumentException e) { role = Faction.Role.MEMBER; WarForgeMod.LOGGER.warn("Unknown role '{}', defaulting to MEMBER", tags.getString("role")); }
+            try { role = Faction.Role.valueOf(Nbt.getString(tags, "role")); }
+            catch (IllegalArgumentException e) { role = Faction.Role.MEMBER; WarForgeMod.LOGGER.warn("Unknown role '{}', defaulting to MEMBER", Nbt.getString(tags, "role")); }
         }
 
         public void writeToNBT(CompoundTag tags) {

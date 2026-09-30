@@ -1,8 +1,6 @@
 package com.flansmod.warforge.client.util;
 
-import net.minecraft.Util;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.components.toasts.ToastComponent;
+import com.flansmod.warforge.client.render.WFToast;
 
 import javax.annotation.Nullable;
 import java.util.UUID;
@@ -26,13 +24,10 @@ public final class WarForgeNotifications {
     }
 
     public static void show(String token, String title, @Nullable String subtitle, int accentColor, long durationMs, @Nullable UUID playerId) {
-        Minecraft minecraft = Minecraft.getInstance();
-        ToastComponent toasts = minecraft.getToasts();
-
-        String resolvedToken = token == null || token.isEmpty() ? "warforge_notification_" + Util.getMillis() : token;
-        WarForgeToast existing = toasts.getToast(WarForgeToast.class, resolvedToken);
+        String resolvedToken = token == null || token.isEmpty() ? "warforge_notification_" + (System.nanoTime() / 1_000_000L) : token;
+        WarForgeToast existing = WFToast.find(WarForgeToast.class, resolvedToken);
         if (existing == null) {
-            toasts.addToast(new WarForgeToast(resolvedToken, title, subtitle, accentColor, durationMs, playerId));
+            WFToast.add(new WarForgeToast(resolvedToken, title, subtitle, accentColor, durationMs, playerId));
         } else {
             existing.update(title, subtitle, accentColor, durationMs, playerId);
         }

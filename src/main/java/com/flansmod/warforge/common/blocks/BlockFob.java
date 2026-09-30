@@ -1,17 +1,15 @@
 package com.flansmod.warforge.common.blocks;
 
-import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
+import com.flansmod.warforge.platform.WFUiBlock;
+
+import com.flansmod.warforge.platform.WFBlock;
+
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.structure.StructureStamper;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.lowdragmc.lowdraglib2.gui.factory.BlockUIMenuType;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import net.minecraft.network.chat.Component;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.fob.Fob;
@@ -39,11 +37,11 @@ import net.minecraft.world.phys.BlockHitResult;
 import javax.annotation.Nullable;
 import java.util.UUID;
 
-public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.BlockUI {
+public class BlockFob extends WFUiBlock implements EntityBlock {
     private static final float FOB_HARDNESS = 100.0F;
 
-    public BlockFob() {
-        super(BlockBehaviour.Properties.of()
+    public BlockFob(BlockBehaviour.Properties properties) {
+        super(properties
                 .strength(-1.0F, 3600000.0F)
                 .noLootTable()
                 .noOcclusion());
@@ -61,7 +59,7 @@ public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.Bloc
         Level world = context.getLevel();
         BlockPos pos = context.getClickedPos();
 
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
             DimChunkPos chunk = new DimChunkPos(world.dimension(), pos);
             if (!com.flansmod.warforge.server.fob.FobManager.isClaimDimWhitelisted(chunk.dim)) {
                 return null;
@@ -86,8 +84,8 @@ public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.Bloc
     }
 
     @Override
-    public InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
-        if (world.isClientSide) {
+    protected InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
+        if (world.isClientSide()) {
             return InteractionResult.CONSUME;
         }
 
@@ -120,7 +118,7 @@ public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.Bloc
             if (packet != null) {
                 serverPlayer.connection.send(packet);
             }
-            BlockUIMenuType.openUI(serverPlayer, pos);
+            WFUiBlock.openUi(serverPlayer, pos);
         }
         return InteractionResult.SUCCESS;
     }
@@ -170,45 +168,7 @@ public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.Bloc
         player.sendSystemMessage(Component.literal("Picked up the FOB"));
     }
 
-    @Override
-    public ModularUI createUI(BlockUIMenuType.BlockUIHolder holder) {
-        UIElement root = new UIElement();
-        UIElement body = WarForgeUiTheme.frame(root, 280);
-        Button close = WarForgeUiTheme.closeButton();
-        close.setOnServerClick(event -> {
-            if (holder.player instanceof ServerPlayer sp) {
-                sp.closeContainer();
-            }
-        });
-        body.addChild(com.flansmod.warforge.api.modularui.WarForgeUiTheme.header("Forward Operating Base", close));
-
-        BlockEntity be = holder.player.level().getBlockEntity(holder.pos);
-        if (be instanceof TileEntityFob fob) {
-            boolean established = !fob.ownerFaction.equals(new UUID(0, 0)) && !fob.name.isEmpty();
-            if (established) {
-                UIElement section = WarForgeUiTheme.section();
-                section.addChild(WarForgeUiTheme.text("FOB: " + fob.name, WarForgeUiTheme.TEXT_PRIMARY));
-                section.addChild(WarForgeUiTheme.text("Tickets: " + fob.tickets, WarForgeUiTheme.TEXT_SECONDARY));
-                Button warpBtn = new Button().setText("Warp to FOB");
-               WarForgeUiTheme.styleButton(warpBtn, 100);
-                warpBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        DimBlockPos dpos = new DimBlockPos(sp.level().dimension(), holder.pos);
-                        Fob warpTarget = WarForgeMod.FOBS.getFobAt(dpos.toChunkPos());
-                        if (warpTarget != null) {
-                            WarForgeMod.FOBS.requestFobWarp(sp, warpTarget);
-                        }
-                    }
-                });
-                section.addChild(warpBtn);
-                body.addChild(section);
-            } else {
-                body.addChild(WarForgeUiTheme.text("This FOB is not established.", com.flansmod.warforge.api.modularui.WarForgeUiTheme.TEXT_MUTED));
-            }
-        }
-
-        return ModularUI.of(UI.of(root), holder.player);
-    }
+    
 
     @Override
     public float getDestroyProgress(BlockState state, Player player, BlockGetter world, BlockPos pos) {
@@ -219,21 +179,21 @@ public class BlockFob extends Block implements EntityBlock, BlockUIMenuType.Bloc
     }
 
     @Override
-    public void onRemove(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
-        if (!world.isClientSide && !state.is(newState.getBlock())) {
+    protected void onRemoved(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
+        if (!world.isClientSide() && !state.is(newState.getBlock())) {
             Fob registered = WarForgeMod.FOBS.getFobAt(new DimChunkPos(world.dimension(), pos));
             if (registered != null && registered.pos.toRegularPos().equals(pos)) {
                 StructureStamper.clearStructure(world, pos);
                 WarForgeMod.FOBS.removeFob(registered);
             }
         }
-        super.onRemove(state, world, pos, newState, isMoving);
+        super.onRemoved(state, world, pos, newState, isMoving);
     }
 
     @Override
     @Nullable
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide || type != Content.TE_FOB.get()) {
+        if (level.isClientSide() || type != Content.TE_FOB.get()) {
             return null;
         }
         return (lvl, pos, blockState, be) -> {

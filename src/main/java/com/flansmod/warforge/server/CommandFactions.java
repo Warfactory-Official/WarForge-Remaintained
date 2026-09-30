@@ -1,5 +1,11 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.PlayerRef;
+
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.ProtectionsModule;
@@ -31,7 +37,6 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -41,10 +46,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Perms;
 
 public class CommandFactions {
     private static boolean isOp(CommandSourceStack src) {
-        return src.hasPermission(2);
+        return Perms.isGameMaster(src);
     }
 
     private static final SuggestionProvider<CommandSourceStack> FACTION_NAME_SUGGESTIONS = (ctx, builder) -> {
@@ -424,7 +432,7 @@ public class CommandFactions {
             return Command.SINGLE_SUCCESS;
         }
         String name = StringArgumentType.getString(ctx, "name");
-        GameProfile profile = src.getServer().getProfileCache().get(name).orElse(null);
+        PlayerRef profile = Profiles.get(src.getServer(), name).orElse(null);
         if (profile == null) {
             src.sendFailure(Component.literal("Could not find player " + name));
             return Command.SINGLE_SUCCESS;
@@ -527,7 +535,7 @@ public class CommandFactions {
             if (factionToSend != null) {
                 StringBuilder memberList = new StringBuilder("Members: ");
                 for (HashMap.Entry<UUID, PlayerData> kvp : factionToSend.members.entrySet()) {
-                    GameProfile profile = src.getServer().getProfileCache().get(kvp.getKey()).orElse(null);
+                    PlayerRef profile = Profiles.get(src.getServer(), kvp.getKey()).orElse(null);
                     if (profile != null) {
                         memberList.append(profile.getName()).append(", ");
                     }
@@ -674,7 +682,7 @@ public class CommandFactions {
         CommandSourceStack src = ctx.getSource();
         int cX = IntegerArgumentType.getInteger(ctx, "chunkX");
         int cZ = IntegerArgumentType.getInteger(ctx, "chunkZ");
-        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(StringArgumentType.getString(ctx, "dim")));
+        ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(StringArgumentType.getString(ctx, "dim")));
         DimChunkPos dimPos = new DimChunkPos(dim, cX, cZ);
 
         FactionStorage.siegeTermination termType;
@@ -959,8 +967,8 @@ public class CommandFactions {
             src.sendFailure(Component.literal("From the console you must specify 'at <chunkX> <chunkZ> [dim] [radius]'"));
             return Command.SINGLE_SUCCESS;
         }
-        int baseX = player.chunkPosition().x;
-        int baseZ = player.chunkPosition().z;
+        int baseX = Chunks.x(player.chunkPosition());
+        int baseZ = Chunks.z(player.chunkPosition());
         ResourceKey<Level> dim = player.level().dimension();
         return action.run(ctx, dim, baseX, baseZ, 0);
     }
@@ -971,7 +979,7 @@ public class CommandFactions {
         int baseX = IntegerArgumentType.getInteger(ctx, "atX");
         int baseZ = IntegerArgumentType.getInteger(ctx, "atZ");
         ResourceKey<Level> dim = hasDim
-                ? ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(StringArgumentType.getString(ctx, "atDim")))
+                ? ResourceKey.create(Registries.DIMENSION, Ids.parse(StringArgumentType.getString(ctx, "atDim")))
                 : senderDim(src);
         int radius = hasRadius ? IntegerArgumentType.getInteger(ctx, "atRadius") : 0;
         radius = Math.max(0, Math.min(radius, 16));
@@ -984,7 +992,7 @@ public class CommandFactions {
 
     private static int doVeinInfo(CommandSourceStack src, ResourceKey<Level> dim, int baseX, int baseZ) {
         Pair<Vein, Quality> info = WarForgeMod.VEIN_HANDLER.peekStoredVein(dim, baseX, baseZ);
-        String location = "chunk (" + baseX + ", " + baseZ + ") in dim " + dim.location();
+        String location = "chunk (" + baseX + ", " + baseZ + ") in dim " + Keys.id(dim);
         if (info == null) {
             src.sendSuccess(() -> Component.literal(location + ": no stored vein (rolls from the seed on first access)"), false);
         } else if (info.getLeft() == null) {

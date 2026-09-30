@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Levels;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -52,7 +54,7 @@ public class TeleportsModule
 		}
 
 		ServerLevel overworld = WarForgeMod.MC_SERVER.overworld();
-		DimBlockPos target = new DimBlockPos(Level.OVERWORLD, overworld.getSharedSpawnPos());
+		DimBlockPos target = new DimBlockPos(Level.OVERWORLD, Levels.sharedSpawnPos(overworld));
 		PendingTeleport tp = new PendingTeleport();
 		tp.player = player;
 		tp.pos = player.blockPosition();

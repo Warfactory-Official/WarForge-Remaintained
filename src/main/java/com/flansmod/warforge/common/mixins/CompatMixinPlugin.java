@@ -12,14 +12,17 @@ import java.util.Set;
 
 // Gates the soft-dependency mixins in mixins.warforge.compat.json. Each maps to the modid that must be
 // present for it to apply; getMixins() only registers the ones whose mod is installed, so absent mods cost
-// nothing and produce no missing-target warnings. Add a new SBW-addon fix by writing the mixin and adding
+// nothing and produce no missing-target warnings. Add a new soft-dependency mixin by writing it and adding
 // one entry here. LoadingModList is already populated when Mixin prepares configs.
 public class CompatMixinPlugin implements IMixinConfigPlugin {
 
     // mixin class (simple name, relative to the config package) -> required modid
     private static final Map<String, String> GATED_MIXINS = Map.of(
             "SbwExplosionClaimMixin", "superbwarfare",
-            "AshVehicleExplosionClaimMixin", "ashvehicle"
+            "AshVehicleExplosionClaimMixin", "ashvehicle",
+            // Claim overlays on Xaero's maps (client-side mods).
+            "XaeroWorldMapHighlighterMixin", "xaeroworldmap",
+            "XaeroMinimapHighlighterMixin", "xaerominimap"
     );
 
     private static boolean modPresent(String modId) {

@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.stream.Collectors;
 
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Keys;
 
 public class Vein {
     public final String translationKey;
@@ -124,7 +125,7 @@ public class Vein {
 
     public String toString() {
         String dimIds = this.dimWeights.keySet().stream()
-                .map(dim -> dim.location().toString())
+                .map(dim -> Keys.id(dim).toString())
                 .collect(Collectors.joining(", ", "{", "}"));
 
         String dimWeights = this.dimWeights.values().stream()

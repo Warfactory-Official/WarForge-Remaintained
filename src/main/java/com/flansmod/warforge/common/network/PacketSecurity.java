@@ -17,6 +17,8 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
 
 /**
  * Server-side gatekeeping for everything that arrives on the WarForge channel.
@@ -188,7 +190,7 @@ public final class PacketSecurity {
             return false;
         }
         if (!player.level().dimension().equals(pos.dim)) {
-            violation(player, action + " in a different dimension (" + pos.dim.location() + ")");
+            violation(player, action + " in a different dimension (" + Keys.id(pos.dim) + ")");
             return false;
         }
         double dx = (pos.getX() + 0.5D) - player.getX();
@@ -207,7 +209,7 @@ public final class PacketSecurity {
             return false;
         }
         if (!player.level().dimension().equals(dim)) {
-            violation(player, action + " in a different dimension (" + dim.location() + ")");
+            violation(player, action + " in a different dimension (" + Keys.id(dim) + ")");
             return false;
         }
         return true;
@@ -252,7 +254,7 @@ public final class PacketSecurity {
         }
         ServerLevel level = WarForgeMod.MC_SERVER == null ? null : WarForgeMod.MC_SERVER.getLevel(dim);
         if (level == null) {
-            violation(player, action + " in nonexistent dimension " + dim.location());
+            violation(player, action + " in nonexistent dimension " + Keys.id(dim));
         }
         return level;
     }
@@ -285,7 +287,7 @@ public final class PacketSecurity {
      * client sends an over-long or syntactically invalid id; handlers treat null as "drop".
      */
     public static ResourceKey<Level> readDim(FriendlyByteBuf data) {
-        ResourceLocation id = ResourceLocation.tryParse(data.readUtf(MAX_RESOURCE_LOCATION));
+        ResourceLocation id = Ids.tryParse(data.readUtf(MAX_RESOURCE_LOCATION));
         return id == null ? null : ResourceKey.create(Registries.DIMENSION, id);
     }
 

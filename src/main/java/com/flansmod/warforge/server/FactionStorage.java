@@ -1,5 +1,13 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Chat;
+
+import com.flansmod.warforge.compat.Players;
+
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.PlayerRef;
+
 import com.flansmod.warforge.api.ObjectIntPair;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.Sounds;
@@ -29,7 +37,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.*;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -50,6 +57,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static com.flansmod.warforge.common.WarForgeMod.*;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Levels;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.Stacks;
+import com.flansmod.warforge.compat.Inventories;
+import com.flansmod.warforge.compat.Perms;
 
 public class FactionStorage {
     private static final int TOAST_INFO = 0x708A97;
@@ -117,7 +131,7 @@ public class FactionStorage {
     // CLAIM_DIM_WHITELIST is still the legacy int-id list (Overworld 0, Nether -1, End 1). Map the
     // vanilla dimension keys back to those ids so the existing config semantics are preserved.
     private static boolean isClaimDimWhitelisted(ResourceKey<Level> dim) {
-        return java.util.Arrays.asList(WarForgeConfig.CLAIM_DIM_WHITELIST).contains(dim.location().toString());
+        return java.util.Arrays.asList(WarForgeConfig.CLAIM_DIM_WHITELIST).contains(Keys.id(dim).toString());
     }
 
     private static int legacyDimId(ResourceKey<Level> dim) {
@@ -633,8 +647,8 @@ public class FactionStorage {
         clickPart.setStyle(Style.EMPTY
                 .withColor(ChatFormatting.GREEN)
                 .withUnderlined(true)
-                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/f accept " + faction.name))
-                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, Component.literal("Join " + faction.name))));
+                .withClickEvent(Chat.runCommand("/f accept " + faction.name))
+                .withHoverEvent(Chat.showText(Component.literal("Join " + faction.name))));
         message.append(clickPart);
         return message;
     }
@@ -689,7 +703,7 @@ public class FactionStorage {
 
     // Player-typed wrapper for the create path, whose sender is always a player.
     private boolean validateFactionName(String factionName, Player sender, UUID existingFactionId) {
-        return validateFactionName(factionName, sender.createCommandSourceStack(), existingFactionId);
+        return validateFactionName(factionName, Players.commandSource(sender), existingFactionId);
     }
 
     // This is called for any non-citadel claim. Citadels can be factionless, so this makes no sense
@@ -1664,7 +1678,7 @@ public class FactionStorage {
             return false;
         }
 
-        List<ItemStack> invCopy = officer.getInventory().items.stream()
+        List<ItemStack> invCopy = Inventories.main(officer.getInventory()).stream()
                 .map(ItemStack::copy)
                 .collect(Collectors.toList());
         //Copy for safety
@@ -1695,8 +1709,8 @@ public class FactionStorage {
             return false;
         }
 
-        for (int i = 0; i < officer.getInventory().items.size(); i++) {
-            officer.getInventory().items.set(i, invCopy.get(i));
+        for (int i = 0; i < Inventories.main(officer.getInventory()).size(); i++) {
+            Inventories.main(officer.getInventory()).set(i, invCopy.get(i));
         }
 
         faction.citadelLevel++;
@@ -1809,7 +1823,7 @@ public class FactionStorage {
             return false;
         }
 
-        boolean canRemove = remover.hasPermission(2);
+        boolean canRemove = Perms.isGameMaster(remover);
         boolean removingSelf = false;
         if (remover.getEntity() instanceof Player removerPlayer) {
             UUID removerID = removerPlayer.getUUID();
@@ -1833,7 +1847,7 @@ public class FactionStorage {
             return false;
         }
 
-        GameProfile userProfile = MC_SERVER.getProfileCache().get(toRemove).orElse(null);
+        PlayerRef userProfile = Profiles.get(MC_SERVER, toRemove).orElse(null);
         if (userProfile != null) {
             if (removingSelf) {
                 faction.messageAll(Component.literal(userProfile.getName() + " left " + faction.name));
@@ -1909,13 +1923,13 @@ public class FactionStorage {
 
     private void readFactionRejoinCooldowns(CompoundTag tags) {
         factionRejoinCooldowns.clear();
-        ListTag list = tags.getList("factionRejoinCooldowns", Tag.TAG_COMPOUND);
+        ListTag list = Nbt.getList(tags, "factionRejoinCooldowns", Tag.TAG_COMPOUND);
         for (Tag base : list) {
             CompoundTag entry = (CompoundTag) base;
-            if (!entry.hasUUID("player")) {
+            if (!Nbt.hasUUID(entry, "player")) {
                 continue;
             }
-            factionRejoinCooldowns.put(entry.getUUID("player"), entry.getLong("readyAt"));
+            factionRejoinCooldowns.put(Nbt.getUUID(entry, "player"), Nbt.getLong(entry, "readyAt"));
         }
     }
 
@@ -1927,7 +1941,7 @@ public class FactionStorage {
                 continue; // already expired, no point persisting it
             }
             CompoundTag entry = new CompoundTag();
-            entry.putUUID("player", kvp.getKey());
+            Nbt.putUUID(entry, "player", kvp.getKey());
             entry.putLong("readyAt", kvp.getValue());
             list.add(entry);
         }
@@ -1937,7 +1951,7 @@ public class FactionStorage {
     public boolean requestInvitePlayerToMyFaction(Player factionOfficer, UUID invitee) {
         Faction myFaction = getFactionOfPlayer(factionOfficer.getUUID());
         if (myFaction != null)
-            return RequestInvitePlayerToFaction(factionOfficer.createCommandSourceStack(), myFaction.uuid, invitee);
+            return RequestInvitePlayerToFaction(Players.commandSource(factionOfficer), myFaction.uuid, invitee);
         return false;
     }
 
@@ -1949,7 +1963,7 @@ public class FactionStorage {
         }
 
         UUID officerID = factionOfficer.getEntity() instanceof Player p ? p.getUUID() : Faction.nullUuid;
-        if (!factionOfficer.hasPermission(2) && !faction.isPlayerRoleInFaction(officerID, Faction.Role.OFFICER)) {
+        if (!Perms.isGameMaster(factionOfficer) && !faction.isPlayerRoleInFaction(officerID, Faction.Role.OFFICER)) {
             factionOfficer.sendSystemMessage(Component.literal("You are not an officer of this faction"));
             return false;
         }
@@ -2262,7 +2276,7 @@ public class FactionStorage {
         }
         faction.onlinePlayerCount += 1;
         faction.offlineRaidProtectionUntil = 0L;
-        GameProfile profile = MC_SERVER.getProfileCache().get(playerID).orElse(null);
+        PlayerRef profile = Profiles.get(MC_SERVER, playerID).orElse(null);
         if (profile != null) {
             sendFactionPresenceNotification(faction, playerID, profile.getName(), true);
         }
@@ -2275,7 +2289,7 @@ public class FactionStorage {
             return;
         }
         faction.onlinePlayerCount = Math.max(0, faction.onlinePlayerCount - 1);
-        GameProfile profile = MC_SERVER.getProfileCache().get(playerID).orElse(null);
+        PlayerRef profile = Profiles.get(MC_SERVER, playerID).orElse(null);
         if (profile != null) {
             sendFactionPresenceNotification(faction, playerID, profile.getName(), false);
         }
@@ -2557,11 +2571,11 @@ public class FactionStorage {
     // none. If the item registry is somehow unavailable, fails open (does not block the declaration).
     private boolean consumeSiegeDeclarationItem(ServerPlayer player) {
         if (Content.siegeCampBlockItem == null) return true;
-        for (int i = 0; i < player.getInventory().items.size(); i++) {
-            ItemStack stack = player.getInventory().items.get(i);
+        for (int i = 0; i < Inventories.main(player.getInventory()).size(); i++) {
+            ItemStack stack = Inventories.main(player.getInventory()).get(i);
             if (!stack.isEmpty() && stack.getItem() == Content.siegeCampBlockItem) {
                 stack.shrink(1);
-                if (stack.isEmpty()) player.getInventory().items.set(i, ItemStack.EMPTY);
+                if (stack.isEmpty()) Inventories.main(player.getInventory()).set(i, ItemStack.EMPTY);
                 player.inventoryMenu.broadcastChanges();
                 return true;
             }
@@ -2998,7 +3012,7 @@ public class FactionStorage {
                         int idx = lx + lz * 16;
                         int y = chunk.getHeight(Heightmap.Types.WORLD_SURFACE, lx, lz);
                         heights[idx] = y;
-                        if (y <= world.getMinBuildHeight()) {
+                        if (y <= Levels.minY(world)) {
                             colors[idx] = 0;
                             continue;
                         }
@@ -3020,8 +3034,8 @@ public class FactionStorage {
     }
 
     private ClaimedBlockSelection findFirstClaimBlock(Inventory inventory) {
-        for (int slot = 0; slot < inventory.items.size(); slot++) {
-            ItemStack stack = inventory.items.get(slot);
+        for (int slot = 0; slot < Inventories.main(inventory).size(); slot++) {
+            ItemStack stack = Inventories.main(inventory).get(slot);
             if (stack.isEmpty()) {
                 continue;
             }
@@ -3376,14 +3390,14 @@ public class FactionStorage {
 
         InitNeutralZones();
 
-        ListTag list = tags.getList("factions", Tag.TAG_COMPOUND);
+        ListTag list = Nbt.getList(tags, "factions", Tag.TAG_COMPOUND);
         for (Tag baseTag : list) {
             CompoundTag factionTags = ((CompoundTag) baseTag);
-            if (!factionTags.hasUUID("id")) {
+            if (!Nbt.hasUUID(factionTags, "id")) {
                 WarForgeMod.LOGGER.warn("Skipping faction entry with missing/invalid id while loading warforgefactions.dat");
                 continue;
             }
-            UUID uuid = factionTags.getUUID("id");
+            UUID uuid = Nbt.getUUID(factionTags, "id");
             Faction faction;
 
 
@@ -3410,12 +3424,12 @@ public class FactionStorage {
         WarForgeMod.FOBS.rebuildGlobalIndex();
         WarForgeMod.FOBS.readFromNBT(tags);
 
-        list = tags.getList("sieges", Tag.TAG_COMPOUND);
+        list = Nbt.getList(tags, "sieges", Tag.TAG_COMPOUND);
         for (Tag baseTag : list) {
             CompoundTag siegeTags = ((CompoundTag) baseTag);
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(siegeTags.getString("dim")));
-            int x = siegeTags.getInt("x");
-            int z = siegeTags.getInt("z");
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(siegeTags, "dim")));
+            int x = Nbt.getInt(siegeTags, "x");
+            int z = Nbt.getInt(siegeTags, "z");
 
             Siege siege = new Siege();
             siege.ReadFromNBT(siegeTags);
@@ -3437,23 +3451,23 @@ public class FactionStorage {
 
     private void readConqueredChunks(CompoundTag tags) {
         conqueredChunks = new HashMap<>();
-        CompoundTag conqueredChunksDataList = tags.getCompound("conqueredChunks");
+        CompoundTag conqueredChunksDataList = Nbt.getCompound(tags, "conqueredChunks");
 
         int index = 0;
         while (true) {
             String key = "conqueredChunk_" + index;
-            if (conqueredChunksDataList.getTagType(key) != Tag.TAG_COMPOUND) {
+            if (Nbt.tagType(conqueredChunksDataList, key) != Tag.TAG_COMPOUND) {
                 break; // exit on the first missing or legacy/malformed (non-compound) entry; legacy data is dropped
             }
-            CompoundTag entry = conqueredChunksDataList.getCompound(key);
+            CompoundTag entry = Nbt.getCompound(conqueredChunksDataList, key);
             try {
-                ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(entry.getString("dim")));
-                int[] chunkXZ = entry.getIntArray("pos");
+                ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(entry, "dim")));
+                int[] chunkXZ = Nbt.getIntArray(entry, "pos");
                 if (chunkXZ.length < 2) {
                     ++index;
                     continue;
                 }
-                int[] factionArr = entry.getIntArray("faction");
+                int[] factionArr = Nbt.getIntArray(entry, "faction");
                 if (factionArr.length < 4) {
                     ++index;
                     continue;
@@ -3461,7 +3475,7 @@ public class FactionStorage {
                 DimChunkPos chunkPosKey = new DimChunkPos(dim, chunkXZ[0], chunkXZ[1]);
                 UUID factionID = BEIntArrayToUUID(factionArr);
 
-                conqueredChunks.put(chunkPosKey, new ObjectIntPair<>(factionID, entry.getInt("period")));
+                conqueredChunks.put(chunkPosKey, new ObjectIntPair<>(factionID, Nbt.getInt(entry, "period")));
             } catch (Exception e) {
                 WarForgeMod.LOGGER.warn("Skipping malformed conqueredChunk entry at index {}", index, e);
             }
@@ -3474,7 +3488,7 @@ public class FactionStorage {
         ListTag factionList = new ListTag();
         for (HashMap.Entry<UUID, Faction> kvp : mFactions.entrySet()) {
             CompoundTag factionTags = new CompoundTag();
-            factionTags.putUUID("id", kvp.getKey());
+            Nbt.putUUID(factionTags, "id", kvp.getKey());
             kvp.getValue().writeToNBT(factionTags);
             factionList.add(factionTags);
         }
@@ -3484,7 +3498,7 @@ public class FactionStorage {
         ListTag siegeList = new ListTag();
         for (HashMap.Entry<DimChunkPos, Siege> kvp : sieges.entrySet()) {
             CompoundTag siegeTags = new CompoundTag();
-            siegeTags.putString("dim", kvp.getKey().dim.location().toString());
+            siegeTags.putString("dim", Keys.id(kvp.getKey().dim).toString());
             siegeTags.putInt("x", kvp.getKey().x);
             siegeTags.putInt("z", kvp.getKey().z);
             kvp.getValue().WriteToNBT(siegeTags);
@@ -3499,14 +3513,14 @@ public class FactionStorage {
     }
 
     private void readRedeemableInsurance(CompoundTag tags) {
-        ListTag payoutList = tags.getList("redeemableInsuranceVaults", Tag.TAG_COMPOUND);
+        ListTag payoutList = Nbt.getList(tags, "redeemableInsuranceVaults", Tag.TAG_COMPOUND);
         for (Tag base : payoutList) {
             CompoundTag payoutTag = (CompoundTag) base;
-            UUID owner = payoutTag.getUUID("owner");
+            UUID owner = Nbt.getUUID(payoutTag, "owner");
             ArrayList<ItemStack> items = new ArrayList<ItemStack>();
-            ListTag itemsList = payoutTag.getList("items", Tag.TAG_COMPOUND);
+            ListTag itemsList = Nbt.getList(payoutTag, "items", Tag.TAG_COMPOUND);
             for (Tag itemBase : itemsList) {
-                items.add(ItemStack.parseOptional(WarForgeMod.MC_SERVER.registryAccess(), (CompoundTag) itemBase));
+                items.add(Stacks.parse(WarForgeMod.MC_SERVER.registryAccess(), (CompoundTag) itemBase));
             }
             redeemableInsuranceVaults.put(owner, items);
         }
@@ -3516,14 +3530,13 @@ public class FactionStorage {
         ListTag payoutList = new ListTag();
         for (Map.Entry<UUID, ArrayList<ItemStack>> entry : redeemableInsuranceVaults.entrySet()) {
             CompoundTag payoutTag = new CompoundTag();
-            payoutTag.putUUID("owner", entry.getKey());
+            Nbt.putUUID(payoutTag, "owner", entry.getKey());
             ListTag itemsList = new ListTag();
             for (ItemStack stack : entry.getValue()) {
                 if (stack == null || stack.isEmpty()) {
                     continue;
                 }
-                CompoundTag itemTag = new CompoundTag();
-                stack.save(WarForgeMod.MC_SERVER.registryAccess(), itemTag);
+                CompoundTag itemTag = Stacks.save(stack, WarForgeMod.MC_SERVER.registryAccess());
                 itemsList.add(itemTag);
             }
             payoutTag.put("items", itemsList);
@@ -3540,7 +3553,7 @@ public class FactionStorage {
             // dim is now a ResourceKey<Level> and can no longer share an int-array slot with x/z, so each
             // entry is a compound carrying the dim string, chunk pos, owning faction, and grace period.
             CompoundTag entry = new CompoundTag();
-            entry.putString("dim", chunkPosKey.dim.location().toString());
+            entry.putString("dim", Keys.id(chunkPosKey.dim).toString());
             entry.putIntArray("pos", new int[]{chunkPosKey.x, chunkPosKey.z});
             entry.putIntArray("faction", UUIDToBEIntArray(conqueredEntry.getValue().getObj()));
             entry.putInt("period", conqueredEntry.getValue().getInteger());
@@ -3601,10 +3614,10 @@ public class FactionStorage {
     private record ClaimedBlockSelection(int slot, Faction.ClaimType claimType) {
 
         private void consume(Inventory inventory) {
-            ItemStack stack = inventory.items.get(slot);
+            ItemStack stack = Inventories.main(inventory).get(slot);
             stack.shrink(1);
             if (stack.isEmpty()) {
-                inventory.items.set(slot, ItemStack.EMPTY);
+                Inventories.main(inventory).set(slot, ItemStack.EMPTY);
             }
         }
     }

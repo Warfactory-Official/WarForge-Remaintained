@@ -1,13 +1,8 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -17,15 +12,6 @@ import java.util.List;
 import java.util.UUID;
 
 public class PacketRequestInsurance extends PacketBase {
-
-    public static final CustomPacketPayload.Type<PacketRequestInsurance> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetrequestinsurance"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketRequestInsurance> STREAM_CODEC =
-        StreamCodec.ofMember(PacketRequestInsurance::encodeInto, buf -> { PacketRequestInsurance p = new PacketRequestInsurance(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public UUID factionId = Faction.nullUuid;
 
     @Override

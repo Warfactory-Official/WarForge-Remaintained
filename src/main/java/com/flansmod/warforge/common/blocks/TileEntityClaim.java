@@ -12,13 +12,15 @@ import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.platform.WFBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import java.util.UUID;
 
 import static com.flansmod.warforge.common.blocks.BlockCitadel.FACING;
+import com.flansmod.warforge.compat.Nbt;
 
-public abstract class TileEntityClaim extends BlockEntity implements IClaim {
+public abstract class TileEntityClaim extends WFBlockEntity implements IClaim {
     public int colour = 0xFF_FF_FF;
     public String factionName = "";
     public String factionFlagId = "";
@@ -76,8 +78,6 @@ public abstract class TileEntityClaim extends BlockEntity implements IClaim {
         }
 
     }
-
-
 
     @Override
     public void updateColour(int colour) {
@@ -150,7 +150,7 @@ public abstract class TileEntityClaim extends BlockEntity implements IClaim {
     }
 
     private void updateTileEntity() {
-        if (level.isClientSide) return;
+        if (level.isClientSide()) return;
         BlockState state = level.getBlockState(worldPosition);
         level.sendBlockUpdated(worldPosition, state, state, 3);
         setChanged();
@@ -161,10 +161,10 @@ public abstract class TileEntityClaim extends BlockEntity implements IClaim {
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.writeData(nbt, registries);
 
-        nbt.putUUID("faction", factionUUID);
+        Nbt.putUUID(nbt, "faction", factionUUID);
         nbt.putByte("rotation", rotation);
         nbt.putFloat("poleLength", poleLength);
         nbt.putString("flagId", factionFlagId);
@@ -173,20 +173,20 @@ public abstract class TileEntityClaim extends BlockEntity implements IClaim {
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.readData(nbt, registries);
 
-        factionUUID = nbt.getUUID("faction");
-        rotation = nbt.getByte("rotation");
-        poleLength = nbt.contains("poleLength") ? nbt.getFloat("poleLength") : DEFAULT_POLE_LENGTH;
-        factionFlagId = nbt.getString("flagId");
-        factionName = nbt.getString("name");
+        factionUUID = Nbt.getUUID(nbt, "faction");
+        rotation = Nbt.getByte(nbt, "rotation");
+        poleLength = nbt.contains("poleLength") ? Nbt.getFloat(nbt, "poleLength") : DEFAULT_POLE_LENGTH;
+        factionFlagId = Nbt.getString(nbt, "flagId");
+        factionName = Nbt.getString(nbt, "name");
         if (nbt.contains("colour")) {
-            colour = nbt.getInt("colour");
+            colour = Nbt.getInt(nbt, "colour");
         }
 
         // Verifications
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide()) {
             Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
             if (!factionUUID.equals(Faction.nullUuid) && faction == null) {
                 WarForgeMod.LOGGER.error("Faction " + factionUUID + " could not be found for citadel at " + worldPosition);
@@ -202,37 +202,26 @@ public abstract class TileEntityClaim extends BlockEntity implements IClaim {
     }
 
     @Override
-    public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket.create(this);
-    }
-
-    @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider registries) {
-        handleUpdateTag(packet.getTag(), registries);
-    }
-
-    @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tags = super.getUpdateTag(registries);
+    protected void writeSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        super.writeSyncData(tags, registries);
 
         // Custom partial nbt write method
-        tags.putUUID("faction", factionUUID);
+        Nbt.putUUID(tags, "faction", factionUUID);
         tags.putInt("colour", colour);
         tags.putString("name", factionName);
         tags.putString("flagId", factionFlagId);
         tags.putByte("rotation", rotation);
         tags.putFloat("poleLength", poleLength);
-        return tags;
     }
 
     @Override
-    public void handleUpdateTag(CompoundTag tags, HolderLookup.Provider registries) {
-        factionUUID = tags.getUUID("faction");
-        colour = tags.getInt("colour");
-        factionName = tags.getString("name");
-        factionFlagId = tags.getString("flagId");
-        rotation = tags.getByte("rotation");
-        poleLength = tags.contains("poleLength") ? tags.getFloat("poleLength") : DEFAULT_POLE_LENGTH;
+    protected void readSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        factionUUID = Nbt.getUUID(tags, "faction");
+        colour = Nbt.getInt(tags, "colour");
+        factionName = Nbt.getString(tags, "name");
+        factionFlagId = Nbt.getString(tags, "flagId");
+        rotation = Nbt.getByte(tags, "rotation");
+        poleLength = tags.contains("poleLength") ? Nbt.getFloat(tags, "poleLength") : DEFAULT_POLE_LENGTH;
     }
 
 }

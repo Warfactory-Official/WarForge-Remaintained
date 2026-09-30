@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.platform.WFBlock;
+
 import java.util.UUID;
 
 import javax.annotation.Nullable;
@@ -22,13 +24,13 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.phys.BlockHitResult;
 
-public class BlockLeaderboard extends Block implements EntityBlock
+public class BlockLeaderboard extends WFBlock implements EntityBlock
 {
 	public final FactionStat stat;
 
-	public BlockLeaderboard(FactionStat stat)
+	public BlockLeaderboard(FactionStat stat, BlockBehaviour.Properties properties)
 	{
-		super(BlockBehaviour.Properties.of()
+		super(properties
 				.strength(-1.0F, 3600000.0F)
 				.noLootTable()
 				.noOcclusion());
@@ -40,11 +42,11 @@ public class BlockLeaderboard extends Block implements EntityBlock
 	public RenderShape getRenderShape(BlockState state) { return RenderShape.MODEL; }
 
 	@Override
-	public InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit)
+	protected InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit)
 	{
 		if(player.isShiftKeyDown())
 			return InteractionResult.PASS;
-		if(!world.isClientSide)
+		if(!world.isClientSide())
 		{
 			UUID uuid = player.getUUID();
 			PacketLeaderboardInfo packet = new PacketLeaderboardInfo();

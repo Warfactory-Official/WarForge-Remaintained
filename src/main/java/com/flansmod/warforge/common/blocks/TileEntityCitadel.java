@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.compat.Vanilla;
+
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -25,6 +27,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.Stacks;
 
 public class TileEntityCitadel extends TileEntityYieldCollector implements IClaim {
     public static final int BANNER_SLOT_INDEX = NUM_BASE_SLOTS;
@@ -70,7 +74,7 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     }
 
     public void processFactionYields(Faction faction) {
-        if (level == null || level.isClientSide || faction == null) {
+        if (level == null || level.isClientSide() || faction == null) {
             return;
         }
 
@@ -92,7 +96,7 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
 
     @Override
     public void onLoad() {
-        if (level != null && !level.isClientSide) {
+        if (level != null && !level.isClientSide()) {
             Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
             if (faction != null) {
                 processFactionYields(faction);
@@ -110,8 +114,6 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
         return "Citadel of " + factionName;
     }
     //-----------
-
-
 
     // Inventory overrides for banner stack (IItemHandlerModifiable surface from TileEntityYieldCollector)
     @Override
@@ -222,7 +224,6 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
         level.setBlock(worldPosition.above(), Content.statue.defaultBlockState().setValue(MODEL, BlockDummy.modelEnum.KNIGHT), 3);
         level.sendBlockUpdated(worldPosition.above(), state, state, 3);
 
-
         BlockEntity teMiddle = level.getBlockEntity(worldPosition.above());
         if (teMiddle instanceof TileEntityDummy) {
             ((TileEntityDummy) teMiddle).setMaster(worldPosition);
@@ -241,13 +242,11 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
         if (te instanceof TileEntityDummy)
             ((TileEntityDummy) te).setLaserRender(true);
 
-
     }
-
 
     public void onServerCreateFaction(Faction faction) {
 
-        level.playSound(null, worldPosition, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 1.0F, 1.0F);
+        level.playSound(null, worldPosition, Vanilla.explodeSound(), SoundSource.PLAYERS, 1.0F, 1.0F);
         level.playSound(null, worldPosition, SoundEvents.ANVIL_USE, SoundSource.PLAYERS, 1.0F, 1.2F);
         ((ServerLevel) level).sendParticles(
                 ParticleTypes.EXPLOSION_EMITTER,
@@ -260,19 +259,19 @@ public class TileEntityCitadel extends TileEntityYieldCollector implements IClai
     }
 
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
+    protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.writeData(nbt, registries);
 
-        nbt.putUUID("placer", placer);
+        Nbt.putUUID(nbt, "placer", placer);
 
-        nbt.put("banner", bannerStack.saveOptional(registries));
+        nbt.put("banner", Stacks.save(bannerStack, registries));
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.readData(nbt, registries);
 
-        bannerStack = ItemStack.parseOptional(registries, nbt.getCompound("banner"));
-        placer = nbt.getUUID("placer");
+        bannerStack = Stacks.parse(registries, Nbt.getCompound(nbt, "banner"));
+        placer = Nbt.getUUID(nbt, "placer");
     }
 }

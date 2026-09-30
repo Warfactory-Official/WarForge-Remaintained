@@ -1,5 +1,5 @@
 {
-  "loader": "neoforge:obj",
+  "loader": "${obj_loader}",
   "flip_v": true,
   "automatic_culling": false,
   "model": "warforge:models/block/pole.obj",

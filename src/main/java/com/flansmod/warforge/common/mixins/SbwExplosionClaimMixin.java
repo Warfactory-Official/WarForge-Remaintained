@@ -5,6 +5,7 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
@@ -14,6 +15,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // through the same claim check. Targets are listed by string so this compiles without SBW on the
 // classpath; missing targets (e.g. the other version's packaging) are skipped by required:false, and
 // the whole mixin is only registered when SBW is present (see CompatMixinPlugin).
+// @Pseudo: the targets may be missing when compiling (Forge refmap generation still maps the redirect target).
+@Pseudo
 @Mixin(remap = false, targets = {
         // C4 and the TM-62 mine moved entity -> entity.projectile between 0.8.8 and 0.8.9; list both.
         "com.atsuishio.superbwarfare.entity.C4Entity",

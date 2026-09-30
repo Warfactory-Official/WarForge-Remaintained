@@ -1,130 +1,163 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketSecurity.Bucket;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.PacketFlow;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
-import net.neoforged.neoforge.network.registration.PayloadRegistrar;
+import net.minecraft.world.entity.player.Player;
+import org.jetbrains.annotations.Nullable;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
- * Payload registration for the WarForge channel.
+ * The WarForge channel: every packet type, the one direction it may travel, and its rate limit.
+ * The loader's network code (platform.NetworkPlatform) registers this table.
  *
- * <p>Every payload declares the one direction it may travel. NeoForge checks the registered flow
- * against the connection in {@code NetworkRegistry#getCodec} and refuses to decode a mismatch, so a
- * modified client can neither reach a server handler with a client-bound payload nor make the server
- * run a client-bound decoder (several of which size collections from the payload itself).
+ * <p>Every payload declares the one direction it may travel. The loader checks the registered direction
+ * against the connection and refuses to decode a mismatch, so a modified client can neither reach a server
+ * handler with a client-bound payload nor make the server run a client-bound decoder (several of which size
+ * collections from the payload itself).
  *
  * <p>Client-to-server payloads also declare a {@link Bucket}: the per-player rate limit charged in
  * {@link #handle} before the handler runs, so no packet can be added without a cost attached.
  */
-@EventBusSubscriber(modid = Tags.MODID, bus = EventBusSubscriber.Bus.MOD)
 public final class WFNetwork {
     private WFNetwork() {
     }
 
-    @SubscribeEvent
-    public static void register(RegisterPayloadHandlersEvent event) {
-        PayloadRegistrar r = event.registrar("1");
+    /** Protocol version. Change it when a packet's wire format changes. */
+    public static final String VERSION = "1";
 
-        c2s(r, PacketCreateFaction.TYPE, PacketCreateFaction.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketOpenCreateFaction.TYPE, PacketOpenCreateFaction.STREAM_CODEC);
-        s2c(r, PacketOpenFlagSelect.TYPE, PacketOpenFlagSelect.STREAM_CODEC);
-        s2c(r, PacketOpenRecolour.TYPE, PacketOpenRecolour.STREAM_CODEC);
-        c2s(r, PacketRequestFactionInfo.TYPE, PacketRequestFactionInfo.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketFactionInfo.TYPE, PacketFactionInfo.STREAM_CODEC);
-        s2c(r, PacketSiegeCampInfo.TYPE, PacketSiegeCampInfo.STREAM_CODEC);
-        s2c(r, PacketSiegeCampProgressUpdate.TYPE, PacketSiegeCampProgressUpdate.STREAM_CODEC);
-        c2s(r, PacketStartSiege.TYPE, PacketStartSiege.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketLeaderboardInfo.TYPE, PacketLeaderboardInfo.STREAM_CODEC);
-        c2s(r, PacketRequestLeaderboardInfo.TYPE, PacketRequestLeaderboardInfo.STREAM_CODEC, Bucket.QUERY);
-        c2s(r, PacketDisbandFaction.TYPE, PacketDisbandFaction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRemoveClaim.TYPE, PacketRemoveClaim.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketTimeUpdates.TYPE, PacketTimeUpdates.STREAM_CODEC);
-        c2s(r, PacketSetFactionColour.TYPE, PacketSetFactionColour.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketClientNotification.TYPE, PacketClientNotification.STREAM_CODEC);
-        c2s(r, PacketMoveCitadel.TYPE, PacketMoveCitadel.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketCitadelUpgradeRequirement.TYPE, PacketCitadelUpgradeRequirement.STREAM_CODEC);
-        c2s(r, PacketRequestUpgradeUI.TYPE, PacketRequestUpgradeUI.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketUpgradeUI.TYPE, PacketUpgradeUI.STREAM_CODEC);
-        c2s(r, PacketRequestUpgrade.TYPE, PacketRequestUpgrade.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketChooseFactionFlag.TYPE, PacketChooseFactionFlag.STREAM_CODEC, Bucket.ACTION);
-        s2c(r, PacketFlagManifest.TYPE, PacketFlagManifest.STREAM_CODEC);
-        s2c(r, PacketFlagChunk.TYPE, PacketFlagChunk.STREAM_CODEC);
-        s2c(r, PacketEffect.TYPE, PacketEffect.STREAM_CODEC);
-        s2c(r, PacketNamePlateChange.TYPE, PacketNamePlateChange.STREAM_CODEC);
-        c2s(r, PacketRequestNamePlate.TYPE, PacketRequestNamePlate.STREAM_CODEC, Bucket.QUERY);
-        // Genuinely two-way: clients query a chunk's vein, the server answers with the same type.
-        both(r, PacketChunkPosVeinID.TYPE, PacketChunkPosVeinID.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketVeinEntries.TYPE, PacketVeinEntries.STREAM_CODEC);
-        s2c(r, PacketSyncConfig.TYPE, PacketSyncConfig.STREAM_CODEC);
-        c2s(r, PacketRequestClaimChunks.TYPE, PacketRequestClaimChunks.STREAM_CODEC, Bucket.MAP);
-        s2c(r, PacketClaimChunksData.TYPE, PacketClaimChunksData.STREAM_CODEC);
-        c2s(r, PacketClaimChunkAction.TYPE, PacketClaimChunkAction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketFactionMemberManagerAction.TYPE, PacketFactionMemberManagerAction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRequestMemberData.TYPE, PacketRequestMemberData.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketMemberData.TYPE, PacketMemberData.STREAM_CODEC);
-        c2s(r, PacketFactionInsuranceAction.TYPE, PacketFactionInsuranceAction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRequestInsurance.TYPE, PacketRequestInsurance.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketInsuranceData.TYPE, PacketInsuranceData.STREAM_CODEC);
-        s2c(r, PacketJourneyMapClaims.TYPE, PacketJourneyMapClaims.STREAM_CODEC);
-        s2c(r, PacketJourneyMapVeins.TYPE, PacketJourneyMapVeins.STREAM_CODEC);
-        c2s(r, PacketDeclareSiege.TYPE, PacketDeclareSiege.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRequestTerrainColors.TYPE, PacketRequestTerrainColors.STREAM_CODEC, Bucket.TERRAIN);
-        s2c(r, PacketTerrainColors.TYPE, PacketTerrainColors.STREAM_CODEC);
-        c2s(r, PacketFactionAllianceAction.TYPE, PacketFactionAllianceAction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketEstablishFob.TYPE, PacketEstablishFob.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRequestFobWarp.TYPE, PacketRequestFobWarp.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketFobManagerAction.TYPE, PacketFobManagerAction.STREAM_CODEC, Bucket.ACTION);
-        c2s(r, PacketRequestOperations.TYPE, PacketRequestOperations.STREAM_CODEC, Bucket.QUERY);
-        s2c(r, PacketOperationsData.TYPE, PacketOperationsData.STREAM_CODEC);
+    public enum Direction { TO_SERVER, TO_CLIENT, BOTH }
+
+    /**
+     * One packet type. The channel id is the lowercase class name (for example "packetcreatefaction"), so the
+     * table order does not matter on NeoForge; on Forge the order is the message index, so add new packets at
+     * the end.
+     */
+    public record Entry<T extends PacketBase>(String id, Class<T> type, Supplier<T> factory, Direction direction,
+                                              Bucket bucket) {
     }
 
-    /** Client -> server only. NeoForge refuses to decode one arriving on a client. */
-    private static <T extends PacketBase> void c2s(PayloadRegistrar r, CustomPacketPayload.Type<T> type,
-            StreamCodec<RegistryFriendlyByteBuf, T> codec, Bucket bucket) {
-        r.playToServer(type, codec, (payload, context) -> handle(payload, context, bucket));
+    public static final List<Entry<?>> PACKETS = List.of(
+            c2s(PacketCreateFaction.class, PacketCreateFaction::new, Bucket.ACTION),
+            s2c(PacketOpenCreateFaction.class, PacketOpenCreateFaction::new),
+            s2c(PacketOpenFlagSelect.class, PacketOpenFlagSelect::new),
+            s2c(PacketOpenRecolour.class, PacketOpenRecolour::new),
+            c2s(PacketRequestFactionInfo.class, PacketRequestFactionInfo::new, Bucket.QUERY),
+            s2c(PacketFactionInfo.class, PacketFactionInfo::new),
+            s2c(PacketSiegeCampInfo.class, PacketSiegeCampInfo::new),
+            s2c(PacketSiegeCampProgressUpdate.class, PacketSiegeCampProgressUpdate::new),
+            c2s(PacketStartSiege.class, PacketStartSiege::new, Bucket.ACTION),
+            s2c(PacketLeaderboardInfo.class, PacketLeaderboardInfo::new),
+            c2s(PacketRequestLeaderboardInfo.class, PacketRequestLeaderboardInfo::new, Bucket.QUERY),
+            c2s(PacketDisbandFaction.class, PacketDisbandFaction::new, Bucket.ACTION),
+            c2s(PacketRemoveClaim.class, PacketRemoveClaim::new, Bucket.ACTION),
+            s2c(PacketTimeUpdates.class, PacketTimeUpdates::new),
+            c2s(PacketSetFactionColour.class, PacketSetFactionColour::new, Bucket.ACTION),
+            s2c(PacketClientNotification.class, PacketClientNotification::new),
+            c2s(PacketMoveCitadel.class, PacketMoveCitadel::new, Bucket.ACTION),
+            s2c(PacketCitadelUpgradeRequirement.class, PacketCitadelUpgradeRequirement::new),
+            c2s(PacketRequestUpgradeUI.class, PacketRequestUpgradeUI::new, Bucket.QUERY),
+            s2c(PacketUpgradeUI.class, PacketUpgradeUI::new),
+            c2s(PacketRequestUpgrade.class, PacketRequestUpgrade::new, Bucket.ACTION),
+            c2s(PacketChooseFactionFlag.class, PacketChooseFactionFlag::new, Bucket.ACTION),
+            s2c(PacketFlagManifest.class, PacketFlagManifest::new),
+            s2c(PacketFlagChunk.class, PacketFlagChunk::new),
+            s2c(PacketEffect.class, PacketEffect::new),
+            s2c(PacketNamePlateChange.class, PacketNamePlateChange::new),
+            c2s(PacketRequestNamePlate.class, PacketRequestNamePlate::new, Bucket.QUERY),
+            // Genuinely two-way: clients query a chunk's vein, the server answers with the same type.
+            both(PacketChunkPosVeinID.class, PacketChunkPosVeinID::new, Bucket.QUERY),
+            s2c(PacketVeinEntries.class, PacketVeinEntries::new),
+            s2c(PacketSyncConfig.class, PacketSyncConfig::new),
+            c2s(PacketRequestClaimChunks.class, PacketRequestClaimChunks::new, Bucket.MAP),
+            s2c(PacketClaimChunksData.class, PacketClaimChunksData::new),
+            c2s(PacketClaimChunkAction.class, PacketClaimChunkAction::new, Bucket.ACTION),
+            c2s(PacketFactionMemberManagerAction.class, PacketFactionMemberManagerAction::new, Bucket.ACTION),
+            c2s(PacketRequestMemberData.class, PacketRequestMemberData::new, Bucket.QUERY),
+            s2c(PacketMemberData.class, PacketMemberData::new),
+            c2s(PacketFactionInsuranceAction.class, PacketFactionInsuranceAction::new, Bucket.ACTION),
+            c2s(PacketRequestInsurance.class, PacketRequestInsurance::new, Bucket.QUERY),
+            s2c(PacketInsuranceData.class, PacketInsuranceData::new),
+            s2c(PacketJourneyMapClaims.class, PacketJourneyMapClaims::new),
+            s2c(PacketJourneyMapVeins.class, PacketJourneyMapVeins::new),
+            c2s(PacketDeclareSiege.class, PacketDeclareSiege::new, Bucket.ACTION),
+            c2s(PacketRequestTerrainColors.class, PacketRequestTerrainColors::new, Bucket.TERRAIN),
+            s2c(PacketTerrainColors.class, PacketTerrainColors::new),
+            c2s(PacketFactionAllianceAction.class, PacketFactionAllianceAction::new, Bucket.ACTION),
+            c2s(PacketEstablishFob.class, PacketEstablishFob::new, Bucket.ACTION),
+            c2s(PacketRequestFobWarp.class, PacketRequestFobWarp::new, Bucket.ACTION),
+            c2s(PacketFobManagerAction.class, PacketFobManagerAction::new, Bucket.ACTION),
+            c2s(PacketRequestOperations.class, PacketRequestOperations::new, Bucket.QUERY),
+            s2c(PacketOperationsData.class, PacketOperationsData::new)
+    );
+
+    private static final Map<Class<?>, Entry<?>> BY_CLASS = new HashMap<>();
+
+    static {
+        for (Entry<?> entry : PACKETS) {
+            BY_CLASS.put(entry.type(), entry);
+        }
     }
 
-    /** Server -> client only. NeoForge refuses to decode one arriving on the server. */
-    private static <T extends PacketBase> void s2c(PayloadRegistrar r, CustomPacketPayload.Type<T> type,
-            StreamCodec<RegistryFriendlyByteBuf, T> codec) {
-        r.playToClient(type, codec, (payload, context) -> handle(payload, context, Bucket.NONE));
+    /** The table entry of a packet class. */
+    public static Entry<?> entryOf(Class<?> type) {
+        Entry<?> entry = BY_CLASS.get(type);
+        if (entry == null) {
+            throw new IllegalArgumentException(type.getName() + " is not registered in WFNetwork.PACKETS");
+        }
+        return entry;
+    }
+
+    /** Client -> server only. The loader refuses to decode one arriving on a client. */
+    private static <T extends PacketBase> Entry<T> c2s(Class<T> type, Supplier<T> factory, Bucket bucket) {
+        return new Entry<>(idOf(type), type, factory, Direction.TO_SERVER, bucket);
+    }
+
+    /** Server -> client only. The loader refuses to decode one arriving on the server. */
+    private static <T extends PacketBase> Entry<T> s2c(Class<T> type, Supplier<T> factory) {
+        return new Entry<>(idOf(type), type, factory, Direction.TO_CLIENT, Bucket.NONE);
     }
 
     /** Request/response payloads that legitimately travel both ways. */
-    private static <T extends PacketBase> void both(PayloadRegistrar r, CustomPacketPayload.Type<T> type,
-            StreamCodec<RegistryFriendlyByteBuf, T> codec, Bucket bucket) {
-        r.playBidirectional(type, codec, (payload, context) -> handle(payload, context, bucket));
+    private static <T extends PacketBase> Entry<T> both(Class<T> type, Supplier<T> factory, Bucket bucket) {
+        return new Entry<>(idOf(type), type, factory, Direction.BOTH, bucket);
     }
 
-    private static void handle(PacketBase payload, IPayloadContext context, Bucket bucket) {
-        context.enqueueWork(() -> {
-            if (context.flow() == PacketFlow.SERVERBOUND) {
-                // No player on the context means there is nobody to authorise the request against.
-                if (!(context.player() instanceof ServerPlayer sender)) {
-                    return;
-                }
-                if (!PacketSecurity.allow(sender, bucket, payload.getClass().getSimpleName())) {
-                    return;
-                }
-                try {
-                    payload.handleServerSide(sender);
-                } catch (Exception e) {
-                    // A handler must never take the server tick down over hostile input.
-                    WarForgeMod.LOGGER.error("Error handling " + payload.getClass().getSimpleName()
-                            + " from " + sender.getName().getString(), e);
-                }
-            } else {
-                payload.handleClientSide(context.player());
+    private static String idOf(Class<?> type) {
+        return type.getSimpleName().toLowerCase(Locale.ROOT);
+    }
+
+    /**
+     * Runs a decoded packet. The loader calls this on the main thread.
+     *
+     * @param serverbound  true if the packet arrived on the server
+     * @param sender       the sending player for a serverbound packet (null if the connection has no player)
+     * @param clientPlayer the local player for a clientbound packet
+     */
+    public static void handle(PacketBase payload, boolean serverbound, @Nullable ServerPlayer sender,
+                              @Nullable Player clientPlayer, Bucket bucket) {
+        if (serverbound) {
+            // No player on the context means there is nobody to authorise the request against.
+            if (sender == null) {
+                return;
             }
-        });
+            if (!PacketSecurity.allow(sender, bucket, payload.getClass().getSimpleName())) {
+                return;
+            }
+            try {
+                payload.handleServerSide(sender);
+            } catch (Exception e) {
+                // A handler must never take the server tick down over hostile input.
+                WarForgeMod.LOGGER.error("Error handling " + payload.getClass().getSimpleName()
+                        + " from " + sender.getName().getString(), e);
+            }
+        } else {
+            payload.handleClientSide(clientPlayer);
+        }
     }
 }

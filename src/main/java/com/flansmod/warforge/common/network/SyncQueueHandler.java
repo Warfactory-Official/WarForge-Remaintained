@@ -1,7 +1,6 @@
 package com.flansmod.warforge.common.network;
 
 import net.minecraft.server.level.ServerPlayer;
-import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -25,7 +24,7 @@ public class SyncQueueHandler {
         syncTasks.add(new SyncTask(player, task));
     }
 
-    public static void sync(ServerTickEvent.Post event) {
+    public static void sync() {
         if (!syncTasks.isEmpty()) {
             for (int i = 0; i < perTick && !syncTasks.isEmpty(); i++) {
                 SyncTask task = syncTasks.poll();

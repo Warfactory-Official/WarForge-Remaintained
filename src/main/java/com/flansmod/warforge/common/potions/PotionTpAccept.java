@@ -1,10 +1,10 @@
 package com.flansmod.warforge.common.potions;
 
-import net.minecraft.world.effect.MobEffect;
+import com.flansmod.warforge.platform.WFMobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.entity.LivingEntity;
 
-public class PotionTpAccept extends MobEffect
+public class PotionTpAccept extends WFMobEffect
 {
 	protected PotionTpAccept()
 	{
@@ -12,13 +12,13 @@ public class PotionTpAccept extends MobEffect
 	}
 
 	@Override
-	public boolean applyEffectTick(LivingEntity living, int amplifier)
+	protected boolean onEffectTick(LivingEntity living, int amplifier)
 	{
 		return true;
 	}
 
 	@Override
-	public boolean shouldApplyEffectTickThisTick(int duration, int amplifier)
+	protected boolean shouldTick(int duration, int amplifier)
 	{
 		return duration % 20 == 0;
 	}

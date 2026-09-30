@@ -6,11 +6,13 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
 
 public class DimBlockPos extends BlockPos
 {
@@ -96,7 +98,7 @@ public class DimBlockPos extends BlockPos
 	@Override
     public String toString()
     {
-        return "[" + this.dim.location() + ": " + this.getX() + ", " + this.getY() + ", " + this.getZ() + "]";
+        return "[" + Keys.id(this.dim) + ": " + this.getX() + ", " + this.getY() + ", " + this.getZ() + "]";
     }
 
 	public String toFancyString()
@@ -112,13 +114,13 @@ public class DimBlockPos extends BlockPos
 			return "The Overworld";
 		if (dim.equals(Level.END))
 			return "The End";
-		return "Dimension " + dim.location();
+		return "Dimension " + Keys.id(dim);
 	}
 
 	public CompoundTag writeToNBT()
 	{
 		CompoundTag tag = new CompoundTag();
-		tag.putString("dim", dim.location().toString());
+		tag.putString("dim", Keys.id(dim).toString());
 		tag.putIntArray("pos", new int[] { getX(), getY(), getZ() });
 		return tag;
 	}
@@ -131,7 +133,7 @@ public class DimBlockPos extends BlockPos
 	public static DimBlockPos readFromNBT(CompoundTag tags, String prefix)
 	{
 		if (tags.contains(prefix))
-			return readFromNBT(tags.getCompound(prefix));
+			return readFromNBT(Nbt.getCompound(tags, prefix));
 		return DimBlockPos.ZERO;
 	}
 
@@ -139,10 +141,10 @@ public class DimBlockPos extends BlockPos
 	{
 		if (tag != null && tag.contains("dim") && tag.contains("pos"))
 		{
-			int[] data = tag.getIntArray("pos");
+			int[] data = Nbt.getIntArray(tag, "pos");
 			if (data.length == 3)
 			{
-				ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(tag.getString("dim")));
+				ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(tag, "dim")));
 				return new DimBlockPos(dim, data[0], data[1], data[2]);
 			}
 		}

@@ -1,15 +1,12 @@
 package com.flansmod.warforge.common;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.util.FactionDisplay;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
-@EventBusSubscriber(modid = Tags.MODID)
 public final class WarForgeTabListHandler {
 
     @SubscribeEvent

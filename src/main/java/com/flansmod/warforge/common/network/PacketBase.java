@@ -1,16 +1,16 @@
 package com.flansmod.warforge.common.network;
 
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import com.flansmod.warforge.platform.PayloadBase;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
 /**
- * Base class for all packets in Flan's Mod.
+ * Base class for all packets in Flan's Mod. Every packet type is listed in {@link WFNetwork#PACKETS}.
  */
-public abstract class PacketBase implements CustomPacketPayload
+public abstract class PacketBase extends PayloadBase
 {
 	/**
 	 * Encode the packet into a FriendlyByteBuf stream.

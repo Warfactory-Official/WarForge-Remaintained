@@ -1,5 +1,9 @@
 package com.flansmod.warforge.api;
 
+import com.flansmod.warforge.client.render.Images;
+
+import com.flansmod.warforge.client.render.DynamicTextures;
+
 import com.flansmod.warforge.Tags;
 import com.mojang.blaze3d.platform.NativeImage;
 import lombok.RequiredArgsConstructor;
@@ -10,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.flansmod.warforge.compat.Ids;
 
 public class ChunkDynamicTextureThread extends Thread {
     // Pending GL registrations keyed by texture name so a chunk that is rebuilt several times before the
@@ -160,7 +165,7 @@ public class ChunkDynamicTextureThread extends Thread {
                 int r = (color >>> 16) & 0xFF;
                 int g = (color >>> 8) & 0xFF;
                 int b = color & 0xFF;
-                nativeImage.setPixelRGBA(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+                Images.setPixelABGR(nativeImage, x, y, (a << 24) | (b << 16) | (g << 8) | r);
             }
         }
         return nativeImage;
@@ -174,9 +179,9 @@ public class ChunkDynamicTextureThread extends Thread {
 
         public void register() {
             Minecraft mc = Minecraft.getInstance();
-            ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Tags.MODID, name);
-            mc.getTextureManager().release(location);
-            mc.getTextureManager().register(location, new DynamicTexture(toNativeImage(argbPixels, size)));
+            ResourceLocation location = Ids.of(Tags.MODID, name);
+            DynamicTextures.release(location);
+            DynamicTextures.register(location, toNativeImage(argbPixels, size));
         }
 
 

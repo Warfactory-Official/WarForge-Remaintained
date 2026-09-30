@@ -6,6 +6,7 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.nbt.CompoundTag;
 
 import java.util.UUID;
+import com.flansmod.warforge.compat.Nbt;
 
 public class Fob {
     public DimBlockPos pos = DimBlockPos.ZERO;
@@ -40,10 +41,10 @@ public class Fob {
 
     public void readFromNBT(CompoundTag tags) {
         pos = DimBlockPos.readFromNBT(tags, "pos");
-        name = tags.getString("name");
-        tickets = tags.getInt("tickets");
-        maxTickets = tags.getInt("maxTickets");
-        nextRegenMs = tags.getLong("nextRegen");
-        enemyHoldTicks = tags.getInt("enemyHoldTicks");
+        name = Nbt.getString(tags, "name");
+        tickets = Nbt.getInt(tags, "tickets");
+        maxTickets = Nbt.getInt(tags, "maxTickets");
+        nextRegenMs = Nbt.getLong(tags, "nextRegen");
+        enemyHoldTicks = Nbt.getInt(tags, "enemyHoldTicks");
     }
 }

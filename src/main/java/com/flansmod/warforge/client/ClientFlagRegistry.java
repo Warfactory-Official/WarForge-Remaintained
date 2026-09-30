@@ -1,5 +1,11 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.compat.ClientCompat;
+
+import com.flansmod.warforge.client.render.Images;
+
+import com.flansmod.warforge.client.render.DynamicTextures;
+
 import com.flansmod.warforge.Tags;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.Minecraft;
@@ -15,6 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import com.flansmod.warforge.compat.Ids;
 
 public final class ClientFlagRegistry {
     private static final HashMap<String, ResourceLocation> textures = new HashMap<String, ResourceLocation>();
@@ -50,7 +57,7 @@ public final class ClientFlagRegistry {
         for (ResourceLocation texture : textures.values()) {
             if (texture.getNamespace().equals(Tags.MODID)) {
                 Minecraft mc = Minecraft.getInstance();
-                mc.tell(() -> mc.getTextureManager().release(texture));
+                ClientCompat.runLater(() -> DynamicTextures.release(texture));
             }
         }
         textures.clear();
@@ -75,7 +82,7 @@ public final class ClientFlagRegistry {
             assemblies.remove(flagId);
             byte[] bytes = assembly.join();
             Minecraft mc = Minecraft.getInstance();
-            mc.tell(() -> registerCustomFlag(flagId, width, height, bytes));
+            ClientCompat.runLater(() -> registerCustomFlag(flagId, width, height, bytes));
         }
     }
 
@@ -107,8 +114,8 @@ public final class ClientFlagRegistry {
                 return;
             }
             NativeImage nativeImage = bufferedImageToNativeImage(image);
-            ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "dynamic/flag/" + Integer.toUnsignedString(flagId.hashCode()));
-            Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(nativeImage));
+            ResourceLocation location = Ids.of(Tags.MODID, "dynamic/flag/" + Integer.toUnsignedString(flagId.hashCode()));
+            DynamicTextures.register(location, nativeImage);
             textures.put(flagId, location);
             dimensions.put(flagId, new int[]{width, height});
         } catch (IOException ignored) {
@@ -125,11 +132,11 @@ public final class ClientFlagRegistry {
             for (int x = 0; x < DEFAULT_FLAG_SIZE; x++) {
                 // NativeImage uses ABGR pixel format; convert from ARGB
                 int argbPixel = pixels[y * DEFAULT_FLAG_SIZE + x];
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(argbPixel));
+                Images.setPixelABGR(nativeImage, x, y, argbToAbgr(argbPixel));
             }
         }
-        ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "dynamic/flag/default_" + name.toLowerCase(Locale.ROOT));
-        Minecraft.getInstance().getTextureManager().register(location, new DynamicTexture(nativeImage));
+        ResourceLocation location = Ids.of(Tags.MODID, "dynamic/flag/default_" + name.toLowerCase(Locale.ROOT));
+        DynamicTextures.register(location, nativeImage);
         textures.put(flagId, location);
         dimensions.put(flagId, new int[]{DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE});
         return location;
@@ -142,7 +149,7 @@ public final class ClientFlagRegistry {
         NativeImage nativeImage = new NativeImage(w, h, false);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(image.getRGB(x, y)));
+                Images.setPixelABGR(nativeImage, x, y, argbToAbgr(image.getRGB(x, y)));
             }
         }
         return nativeImage;

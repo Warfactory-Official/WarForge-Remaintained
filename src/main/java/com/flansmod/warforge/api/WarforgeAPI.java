@@ -1,5 +1,7 @@
 package com.flansmod.warforge.api;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.api.interfaces.IChunkReinforcer;
 import com.flansmod.warforge.api.interfaces.IClaimStrengthModifier;
 import com.flansmod.warforge.common.ProtectionsModule;
@@ -264,20 +266,20 @@ public final class WarforgeAPI {
                 int bonus = 0;
                 boolean stacks = false;
 
-                IChunkReinforcer reinforcer = level.getCapability(WarForgeCapabilities.CHUNK_REINFORCER, be.getBlockPos(), null);
+                IChunkReinforcer reinforcer = WarForgeCapabilities.chunkReinforcer(level, be);
                 if (reinforcer != null) {
                     if (!reinforcer.isReinforcementActive()) continue;
-                    ChunkPos rc = new ChunkPos(be.getBlockPos());
-                    int dist = Math.max(Math.abs(rc.x - besieged.x), Math.abs(rc.z - besieged.z));
+                    ChunkPos rc = Chunks.of(be.getBlockPos());
+                    int dist = Math.max(Math.abs(Chunks.x(rc) - besieged.x), Math.abs(Chunks.z(rc) - besieged.z));
                     if (dist > reinforcer.getReinforcementRadius()) continue;
                     bonus = reinforcer.getReinforcementBonus();
                     stacks = reinforcer.stacksWithOthers();
                 } else if (be instanceof IClaimStrengthModifier legacy) {
                     if (!legacy.isActive()) continue;
-                    ChunkPos rc = new ChunkPos(be.getBlockPos());
+                    ChunkPos rc = Chunks.of(be.getBlockPos());
                     boolean covers = false;
                     for (Vec3i vec : legacy.getEffectArea()) {
-                        if (rc.x + vec.getX() == besieged.x && rc.z + vec.getZ() == besieged.z) {
+                        if (Chunks.x(rc) + vec.getX() == besieged.x && Chunks.z(rc) + vec.getZ() == besieged.z) {
                             covers = true;
                             break;
                         }

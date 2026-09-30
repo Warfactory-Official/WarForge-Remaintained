@@ -36,6 +36,8 @@ import java.util.stream.Collectors;
 
 import static com.flansmod.warforge.api.vein.init.VeinUtils.NULL_VEIN_ID;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
 
 public class VeinConfigHandler {
     public record Tuple5<A, B, C, D, E>(A _1, B _2, C _3, D _4, E _5) {}
@@ -341,7 +343,7 @@ public class VeinConfigHandler {
 
     // dimension ids are modern ResourceLocation strings (e.g. minecraft:the_nether).
     private static ResourceLocation parseDimId(Object raw) {
-        return ResourceLocation.parse((String) raw);
+        return Ids.parse((String) raw);
     }
 
     // returns the number of occupiedIds found
@@ -558,13 +560,13 @@ public class VeinConfigHandler {
         final public float multiplier;
 
         public void serialize(FriendlyByteBuf buf) {
-            buf.writeUtf(dim.location().toString());
+            buf.writeUtf(Keys.id(dim).toString());
             buf.writeShort(weight);
             buf.writeFloat(multiplier);
         }
 
         public static DimWeight deserialize(FriendlyByteBuf buf) {
-            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(buf.readUtf()));
+            ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(buf.readUtf()));
             return new DimWeight(dim, buf.readShort(), buf.readFloat());
         }
     }
@@ -605,13 +607,13 @@ public class VeinConfigHandler {
 
             serialData.writeInt(weights.size());
             for (var entry : weights.object2ShortEntrySet()) {
-                serialData.writeUtf(entry.getKey().location().toString());
+                serialData.writeUtf(Keys.id(entry.getKey()).toString());
                 serialData.writeShort(entry.getShortValue());
             }
 
             serialData.writeInt(multipliers.size());
             for (var entry : multipliers.object2FloatEntrySet()) {
-                serialData.writeUtf(entry.getKey().location().toString());
+                serialData.writeUtf(Keys.id(entry.getKey()).toString());
                 serialData.writeFloat(entry.getFloatValue());
             }
 
@@ -626,7 +628,7 @@ public class VeinConfigHandler {
             int numWeights = buf.readInt();
             Object2ShortOpenHashMap<ResourceKey<Level>> weights = new Object2ShortOpenHashMap<>(numWeights);
             for (int i = 0; i < numWeights; ++i) {
-                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(buf.readUtf()));
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, Ids.parse(buf.readUtf()));
                 weights.put(key, buf.readShort());
             }
 
@@ -634,7 +636,7 @@ public class VeinConfigHandler {
             int numMults = buf.readInt();
             Object2FloatOpenHashMap<ResourceKey<Level>> multipliers = new Object2FloatOpenHashMap<>(numMults);
             for (int i = 0; i < numMults; ++i) {
-                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, ResourceLocation.parse(buf.readUtf()));
+                ResourceKey<Level> key = ResourceKey.create(Registries.DIMENSION, Ids.parse(buf.readUtf()));
                 multipliers.put(key, buf.readFloat());
             }
 

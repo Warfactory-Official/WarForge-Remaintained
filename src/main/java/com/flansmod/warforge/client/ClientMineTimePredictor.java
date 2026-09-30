@@ -1,5 +1,7 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.common.MineTime;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
@@ -27,7 +29,7 @@ public class ClientMineTimePredictor {
     public void onBreakSpeed(PlayerEvent.BreakSpeed event) {
         Player player = event.getEntity();
         Level level = player.level();
-        if (!level.isClientSide)
+        if (!level.isClientSide())
             return;
         if (player.getAbilities().instabuild)
             return;
@@ -38,8 +40,8 @@ public class ClientMineTimePredictor {
         if (blockPos == null)
             return;
 
-        ChunkPos cp = new ChunkPos(blockPos);
-        DimChunkPos chunkPos = new DimChunkPos(level.dimension(), cp.x, cp.z);
+        ChunkPos cp = Chunks.of(blockPos);
+        DimChunkPos chunkPos = new DimChunkPos(level.dimension(), Chunks.x(cp), Chunks.z(cp));
 
         ProtectionConfig config = ClientProtections.configFor(chunkPos);
         if (config == null)

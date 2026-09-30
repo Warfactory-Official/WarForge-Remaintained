@@ -1,27 +1,15 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.compat.Nbt;
+
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.effect.EffectRegistry;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 public class PacketEffect extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketEffect> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packeteffect"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketEffect> STREAM_CODEC =
-        StreamCodec.ofMember(PacketEffect::encodeInto, buf -> { PacketEffect p = new PacketEffect(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public double x, y, z;
     public String type = "";
     public String dataNBT = "";
@@ -54,7 +42,7 @@ public class PacketEffect extends PacketBase {
     public void handleClientSide(Player clientPlayer) {
         CompoundTag compound;
         try {
-            compound = TagParser.parseTag(dataNBT);
+            compound = Nbt.parse(dataNBT);
         } catch (Exception e) {
             WarForgeMod.LOGGER.error("Malformed effect data NBT for " + type);
             return;

@@ -1,6 +1,5 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.common.factories.SiegeCampGuiFactory;
@@ -10,27 +9,16 @@ import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketSiegeCampInfo extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketSiegeCampInfo> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetsiegecampinfo"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketSiegeCampInfo> STREAM_CODEC =
-        StreamCodec.ofMember(PacketSiegeCampInfo::encodeInto, buf -> { PacketSiegeCampInfo p = new PacketSiegeCampInfo(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public static PacketSiegeCampInfo lastReceived = null;
 
     public DimBlockPos mSiegeCampPos;
@@ -40,7 +28,7 @@ public class PacketSiegeCampInfo extends PacketBase {
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        data.writeUtf(mSiegeCampPos.dim.location().toString());
+        data.writeUtf(Keys.id(mSiegeCampPos.dim).toString());
         data.writeInt(mSiegeCampPos.getX());
         data.writeInt(mSiegeCampPos.getY());
         data.writeInt(mSiegeCampPos.getZ());

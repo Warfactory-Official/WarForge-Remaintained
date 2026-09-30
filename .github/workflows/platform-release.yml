@@ -42,17 +42,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
+      # Gradle runs on 21; the nodes compile with the 17 and 25 toolchains.
+      - name: Set up JDKs
         uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: |
+            17
+            25
+            21
           cache: gradle
           cache-dependency-path: |
             **/*.gradle*
+            **/*.gradle.kts
             **/gradle-wrapper.properties
-            **/gradle.lockfile
-            src/main/resources/META-INF/accesstransformer.cfg
+            stonecutter.properties.toml
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -104,39 +108,9 @@ jobs:
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
 
-          for file in build/libs/*; do
-            name=$(basename "$file")
-            case "$name" in
-              *-downgraded.jar|*-dev-shadow.jar)
-                continue
-                ;;
-            esac
-            cp "$file" "$OUT_DIR/$name"
-          done
-
-          for file in build/publication-libs/*.jar; do
-            name=$(basename "$file")
-            if [[ "$name" != *-java25-publish-* ]]; then
-              echo "::error::Unexpected publication artifact name: $name"
-              exit 1
-            fi
-
-            prefix="${name%%-java25-publish-*}"
-            rest="${name#*-java25-publish-}"
-
-            case "$rest" in
-              *-dev-compile.jar)
-                continue
-                ;;
-              *-api.jar)
-                continue
-                ;;
-              *.jar)
-                version="${rest%.jar}"
-                compat_name="${prefix}-${version}-java25.jar"
-                ;;
-            esac
-            cp "$file" "$OUT_DIR/$compat_name"
+          # One jar (plus sources) per node: versions/<node>/build/libs/warforge-remaintained-<mc>-<loader>-<version>.jar
+          for file in versions/*/build/libs/*.jar; do
+            cp "$file" "$OUT_DIR/$(basename "$file")"
           done
 
       - name: Upload build artifacts

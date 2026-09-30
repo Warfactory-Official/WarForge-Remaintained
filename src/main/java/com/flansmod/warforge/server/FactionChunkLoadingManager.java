@@ -1,20 +1,15 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
+import com.flansmod.warforge.platform.ChunkTickets;
 import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.common.world.chunk.RegisterTicketControllersEvent;
-import net.neoforged.neoforge.common.world.chunk.TicketController;
-import net.neoforged.neoforge.common.world.chunk.TicketHelper;
-import net.neoforged.neoforge.common.world.chunk.TicketSet;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -25,25 +20,24 @@ import java.util.UUID;
 
 public class FactionChunkLoadingManager {
     private final HashMap<UUID, HashMap<ResourceKey<Level>, HashSet<DimChunkPos>>> forcedByFaction = new HashMap<UUID, HashMap<ResourceKey<Level>, HashSet<DimChunkPos>>>();
-    private TicketController ticketController;
+    private ChunkTickets ticketController;
 
     public void initialize(IEventBus modBus) {
-        ticketController = new TicketController(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "faction_chunks"), this::validateTickets);
-        modBus.addListener((RegisterTicketControllersEvent event) -> event.register(ticketController));
+        ticketController = ChunkTickets.create(modBus, "faction_chunks", this::validateTickets);
     }
 
-    private void validateTickets(ServerLevel level, TicketHelper ticketHelper) {
+    private void validateTickets(ServerLevel level, Map<UUID, ChunkTickets.OwnerTickets> ticketsByOwner, ChunkTickets.Remover ticketHelper) {
         ResourceKey<Level> dim = level.dimension();
-        for (Map.Entry<UUID, TicketSet> entry : ticketHelper.getEntityTickets().entrySet()) {
+        for (Map.Entry<UUID, ChunkTickets.OwnerTickets> entry : ticketsByOwner.entrySet()) {
             UUID factionId = entry.getKey();
             Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
             if (faction == null || !FactionStorage.isValidFaction(faction) || FactionStorage.IsNeutralZone(factionId)) {
-                ticketHelper.removeAllTickets(factionId);
+                ticketHelper.removeAll(factionId);
                 continue;
             }
 
             for (long packed : entry.getValue().nonTicking().toLongArray()) {
-                ticketHelper.removeTicket(factionId, packed, false);
+                ticketHelper.remove(factionId, packed, false);
             }
             HashSet<DimChunkPos> tracked = forcedByFaction
                     .computeIfAbsent(factionId, id -> new HashMap<>())
@@ -76,7 +70,7 @@ public class FactionChunkLoadingManager {
                 continue;
             }
             for (DimChunkPos chunk : entry.getValue()) {
-                ticketController.forceChunk(level, factionId, chunk.x, chunk.z, false, true);
+                ticketController.force(level, factionId, chunk.x, chunk.z, false, true);
             }
         }
     }
@@ -115,7 +109,7 @@ public class FactionChunkLoadingManager {
             }
             for (DimChunkPos chunk : new HashSet<>(entry.getValue())) {
                 if (desired == null || !desired.contains(chunk)) {
-                    ticketController.forceChunk(level, faction.uuid, chunk.x, chunk.z, false, true);
+                    ticketController.force(level, faction.uuid, chunk.x, chunk.z, false, true);
                     entry.getValue().remove(chunk);
                 }
             }
@@ -136,7 +130,7 @@ public class FactionChunkLoadingManager {
             HashSet<DimChunkPos> current = currentByDim.computeIfAbsent(dim, id -> new HashSet<DimChunkPos>());
             for (DimChunkPos chunk : chunks) {
                 if (current.add(chunk)) {
-                    ticketController.forceChunk(level, faction.uuid, chunk.x, chunk.z, true, true);
+                    ticketController.force(level, faction.uuid, chunk.x, chunk.z, true, true);
                 }
             }
         }

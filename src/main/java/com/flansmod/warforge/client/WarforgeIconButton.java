@@ -1,16 +1,17 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.Tags;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.AbstractButton;
+import com.flansmod.warforge.client.render.Gui2D;
+import com.flansmod.warforge.client.render.WFButton;
 import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.narration.NarrationElementOutput;
 import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import com.flansmod.warforge.compat.Ids;
 
-public final class WarforgeIconButton extends AbstractButton {
-    public static final ResourceLocation WARFORGE_BUTTONS_TEXTURE = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "gui/icon_claim.png");
+public final class WarforgeIconButton extends WFButton {
+    public static final ResourceLocation WARFORGE_BUTTONS_TEXTURE = Ids.of(Tags.MODID, "gui/icon_claim.png");
     public static final int WARFORGE_BUTTON_SIZE = 18;
 
     private final int textureX;
@@ -39,7 +40,7 @@ public final class WarforgeIconButton extends AbstractButton {
     }
 
     @Override
-    public void renderWidget(GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
+    protected void drawButton(Gui2D graphics, int mouseX, int mouseY, float partialTicks) {
         graphics.blit(WARFORGE_BUTTONS_TEXTURE, getX(), getY(), textureX, 0, WARFORGE_BUTTON_SIZE, WARFORGE_BUTTON_SIZE, 256, 256);
         if (isHoveredOrFocused()) {
             // Vanilla slot-hover highlight (translucent white selection box).

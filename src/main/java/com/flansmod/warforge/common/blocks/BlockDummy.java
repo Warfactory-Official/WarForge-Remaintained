@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.platform.WFBlock;
+
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.InteractionHand;
@@ -10,6 +12,7 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.SoundType;
@@ -25,11 +28,11 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 
 import javax.annotation.Nullable;
 
-public class BlockDummy extends Block implements EntityBlock {
+public class BlockDummy extends WFBlock implements EntityBlock {
     public static final EnumProperty<modelEnum> MODEL = EnumProperty.create("model", modelEnum.class);
 
-    public BlockDummy() {
-        super(Properties.of()
+    public BlockDummy(BlockBehaviour.Properties properties) {
+        super(properties
                 .strength(-1.0F, 30000000.0F)
                 .sound(SoundType.STONE)
                 .noLootTable()
@@ -62,7 +65,7 @@ public class BlockDummy extends Block implements EntityBlock {
     }
 
     @Override
-    public InteractionResult useWithoutItem(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+    protected InteractionResult onUse(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
         BlockEntity tileEntity = level.getBlockEntity(pos);
         if (!(tileEntity instanceof IBlockDummy dummy)) return InteractionResult.PASS;
 
@@ -79,7 +82,7 @@ public class BlockDummy extends Block implements EntityBlock {
         }
 
         if (!level.isEmptyBlock(masterPos)) {
-            return level.getBlockState(masterPos).useWithoutItem(level, player, new BlockHitResult(
+            return WFBlock.useWithEmptyHand(level.getBlockState(masterPos), level, player, new BlockHitResult(
                     hit.getLocation(), hit.getDirection(), masterPos, hit.isInside()));
         }
 
@@ -103,21 +106,11 @@ public class BlockDummy extends Block implements EntityBlock {
     }
 
     // Invisible placeholder: present no occlusion shape so it never culls the neighbouring claim
-    // base's top face (the dark "hole" symptom).
+    // base's top face (the dark "hole" symptom), and let skylight pass straight through so the statue
+    // rendered above the base is lit.
     @Override
-    public VoxelShape getOcclusionShape(BlockState state, BlockGetter level, BlockPos pos) {
-        return Shapes.empty();
-    }
-
-    // Let skylight pass straight through so the statue rendered above the base is lit.
-    @Override
-    public boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
+    protected boolean isTransparentToLight(BlockState state) {
         return true;
-    }
-
-    @Override
-    public int getLightBlock(BlockState state, BlockGetter level, BlockPos pos) {
-        return 0;
     }
 
     @Deprecated

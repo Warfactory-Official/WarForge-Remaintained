@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
+import com.flansmod.warforge.compat.Nbt;
 
 public class Siege {
     public static final FactionStorage FACTION_STORAGE = WarForgeMod.FACTIONS;
@@ -576,35 +577,35 @@ public class Siege {
         attackingCamps.clear();
 
         // Get the attacker and defender
-        attackingFaction = tags.getUUID("attacker");
-        defendingFaction = tags.getUUID("defender");
+        attackingFaction = Nbt.getUUID(tags, "attacker");
+        defendingFaction = Nbt.getUUID(tags, "defender");
 
         // Get the important locations; DimBlockPos now serialises as a compound {dim:String, pos:int[3]}
-        ListTag claimList = tags.getList("attackLocations", Tag.TAG_COMPOUND);
+        ListTag claimList = Nbt.getList(tags, "attackLocations", Tag.TAG_COMPOUND);
         for (Tag base : claimList) {
             DimBlockPos pos = DimBlockPos.readFromNBT((CompoundTag) base);
             attackingCamps.add(pos);
         }
 
         defendingClaim = DimBlockPos.readFromNBT(tags, "defendLocation");
-        battleRadius = tags.contains("battleRadius") ? Math.max(0, tags.getInt("battleRadius")) : WarForgeConfig.SIEGE_BATTLE_RADIUS;
-        siegedRadius = tags.contains("siegedRadius") ? Math.max(0, tags.getInt("siegedRadius")) : WarForgeConfig.SIEGE_SIEGED_RADIUS;
-        mAttackProgress = tags.getInt("progress");
-        mBaseDifficulty = tags.getInt("baseDifficulty");
-        mExtraDifficulty = tags.getInt("extraDifficulty");
-        campless = tags.getBoolean("campless");
-        attackerAbsenceTicks = tags.getInt("attackerAbsenceTicks");
+        battleRadius = tags.contains("battleRadius") ? Math.max(0, Nbt.getInt(tags, "battleRadius")) : WarForgeConfig.SIEGE_BATTLE_RADIUS;
+        siegedRadius = tags.contains("siegedRadius") ? Math.max(0, Nbt.getInt(tags, "siegedRadius")) : WarForgeConfig.SIEGE_SIEGED_RADIUS;
+        mAttackProgress = Nbt.getInt(tags, "progress");
+        mBaseDifficulty = Nbt.getInt(tags, "baseDifficulty");
+        mExtraDifficulty = Nbt.getInt(tags, "extraDifficulty");
+        campless = Nbt.getBoolean(tags, "campless");
+        attackerAbsenceTicks = Nbt.getInt(tags, "attackerAbsenceTicks");
         if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER) {
 
-            timeRemainingMillis = tags.getLong("timeElapsed");
+            timeRemainingMillis = Nbt.getLong(tags, "timeElapsed");
             recalculateEndTimestamp();
         }
     }
 
     public void WriteToNBT(CompoundTag tags) {
         // Set attacker / defender
-        tags.putUUID("attacker", attackingFaction);
-        tags.putUUID("defender", defendingFaction);
+        Nbt.putUUID(tags, "attacker", attackingFaction);
+        Nbt.putUUID(tags, "defender", defendingFaction);
 
         // Set important locations
         ListTag claimsList = new ListTag();

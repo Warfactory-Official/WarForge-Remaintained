@@ -1,6 +1,5 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.OperationsGuiData;
 import com.flansmod.warforge.common.factories.OperationsGuiFactory;
@@ -8,11 +7,7 @@ import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
@@ -20,16 +15,9 @@ import net.minecraft.world.level.Level;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketOperationsData extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketOperationsData> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetoperationsdata"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketOperationsData> STREAM_CODEC =
-        StreamCodec.ofMember(PacketOperationsData::encodeInto, buf -> { PacketOperationsData p = new PacketOperationsData(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public static PacketOperationsData latest = null;
 
     public boolean hasFaction = false;
@@ -62,7 +50,7 @@ public class PacketOperationsData extends PacketBase {
 
         data.writeShort(fobs.size());
         for (OperationsGuiData.FobEntry fob : fobs) {
-            writeUTF(data, fob.pos.dim.location().toString());
+            writeUTF(data, Keys.id(fob.pos.dim).toString());
             data.writeInt(fob.pos.getX());
             data.writeInt(fob.pos.getY());
             data.writeInt(fob.pos.getZ());

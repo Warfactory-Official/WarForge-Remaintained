@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
 
 public class FobManager {
     private final HashMap<DimChunkPos, Fob> mFobChunks = new HashMap<>();
@@ -31,7 +33,7 @@ public class FobManager {
     private final List<DimBlockPos> mPendingCleanup = new ArrayList<>();
 
     public static boolean isClaimDimWhitelisted(ResourceKey<Level> dim) {
-        return java.util.Arrays.asList(WarForgeConfig.CLAIM_DIM_WHITELIST).contains(dim.location().toString());
+        return java.util.Arrays.asList(WarForgeConfig.CLAIM_DIM_WHITELIST).contains(Keys.id(dim).toString());
     }
 
     public FobWarpQueue getWarpQueue() {
@@ -281,9 +283,9 @@ public class FobManager {
 
     public void readFromNBT(CompoundTag tags) {
         mPendingCleanup.clear();
-        ListTag list = tags.getList("fobCleanupQueue", Tag.TAG_COMPOUND);
+        ListTag list = Nbt.getList(tags, "fobCleanupQueue", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
-            mPendingCleanup.add(DimBlockPos.readFromNBT(list.getCompound(i), "pos"));
+            mPendingCleanup.add(DimBlockPos.readFromNBT(Nbt.getCompound(list, i), "pos"));
         }
     }
 

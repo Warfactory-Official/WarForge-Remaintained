@@ -1,7 +1,6 @@
 package com.flansmod.warforge.server;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.network.LeaderboardInfo;
 
 import java.util.ArrayList;

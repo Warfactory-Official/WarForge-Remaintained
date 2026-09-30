@@ -3,7 +3,7 @@
 	"required": false,
 	"target": "@env(DEFAULT)",
 	"minVersion": "0.8.5",
-	"compatibilityLevel": "JAVA_21",
+	"compatibilityLevel": "${mixin_java}",
 	"mixins": [
 		"FluidClaimBorderMixin"
 	],

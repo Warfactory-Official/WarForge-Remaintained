@@ -17,33 +17,33 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Read modVersion from gradle.properties
+      - name: Read the mod version from stonecutter.properties.toml
         id: ver
         run: |
           set -euo pipefail
-          if [[ ! -f gradle.properties ]]; then
-            echo "::error::gradle.properties not found in repo root"; exit 1
-          fi
-          MOD_VERSION=$(grep -E '^\s*modVersion\s*=' gradle.properties | sed -E 's/^\s*modVersion\s*=\s*//; s/\r$//' | xargs || true)
+          MOD_VERSION=$(awk -F'"' '/^\[mod\]/{m=1;next} /^\[/{m=0} m && /^version *=/{print $2; exit}' stonecutter.properties.toml)
           if [[ -z "${MOD_VERSION}" ]]; then
-            echo "::error::modVersion is empty in gradle.properties"; exit 1
+            echo "::error::[mod] version is empty in stonecutter.properties.toml"; exit 1
           fi
           echo "MOD_VERSION=${MOD_VERSION}" >> "$GITHUB_ENV"
           echo "TAG=v${MOD_VERSION}" >> "$GITHUB_ENV"
           echo "tag=v${MOD_VERSION}" >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 25
+      # Gradle runs on 21; the nodes compile with the 17 and 25 toolchains.
+      - name: Set up JDKs
         uses: actions/setup-java@v5
         with:
-          distribution: graalvm
-          java-version: '25'
+          distribution: temurin
+          java-version: |
+            17
+            25
+            21
           cache: gradle
           cache-dependency-path: |
             **/*.gradle*
-            **/buildscript.properties
+            **/*.gradle.kts
             **/gradle-wrapper.properties
-            **/gradle.lockfile
-            src/main/resources/warforge_at.cfg
+            stonecutter.properties.toml
 
       - name: Make gradlew executable
         run: chmod +x ./gradlew
@@ -61,33 +61,9 @@ jobs:
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
 
-          for file in build/libs/*-sources.jar build/libs/*-dev.jar build/libs/*-dev-java25.jar; do
+          # One jar (plus sources) per node: versions/<node>/build/libs/warforge-remaintained-<mc>-<loader>-<version>.jar
+          for file in versions/*/build/libs/*.jar; do
             cp "$file" "$OUT_DIR/$(basename "$file")"
-          done
-
-          for file in build/publication-libs/*.jar; do
-            name=$(basename "$file")
-            if [[ "$name" != *-java25-publish-* ]]; then
-              echo "::error::Unexpected publication artifact name: $name"
-              exit 1
-            fi
-
-            prefix="${name%%-java25-publish-*}"
-            rest="${name#*-java25-publish-}"
-
-            case "$rest" in
-              *-dev-compile.jar)
-                continue
-                ;;
-              *-api.jar)
-                continue
-                ;;
-              *.jar)
-                version="${rest%.jar}"
-                compat_name="${prefix}-${version}-java25.jar"
-                ;;
-            esac
-            cp "$file" "$OUT_DIR/$compat_name"
           done
 
       - name: Upload build artifacts

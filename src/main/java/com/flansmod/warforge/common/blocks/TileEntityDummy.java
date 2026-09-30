@@ -9,10 +9,12 @@ import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.platform.WFBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
+import com.flansmod.warforge.compat.Nbt;
 
-public class TileEntityDummy extends BlockEntity implements IBlockDummy {
+public class TileEntityDummy extends WFBlockEntity implements IBlockDummy {
     protected String playerFlag; //Owner's flag
     private BlockPos masterPos;
     private boolean canRenderLaser = false;
@@ -64,8 +66,8 @@ public class TileEntityDummy extends BlockEntity implements IBlockDummy {
     }//Primitive but sufficent for the time tbh
 
     @Override
-    public void saveAdditional(CompoundTag compound, HolderLookup.Provider registries) {
-        super.saveAdditional(compound, registries);
+    protected void writeData(CompoundTag compound, HolderLookup.Provider registries) {
+        super.writeData(compound, registries);
         compound.putBoolean("laser", canRenderLaser);
         compound.putFloat("r", laserRGB[0]);
         compound.putFloat("g", laserRGB[1]);
@@ -78,7 +80,7 @@ public class TileEntityDummy extends BlockEntity implements IBlockDummy {
     @Override
     public void onLoad() {
         super.onLoad();
-        if (level.isClientSide) return;
+        if (level.isClientSide()) return;
         if (masterPos == null) {
             WarForgeMod.LOGGER.error("TileEntityDummy at " + this.worldPosition + "had null Master pos, attempting to locate it");
             for (int i = 1; i <= 3; i++) {
@@ -95,48 +97,36 @@ public class TileEntityDummy extends BlockEntity implements IBlockDummy {
     }
 
     @Override
-    protected void loadAdditional(CompoundTag compound, HolderLookup.Provider registries) {
-        super.loadAdditional(compound, registries);
-        canRenderLaser = compound.getBoolean("laser");
-        laserRGB[0] = compound.getFloat("r");
-        laserRGB[1] = compound.getFloat("g");
-        laserRGB[2] = compound.getFloat("b");
+    protected void readData(CompoundTag compound, HolderLookup.Provider registries) {
+        super.readData(compound, registries);
+        canRenderLaser = Nbt.getBoolean(compound, "laser");
+        laserRGB[0] = Nbt.getFloat(compound, "r");
+        laserRGB[1] = Nbt.getFloat(compound, "g");
+        laserRGB[2] = Nbt.getFloat(compound, "b");
 
         if (compound.contains("master")) {
-            masterPos = BlockPos.of(compound.getLong("master"));
+            masterPos = BlockPos.of(Nbt.getLong(compound, "master"));
         }
     }
 
     @Override
-    public ClientboundBlockEntityDataPacket getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket.create(this);
-    }
-
-    @Override
-    public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider registries) {
-        handleUpdateTag(packet.getTag(), registries);
-    }
-
-    @Override
-    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
-        CompoundTag tags = super.getUpdateTag(registries);
+    protected void writeSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        super.writeSyncData(tags, registries);
         tags.putBoolean("laser", canRenderLaser);
         tags.putFloat("r", laserRGB[0]);
         tags.putFloat("g", laserRGB[1]);
         tags.putFloat("b", laserRGB[2]);
         if (masterPos != null)
             tags.putLong("master", masterPos.asLong());
-
-        return tags;
     }
 
     @Override
-    public void handleUpdateTag(CompoundTag tags, HolderLookup.Provider registries) {
-        canRenderLaser = tags.getBoolean("laser");
-        laserRGB[0] = tags.getFloat("r");
-        laserRGB[1] = tags.getFloat("g");
-        laserRGB[2] = tags.getFloat("b");
-        masterPos = BlockPos.of(tags.getLong("master"));
+    protected void readSyncData(CompoundTag tags, HolderLookup.Provider registries) {
+        canRenderLaser = Nbt.getBoolean(tags, "laser");
+        laserRGB[0] = Nbt.getFloat(tags, "r");
+        laserRGB[1] = Nbt.getFloat(tags, "g");
+        laserRGB[2] = Nbt.getFloat(tags, "b");
+        masterPos = BlockPos.of(Nbt.getLong(tags, "master"));
     }
 
 }

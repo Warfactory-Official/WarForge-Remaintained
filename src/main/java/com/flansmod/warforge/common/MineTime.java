@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import com.flansmod.warforge.compat.Ids;
 
 /**
  * MineTime soft protection. Where territory rules would otherwise cancel a block break, MineTime
@@ -158,7 +159,7 @@ public final class MineTime {
             if (pattern.isEmpty()) return null;
 
             if (pattern.startsWith("#")) {
-                ResourceLocation tagId = ResourceLocation.tryParse(pattern.substring(1).trim());
+                ResourceLocation tagId = Ids.tryParse(pattern.substring(1).trim());
                 if (tagId == null) {
                     WarForgeMod.LOGGER.warn("MineTime: invalid tag pattern '{}'", raw);
                     return null;
@@ -176,7 +177,7 @@ public final class MineTime {
                 };
             }
 
-            ResourceLocation exact = ResourceLocation.tryParse(pattern);
+            ResourceLocation exact = Ids.tryParse(pattern);
             if (exact == null) {
                 WarForgeMod.LOGGER.warn("MineTime: invalid block pattern '{}'", raw);
                 return null;

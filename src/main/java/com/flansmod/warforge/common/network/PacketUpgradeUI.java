@@ -1,28 +1,14 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
 public class PacketUpgradeUI extends PacketBase {
-
-    public static final CustomPacketPayload.Type<PacketUpgradeUI> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetupgradeui"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketUpgradeUI> STREAM_CODEC =
-        StreamCodec.ofMember(PacketUpgradeUI::encodeInto, buf -> { PacketUpgradeUI p = new PacketUpgradeUI(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public static PacketUpgradeUI latest = null;
 
     public UUID mFactionID = Faction.nullUuid;

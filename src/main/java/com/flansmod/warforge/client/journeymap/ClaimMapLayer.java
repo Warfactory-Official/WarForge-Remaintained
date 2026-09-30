@@ -2,7 +2,7 @@ package com.flansmod.warforge.client.journeymap;
 
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.Color4i;
-import com.flansmod.warforge.client.JourneyMapClaimCache;
+import com.flansmod.warforge.client.MinimapClaimCache;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.display.DisplayType;
@@ -24,11 +24,11 @@ import java.util.Map;
 /**
  * JourneyMap integration drawing a faction-coloured fill over each claimed chunk.
  * <p>
- * Consumes {@link JourneyMapClaimCache} only (packed colour + chunk position); faction identity is never
+ * Consumes {@link MinimapClaimCache} only (packed colour + chunk position); faction identity is never
  * available here, matching the deliberately minimal claim payload.
  */
 @ParametersAreNonnullByDefault
-public class ClaimMapLayer implements JourneyMapClaimCache.Listener {
+public class ClaimMapLayer implements MinimapClaimCache.Listener {
     private static final Logger LOGGER = LogManager.getLogger(Tags.MODNAME);
     private static final int CLAIM_OVERLAY_Y = 70;
 
@@ -38,7 +38,7 @@ public class ClaimMapLayer implements JourneyMapClaimCache.Listener {
     void attach(final IClientAPI jmClientApi) {
         this.jmAPI = jmClientApi;
         // Register last so the cache replay (inside setListener) sees a live API reference.
-        JourneyMapClaimCache.setListener(this);
+        MinimapClaimCache.addListener(this);
     }
 
     private String getModId() {

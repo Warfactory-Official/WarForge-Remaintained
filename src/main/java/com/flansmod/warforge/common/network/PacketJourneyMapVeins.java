@@ -1,20 +1,16 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.JourneyMapVeinCache;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.flansmod.warforge.compat.Keys;
 
 /**
  * Server -> client vein updates for the optional JourneyMap overlay.
@@ -25,14 +21,6 @@ import java.util.List;
  * about veins it is not entitled to see.
  */
 public class PacketJourneyMapVeins extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketJourneyMapVeins> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetjourneymapveins"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketJourneyMapVeins> STREAM_CODEC =
-        StreamCodec.ofMember(PacketJourneyMapVeins::encodeInto, buf -> { PacketJourneyMapVeins p = new PacketJourneyMapVeins(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public static final class Set {
         public final ResourceKey<Level> dim;
         public final int x, z;
@@ -68,14 +56,14 @@ public class PacketJourneyMapVeins extends PacketBase {
         data.writeBoolean(clear);
         data.writeInt(sets.size());
         for (Set s : sets) {
-            data.writeUtf(s.dim.location().toString());
+            data.writeUtf(Keys.id(s.dim).toString());
             data.writeInt(s.x);
             data.writeInt(s.z);
             data.writeShort(s.veinInfo);
         }
         data.writeInt(removes.size());
         for (Remove r : removes) {
-            data.writeUtf(r.dim.location().toString());
+            data.writeUtf(Keys.id(r.dim).toString());
             data.writeInt(r.x);
             data.writeInt(r.z);
         }

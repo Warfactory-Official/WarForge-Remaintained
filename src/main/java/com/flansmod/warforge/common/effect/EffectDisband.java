@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.effect;
 
+import com.flansmod.warforge.compat.Vanilla;
+
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketEffect;
 import net.minecraft.client.renderer.texture.TextureManager;
@@ -37,15 +39,15 @@ public class EffectDisband implements IEffect {
     @Override
     public void runEffect(Level world, Player player, TextureManager man, Random rand, double x, double y, double z, CompoundTag data) {
 
-        world.playLocalSound(x, y, z, SoundEvents.GENERIC_EXPLODE.value(), SoundSource.PLAYERS, 1.0F, 0.9F, false);
+        world.playLocalSound(x, y, z, Vanilla.explodeSound(), SoundSource.PLAYERS, 1.0F, 0.9F, false);
         world.playLocalSound(x, y, z, SoundEvents.ANVIL_DESTROY, SoundSource.PLAYERS, 1.0F, 0.9F, false);
 
         for (int i = 0; i < 32; i++) {
             world.addParticle(
                     ParticleTypes.EXPLOSION_EMITTER,
-                    x + world.random.nextFloat(),
-                    y + (i % 2) + world.random.nextFloat(),
-                    z + world.random.nextFloat(),
+                    x + world.getRandom().nextFloat(),
+                    y + (i % 2) + world.getRandom().nextFloat(),
+                    z + world.getRandom().nextFloat(),
                     0.0D,
                     0.0D,
                     0.0D

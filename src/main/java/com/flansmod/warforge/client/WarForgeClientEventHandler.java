@@ -1,8 +1,6 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
-import com.flansmod.warforge.client.util.FullColorNameplate;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
@@ -18,18 +16,15 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.gui.screens.inventory.CreativeModeInventoryScreen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
-import net.neoforged.neoforge.client.event.RenderNameTagEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 
 import static com.flansmod.warforge.client.WarforgeIconButton.WARFORGE_BUTTON_SIZE;
 
-@EventBusSubscriber(modid = Tags.MODID, value = Dist.CLIENT, bus = EventBusSubscriber.Bus.GAME)
 public final class WarForgeClientEventHandler {
 
     @SubscribeEvent
@@ -97,22 +92,20 @@ public final class WarForgeClientEventHandler {
         }
     }
 
-    @SubscribeEvent
-    public static void onRenderNameTag(RenderNameTagEvent event) {
-        // RenderNameTagEvent fires for any named entity (mobs, armor stands, ...); faction nameplates
+    /**
+     * The faction plate to draw above a player's name tag, or null for none. content is the name tag text.
+     */
+    public static PlayerNametagCache.NamePlateData nameplateFor(Entity entity, String content) {
+        // Name tags render for any named entity (mobs, armor stands, ...); faction nameplates
         // only apply to players, so don't request faction data for non-player names.
-        if (!(event.getEntity() instanceof Player)) {
-            return;
+        if (!(entity instanceof Player)) {
+            return null;
         }
         // Don't draw your own faction tag over yourself (only ever visible in third-person / F5).
-        if (event.getEntity() == Minecraft.getInstance().player) {
-            return;
+        if (entity == Minecraft.getInstance().player) {
+            return null;
         }
         //SOOO minecraft puts this symbol in player nicknames...? the fuck?
-        PlayerNametagCache.NamePlateData faction = WarForgeMod.NAMETAG_CACHE.requestIfAbsent(event.getContent().getString().replaceAll("§.", ""));
-        if (faction == null) {
-            return;
-        }
-        FullColorNameplate.drawNameplate(Minecraft.getInstance().font, Component.literal(faction.name), event.getEntity(), event.getPoseStack(), event.getMultiBufferSource(), -10, event.getEntity().isDiscrete(), faction.color, faction.darkerColor, event.getPackedLight());
+        return WarForgeMod.NAMETAG_CACHE.requestIfAbsent(content.replaceAll("§.", ""));
     }
 }

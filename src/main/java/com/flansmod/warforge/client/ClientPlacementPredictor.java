@@ -1,5 +1,7 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -13,7 +15,7 @@ import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.neoforge.common.util.TriState;
+import com.flansmod.warforge.platform.Interactions;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 
 
@@ -22,9 +24,9 @@ public class ClientPlacementPredictor {
     @SubscribeEvent
     public void onRightClickBlock(PlayerInteractEvent.RightClickBlock event) {
         Level level = event.getLevel();
-        if (!level.isClientSide)
+        if (!level.isClientSide())
             return;
-        if (event.getUseItem() == TriState.FALSE)
+        if (Interactions.isUseItemDenied(event))
             return; // already suppressed
 
         Player player = event.getEntity();
@@ -37,8 +39,8 @@ public class ClientPlacementPredictor {
 
         // Resolve the cell the block would actually land in
         BlockPos placePos = new BlockPlaceContext(player, event.getHand(), stack, event.getHitVec()).getClickedPos();
-        ChunkPos cp = new ChunkPos(placePos);
-        DimChunkPos chunkPos = new DimChunkPos(level.dimension(), cp.x, cp.z);
+        ChunkPos cp = Chunks.of(placePos);
+        DimChunkPos chunkPos = new DimChunkPos(level.dimension(), Chunks.x(cp), Chunks.z(cp));
 
         ProtectionConfig config = ClientProtections.configFor(chunkPos);
         if (config == null)
@@ -46,6 +48,6 @@ public class ClientPlacementPredictor {
 
         Block placedBlock = blockItem.getBlock();
         if (ProtectionsModule.placeDenied(config, placedBlock))
-            event.setUseItem(TriState.FALSE);
+            Interactions.denyUseItem(event);
     }
 }

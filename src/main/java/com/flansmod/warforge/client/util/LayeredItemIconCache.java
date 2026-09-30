@@ -1,16 +1,17 @@
 package com.flansmod.warforge.client.util;
 
+import com.flansmod.warforge.client.render.ModelSprites;
+
+import com.flansmod.warforge.client.render.Images;
+
+import com.flansmod.warforge.client.render.DynamicTextures;
+
 import com.flansmod.warforge.Tags;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.block.model.BakedQuad;
 import com.mojang.blaze3d.platform.NativeImage;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
-import net.minecraft.client.resources.model.BakedModel;
-import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
@@ -20,10 +21,11 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Stacks;
 
 @OnlyIn(Dist.CLIENT)
 public final class LayeredItemIconCache {
@@ -51,8 +53,8 @@ public final class LayeredItemIconCache {
 
         NativeImage native_ = toNativeImage(baked);
         Minecraft mc = Minecraft.getInstance();
-        ResourceLocation location = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "generated/vein/" + Integer.toUnsignedString(key.hashCode()));
-        mc.getTextureManager().register(location, new DynamicTexture(native_));
+        ResourceLocation location = Ids.of(Tags.MODID, "generated/vein/" + Integer.toUnsignedString(key.hashCode()));
+        DynamicTextures.register(location, native_);
         CACHE.put(key, location);
         return location;
     }
@@ -60,7 +62,7 @@ public final class LayeredItemIconCache {
     public static void clear() {
         Minecraft mc = Minecraft.getInstance();
         for (ResourceLocation location : CACHE.values()) {
-            mc.getTextureManager().release(location);
+            DynamicTextures.release(location);
         }
         CACHE.clear();
     }
@@ -68,8 +70,7 @@ public final class LayeredItemIconCache {
     @Nullable
     private static BufferedImage bakeIcon(ItemStack stack) {
         Minecraft mc = Minecraft.getInstance();
-        BakedModel model = mc.getItemRenderer().getModel(stack, null, null, 0);
-        List<Layer> layers = extractLayers(model, stack);
+        List<ModelSprites.TintedSprite> layers = ModelSprites.itemLayers(stack);
         if (layers.isEmpty()) {
             return null;
         }
@@ -78,51 +79,18 @@ public final class LayeredItemIconCache {
         int height = 16;
         BufferedImage combined = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
-        for (Layer layer : layers) {
-            BufferedImage spriteImage = spriteToImage(layer.sprite);
+        for (ModelSprites.TintedSprite layer : layers) {
+            BufferedImage spriteImage = spriteToImage(layer.sprite());
             if (spriteImage == null) {
                 continue;
             }
             BufferedImage scaled = scaleToIcon(spriteImage, width, height);
-            composite(combined, scaled, layer.tint);
+            composite(combined, scaled, layer.tint());
         }
 
         return combined;
     }
 
-    private static List<Layer> extractLayers(BakedModel model, ItemStack stack) {
-        Minecraft mc = Minecraft.getInstance();
-        RandomSource rand = RandomSource.create();
-        List<Layer> ordered = new ArrayList<>();
-        Set<String> seen = new LinkedHashSet<>();
-
-        collectLayers(ordered, seen, model.getQuads(null, null, rand), stack, mc);
-        for (Direction facing : Direction.values()) {
-            collectLayers(ordered, seen, model.getQuads(null, facing, rand), stack, mc);
-        }
-
-        TextureAtlasSprite particle = model.getParticleIcon();
-        if (ordered.isEmpty() && particle != null) {
-            ordered.add(new Layer(particle, 0xFFFFFFFF));
-        }
-        return ordered;
-    }
-
-    private static void collectLayers(List<Layer> ordered, Set<String> seen, List<BakedQuad> quads, ItemStack stack, Minecraft mc) {
-        for (BakedQuad quad : quads) {
-            if (quad == null || quad.getSprite() == null) {
-                continue;
-            }
-            int tint = (quad.getTintIndex() != -1) ? mc.getItemColors().getColor(stack, quad.getTintIndex()) : 0xFFFFFFFF;
-            if ((tint >>> 24) == 0) {
-                tint |= 0xFF000000;
-            }
-            String key = quad.getSprite().contents().name().toString() + "|" + Integer.toUnsignedString(tint);
-            if (seen.add(key)) {
-                ordered.add(new Layer(quad.getSprite(), tint));
-            }
-        }
-    }
 
     @Nullable
     private static BufferedImage spriteToImage(TextureAtlasSprite sprite) {
@@ -142,7 +110,7 @@ public final class LayeredItemIconCache {
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 // NativeImage stores pixels as ABGR; convert to ARGB for BufferedImage
-                int abgr = image.getPixelRGBA(x, y);
+                int abgr = Images.getPixelABGR(image, x, y);
                 int a = (abgr >>> 24) & 0xFF;
                 int b = (abgr >>> 16) & 0xFF;
                 int g = (abgr >>> 8) & 0xFF;
@@ -178,7 +146,7 @@ public final class LayeredItemIconCache {
                 int r = (argb >>> 16) & 0xFF;
                 int g = (argb >>> 8) & 0xFF;
                 int b = argb & 0xFF;
-                native_.setPixelRGBA(x, y, (a << 24) | (b << 16) | (g << 8) | r);
+                Images.setPixelABGR(native_, x, y, (a << 24) | (b << 16) | (g << 8) | r);
             }
         }
         return native_;
@@ -227,18 +195,9 @@ public final class LayeredItemIconCache {
 
     private static String makeKey(ItemStack stack) {
         StringBuilder builder = new StringBuilder();
-        builder.append(stack.getItem().builtInRegistryHolder().key().location());
-        builder.append('#').append(stack.getComponentsPatch());
+        builder.append(Keys.id(stack.getItem().builtInRegistryHolder().key()));
+        builder.append('#').append(Stacks.dataKey(stack));
         return builder.toString();
     }
 
-    private static final class Layer {
-        private final TextureAtlasSprite sprite;
-        private final int tint;
-
-        private Layer(TextureAtlasSprite sprite, int tint) {
-            this.sprite = sprite;
-            this.tint = tint;
-        }
-    }
 }

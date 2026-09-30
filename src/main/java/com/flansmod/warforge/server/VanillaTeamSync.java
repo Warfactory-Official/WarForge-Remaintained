@@ -1,5 +1,9 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.PlayerRef;
+
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.mojang.authlib.GameProfile;
@@ -183,9 +187,7 @@ public final class VanillaTeamSync {
         if (online != null) {
             return online.getScoreboardName();
         }
-        GameProfile profile = server.getProfileCache() == null
-                ? null
-                : server.getProfileCache().get(playerId).orElse(null);
+        PlayerRef profile = Profiles.get(server, playerId).orElse(null);
         return profile != null ? profile.getName() : null;
     }
 

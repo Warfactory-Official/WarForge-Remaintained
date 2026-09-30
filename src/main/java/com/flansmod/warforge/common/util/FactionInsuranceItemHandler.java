@@ -4,6 +4,7 @@ import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandlerModifiable;
+import com.flansmod.warforge.compat.Stacks;
 
 public class FactionInsuranceItemHandler implements IItemHandlerModifiable {
     private final Faction faction;
@@ -48,7 +49,7 @@ public class FactionInsuranceItemHandler implements IItemHandlerModifiable {
             return remainder;
         }
 
-        if (!ItemStack.isSameItemSameComponents(existing, stack)) {
+        if (!Stacks.sameItemSameData(existing, stack)) {
             return stack;
         }
 

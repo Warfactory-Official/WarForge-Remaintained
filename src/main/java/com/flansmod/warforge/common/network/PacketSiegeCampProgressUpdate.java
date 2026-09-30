@@ -1,29 +1,17 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketSiegeCampProgressUpdate extends PacketBase
 {
-	public static final CustomPacketPayload.Type<PacketSiegeCampProgressUpdate> TYPE =
-		new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetsiegecampprogressupdate"));
-	public static final StreamCodec<RegistryFriendlyByteBuf, PacketSiegeCampProgressUpdate> STREAM_CODEC =
-		StreamCodec.ofMember(PacketSiegeCampProgressUpdate::encodeInto, buf -> { PacketSiegeCampProgressUpdate p = new PacketSiegeCampProgressUpdate(); p.decodeInto(buf); return p; });
-
-	@Override
-	public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
 	public SiegeCampProgressInfo info;
 	public long msServerNow = 0L;
 
@@ -31,14 +19,14 @@ public class PacketSiegeCampProgressUpdate extends PacketBase
 	public void encodeInto(FriendlyByteBuf data)
 	{
 		msServerNow = WarForgeMod.siegeClock();
-		data.writeUtf(info.attackingPos.dim.location().toString());
+		data.writeUtf(Keys.id(info.attackingPos.dim).toString());
 		data.writeInt(info.attackingPos.getX());
 		data.writeInt(info.attackingPos.getY());
 		data.writeInt(info.attackingPos.getZ());
 		data.writeInt(info.attackingColour);
 		writeUTF(data, info.attackingName);
 
-		data.writeUtf(info.defendingPos.dim.location().toString());
+		data.writeUtf(Keys.id(info.defendingPos.dim).toString());
 		data.writeInt(info.defendingPos.getX());
 		data.writeInt(info.defendingPos.getY());
 		data.writeInt(info.defendingPos.getZ());

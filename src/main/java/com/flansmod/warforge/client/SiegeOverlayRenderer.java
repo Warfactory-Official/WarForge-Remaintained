@@ -1,19 +1,20 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.client.render.Gui2D;
+
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
-import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.UUID;
+import com.flansmod.warforge.compat.Ids;
 
 @OnlyIn(Dist.CLIENT)
 public final class SiegeOverlayRenderer {
@@ -31,8 +32,8 @@ public final class SiegeOverlayRenderer {
     private static final int ICON_SIZE = 10;
     private static final int ABANDON_H = 12;
 
-    private static final ResourceLocation SHIELD_ICON = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "gui/icon_siege_shield.png");
-    private static final ResourceLocation AXE_ICON = ResourceLocation.fromNamespaceAndPath(Tags.MODID, "gui/icon_siege_axe.png");
+    private static final ResourceLocation SHIELD_ICON = Ids.of(Tags.MODID, "gui/icon_siege_shield.png");
+    private static final ResourceLocation AXE_ICON = Ids.of(Tags.MODID, "gui/icon_siege_axe.png");
 
     private static final int SECTION_FILL = 0xEE20262B;
     private static final int SECTION_BORDER = 0xEE11161A;
@@ -49,7 +50,7 @@ public final class SiegeOverlayRenderer {
     private SiegeOverlayRenderer() {
     }
 
-    public static void render(Minecraft mc, GuiGraphics graphics, SiegeCampProgressInfo info, float partialTicks) {
+    public static void render(Minecraft mc, Gui2D graphics, SiegeCampProgressInfo info, float partialTicks) {
         Font font = mc.font;
 
         int attackPts = Math.max(1, info.completionPoint);
@@ -83,7 +84,7 @@ public final class SiegeOverlayRenderer {
         float centerX = pointX(trackLeft, slotW, defendPts, 0);
         float markerX = pointX(trackLeft, slotW, defendPts, prog);
 
-        RenderSystem.enableBlend();
+        graphics.enableBlend();
 
         borderedFill(graphics, px, py, panelW, PANEL_H, SECTION_FILL, SECTION_BORDER);
         graphics.fill(px, py, px + STRIPE_W, py + PANEL_H, argb(0xFF, defendRGB));
@@ -113,10 +114,10 @@ public final class SiegeOverlayRenderer {
         renderLabels(graphics, font, info, prog, attackPts, defendPts, px, panelW, trackLeft, trackRight, py, attackRGB, defendRGB);
         renderAbandonTimer(graphics, font, info, px, panelW, py);
 
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        graphics.setColor(1f, 1f, 1f, 1f);
     }
 
-    private static void renderFill(GuiGraphics graphics, int prog, int attackRGB, int defendRGB, float centerX, float markerX, int trackTop) {
+    private static void renderFill(Gui2D graphics, int prog, int attackRGB, int defendRGB, float centerX, float markerX, int trackTop) {
         if (prog == 0) {
             return;
         }
@@ -133,7 +134,7 @@ public final class SiegeOverlayRenderer {
         drawHGradient(graphics, left, trackTop + 1, width, TRACK_H - 2, colorLeft, colorRight);
     }
 
-    private static void renderNotches(GuiGraphics graphics, int trackLeft, int trackTop, float slotW, int defendPts, int attackPts, int attackRGB, int defendRGB) {
+    private static void renderNotches(Gui2D graphics, int trackLeft, int trackTop, float slotW, int defendPts, int attackPts, int attackRGB, int defendRGB) {
         for (int p = -defendPts; p <= attackPts; p++) {
             float nx = pointX(trackLeft, slotW, defendPts, p);
             boolean center = p == 0;
@@ -151,7 +152,7 @@ public final class SiegeOverlayRenderer {
         }
     }
 
-    private static void drawNotch(GuiGraphics graphics, float nx, int trackTop, boolean center, int col) {
+    private static void drawNotch(Gui2D graphics, float nx, int trackTop, boolean center, int col) {
         float nh = center ? TRACK_H + 4 : TRACK_H - 2;
         float nw = center ? 2f : 1f;
         float ny = trackTop + (TRACK_H - nh) / 2f;
@@ -162,7 +163,7 @@ public final class SiegeOverlayRenderer {
         graphics.fill(ix, iy, ix + iw, iy + ih, col);
     }
 
-    private static void renderMarker(GuiGraphics graphics, SiegeCampProgressInfo info, float markerX, int trackTop, int attackRGB, int defendRGB) {
+    private static void renderMarker(Gui2D graphics, SiegeCampProgressInfo info, float markerX, int trackTop, int attackRGB, int defendRGB) {
         float markerW = 3f;
         float glowW = markerW + 4f;
         float top = trackTop - 2f;
@@ -192,7 +193,7 @@ public final class SiegeOverlayRenderer {
         graphics.fill(mix, miy, mix + miw, miy + mih, MARKER_FILL);
     }
 
-    private static void renderCounter(GuiGraphics graphics, Font font, int prog, int attackPts, int defendPts, int px, int panelW, int trackTop, int attackRGB, int defendRGB) {
+    private static void renderCounter(Gui2D graphics, Font font, int prog, int attackPts, int defendPts, int px, int panelW, int trackTop, int attackRGB, int defendRGB) {
         String standing;
         int color;
         if (prog > 0) {
@@ -212,7 +213,7 @@ public final class SiegeOverlayRenderer {
         drawOutlinedString(graphics, font, standing, tx, ty, color);
     }
 
-    private static void renderNames(GuiGraphics graphics, Font font, SiegeCampProgressInfo info, int px, int panelW, int trackLeft, int trackRight, int py, int attackRGB, int defendRGB) {
+    private static void renderNames(Gui2D graphics, Font font, SiegeCampProgressInfo info, int px, int panelW, int trackLeft, int trackRight, int py, int attackRGB, int defendRGB) {
         int defColor = 0xFF000000 | defendRGB;
         int attColor = 0xFF000000 | attackRGB;
         int iconY = py + NAMES_Y - 1;
@@ -225,10 +226,10 @@ public final class SiegeOverlayRenderer {
         drawOutlinedString(graphics, font, info.attackingName, trackRight - ICON_SIZE - 3 - attackNameWidth, py + NAMES_Y, attColor);
 
         String vs = "VS";
-        graphics.drawString(font, vs, (int) (px + panelW / 2f - font.width(vs) / 2f), py + NAMES_Y, TEXT_NEUTRAL, true);
+        graphics.text(font, vs, (int) (px + panelW / 2f - font.width(vs) / 2f), py + NAMES_Y, TEXT_NEUTRAL, true);
     }
 
-    private static void renderLabels(GuiGraphics graphics, Font font, SiegeCampProgressInfo info, int prog, int attackPts, int defendPts, int px, int panelW, int trackLeft, int trackRight, int py, int attackRGB, int defendRGB) {
+    private static void renderLabels(Gui2D graphics, Font font, SiegeCampProgressInfo info, int prog, int attackPts, int defendPts, int px, int panelW, int trackLeft, int trackRight, int py, int attackRGB, int defendRGB) {
         int defColor = 0xFF000000 | defendRGB;
         int attColor = 0xFF000000 | attackRGB;
 
@@ -242,11 +243,11 @@ public final class SiegeOverlayRenderer {
             long remain = info.endTimestamp - System.currentTimeMillis();
             String timer = ClientTickHandler.formatPaddedTimer(remain);
             int tColor = remain < 60000 ? TEXT_DANGER : TEXT_NEUTRAL;
-            graphics.drawString(font, timer, (int) (px + panelW / 2f - font.width(timer) / 2f), py + LABELS_Y, tColor, true);
+            graphics.text(font, timer, (int) (px + panelW / 2f - font.width(timer) / 2f), py + LABELS_Y, tColor, true);
         }
     }
 
-    private static void renderAbandonTimer(GuiGraphics graphics, Font font, SiegeCampProgressInfo info, int px, int panelW, int py) {
+    private static void renderAbandonTimer(Gui2D graphics, Font font, SiegeCampProgressInfo info, int px, int panelW, int py) {
         if (info.attackerAbandonSeconds <= 0) {
             return;
         }
@@ -257,23 +258,23 @@ public final class SiegeOverlayRenderer {
 
         String text = "Siege abandoned in: " + ClientTickHandler.formatPaddedTimer(info.attackerAbandonSeconds * 1000L);
         int color = info.attackerAbandonSeconds <= 10 ? TEXT_DANGER : TEXT_ABANDON;
-        graphics.drawString(font, text, (int) (px + panelW / 2f - font.width(text) / 2f), py + PANEL_H + 2, color, true);
+        graphics.text(font, text, (int) (px + panelW / 2f - font.width(text) / 2f), py + PANEL_H + 2, color, true);
     }
 
-    private static void drawIcon(GuiGraphics graphics, ResourceLocation icon, int x, int y, int w, int h, int texW, int texH) {
-        RenderSystem.enableBlend();
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+    private static void drawIcon(Gui2D graphics, ResourceLocation icon, int x, int y, int w, int h, int texW, int texH) {
+        graphics.enableBlend();
+        graphics.setColor(1f, 1f, 1f, 1f);
         graphics.blit(icon, x, y, w, h, 0f, 0f, texW, texH, texW, texH);
-        RenderSystem.setShaderColor(1f, 1f, 1f, 1f);
+        graphics.setColor(1f, 1f, 1f, 1f);
     }
 
-    private static void drawOutlinedString(GuiGraphics graphics, Font font, String text, int x, int y, int color) {
+    private static void drawOutlinedString(Gui2D graphics, Font font, String text, int x, int y, int color) {
         int outline = isBright(color) ? 0xFF000000 : 0xFFFFFFFF;
-        graphics.drawString(font, text, x - 1, y, outline, false);
-        graphics.drawString(font, text, x + 1, y, outline, false);
-        graphics.drawString(font, text, x, y - 1, outline, false);
-        graphics.drawString(font, text, x, y + 1, outline, false);
-        graphics.drawString(font, text, x, y, color, false);
+        graphics.text(font, text, x - 1, y, outline, false);
+        graphics.text(font, text, x + 1, y, outline, false);
+        graphics.text(font, text, x, y - 1, outline, false);
+        graphics.text(font, text, x, y + 1, outline, false);
+        graphics.text(font, text, x, y, color, false);
     }
 
     private static boolean isBright(int color) {
@@ -283,7 +284,7 @@ public final class SiegeOverlayRenderer {
         return (r * 299 + g * 587 + b * 114) / 1000 > 128;
     }
 
-    private static void borderedFill(GuiGraphics graphics, int x, int y, int w, int h, int fill, int border) {
+    private static void borderedFill(Gui2D graphics, int x, int y, int w, int h, int fill, int border) {
         graphics.fill(x, y, x + w, y + h, fill);
         graphics.fill(x, y, x + w, y + 1, border);
         graphics.fill(x, y + h - 1, x + w, y + h, border);
@@ -291,7 +292,7 @@ public final class SiegeOverlayRenderer {
         graphics.fill(x + w - 1, y, x + w, y + h, border);
     }
 
-    private static void drawHGradient(GuiGraphics g, float x, float y, float w, float h, int colLeft, int colRight) {
+    private static void drawHGradient(Gui2D g, float x, float y, float w, float h, int colLeft, int colRight) {
         int ix = Math.round(x), iy = Math.round(y), iw = Math.round(w), ih = Math.round(h);
         if (iw <= 0 || ih <= 0) return;
         for (int i = 0; i < iw; i++) {

@@ -1,5 +1,13 @@
 package com.flansmod.warforge.common;
 
+import com.flansmod.warforge.compat.Players;
+
+import com.flansmod.warforge.compat.Regs;
+
+import com.flansmod.warforge.compat.Profiles;
+
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.ObjectIntPair;
 import com.flansmod.warforge.api.WarForgeCapabilities;
@@ -27,7 +35,6 @@ import com.flansmod.warforge.server.fob.FobManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtIo;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
@@ -48,16 +55,14 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.common.NeoForge;
+import com.flansmod.warforge.platform.NetworkPlatform;
+import com.flansmod.warforge.platform.BlockBreak;
+import com.flansmod.warforge.platform.GameEvents;
+import com.flansmod.warforge.platform.Platform;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
 import net.neoforged.neoforge.event.entity.living.LivingDeathEvent;
@@ -92,8 +97,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.NbtFiles;
+import com.flansmod.warforge.compat.Inventories;
 
-@Mod(Tags.MODID)
+/** The mod. Created by the loader entry point (platform.WarForgeNeoForge / platform.WarForgeForge). */
 public class WarForgeMod {
     public static final boolean PACKET_DEBUG = false;
     public static final PacketHandler NETWORK = new PacketHandler();
@@ -147,10 +157,10 @@ public class WarForgeMod {
     public static boolean showBorders = true;
     public static TimeHelper timeHelper = new TimeHelper();
 
-    public WarForgeMod(IEventBus modBus, ModContainer modContainer) {
+    public WarForgeMod(IEventBus modBus) {
         INSTANCE = this;
         LOGGER = LogManager.getLogger(Tags.MODID);
-        proxy = FMLEnvironment.dist == Dist.CLIENT
+        proxy = Platform.isClient()
                 ? ((java.util.function.Supplier<CommonProxy>) ClientProxy::new).get()
                 : new CommonProxy();
 
@@ -161,19 +171,23 @@ public class WarForgeMod {
         Content.register(modBus);
         Sounds.register(modBus);
         POTIONS.register(modBus);
-        modContainer.registerConfig(ModConfig.Type.COMMON, WarForgeConfig.SPEC);
         modBus.addListener(this::commonSetup);
         modBus.addListener((ModConfigEvent event) -> WarForgeConfig.bake());
-        modBus.addListener(WarForgeCapabilities::register);
+        WarForgeCapabilities.register(modBus);
         CHUNK_LOADING_MANAGER.initialize(modBus);
-        if (FMLEnvironment.dist == Dist.CLIENT) {
+        NetworkPlatform.register(modBus);
+        if (Platform.isClient()) {
             WarForgeClientInit.init(modBus);
         }
 
-        NeoForge.EVENT_BUS.register(this);
-        NeoForge.EVENT_BUS.register(new ServerTickHandler());
-        NeoForge.EVENT_BUS.register(PROTECTIONS);
-        NeoForge.EVENT_BUS.register(new SpawnModule());
+        Platform.gameBus().register(this);
+        GameEvents.onServerTickEnd(new ServerTickHandler()::OnTick);
+        Platform.gameBus().register(PROTECTIONS);
+        GameEvents.onBlockBreak(this::blockRemoved);
+        GameEvents.onBlockBreak(PROTECTIONS::BlockRemoved);
+        GameEvents.onLivingDamage(PROTECTIONS::OnDamage);
+        Platform.gameBus().register(new SpawnModule());
+        Platform.gameBus().register(WarForgeTabListHandler.class);
 
         NETWORK.initialise();
     }
@@ -265,9 +279,9 @@ public class WarForgeMod {
     private static void findVaultBlocks() {
         WarForgeConfig.VAULT_BLOCKS.clear();
         for (String blockID : WarForgeConfig.VAULT_BLOCK_IDS) {
-            ResourceLocation blockKey = ResourceLocation.parse(blockID);
+            ResourceLocation blockKey = Ids.parse(blockID);
             if (BuiltInRegistries.BLOCK.containsKey(blockKey)) {
-                WarForgeConfig.VAULT_BLOCKS.add(BuiltInRegistries.BLOCK.get(blockKey));
+                WarForgeConfig.VAULT_BLOCKS.add(Regs.get(BuiltInRegistries.BLOCK, blockKey));
                 LOGGER.info("Found block with ID " + blockID + " as a valuable block for the vault");
             } else {
                 LOGGER.error("Could not find block with ID " + blockID + " as a valuable block for the vault");
@@ -299,7 +313,7 @@ public class WarForgeMod {
     }
 
     private static boolean containsDimension(final String[] base, ResourceKey<Level> compare) {
-        String dimension = compare.location().toString();
+        String dimension = Keys.id(compare).toString();
         for (String value : base) {
             if (value.equals(dimension)) {
                 return true;
@@ -309,7 +323,7 @@ public class WarForgeMod {
     }
 
     private static boolean containsDimension(final ResourceLocation[] base, ResourceKey<Level> compare) {
-        ResourceLocation dimension = compare.location();
+        ResourceLocation dimension = Keys.id(compare);
         for (ResourceLocation value : base) {
             if (value.equals(dimension)) {
                 return true;
@@ -338,7 +352,7 @@ public class WarForgeMod {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return;
         }
-        if (serverPlayer.serverLevel().getBlockEntity(pos) instanceof TileEntityClaim claim) {
+        if (Players.serverLevel(serverPlayer).getBlockEntity(pos) instanceof TileEntityClaim claim) {
             var packet = claim.getUpdatePacket();
             if (packet != null) {
                 serverPlayer.connection.send(packet);
@@ -395,7 +409,7 @@ public class WarForgeMod {
 
     public static boolean isOp(Player player) {
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        return server != null && server.getPlayerList().isOp(player.getGameProfile());
+        return server != null && Profiles.isOp(server, player);
     }
 
     public long getTimeToNextSiegeAdvanceMs() {
@@ -464,7 +478,7 @@ public class WarForgeMod {
     @SubscribeEvent
     public void fobPickupInteract(RightClickBlock event) {
         Level level = event.getLevel();
-        if (level.isClientSide || event.getHand() != InteractionHand.MAIN_HAND) {
+        if (level.isClientSide() || event.getHand() != InteractionHand.MAIN_HAND) {
             return;
         }
         Player player = event.getEntity();
@@ -486,7 +500,7 @@ public class WarForgeMod {
         }
 
         Level level = event.getLevel();
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             return;
         }
 
@@ -502,7 +516,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void playerDied(LivingDeathEvent event) {
-        if (event.getEntity().level().isClientSide) {
+        if (event.getEntity().level().isClientSide()) {
             return;
         }
 
@@ -514,20 +528,19 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void playerRespawned(PlayerEvent.PlayerRespawnEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide) {
+        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide()) {
             FACTIONS.updateAttackerSiegePresence(player);
         }
     }
 
     @SubscribeEvent
     public void playerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide) {
+        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide()) {
             FACTIONS.updateAttackerSiegePresence(player);
         }
     }
 
-    @SubscribeEvent
-    public void blockRemoved(BlockEvent.BreakEvent event) {
+    public void blockRemoved(BlockBreak event) {
         BlockState state = event.getState();
         if (isClaim(state.getBlock())) {
             Level level = (Level) event.getLevel();
@@ -541,7 +554,7 @@ public class WarForgeMod {
     @SubscribeEvent
     public void PreBlockPlaced(RightClickBlock event) {
         Level level = event.getLevel();
-        if (level.isClientSide) {
+        if (level.isClientSide()) {
             return;
         }
 
@@ -735,7 +748,7 @@ public class WarForgeMod {
 
     private static int countMatchingItems(Player player, ItemMatcher target) {
         int total = 0;
-        for (ItemStack stack : player.getInventory().items) {
+        for (ItemStack stack : Inventories.main(player.getInventory())) {
             if (!stack.isEmpty() && target.matches(stack)) {
                 total += stack.getCount();
             }
@@ -745,8 +758,8 @@ public class WarForgeMod {
 
     private static void consumeMatchingItems(Player player, ItemMatcher target, int amount) {
         int remaining = amount;
-        for (int i = 0; i < player.getInventory().items.size() && remaining > 0; i++) {
-            ItemStack stack = player.getInventory().items.get(i);
+        for (int i = 0; i < Inventories.main(player.getInventory()).size() && remaining > 0; i++) {
+            ItemStack stack = Inventories.main(player.getInventory()).get(i);
             if (stack.isEmpty() || !target.matches(stack)) {
                 continue;
             }
@@ -759,7 +772,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void playerLeftGame(PlayerLoggedOutEvent event) {
-        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide) {
+        if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide()) {
             FACTIONS.onFactionMemberLoggedOut(player.getUUID());
             JOURNEYMAP_SYNC.onPlayerLogout(player);
             JOURNEYMAP_VEIN_SYNC.onPlayerLogout(player);
@@ -772,8 +785,8 @@ public class WarForgeMod {
         ServerPlayer player = event.getPlayer();
         ChunkPos chunkPos = event.getPos();
         ResourceKey<Level> dim = event.getLevel().dimension();
-        JOURNEYMAP_SYNC.onChunkObserved(player, dim, chunkPos.x, chunkPos.z);
-        JOURNEYMAP_VEIN_SYNC.onChunkObserved(player, dim, chunkPos.x, chunkPos.z);
+        JOURNEYMAP_SYNC.onChunkObserved(player, dim, Chunks.x(chunkPos), Chunks.z(chunkPos));
+        JOURNEYMAP_VEIN_SYNC.onChunkObserved(player, dim, Chunks.x(chunkPos), Chunks.z(chunkPos));
     }
 
     @SubscribeEvent
@@ -800,7 +813,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void playerJoinedGame(PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()) {
             return;
         }
 
@@ -875,11 +888,11 @@ public class WarForgeMod {
             VEIN_HANDLER.readFromNBT(tags);
         }
 
-        timestampOfFirstDay = tags.getLong("zero-timestamp");
-        numberOfSiegeDaysTicked = tags.getLong("num-days-elapsed");
-        numberOfYieldDaysTicked = tags.getLong("num-yields-awarded");
-        serverStopTimestamp = tags.getLong("shutdown-timestamp");
-        gameTimeMs = tags.getLong("game-time-ms");
+        timestampOfFirstDay = Nbt.getLong(tags, "zero-timestamp");
+        numberOfSiegeDaysTicked = Nbt.getLong(tags, "num-days-elapsed");
+        numberOfYieldDaysTicked = Nbt.getLong(tags, "num-yields-awarded");
+        serverStopTimestamp = Nbt.getLong(tags, "shutdown-timestamp");
+        gameTimeMs = Nbt.getLong(tags, "game-time-ms");
     }
 
     private void WriteToNBT(CompoundTag tags) {
@@ -917,13 +930,13 @@ public class WarForgeMod {
             if (!Files.isRegularFile(dataFile)) {
                 Files.createDirectories(dataFile.getParent());
                 try (OutputStream output = Files.newOutputStream(dataFile)) {
-                    NbtIo.writeCompressed(new CompoundTag(), output);
+                    NbtFiles.writeCompressed(new CompoundTag(), output);
                 }
             }
 
             CompoundTag tags;
             try (InputStream input = Files.newInputStream(dataFile)) {
-                tags = NbtIo.readCompressed(input, net.minecraft.nbt.NbtAccounter.unlimitedHeap());
+                tags = NbtFiles.readCompressed(input);
             }
 
             readFromNBT(tags);
@@ -1033,7 +1046,7 @@ public class WarForgeMod {
         }
 
         try (OutputStream output = Files.newOutputStream(pending.file)) {
-            NbtIo.writeCompressed(pending.tags, output);
+            NbtFiles.writeCompressed(pending.tags, output);
         }
         LOGGER.info("Successfully saved warforgefactions.dat on event - " + pending.event);
     }
@@ -1041,7 +1054,7 @@ public class WarForgeMod {
     @SubscribeEvent
     public void saveEvent(LevelEvent.Save event) {
         if (event.getLevel() instanceof ServerLevel level) {
-            save("Level Save - DIM " + level.dimension().location());
+            save("Level Save - DIM " + Keys.id(level.dimension()));
         }
     }
 

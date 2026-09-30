@@ -1,8 +1,6 @@
 package com.flansmod.warforge.client;
 
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import net.neoforged.bus.api.SubscribeEvent;
+import com.flansmod.warforge.client.render.WorldRenderContext;
 
 public class ClaimFlagRenderer {
     private static final double RENDER_DISTANCE_SQ = 64.0 * 64.0;
@@ -10,11 +8,8 @@ public class ClaimFlagRenderer {
     private static final double BANNER_BOTTOM = 1.5;
     private static final double BANNER_TOP = 2.1;
 
-    @SubscribeEvent
-    public void onRenderWorldLast(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            return;
-        }
+    /** World render stage after translucent blocks (registered through ClientRenderEvents). */
+    public void onRenderWorldLast(WorldRenderContext event) {
         //TODO: Finish this, Im too lazy rn
 //        Minecraft mc = Minecraft.getInstance();
 //        if (mc.level == null || mc.player == null) {
@@ -63,15 +58,4 @@ public class ClaimFlagRenderer {
 //        buffers.endBatch();
     }
 
-    private void begin() {
-        RenderSystem.disableCull();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-    }
-
-    private void end() {
-        RenderSystem.disableBlend();
-        RenderSystem.enableCull();
-    }
 }

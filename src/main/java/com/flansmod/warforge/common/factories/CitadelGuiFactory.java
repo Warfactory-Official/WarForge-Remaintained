@@ -31,7 +31,7 @@ public final class CitadelGuiFactory {
             return;
         }
         WarForgeMod.syncClaimToPlayer(player, pos);
-        com.lowdragmc.lowdraglib2.gui.factory.BlockUIMenuType.openUI(sp, pos);
+        com.flansmod.warforge.platform.WFUiBlock.openUi(sp, pos);
     }
 
     @OnlyIn(Dist.CLIENT)

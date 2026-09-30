@@ -1,29 +1,11 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.platform.WFUiBlock;
+
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
 import com.flansmod.warforge.common.factories.CitadelGuiFactory;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
-import com.flansmod.warforge.common.network.PacketDisbandFaction;
-import com.flansmod.warforge.common.network.PacketFactionInfo;
-import com.flansmod.warforge.common.network.PacketOpenCreateFaction;
-import com.flansmod.warforge.common.network.PacketOpenFlagSelect;
-import com.flansmod.warforge.common.network.PacketOpenRecolour;
-import com.flansmod.warforge.common.network.PacketRequestInsurance;
-import com.flansmod.warforge.common.network.PacketRequestMemberData;
-import com.flansmod.warforge.common.network.PacketRequestUpgradeUI;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.lowdragmc.lowdraglib2.gui.factory.BlockUIMenuType;
-import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
-import com.lowdragmc.lowdraglib2.gui.ui.UI;
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.ItemSlot;
-import com.lowdragmc.lowdraglib2.gui.ui.elements.inventory.InventorySlots;
-import dev.vfyjxf.taffy.style.FlexDirection;
-import dev.vfyjxf.taffy.style.FlexWrap;
-import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -41,11 +23,12 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.BlockHitResult;
 
@@ -60,11 +43,11 @@ import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.KING;
 import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.TRANSLUCENT;
 
-public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMultiBlock, BlockUIMenuType.BlockUI {
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMultiBlock {
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
-    public BlockCitadel() {
-        super(Properties.of()
+    public BlockCitadel(BlockBehaviour.Properties properties) {
+        super(properties
                 .strength(-1.0F, 30000000.0F)
                 .noLootTable());
         this.registerDefaultState(this.stateDefinition.any().setValue(FACING, Direction.NORTH));
@@ -106,14 +89,14 @@ public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMult
         BlockPos pos = context.getClickedPos();
 
         if (pos.getY() < WarForgeConfig.CITADEL_MIN_Y) {
-            if (!world.isClientSide && context.getPlayer() != null) {
+            if (!world.isClientSide() && context.getPlayer() != null) {
                 context.getPlayer().sendSystemMessage(Component.literal("Citadels must be placed at or above Y " +
                         WarForgeConfig.CITADEL_MIN_Y));
             }
             return null;
         }
 
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
             if (WarForgeMod.FACTIONS.isChunkContested(new DimChunkPos(world.dimension(), pos)))
                 return null;
 
@@ -131,18 +114,18 @@ public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMult
     }
 
     @Override
-    public InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
+    protected InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
         if (player.isShiftKeyDown()) {
             TileEntityClaim citadel = (TileEntityClaim) world.getBlockEntity(pos);
             if (!citadel.getFaction().equals(Faction.nullUuid))
                 citadel.increaseRotation();
-            else if (!world.isClientSide) {
-                onRemove(state, world, pos, state, false);
+            else if (!world.isClientSide()) {
+                onRemoved(state, world, pos, state, false);
                 world.destroyBlock(pos, true);
             }
-            return world.isClientSide ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
+            return world.isClientSide() ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
         }
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
             Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
             TileEntityCitadel citadel = (TileEntityCitadel) world.getBlockEntity(pos);
 
@@ -172,172 +155,6 @@ public class BlockCitadel extends MultiBlockColumn implements EntityBlock, IMult
                 CitadelGuiFactory.INSTANCE.open(player, citadel.getBlockPos());
             }
         }
-        return world.isClientSide ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
-    }
-
-    @Override
-    public ModularUI createUI(BlockUIMenuType.BlockUIHolder holder) {
-        BlockEntity be = holder.player.level().getBlockEntity(holder.pos);
-        int stripe = 0x4A4A4A;
-        if (be instanceof TileEntityCitadel c && WarForgeMod.FACTIONS.getFaction(c.getFaction()) != null) {
-            stripe = c.colour;
-        }
-
-        UIElement root = new UIElement();
-        UIElement content = WarForgeUiTheme.frame(root, 320, stripe);
-
-        if (be instanceof TileEntityCitadel citadel) {
-            Faction faction = WarForgeMod.FACTIONS.getFaction(citadel.getFaction());
-            boolean hasFaction = faction != null;
-            String title = hasFaction ? citadel.getClaimDisplayName() : "Unclaimed Citadel";
-            String subtitle = hasFaction ? "Faction vault, banner relay, and command center"
-                    : "Claimed by the placer until a faction is founded";
-            Button close = WarForgeUiTheme.closeButton();
-            close.setOnServerClick(event -> {
-                if (holder.player instanceof ServerPlayer sp) {
-                    sp.closeContainer();
-                }
-            });
-            content.addChild(WarForgeUiTheme.header(title, subtitle, WarForgeUiTheme.TEXT_SECONDARY, close));
-
-            UIElement vault = WarForgeUiTheme.section();
-            vault.addChild(WarForgeUiTheme.boldText("Yield Storage", WarForgeUiTheme.TEXT_PRIMARY));
-            UIElement grid = new UIElement();
-            grid.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(FlexWrap.WRAP).width(54));
-            for (int i = 0; i < TileEntityCitadel.NUM_YIELD_STACKS; i++) {
-                grid.addChild(new ItemSlot().bind(citadel, i).layout(l -> l.width(18).height(18)));
-            }
-            vault.addChild(grid);
-            content.addChild(vault);
-
-            UIElement flagSection = WarForgeUiTheme.section();
-            flagSection.addChild(WarForgeUiTheme.boldText("Faction Flag", WarForgeUiTheme.TEXT_PRIMARY));
-            if (!citadel.factionFlagId.isEmpty()) {
-                if (holder.player.level().isClientSide) {
-                    addFlagPreview(flagSection, citadel.factionFlagId);
-                }
-            } else if (hasFaction) {
-                flagSection.addChild(WarForgeUiTheme.text("Choose once. This cannot be changed later.", WarForgeUiTheme.TEXT_MUTED));
-                Button chooseFlag = new Button().setText("Choose Flag");
-                WarForgeUiTheme.styleButton(chooseFlag, 100);
-                chooseFlag.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        PacketOpenFlagSelect pkt = new PacketOpenFlagSelect();
-                        pkt.factionId = faction.uuid;
-                        WarForgeMod.NETWORK.sendTo(pkt, sp);
-                    }
-                });
-                flagSection.addChild(chooseFlag);
-            } else {
-                flagSection.addChild(WarForgeUiTheme.text("Create a faction first.", WarForgeUiTheme.TEXT_MUTED));
-            }
-            content.addChild(flagSection);
-
-            UIElement actionsSection = WarForgeUiTheme.section();
-            actionsSection.addChild(WarForgeUiTheme.boldText("Command Surface", WarForgeUiTheme.TEXT_PRIMARY));
-            UIElement actions = new UIElement();
-            actions.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(FlexWrap.WRAP).widthStretch().gapColumn(4).gapRow(4));
-            if (hasFaction) {
-                UUID factionId = faction.uuid;
-
-                Button statsBtn = new Button().setText("Faction Stats");
-                WarForgeUiTheme.styleButton(statsBtn, 84);
-                statsBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        Faction f = WarForgeMod.FACTIONS.getFaction(citadel.getFaction());
-                        if (f != null) {
-                            PacketFactionInfo packet = new PacketFactionInfo();
-                            packet.info = f.createInfo(sp.getUUID());
-                            WarForgeMod.NETWORK.sendTo(packet, sp);
-                        }
-                    }
-                });
-                actions.addChild(statsBtn);
-
-                Button membersBtn = new Button().setText("Members");
-                WarForgeUiTheme.styleButton(membersBtn, 66);
-                membersBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        PacketRequestMemberData req = new PacketRequestMemberData();
-                        req.page = FactionMemberManagerGuiData.Page.MEMBERS;
-                        req.handleServerSide(sp);
-                    }
-                });
-                actions.addChild(membersBtn);
-
-                Button insuranceBtn = new Button().setText("Insurance");
-                WarForgeUiTheme.styleButton(insuranceBtn, 74);
-                insuranceBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        PacketRequestInsurance req = new PacketRequestInsurance();
-                        req.factionId = factionId;
-                        req.handleServerSide(sp);
-                    }
-                });
-                actions.addChild(insuranceBtn);
-
-                if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-                    Button upgradeBtn = new Button().setText("Upgrade");
-                    WarForgeUiTheme.styleButton(upgradeBtn, 70);
-                    upgradeBtn.setOnServerClick(event -> {
-                        if (holder.player instanceof ServerPlayer sp) {
-                            PacketRequestUpgradeUI req = new PacketRequestUpgradeUI();
-                            req.mFactionIDRequest = factionId;
-                            req.handleServerSide(sp);
-                        }
-                    });
-                    actions.addChild(upgradeBtn);
-                }
-
-                Button recolorBtn = new Button().setText("Recolor");
-                WarForgeUiTheme.styleButton(recolorBtn, 70);
-                recolorBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        PacketOpenRecolour pkt = new PacketOpenRecolour();
-                        pkt.colour = citadel.colour;
-                        WarForgeMod.NETWORK.sendTo(pkt, sp);
-                    }
-                });
-                actions.addChild(recolorBtn);
-
-                Button disbandBtn = new Button().setText("Disband");
-                WarForgeUiTheme.styleButton(disbandBtn, 70, WarForgeUiTheme.DANGER_FILL);
-                disbandBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        new PacketDisbandFaction().handleServerSide(sp);
-                        sp.closeContainer();
-                    }
-                });
-                actions.addChild(disbandBtn);
-            } else {
-                Button createBtn = new Button().setText("Create Faction");
-                WarForgeUiTheme.styleButton(createBtn, 100);
-                createBtn.setOnServerClick(event -> {
-                    if (holder.player instanceof ServerPlayer sp) {
-                        PacketOpenCreateFaction packet = new PacketOpenCreateFaction();
-                        packet.pos = new DimBlockPos(sp.level().dimension(), holder.pos);
-                        WarForgeMod.NETWORK.sendTo(packet, sp);
-                    }
-                });
-                actions.addChild(createBtn);
-            }
-            actionsSection.addChild(actions);
-            content.addChild(actionsSection);
-        }
-
-        content.addChild(WarForgeUiTheme.inventoryPanel(new InventorySlots()));
-        return ModularUI.of(UI.of(root), holder.player);
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    private void addFlagPreview(UIElement parent, String flagId) {
-        com.flansmod.warforge.client.util.FlagElement flag = new com.flansmod.warforge.client.util.FlagElement(flagId);
-        flag.layout(l -> l.width(42).height(24));
-        parent.addChild(flag);
-    }
-
-    @Override
-    public void onRemove(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
-        super.onRemove(state, world, pos, newState, isMoving);
+        return world.isClientSide() ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
     }
 }

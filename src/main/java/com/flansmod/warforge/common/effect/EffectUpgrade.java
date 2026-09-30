@@ -17,6 +17,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.Random;
+import com.flansmod.warforge.compat.Nbt;
 
 public class EffectUpgrade implements IEffect {
     public static CompoundTag toNbtCompound(int segments, double radius, double speed, int color, int count) {
@@ -52,11 +53,11 @@ public class EffectUpgrade implements IEffect {
     @Override
     @OnlyIn(Dist.CLIENT)
     public void runEffect(Level world, Player player, TextureManager man, Random rand, double x, double y, double z, CompoundTag data) {
-        double radius = data.getDouble("radius");
-        int segments = data.getInt("segments");
-        double speed = data.getDouble("speed");
-        int color = data.getInt("color");
-        int effectCount = data.getInt("count");
+        double radius = Nbt.getDouble(data, "radius");
+        int segments = Nbt.getInt(data, "segments");
+        double speed = Nbt.getDouble(data, "speed");
+        int color = Nbt.getInt(data, "color");
+        int effectCount = Nbt.getInt(data, "count");
         int red = (color >> 16) & 0xFF;
         int green = (color >> 8) & 0xFF;
         int blue = color & 0xFF;

@@ -4,6 +4,6 @@
 	"plugin": "com.flansmod.warforge.common.mixins.CompatMixinPlugin",
 	"target": "@env(DEFAULT)",
 	"minVersion": "0.8.5",
-	"compatibilityLevel": "JAVA_21",
+	"compatibilityLevel": "${mixin_java}",
 	"mixins": []
 }

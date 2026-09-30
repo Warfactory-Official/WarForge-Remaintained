@@ -1,5 +1,10 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.compat.ItemHandlers;
+
+import com.flansmod.warforge.api.WarForgeCapabilities;
+import net.minecraft.world.Containers;
+
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -20,6 +25,8 @@ import net.neoforged.neoforge.items.ItemHandlerHelper;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.util.Set;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.Stacks;
 
 public class TileEntityIslandCollector extends TileEntityYieldCollector {
     /** Slot count for the faction yield collector, configurable via {@link WarForgeConfig#ISLAND_COLLECTOR_SLOTS}. */
@@ -86,7 +93,7 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector {
     }
 
     public void processIslandYields(Faction faction) {
-        if (level == null || level.isClientSide || faction == null) {
+        if (level == null || level.isClientSide() || faction == null) {
             return;
         }
 
@@ -105,7 +112,7 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector {
 
     @Override
     public void onLoad() {
-        if (level == null || level.isClientSide) {
+        if (level == null || level.isClientSide()) {
             return;
         }
 
@@ -118,7 +125,7 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector {
     @Override
     public void setRemoved() {
         super.setRemoved();
-        invalidateCapabilities();
+        WarForgeCapabilities.invalidate(this);
     }
 
     // ----------------------------------------------------------
@@ -179,25 +186,33 @@ public class TileEntityIslandCollector extends TileEntityYieldCollector {
     }
 
     // ----------------------------------------------------------
+    // Drop the stored items when the block is broken (runs before the block entity is removed).
     @Override
-    public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.saveAdditional(nbt, registries);
-        nbt.put("storage", storage.serializeNBT(registries));
+    public void onBlockRemoved() {
+        for (int i = 0; i < getSlots(); i++) {
+            Containers.dropItemStack(level, worldPosition.getX(), worldPosition.getY(), worldPosition.getZ(), getStackInSlot(i));
+        }
     }
 
     @Override
-    protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-        super.loadAdditional(nbt, registries);
+    protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.writeData(nbt, registries);
+        nbt.put("storage", ItemHandlers.serialize(storage, registries));
+    }
+
+    @Override
+    protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+        super.readData(nbt, registries);
 
         // Load the saved items into the (config-sized) handler manually, rather than via
         // deserializeNBT, so that the configured slot count always wins. Items whose saved slot no
         // longer exists are relocated into any remaining free space instead of being dropped.
         if (nbt.contains("storage")) {
-            ListTag items = nbt.getCompound("storage").getList("Items", Tag.TAG_COMPOUND);
+            ListTag items = Nbt.getList(Nbt.getCompound(nbt, "storage"), "Items", Tag.TAG_COMPOUND);
             for (int i = 0; i < items.size(); i++) {
-                CompoundTag itemTags = items.getCompound(i);
-                int slot = itemTags.getInt("Slot");
-                ItemStack stack = ItemStack.parseOptional(registries, itemTags);
+                CompoundTag itemTags = Nbt.getCompound(items, i);
+                int slot = Nbt.getInt(itemTags, "Slot");
+                ItemStack stack = Stacks.parse(registries, itemTags);
                 if (stack.isEmpty()) {
                     continue;
                 }

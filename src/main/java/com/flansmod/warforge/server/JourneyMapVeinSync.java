@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.init.VeinUtils;
@@ -101,8 +103,8 @@ public class JourneyMapVeinSync {
 
     private void scanAuto(ServerPlayer player, int radius) {
         ResourceKey<Level> dim = player.level().dimension();
-        int chunkX = player.chunkPosition().x;
-        int chunkZ = player.chunkPosition().z;
+        int chunkX = Chunks.x(player.chunkPosition());
+        int chunkZ = Chunks.z(player.chunkPosition());
         AutoState state = autoStates.get(player.getUUID());
         if (state == null || !state.dim.equals(dim) || state.centerX != chunkX || state.centerZ != chunkZ) {
             state = new AutoState();
@@ -172,7 +174,7 @@ public class JourneyMapVeinSync {
             if (mode == WarForgeConfig.JM_MODE_AUTO) {
                 AutoState state = autoStates.get(player.getUUID());
                 if (state != null && state.dim.equals(dim)
-                        && Math.abs(player.chunkPosition().x - x) <= radius && Math.abs(player.chunkPosition().z - z) <= radius) {
+                        && Math.abs(Chunks.x(player.chunkPosition()) - x) <= radius && Math.abs(Chunks.z(player.chunkPosition()) - z) <= radius) {
                     state.complete = false;
                     state.cursor = 0;
                 }

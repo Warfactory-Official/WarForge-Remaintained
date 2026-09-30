@@ -1,30 +1,18 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.ServerTerrainCache;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketTerrainColors extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketTerrainColors> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetterraincolors"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketTerrainColors> STREAM_CODEC =
-        StreamCodec.ofMember(PacketTerrainColors::encodeInto, buf -> { PacketTerrainColors p = new PacketTerrainColors(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public ResourceKey<Level> dim = Level.OVERWORLD;
     public int centerX;
     public int centerZ;
@@ -41,7 +29,7 @@ public class PacketTerrainColors extends PacketBase {
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        data.writeUtf(dim.location().toString());
+        data.writeUtf(Keys.id(dim).toString());
         data.writeInt(centerX);
         data.writeInt(centerZ);
         data.writeByte(radius);

@@ -1,20 +1,16 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.client.JourneyMapClaimCache;
+import com.flansmod.warforge.client.MinimapClaimCache;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.flansmod.warforge.compat.Keys;
 
 /**
  * Server -> client claim-border updates for the optional JourneyMap overlay.
@@ -24,14 +20,6 @@ import java.util.List;
  * learn about claims it is not entitled to see.
  */
 public class PacketJourneyMapClaims extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketJourneyMapClaims> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetjourneymapclaims"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketJourneyMapClaims> STREAM_CODEC =
-        StreamCodec.ofMember(PacketJourneyMapClaims::encodeInto, buf -> { PacketJourneyMapClaims p = new PacketJourneyMapClaims(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     public static final class Set {
         public final ResourceKey<Level> dim;
         public final int x, z, colour;
@@ -66,14 +54,14 @@ public class PacketJourneyMapClaims extends PacketBase {
         data.writeBoolean(clear);
         data.writeInt(sets.size());
         for (Set s : sets) {
-            data.writeUtf(s.dim.location().toString());
+            data.writeUtf(Keys.id(s.dim).toString());
             data.writeInt(s.x);
             data.writeInt(s.z);
             data.writeInt(s.colour);
         }
         data.writeInt(removes.size());
         for (Remove r : removes) {
-            data.writeUtf(r.dim.location().toString());
+            data.writeUtf(Keys.id(r.dim).toString());
             data.writeInt(r.x);
             data.writeInt(r.z);
         }
@@ -105,13 +93,13 @@ public class PacketJourneyMapClaims extends PacketBase {
     @Override
     public void handleClientSide(Player clientPlayer) {
         if (clear) {
-            JourneyMapClaimCache.applyClear();
+            MinimapClaimCache.applyClear();
         }
         for (Set s : sets) {
-            JourneyMapClaimCache.set(s.dim, s.x, s.z, s.colour);
+            MinimapClaimCache.set(s.dim, s.x, s.z, s.colour);
         }
         for (Remove r : removes) {
-            JourneyMapClaimCache.remove(r.dim, r.x, r.z);
+            MinimapClaimCache.remove(r.dim, r.x, r.z);
         }
     }
 }

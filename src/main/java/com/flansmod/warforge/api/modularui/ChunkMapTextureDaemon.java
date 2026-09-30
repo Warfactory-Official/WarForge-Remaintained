@@ -1,5 +1,7 @@
 package com.flansmod.warforge.api.modularui;
 
+import com.flansmod.warforge.client.render.DynamicTextures;
+
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.ChunkDynamicTextureThread;
 import com.flansmod.warforge.api.Color4i;
@@ -7,7 +9,6 @@ import com.flansmod.warforge.client.ServerTerrainCache;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
@@ -25,6 +26,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
 
 public class ChunkMapTextureDaemon {
     private static final ConcurrentHashMap<String, AtomicInteger> GENERATIONS = new ConcurrentHashMap<>();
@@ -85,7 +88,7 @@ public class ChunkMapTextureDaemon {
     }
 
     public static String getTextureName(String namespace, ResourceKey<Level> dim, int x, int z) {
-        return namespace + "/" + dim.location().getPath() + "_" + x + "_" + z;
+        return namespace + "/" + Keys.id(dim).getPath() + "_" + x + "_" + z;
     }
 
     public static void releaseNamespace(String namespace) {
@@ -97,7 +100,7 @@ public class ChunkMapTextureDaemon {
         Minecraft mc = Minecraft.getInstance();
         for (String name : active) {
             ChunkDynamicTextureThread.PENDING.remove(name);
-            mc.getTextureManager().release(ResourceLocation.fromNamespaceAndPath(Tags.MODID, name));
+            DynamicTextures.release(Ids.of(Tags.MODID, name));
         }
     }
 
@@ -116,7 +119,7 @@ public class ChunkMapTextureDaemon {
         for (String old : current) {
             if (!desired.contains(old)) {
                 ChunkDynamicTextureThread.PENDING.remove(old);
-                mc.getTextureManager().release(ResourceLocation.fromNamespaceAndPath(Tags.MODID, old));
+                DynamicTextures.release(Ids.of(Tags.MODID, old));
             }
         }
         ACTIVE_TEXTURES.put(namespace, desired);
@@ -174,7 +177,7 @@ public class ChunkMapTextureDaemon {
         if (MapBlockColorSampler.DEBUG_LOGGING) {
             com.flansmod.warforge.common.WarForgeMod.LOGGER.info(
                     "[MapRelief] {} grading elevation span minY={} maxY={} (span={})",
-                    dim.location(), minY, maxY, maxY - minY);
+                    Keys.id(dim), minY, maxY, maxY - minY);
         }
 
         for (int x = centerX - radius; x <= centerX + radius; x++) {

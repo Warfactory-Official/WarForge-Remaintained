@@ -6,6 +6,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
@@ -17,6 +18,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 // Ash Vehicles renamed its package Aru.Aru.* (older CF builds) -> aru.aru.* (newer "div" builds). Both
 // casings are listed so this protects claims regardless of which build the pack ships; the missing casing
 // is skipped harmlessly (require=0 + CompatMixinPlugin gates the whole mixin on the mod being present).
+// @Pseudo: the targets may be missing when compiling (Forge refmap generation still maps the redirect target).
+@Pseudo
 @Mixin(remap = false, targets = {
         "aru.aru.ashvehicle.entity.projectile.Agm114Entity",
         "aru.aru.ashvehicle.entity.projectile.Agm158Entity",

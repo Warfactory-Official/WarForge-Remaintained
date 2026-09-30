@@ -4,95 +4,80 @@ import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.blocks.*;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
 
-import net.minecraft.core.particles.ParticleType;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
+import com.flansmod.warforge.platform.RegHandle;
+import com.flansmod.warforge.platform.WFRegistry;
 import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.registries.DeferredBlock;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredItem;
-import net.neoforged.neoforge.registries.DeferredRegister;
 
 public class Content
 {
-	private static final DeferredRegister.Blocks BLOCKS =
-			DeferredRegister.createBlocks(Tags.MODID);
-	private static final DeferredRegister.Items ITEMS =
-			DeferredRegister.createItems(Tags.MODID);
-	private static final DeferredRegister<BlockEntityType<?>> BLOCK_ENTITIES =
-			DeferredRegister.create(Registries.BLOCK_ENTITY_TYPE, Tags.MODID);
-	private static final DeferredRegister<CreativeModeTab> CREATIVE_TABS =
-			DeferredRegister.create(Registries.CREATIVE_MODE_TAB, Tags.MODID);
-	private static final DeferredRegister<ParticleType<?>> PARTICLE_TYPES =
-			DeferredRegister.create(Registries.PARTICLE_TYPE, Tags.MODID);
+	private static final WFRegistry REG = new WFRegistry();
 
 	// Particles
-	public static final DeferredHolder<ParticleType<?>, SimpleParticleType> STAR_CIRCLE_PARTICLE =
-			PARTICLE_TYPES.register("star_circle", () -> new SimpleParticleType(false));
+	public static final RegHandle<SimpleParticleType> STAR_CIRCLE_PARTICLE =
+			REG.register(Registries.PARTICLE_TYPE, "star_circle", () -> new SimpleParticleType(false));
 
 	// Blocks
-	public static final DeferredBlock<Block> CITADEL_BLOCK = BLOCKS.register("citadelblock", BlockCitadel::new);
-	public static final DeferredBlock<Block> BASIC_CLAIM_BLOCK = BLOCKS.register("basicclaimblock", BlockBasicClaim::new);
-	public static final DeferredBlock<Block> REINFORCED_CLAIM_BLOCK = BLOCKS.register("reinforcedclaimblock", BlockBasicClaim::new);
-	public static final DeferredBlock<Block> SIEGE_CAMP_BLOCK = BLOCKS.register("siegecampblock", BlockSiegeCamp::new);
-	public static final DeferredBlock<Block> ISLAND_COLLECTOR_BLOCK = BLOCKS.register("islandcollector", BlockIslandCollector::new);
-	public static final DeferredBlock<Block> STATUE = BLOCKS.register("dummy", BlockDummy::new);
-	public static final DeferredBlock<Block> DUMMY_TRANSLUSENT = BLOCKS.register("dummy_translusent", BlockDummyTransparent::new);
-	public static final DeferredBlock<Block> TOP_LEADERBOARD_BLOCK = BLOCKS.register("topleaderboard", () -> new BlockLeaderboard(FactionStat.TOTAL));
-	public static final DeferredBlock<Block> WEALTH_LEADERBOARD_BLOCK = BLOCKS.register("wealthleaderboard", () -> new BlockLeaderboard(FactionStat.WEALTH));
-	public static final DeferredBlock<Block> NOTORIETY_LEADERBOARD_BLOCK = BLOCKS.register("notorietyleaderboard", () -> new BlockLeaderboard(FactionStat.NOTORIETY));
-	public static final DeferredBlock<Block> LEGACY_LEADERBOARD_BLOCK = BLOCKS.register("legacyleaderboard", () -> new BlockLeaderboard(FactionStat.LEGACY));
-	public static final DeferredBlock<Block> FOB_BLOCK = BLOCKS.register("fobblock", BlockFob::new);
+	public static final RegHandle<Block> CITADEL_BLOCK = REG.block("citadelblock", BlockCitadel::new);
+	public static final RegHandle<Block> BASIC_CLAIM_BLOCK = REG.block("basicclaimblock", BlockBasicClaim::new);
+	public static final RegHandle<Block> REINFORCED_CLAIM_BLOCK = REG.block("reinforcedclaimblock", BlockBasicClaim::new);
+	public static final RegHandle<Block> SIEGE_CAMP_BLOCK = REG.block("siegecampblock", BlockSiegeCamp::new);
+	public static final RegHandle<Block> ISLAND_COLLECTOR_BLOCK = REG.block("islandcollector", BlockIslandCollector::new);
+	public static final RegHandle<Block> STATUE = REG.block("dummy", BlockDummy::new);
+	public static final RegHandle<Block> DUMMY_TRANSLUSENT = REG.block("dummy_translusent", BlockDummyTransparent::new);
+	public static final RegHandle<Block> TOP_LEADERBOARD_BLOCK = REG.block("topleaderboard", props -> new BlockLeaderboard(FactionStat.TOTAL, props));
+	public static final RegHandle<Block> WEALTH_LEADERBOARD_BLOCK = REG.block("wealthleaderboard", props -> new BlockLeaderboard(FactionStat.WEALTH, props));
+	public static final RegHandle<Block> NOTORIETY_LEADERBOARD_BLOCK = REG.block("notorietyleaderboard", props -> new BlockLeaderboard(FactionStat.NOTORIETY, props));
+	public static final RegHandle<Block> LEGACY_LEADERBOARD_BLOCK = REG.block("legacyleaderboard", props -> new BlockLeaderboard(FactionStat.LEGACY, props));
+	public static final RegHandle<Block> FOB_BLOCK = REG.block("fobblock", BlockFob::new);
 
 	// Block items (statue/dummyTranslusent intentionally have no item)
-	public static final DeferredItem<Item> CITADEL_BLOCK_ITEM = ITEMS.register("citadelblock", () -> new BlockItem(CITADEL_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> BASIC_CLAIM_BLOCK_ITEM = ITEMS.register("basicclaimblock", () -> new BlockItem(BASIC_CLAIM_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> REINFORCED_CLAIM_BLOCK_ITEM = ITEMS.register("reinforcedclaimblock", () -> new BlockItem(REINFORCED_CLAIM_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> SIEGE_CAMP_BLOCK_ITEM = ITEMS.register("siegecampblock", () -> new BlockItem(SIEGE_CAMP_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> ISLAND_COLLECTOR_ITEM = ITEMS.register("islandcollector", () -> new BlockItem(ISLAND_COLLECTOR_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> TOP_LEADERBOARD_ITEM = ITEMS.register("topleaderboard", () -> new BlockItem(TOP_LEADERBOARD_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> WEALTH_LEADERBOARD_ITEM = ITEMS.register("wealthleaderboard", () -> new BlockItem(WEALTH_LEADERBOARD_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> NOTORIETY_LEADERBOARD_ITEM = ITEMS.register("notorietyleaderboard", () -> new BlockItem(NOTORIETY_LEADERBOARD_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> LEGACY_LEADERBOARD_ITEM = ITEMS.register("legacyleaderboard", () -> new BlockItem(LEGACY_LEADERBOARD_BLOCK.get(), new Item.Properties()));
-	public static final DeferredItem<Item> FOB_BLOCK_ITEM = ITEMS.register("fobblock", () -> new BlockItem(FOB_BLOCK.get(), new Item.Properties()));
+	public static final RegHandle<Item> CITADEL_BLOCK_ITEM = REG.blockItem("citadelblock", CITADEL_BLOCK);
+	public static final RegHandle<Item> BASIC_CLAIM_BLOCK_ITEM = REG.blockItem("basicclaimblock", BASIC_CLAIM_BLOCK);
+	public static final RegHandle<Item> REINFORCED_CLAIM_BLOCK_ITEM = REG.blockItem("reinforcedclaimblock", REINFORCED_CLAIM_BLOCK);
+	public static final RegHandle<Item> SIEGE_CAMP_BLOCK_ITEM = REG.blockItem("siegecampblock", SIEGE_CAMP_BLOCK);
+	public static final RegHandle<Item> ISLAND_COLLECTOR_ITEM = REG.blockItem("islandcollector", ISLAND_COLLECTOR_BLOCK);
+	public static final RegHandle<Item> TOP_LEADERBOARD_ITEM = REG.blockItem("topleaderboard", TOP_LEADERBOARD_BLOCK);
+	public static final RegHandle<Item> WEALTH_LEADERBOARD_ITEM = REG.blockItem("wealthleaderboard", WEALTH_LEADERBOARD_BLOCK);
+	public static final RegHandle<Item> NOTORIETY_LEADERBOARD_ITEM = REG.blockItem("notorietyleaderboard", NOTORIETY_LEADERBOARD_BLOCK);
+	public static final RegHandle<Item> LEGACY_LEADERBOARD_ITEM = REG.blockItem("legacyleaderboard", LEGACY_LEADERBOARD_BLOCK);
+	public static final RegHandle<Item> FOB_BLOCK_ITEM = REG.blockItem("fobblock", FOB_BLOCK);
 
 	// Block entities. Names referenced by the BlockEntity classes via Content.TE_*.get().
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityCitadel>> TE_CITADEL =
-			BLOCK_ENTITIES.register("citadel",
-					() -> BlockEntityType.Builder.of(TileEntityCitadel::new, CITADEL_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityBasicClaim>> TE_BASIC_CLAIM =
-			BLOCK_ENTITIES.register("basicclaim",
-					() -> BlockEntityType.Builder.of(TileEntityBasicClaim::new, BASIC_CLAIM_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityReinforcedClaim>> TE_REINFORCED_CLAIM =
-			BLOCK_ENTITIES.register("reinforcedclaim",
-					() -> BlockEntityType.Builder.of(TileEntityReinforcedClaim::new, REINFORCED_CLAIM_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntitySiegeCamp>> TE_SIEGE_CAMP =
-			BLOCK_ENTITIES.register("siegecamp",
-					() -> BlockEntityType.Builder.of(TileEntitySiegeCamp::new, SIEGE_CAMP_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityIslandCollector>> TE_ISLAND_COLLECTOR =
-			BLOCK_ENTITIES.register("islandcollector",
-					() -> BlockEntityType.Builder.of(TileEntityIslandCollector::new, ISLAND_COLLECTOR_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityLeaderboard>> TE_LEADERBOARD =
-			BLOCK_ENTITIES.register("leaderboard",
-					() -> BlockEntityType.Builder.of(TileEntityLeaderboard::new,
-							TOP_LEADERBOARD_BLOCK.get(), WEALTH_LEADERBOARD_BLOCK.get(),
-							NOTORIETY_LEADERBOARD_BLOCK.get(), LEGACY_LEADERBOARD_BLOCK.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityDummy>> TE_DUMMY =
-			BLOCK_ENTITIES.register("tileentity_dummy",
-					() -> BlockEntityType.Builder.of(TileEntityDummy::new, STATUE.get(), DUMMY_TRANSLUSENT.get()).build(null));
-	public static final DeferredHolder<BlockEntityType<?>, BlockEntityType<TileEntityFob>> TE_FOB =
-			BLOCK_ENTITIES.register("fob",
-					() -> BlockEntityType.Builder.of(TileEntityFob::new, FOB_BLOCK.get()).build(null));
+	public static final RegHandle<BlockEntityType<TileEntityCitadel>> TE_CITADEL =
+			REG.blockEntity("citadel", TileEntityCitadel::new,
+					CITADEL_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntityBasicClaim>> TE_BASIC_CLAIM =
+			REG.blockEntity("basicclaim", TileEntityBasicClaim::new,
+					BASIC_CLAIM_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntityReinforcedClaim>> TE_REINFORCED_CLAIM =
+			REG.blockEntity("reinforcedclaim", TileEntityReinforcedClaim::new,
+					REINFORCED_CLAIM_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntitySiegeCamp>> TE_SIEGE_CAMP =
+			REG.blockEntity("siegecamp", TileEntitySiegeCamp::new,
+					SIEGE_CAMP_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntityIslandCollector>> TE_ISLAND_COLLECTOR =
+			REG.blockEntity("islandcollector", TileEntityIslandCollector::new,
+					ISLAND_COLLECTOR_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntityLeaderboard>> TE_LEADERBOARD =
+			REG.blockEntity("leaderboard", TileEntityLeaderboard::new,
+					TOP_LEADERBOARD_BLOCK, WEALTH_LEADERBOARD_BLOCK, NOTORIETY_LEADERBOARD_BLOCK, LEGACY_LEADERBOARD_BLOCK);
+	public static final RegHandle<BlockEntityType<TileEntityDummy>> TE_DUMMY =
+			REG.blockEntity("tileentity_dummy", TileEntityDummy::new,
+					STATUE, DUMMY_TRANSLUSENT);
+	public static final RegHandle<BlockEntityType<TileEntityFob>> TE_FOB =
+			REG.blockEntity("fob", TileEntityFob::new,
+					FOB_BLOCK);
 
 	// Creative tab
-	public static final DeferredHolder<CreativeModeTab, CreativeModeTab> TAB = CREATIVE_TABS.register("main",
+	public static final RegHandle<CreativeModeTab> TAB = REG.register(Registries.CREATIVE_MODE_TAB, "main",
 			() -> CreativeModeTab.builder()
 					.title(Component.translatable("itemGroup." + Tags.MODID))
 					.icon(() -> new ItemStack(CITADEL_BLOCK.get()))
@@ -121,11 +106,7 @@ public class Content
 
 	public static void register(IEventBus modBus)
 	{
-		BLOCKS.register(modBus);
-		ITEMS.register(modBus);
-		BLOCK_ENTITIES.register(modBus);
-		CREATIVE_TABS.register(modBus);
-		PARTICLE_TYPES.register(modBus);
+		REG.register(modBus);
 	}
 
 	// Resolve the plain fields from the RegistryObjects once registration has run.

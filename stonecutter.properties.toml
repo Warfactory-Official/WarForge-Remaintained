@@ -1,0 +1,93 @@
+# Per-node build properties. Keys in [<loader>."<mc>"] override keys in [<loader>], which override the top level.
+# Read in the build scripts with prop("key").
+
+[mod]
+id = "warforge"
+name = "WarForge Factions Remaintained"
+group = "com.flansmod.warforge"
+version = "2.4.3"
+archives_base_name = "warforge-remaintained"
+authors = "Flan, MrNorwood, EightXOR8, Movblock"
+description = "Unofficial continuation of the WarForge factions mod, with new features and systems."
+
+[forge]
+loader_version_range = "[47,)"
+obj_loader = "forge:obj"
+mixin_java = "JAVA_17"
+
+[forge."1.20.1"]
+java = "17"
+pack_format = "15"
+loader_dependency_range = "[47,)"
+minecraft_version_range = "[1.20.1,1.20.2)"
+deps.forge = "47.4.23"
+deps.parchment_minecraft = "1.20.1"
+deps.parchment = "2023.09.03"
+# LDLib v1 (UI framework on Forge 1.20.1; a different API from LDLib2).
+deps.ldlib = "com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.52.a"
+# JourneyMap 6.x on 1.20.1 ships the v2 API only inside the mod jar (META-INF/jarjar), not on a maven repository.
+deps.journeymap = "maven.modrinth:journeymap:1.20.1-6.0.6+forge"
+# Xaero's World Map and Minimap (claim overlay, compile-only + client dev runtime). Their highlight API is the
+# same in every version; XaeroLib comes inside both jars.
+deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:forge-1.20.1-1.46.0"
+deps.xaero_minimap = "maven.modrinth:xaeros-minimap:forge-1.20.1-26.5.0"
+deps.journeymap_api_jarjar = "META-INF/jarjar/journeymap-api-forge-1.20.1-2.0.0.jar"
+
+[neoforge]
+# MDG run type of the "data" run. NeoForge 1.21.4 split it into clientData (all providers) and serverData.
+data_run_type = "data"
+loader_version_range = "[1,)"
+obj_loader = "neoforge:obj"
+
+[neoforge."1.21.1"]
+java = "21"
+mixin_java = "JAVA_21"
+pack_format = "34"
+loader_dependency_range = "[21.1.1,22)"
+minecraft_version_range = "[1.21.1,1.22)"
+deps.neoforge = "21.1.248"
+deps.parchment_minecraft = "1.21.1"
+deps.parchment = "2024.11.17"
+# LDLib2 (UI framework) on maven.firstdark.dev; the ':all' classifier bundles impl + Yoga.
+deps.ldlib2_artifact = "ldlib2-neoforge-1.21.1"
+deps.ldlib2 = "2.2.41"
+deps.ldlib2_classifier = "all"
+# JourneyMap client API. Published only as a live SNAPSHOT, so the version is pinned to a timestamped build:
+# -SNAPSHOT would silently change what this compiles against between one build and the next.
+# The package is journeymap.api.v2.*, not the journeymap.client.api every tutorial still shows.
+deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:2.0.0-1.21.1-20260529.024614-31"
+# The JourneyMap mod, dev-runtime only (never published as a dependency).
+deps.journeymap = "maven.modrinth:journeymap:1.21.1-6.0.6+neoforge"
+deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-1.21.1-1.46.0"
+deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-1.21.1-26.5.0"
+
+[neoforge."26.1.2"]
+data_run_type = "clientData"
+java = "25"
+# NeoForge 26.1 bundles sponge-mixin 0.17.3, which knows JAVA_25 (the mixin classes are Java 25 class files).
+mixin_java = "JAVA_25"
+# No pack_format: the 26.x pack.mcmeta (neoforge-26 variant) declares no format, so NeoForge accepts every format.
+loader_dependency_range = "[26.1.2,26.2)"
+minecraft_version_range = "[26.1.2,26.2)"
+deps.neoforge = "26.1.2.112"
+deps.ldlib2_artifact = "ldlib2-neoforge-26.1"
+deps.ldlib2 = "26.1.2.41"
+deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:2.0.0-26.1-20260529.024148-13"
+deps.journeymap = "maven.modrinth:journeymap:26.1.2-6.0.9+neoforge"
+deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.1.2-1.46.0"
+deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.1.2-26.5.0"
+
+[neoforge."26.2"]
+data_run_type = "clientData"
+java = "25"
+# NeoForge 26.2 also bundles sponge-mixin 0.17.3.
+mixin_java = "JAVA_25"
+loader_dependency_range = "[26.2,26.3)"
+minecraft_version_range = "[26.2,26.3)"
+deps.neoforge = "26.2.0.88"
+deps.ldlib2_artifact = "ldlib2-neoforge-26.2"
+deps.ldlib2 = "26.2.2.41.a"
+deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:26.2-2.0.0-20260618.154206-2"
+deps.journeymap = "maven.modrinth:journeymap:26.2-6.0.9+neoforge"
+deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.2-1.46.1"
+deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.2-26.5.1"

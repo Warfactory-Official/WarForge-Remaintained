@@ -1,10 +1,9 @@
 package com.flansmod.warforge.client.util;
 
+import com.flansmod.warforge.client.render.Gui2D;
+import com.flansmod.warforge.client.render.WFToast;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.toasts.Toast;
-import net.minecraft.client.gui.components.toasts.ToastComponent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
 
@@ -13,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class WarForgeToast implements Toast {
+public class WarForgeToast extends WFToast {
     private static final int LINE_HEIGHT = 9;
 
     private final String token;
@@ -40,15 +39,24 @@ public class WarForgeToast implements Toast {
         this.playerId = playerId;
     }
 
-    @Override
-    public Visibility render(GuiGraphics guiGraphics, ToastComponent toastComponent, long delta) {
+    private void markStart(long delta) {
         if (this.newDisplay) {
             this.firstDrawTime = delta;
             this.newDisplay = false;
         }
+    }
 
-        Minecraft mc = toastComponent.getMinecraft();
-        Font font = mc.font;
+    @Override
+    protected boolean isVisible(long delta) {
+        markStart(delta);
+        return delta - this.firstDrawTime < this.displayTimeMs;
+    }
+
+    @Override
+    protected void draw(Gui2D guiGraphics, Font font, long delta) {
+        markStart(delta);
+
+        Minecraft mc = Minecraft.getInstance();
 
         int iconPadding = (this.playerId != null) ? 35 : 12;
         int rightPadding = 15;
@@ -85,15 +93,13 @@ public class WarForgeToast implements Toast {
 
         int textY = (this.targetHeight - contentHeight) / 2;
         for (FormattedCharSequence line : titleLines) {
-            guiGraphics.drawString(font, line, textX, textY, 0xFFF2C84B, false);
+            guiGraphics.text(font, line, textX, textY, 0xFFF2C84B, false);
             textY += LINE_HEIGHT;
         }
         for (FormattedCharSequence line : bodyLines) {
-            guiGraphics.drawString(font, line, textX, textY, 0xFFFFFFFF, false);
+            guiGraphics.text(font, line, textX, textY, 0xFFFFFFFF, false);
             textY += LINE_HEIGHT;
         }
-
-        return delta - this.firstDrawTime < this.displayTimeMs ? Visibility.SHOW : Visibility.HIDE;
     }
 
     @Override

@@ -10,7 +10,6 @@ public class TileEntityBasicClaim extends TileEntityYieldCollector implements IC
 {
 	public static final int NUM_SLOTS = NUM_BASE_SLOTS; // No additional slots here
 
-
 	public TileEntityBasicClaim(BlockPos pos, BlockState state)
 	{
 		super(Content.TE_BASIC_CLAIM.get(), pos, state);

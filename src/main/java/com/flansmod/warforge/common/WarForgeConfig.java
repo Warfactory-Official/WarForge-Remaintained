@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common;
 
+import com.flansmod.warforge.compat.Regs;
+
 import com.electronwill.nightconfig.core.CommentedConfig;
 import com.electronwill.nightconfig.core.Config;
 import com.electronwill.nightconfig.core.UnmodifiableConfig;
@@ -16,6 +18,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.Block;
+import com.flansmod.warforge.platform.ConfigAccess;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 import java.io.StringReader;
@@ -27,6 +30,7 @@ import java.util.regex.Pattern;
 
 import static com.flansmod.warforge.client.util.ScreenSpaceUtil.ScreenPos;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Ids;
 
 public class WarForgeConfig {
     public static final String CATEGORY_CLAIMS = "Claims";
@@ -796,16 +800,7 @@ public class WarForgeConfig {
 
     private static boolean pushIntoSpec(UnmodifiableConfig source) {
         try {
-            java.lang.reflect.Field field = ModConfigSpec.class.getDeclaredField("loadedConfig");
-            field.setAccessible(true);
-            Object loaded = field.get(SPEC);
-            if (loaded == null) {
-                return false;
-            }
-            CommentedConfig active = ((net.neoforged.fml.config.IConfigSpec.ILoadedConfig) loaded).config();
-            deepMerge(source, active);
-            SPEC.resetCaches(ModConfigSpec.RestartType.NONE);
-            return true;
+            return ConfigAccess.pushInto(SPEC, source, WarForgeConfig::deepMerge);
         } catch (Throwable t) {
             WarForgeMod.LOGGER.error("Could not apply config values into the running spec; some synced/reloaded values may not take effect", t);
             return false;
@@ -1225,9 +1220,9 @@ public class WarForgeConfig {
         private Set<Block> findBlocks(String[] input) {
             Set<Block> output = new HashSet<>(input.length);
             for (String blockID : input) {
-                ResourceLocation rl = ResourceLocation.parse(blockID);
+                ResourceLocation rl = Ids.parse(blockID);
                 if (BuiltInRegistries.BLOCK.containsKey(rl)) {
-                    output.add(BuiltInRegistries.BLOCK.get(rl));
+                    output.add(Regs.get(BuiltInRegistries.BLOCK, rl));
                 } else {
                     WarForgeMod.LOGGER.warn("Unknown block ID in config: {}", blockID);
                 }
@@ -1238,9 +1233,9 @@ public class WarForgeConfig {
         private Set<Item> findItems(String[] input) {
             Set<Item> output = new HashSet<>(input.length);
             for (String itemID : input) {
-                ResourceLocation rl = ResourceLocation.parse(itemID);
+                ResourceLocation rl = Ids.parse(itemID);
                 if (BuiltInRegistries.ITEM.containsKey(rl)) {
-                    output.add(BuiltInRegistries.ITEM.get(rl));
+                    output.add(Regs.get(BuiltInRegistries.ITEM, rl));
                 } else {
                     WarForgeMod.LOGGER.warn("Unknown item ID in config: {}", itemID);
                 }

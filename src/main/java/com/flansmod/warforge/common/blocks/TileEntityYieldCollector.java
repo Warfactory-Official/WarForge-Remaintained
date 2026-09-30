@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.Random;
 
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.Stacks;
 
 public abstract class TileEntityYieldCollector extends TileEntityClaim implements IItemHandlerModifiable
 {
@@ -50,7 +52,7 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 	}
 
 	protected void processYieldForClaim(HashMap<DimBlockPos, Integer> claims, DimBlockPos claimPos, boolean warnOnFull) {
-		if(level.isClientSide) { return; }  // we don't process on the client
+		if(level.isClientSide()) { return; }  // we don't process on the client
 		if (VEIN_HANDLER == null || !VEIN_HANDLER.hasFinishedInit) { return; }
 
 		// check the number of yields to award and handle appropriately
@@ -128,7 +130,7 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 
 	@Override
 	public void onLoad() {
-		if(!level.isClientSide) {
+		if(!level.isClientSide()) {
 			Faction faction = WarForgeMod.FACTIONS.getFaction(factionUUID);
 			if(faction != null) {
 				processYield(faction.claims);
@@ -140,23 +142,22 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.saveAdditional(nbt, registries);
+	protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+		super.writeData(nbt, registries);
 
 		// Write all our stacks out
 		for(int i = 0; i < NUM_YIELD_STACKS; i++) {
-			nbt.put("yield_" + i, yieldStacks[i].saveOptional(registries));
+			nbt.put("yield_" + i, Stacks.save(yieldStacks[i], registries));
 		}
 	}
 
-
 	@Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
+	protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+		super.readData(nbt, registries);
 
 		for(int i = 0; i < NUM_YIELD_STACKS; i++) {
 			if(nbt.contains("yield_" + i))
-				yieldStacks[i] = ItemStack.parseOptional(registries, nbt.getCompound("yield_" + i));
+				yieldStacks[i] = Stacks.parse(registries, Nbt.getCompound(nbt, "yield_" + i));
 			else
 				yieldStacks[i] = ItemStack.EMPTY;
 		}
@@ -199,7 +200,7 @@ public abstract class TileEntityYieldCollector extends TileEntityClaim implement
 		int limit = Math.min(getSlotLimit(index), stack.getMaxStackSize());
 
 		if(!existing.isEmpty()) {
-			if(!ItemStack.isSameItemSameComponents(existing, stack)) {
+			if(!Stacks.sameItemSameData(existing, stack)) {
 				return stack;
 			}
 			limit -= existing.getCount();

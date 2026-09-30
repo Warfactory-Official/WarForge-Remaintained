@@ -21,8 +21,6 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.fml.loading.FMLEnvironment;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -32,6 +30,10 @@ import java.util.List;
 import static com.flansmod.warforge.client.ClientProxy.VEIN_ENTRIES;
 import static com.flansmod.warforge.common.WarForgeMod.LOGGER;
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.platform.Platform;
 
 public class VeinUtils {
     public static final short WEIGHT_FRACTION_TENS_POW = 10000;  // should stay 10,000 so that it fits within a short
@@ -384,7 +386,7 @@ public class VeinUtils {
         if (veinInfo == NULL_VEIN_ID) { return null; }
 
         short[] decompVeinInfo = splitVeinInfo(veinInfo);
-        if (FMLEnvironment.dist != Dist.CLIENT) {
+        if (!Platform.isClient()) {
             return Pair.of(VEIN_HANDLER.ID_TO_VEINS.get(decompVeinInfo[0]), Quality.getQuality(decompVeinInfo[1]));
         } else {
             Vein targetVein = VEIN_ENTRIES.get(decompVeinInfo[0]);
@@ -535,7 +537,7 @@ public class VeinUtils {
             // check if we have exceeded the weight provided
             if (remainingWeight < currDimWeight) {
                 LOGGER.atError().log("The maximum weight (10000) has been exceeded at vein " + currVein.translationKey
-                        + " in dim " + dim.location() + "; ignoring current vein.");
+                        + " in dim " + Keys.id(dim) + "; ignoring current vein.");
                 continue;
             } else {
                 remainingWeight -= currDimWeight;
@@ -638,34 +640,34 @@ public class VeinUtils {
     private String getVeinInfoID(short veinId) {
         return "vinfo_" + veinId;
     }
-    private String getDimInfoID(ResourceKey<Level> dim) { return "dinfo_" + dim.location().toString(); }
+    private String getDimInfoID(ResourceKey<Level> dim) { return "dinfo_" + Keys.id(dim).toString(); }
 
     public void readFromNBT(CompoundTag tags) {
         if (!tags.contains("vein_dims")) { return; }
         // megachunk length controls how chunk offsets are packed; if it changed we cannot reuse the stored data
-        if (tags.contains("vein_megachunk_length") && tags.getShort("vein_megachunk_length") != megachunkLength) {
+        if (tags.contains("vein_megachunk_length") && Nbt.getShort(tags, "vein_megachunk_length") != megachunkLength) {
             LOGGER.info("Vein megachunk_length changed; discarding stored vein data so chunk offsets can repack.");
             return;
         }
 
-        CompoundTag dims = tags.getCompound("vein_dims");
-        for (String dimKey : dims.getAllKeys()) {
-            ResourceLocation dimLoc = ResourceLocation.tryParse(dimKey.substring("dinfo_".length()));
+        CompoundTag dims = Nbt.getCompound(tags, "vein_dims");
+        for (String dimKey : Nbt.keys(dims)) {
+            ResourceLocation dimLoc = Ids.tryParse(dimKey.substring("dinfo_".length()));
             if (dimLoc == null) { continue; }
             ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, dimLoc);
             if (!DIM_VEIN_WEIGHT_MAP.containsKey(dim)) { continue; }  // no veins configured for this dim now; drop its data
 
-            CompoundTag currDim = dims.getCompound(dimKey);
-            ListTag megachunks = currDim.getList("megachunks", Tag.TAG_COMPOUND);  // compound tags for tag lists
+            CompoundTag currDim = Nbt.getCompound(dims, dimKey);
+            ListTag megachunks = Nbt.getList(currDim, "megachunks", Tag.TAG_COMPOUND);  // compound tags for tag lists
             for (int megachunkTagIndex = 0; megachunkTagIndex < megachunks.size(); ++megachunkTagIndex) {
-                CompoundTag currMegachunkNBT = megachunks.getCompound(megachunkTagIndex);
-                long megachunkKey = currMegachunkNBT.getLong("key");
+                CompoundTag currMegachunkNBT = Nbt.getCompound(megachunks, megachunkTagIndex);
+                long megachunkKey = Nbt.getLong(currMegachunkNBT, "key");
                 ensureMegachunkPopulated(dim, megachunkKey);
                 var currMegachunk = MEGA_CHUNK_OCCURRENCE_DATA.get(dim).get(megachunkKey);
 
                 // iterate over every vein tag actually stored so removed veins can be reconciled to the null vein
-                CompoundTag veins = currMegachunkNBT.getCompound("veins");
-                for (String veinTag : veins.getAllKeys()) {
+                CompoundTag veins = Nbt.getCompound(currMegachunkNBT, "veins");
+                for (String veinTag : Nbt.keys(veins)) {
                     short storedId;
                     try { storedId = Short.parseShort(veinTag.substring("vinfo_".length())); }
                     catch (NumberFormatException e) { continue; }
@@ -674,7 +676,7 @@ public class VeinUtils {
                     boolean veinStillExists = storedId == NULL_VEIN_ID || ID_TO_VEINS.containsKey(storedId);
                     short effectiveId = veinStillExists ? storedId : NULL_VEIN_ID;
 
-                    ListTag veinData = veins.getList(veinTag, Tag.TAG_BYTE_ARRAY);
+                    ListTag veinData = Nbt.getList(veins, veinTag, Tag.TAG_BYTE_ARRAY);
                     for (int veinOccurrences = 0; veinOccurrences < veinData.size(); ++veinOccurrences) {
                         byte[] rawVeinData = ((ByteArrayTag) veinData.get(veinOccurrences)).getAsByteArray();
                         if (rawVeinData.length < 2) { continue; }
@@ -738,7 +740,7 @@ public class VeinUtils {
                     else { bytesToStore = new byte[]{offsetX, offsetZ, qual}; }
 
                     // store the data
-                    ListTag veinOffsetQualBEBytes = veins.getList(veinTagID, Tag.TAG_BYTE_ARRAY);
+                    ListTag veinOffsetQualBEBytes = Nbt.getList(veins, veinTagID, Tag.TAG_BYTE_ARRAY);
                     veinOffsetQualBEBytes.add(new ByteArrayTag(bytesToStore));
                 }
 

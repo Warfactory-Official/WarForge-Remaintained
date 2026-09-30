@@ -1,13 +1,8 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
@@ -16,14 +11,6 @@ import java.util.ArrayList;
 import static com.flansmod.warforge.client.ClientProxy.VEIN_ENTRIES;
 
 public class PacketVeinEntries extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketVeinEntries> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetveinentries"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketVeinEntries> STREAM_CODEC =
-        StreamCodec.ofMember(PacketVeinEntries::encodeInto, buf -> { PacketVeinEntries p = new PacketVeinEntries(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     private ArrayList<Vein> veinBuffer = new ArrayList<>();
     private int byteCount = 0;
 

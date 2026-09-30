@@ -4,12 +4,13 @@ import java.util.List;
 
 import com.flansmod.warforge.common.WarForgeMod;
 
-import net.minecraft.world.effect.MobEffect;
+import com.flansmod.warforge.platform.WFMobEffect;
 import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.AABB;
+import com.flansmod.warforge.compat.Effects;
 
-public class PotionTpRequest extends MobEffect
+public class PotionTpRequest extends WFMobEffect
 {
 	protected PotionTpRequest()
 	{
@@ -17,7 +18,7 @@ public class PotionTpRequest extends MobEffect
 	}
 
 	@Override
-	public boolean applyEffectTick(LivingEntity living, int amplifier)
+	protected boolean onEffectTick(LivingEntity living, int amplifier)
 	{
 		LivingEntity bestEntity = null;
 		double bestDistanceSq = Double.MAX_VALUE;
@@ -26,7 +27,7 @@ public class PotionTpRequest extends MobEffect
 		List<LivingEntity> candidates = living.level().getEntitiesOfClass(LivingEntity.class, searchBox);
 		for (LivingEntity entity : candidates)
 		{
-			if (entity.hasEffect(WarForgeMod.POTIONS.tpAccept))
+			if (Effects.has(entity, WarForgeMod.POTIONS.tpAccept))
 			{
 				double distanceSq = entity.distanceToSqr(living);
 				if (distanceSq < bestDistanceSq)
@@ -41,14 +42,14 @@ public class PotionTpRequest extends MobEffect
 		{
 			if (living.randomTeleport(bestEntity.getX(), bestEntity.getY(), bestEntity.getZ(), true))
 			{
-				living.removeEffect(WarForgeMod.POTIONS.tpRequest);
+				Effects.remove(living, WarForgeMod.POTIONS.tpRequest);
 			}
 		}
 		return true;
 	}
 
 	@Override
-	public boolean shouldApplyEffectTickThisTick(int duration, int amplifier)
+	protected boolean shouldTick(int duration, int amplifier)
 	{
 		return duration % 20 == 0;
 	}

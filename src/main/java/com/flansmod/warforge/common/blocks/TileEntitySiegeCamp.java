@@ -25,6 +25,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 
 import static com.flansmod.warforge.common.WarForgeConfig.SIEGE_DEFENDER_RADIUS;
+import com.flansmod.warforge.compat.Nbt;
 
 public class TileEntitySiegeCamp extends TileEntityClaim
 {
@@ -137,7 +138,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim
 	// kills siege block and tile entity
 	private void concludeSiege() {
 		// do any client side logic, then return
-		if (level.isClientSide) {
+		if (level.isClientSide()) {
 			return;
 		}
 
@@ -196,7 +197,7 @@ public class TileEntitySiegeCamp extends TileEntityClaim
 
 	public void tick() {
 		// do not do logic on client (somehow this got accessed by the client)
-		if (level.isClientSide) return;
+		if (level.isClientSide()) return;
 
 		// clear out ghost sieges for debugging
 		if (!(level.getBlockState(worldPosition).getBlock() instanceof BlockSiegeCamp)) {
@@ -378,10 +379,10 @@ public class TileEntitySiegeCamp extends TileEntityClaim
 	}
 
 	@Override
-	public void saveAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.saveAdditional(nbt, registries);
+	protected void writeData(CompoundTag nbt, HolderLookup.Provider registries) {
+		super.writeData(nbt, registries);
 
-		nbt.putUUID("placer", placer);
+		Nbt.putUUID(nbt, "placer", placer);
 		nbt.putBoolean("started", siegeTarget != null);
 		nbt.putBoolean("doCheckPerTick", doCheckPerTick);
 		nbt.putInt("siegeStatus", siegeStatus.ordinal());
@@ -392,16 +393,16 @@ public class TileEntitySiegeCamp extends TileEntityClaim
 	}
 
 	@Override
-	protected void loadAdditional(CompoundTag nbt, HolderLookup.Provider registries) {
-		super.loadAdditional(nbt, registries);
+	protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
+		super.readData(nbt, registries);
 
-		placer = nbt.getUUID("placer");
+		placer = Nbt.getUUID(nbt, "placer");
 
-		boolean started = nbt.getBoolean("started");
-		doCheckPerTick = nbt.getBoolean("doCheckPerTick");
+		boolean started = Nbt.getBoolean(nbt, "started");
+		doCheckPerTick = Nbt.getBoolean(nbt, "doCheckPerTick");
 
-		siegeStatus = SiegeStatus.values()[nbt.getInt("siegeStatus")];
-		tickTimer = nbt.getInt("tickTimer");
+		siegeStatus = SiegeStatus.values()[Nbt.getInt(nbt, "siegeStatus")];
+		tickTimer = Nbt.getInt(nbt, "tickTimer");
 		previousTimestamp = WarForgeMod.currTickTimestamp;
 		if(started) {
 			siegeTarget = DimBlockPos.readFromNBT(nbt, "siegeTarget");

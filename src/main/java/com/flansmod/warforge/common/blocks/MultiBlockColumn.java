@@ -1,5 +1,7 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.platform.WFUiBlock;
+
 import com.flansmod.warforge.common.Content;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
@@ -16,7 +18,7 @@ import java.util.Map;
 
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
 
-public abstract class MultiBlockColumn extends Block implements IMultiBlockInit {
+public abstract class MultiBlockColumn extends WFUiBlock implements IMultiBlockInit {
 
     protected Map<BlockState, Vec3i> multiBlockMap;
 
@@ -64,11 +66,11 @@ public abstract class MultiBlockColumn extends Block implements IMultiBlockInit 
 
 
     @Override
-    public void onRemove(BlockState state, Level worldIn, BlockPos pos, BlockState newState, boolean isMoving) {
+    protected void onRemoved(BlockState state, Level worldIn, BlockPos pos, BlockState newState, boolean isMoving) {
         for (Vec3i offset : multiBlockMap.values()) {
             BlockPos offsetPos = pos.offset(offset);
             worldIn.removeBlock(offsetPos, false);
         }
-        super.onRemove(state, worldIn, pos, newState, isMoving);
+        super.onRemoved(state, worldIn, pos, newState, isMoving);
     }
 }

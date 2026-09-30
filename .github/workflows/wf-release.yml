@@ -18,21 +18,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Gradle runs on 21; the 1.20.1 node compiles with the 17 toolchain.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: |
+            17
+            21
 
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Build
         run: |
           chmod +x ./gradlew
-          ./gradlew build -x test --no-daemon
+          ./gradlew :1.20.1-forge:build -x test --no-daemon
 
       - name: Stage jar
         run: |
-          SRC=$(find build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources*' ! -name '*-slim*' ! -name '*-dev*' | head -1)
+          SRC=$(find versions/1.20.1-forge/build/libs -maxdepth 1 -name '*.jar' ! -name '*-sources*' ! -name '*-slim*' ! -name '*-dev*' | head -1)
           cp "$SRC" warforge.jar
 
       - name: Publish wf release

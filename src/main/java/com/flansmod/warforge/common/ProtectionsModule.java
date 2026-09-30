@@ -24,7 +24,8 @@ import net.minecraft.world.level.block.piston.PistonStructureResolver;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.event.entity.EntityEvent.EnteringSection;
 import net.neoforged.neoforge.event.entity.EntityMountEvent;
-import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
+import com.flansmod.warforge.platform.BlockBreak;
+import com.flansmod.warforge.platform.LivingDamage;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
@@ -37,6 +38,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.UUID;
+import com.flansmod.warforge.compat.Stacks;
 
 public class ProtectionsModule {
     public static boolean OP_OVERRIDE = false;
@@ -138,7 +140,7 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnDismount(EntityMountEvent event) {
-        if (event.getEntityMounting().level().isClientSide)
+        if (event.getEntityMounting().level().isClientSide())
             return;
 
         if (event.getEntityMounting() instanceof Player) {
@@ -156,7 +158,7 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnExplosion(ExplosionEvent.Detonate event) {
-        if (event.getLevel().isClientSide)
+        if (event.getLevel().isClientSide())
             return;
 
         // Check each pos, but keep a cache of configs so we don't do like 300 lookups
@@ -183,7 +185,7 @@ public class ProtectionsModule {
     public void OnPistonMove(PistonEvent.Pre event) {
         if (!WarForgeConfig.BLOCK_FOREIGN_PISTON_PUSH)
             return;
-        if (!(event.getLevel() instanceof Level level) || level.isClientSide)
+        if (!(event.getLevel() instanceof Level level) || level.isClientSide())
             return;
 
         ResourceKey<Level> dim = level.dimension();
@@ -220,9 +222,8 @@ public class ProtectionsModule {
         return !owner.equals(Faction.nullUuid) && !owner.equals(pistonOwner);
     }
 
-    @SubscribeEvent
-    public void OnDamage(LivingIncomingDamageEvent event) {
-        if (event.getEntity().level().isClientSide)
+    public void OnDamage(LivingDamage event) {
+        if (event.getEntity().level().isClientSide())
             return;
 
         LivingEntity victim = event.getEntity();
@@ -318,8 +319,7 @@ public class ProtectionsModule {
         return config.BLOCK_PLACE_BLACKLIST.contains(block);
     }
 
-    @SubscribeEvent
-    public void BlockRemoved(BlockEvent.BreakEvent event) {
+    public void BlockRemoved(BlockBreak event) {
         if (event.getLevel().isClientSide())
             return;
 
@@ -360,7 +360,7 @@ public class ProtectionsModule {
         Level level = player.level();
         // Server-authoritative: the client lacks claim-ownership data, and the server paces the
         // survival break, so MineTime only adjusts the speed here.
-        if (level.isClientSide)
+        if (level.isClientSide())
             return;
 
         if (OP_OVERRIDE && WarForgeMod.isOp(player))
@@ -386,7 +386,7 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerInteractEntity(PlayerInteractEvent.EntityInteract event) {
-        if (event.getLevel().isClientSide)
+        if (event.getLevel().isClientSide())
             return;
 
         if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
@@ -404,7 +404,7 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerRightClick(PlayerInteractEvent.RightClickBlock event) {
-        if (event.getLevel().isClientSide)
+        if (event.getLevel().isClientSide())
             return;
 
         if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
@@ -433,14 +433,14 @@ public class ProtectionsModule {
 
     @SubscribeEvent
     public void OnPlayerRightClickItem(PlayerInteractEvent.RightClickItem event) {
-        if (event.getLevel().isClientSide)
+        if (event.getLevel().isClientSide())
             return;
 
         if (OP_OVERRIDE && WarForgeMod.isOp(event.getEntity()))
             return;
 
         // Always allow food
-        if (event.getItemStack().has(net.minecraft.core.component.DataComponents.FOOD))
+        if (Stacks.isFood(event.getItemStack()))
             return;
 
         DimBlockPos pos = new DimBlockPos(event.getEntity().level().dimension(), event.getPos());

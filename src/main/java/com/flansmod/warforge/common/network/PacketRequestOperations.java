@@ -1,6 +1,5 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.OperationsGuiData;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -11,24 +10,13 @@ import com.flansmod.warforge.server.fob.Fob;
 import com.flansmod.warforge.server.fob.FobPresence;
 import com.flansmod.warforge.server.fob.FobWarpQueue;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.RegistryFriendlyByteBuf;
-import net.minecraft.network.codec.StreamCodec;
-import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.Map;
+import com.flansmod.warforge.compat.Keys;
 
 public class PacketRequestOperations extends PacketBase {
-    public static final CustomPacketPayload.Type<PacketRequestOperations> TYPE =
-        new CustomPacketPayload.Type<>(ResourceLocation.fromNamespaceAndPath(Tags.MODID, "packetrequestoperations"));
-    public static final StreamCodec<RegistryFriendlyByteBuf, PacketRequestOperations> STREAM_CODEC =
-        StreamCodec.ofMember(PacketRequestOperations::encodeInto, buf -> { PacketRequestOperations p = new PacketRequestOperations(); p.decodeInto(buf); return p; });
-
-    @Override
-    public CustomPacketPayload.Type<? extends CustomPacketPayload> type() { return TYPE; }
-
     @Override
     public void encodeInto(FriendlyByteBuf data) {
     }
@@ -69,7 +57,7 @@ public class PacketRequestOperations extends PacketBase {
             siegeEntry.defenderColor = defender == null ? 0xFFFFFF : defender.colour;
             siegeEntry.chunkX = entry.getKey().x;
             siegeEntry.chunkZ = entry.getKey().z;
-            siegeEntry.dimName = entry.getKey().dim.location().toString();
+            siegeEntry.dimName = Keys.id(entry.getKey().dim).toString();
             siegeEntry.attacking = attacking;
             resp.sieges.add(siegeEntry);
         }

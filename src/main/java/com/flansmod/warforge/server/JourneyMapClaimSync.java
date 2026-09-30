@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.compat.Chunks;
+
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketJourneyMapClaims;
@@ -177,8 +179,8 @@ public class JourneyMapClaimSync {
             if (!player.level().dimension().equals(chunk.dim)) {
                 continue;
             }
-            int dx = Math.abs(player.chunkPosition().x - chunk.x);
-            int dz = Math.abs(player.chunkPosition().z - chunk.z);
+            int dx = Math.abs(Chunks.x(player.chunkPosition()) - chunk.x);
+            int dz = Math.abs(Chunks.z(player.chunkPosition()) - chunk.z);
             if (Math.max(dx, dz) <= viewDistance) { // within view => actually observing the chunk
                 syncChunkToPlayer(player, chunk, colour);
             }

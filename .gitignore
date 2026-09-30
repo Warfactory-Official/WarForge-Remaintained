@@ -84,3 +84,11 @@ AGENTS.md
 run/
 
 logs/
+
+### Stonecutter ###
+versions/*/build/
+versions/*/run/
+versions/*/run_client2/
+build-logic/build/
+build-logic/.gradle/
+.kotlin/

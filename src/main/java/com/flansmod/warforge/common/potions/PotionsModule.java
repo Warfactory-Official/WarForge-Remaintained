@@ -5,50 +5,49 @@ import com.flansmod.warforge.common.WarForgeConfig;
 
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.alchemy.Potion;
-import net.minecraft.world.item.alchemy.PotionBrewing;
-import net.minecraft.world.item.alchemy.Potions;
 import net.neoforged.bus.api.IEventBus;
-import net.neoforged.neoforge.event.brewing.RegisterBrewingRecipesEvent;
-import net.neoforged.neoforge.registries.DeferredHolder;
-import net.neoforged.neoforge.registries.DeferredRegister;
+import com.flansmod.warforge.compat.Brewing;
+import com.flansmod.warforge.compat.Effects;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.platform.RegHandle;
+import com.flansmod.warforge.platform.WFRegistry;
+import net.minecraft.resources.ResourceKey;
 
 public class PotionsModule
 {
-	private static final DeferredRegister<MobEffect> EFFECTS = DeferredRegister.create(Registries.MOB_EFFECT, Tags.MODID);
-	private static final DeferredRegister<Potion> POTIONS = DeferredRegister.create(Registries.POTION, Tags.MODID);
+	private static final WFRegistry REG = new WFRegistry();
+	private static final ResourceKey<Potion> LEAPING = ResourceKey.create(Registries.POTION, Ids.of("minecraft", "leaping"));
 
-	public final DeferredHolder<MobEffect, MobEffect> tpRequest = EFFECTS.register("tprequest", PotionTpRequest::new);
-	public final DeferredHolder<MobEffect, MobEffect> tpAccept = EFFECTS.register("tpaccept", PotionTpAccept::new);
+	public final RegHandle<MobEffect> tpRequest = REG.register(Registries.MOB_EFFECT, "tprequest", PotionTpRequest::new);
+	public final RegHandle<MobEffect> tpAccept = REG.register(Registries.MOB_EFFECT, "tpaccept", PotionTpAccept::new);
 
-	public final DeferredHolder<Potion, Potion> tpRequestPotionType = POTIONS.register("tprequestpotion",
-		() -> new Potion(new MobEffectInstance(tpRequest, 20 * 60)));
-	public final DeferredHolder<Potion, Potion> tpAcceptPotionType = POTIONS.register("tpacceptpotion",
-		() -> new Potion(new MobEffectInstance(tpAccept, 20 * 60)));
+	// The potion name is the registry path, which is also what vanilla uses when a potion has no name.
+	public final RegHandle<Potion> tpRequestPotionType = REG.register(Registries.POTION, "tprequestpotion",
+		() -> new Potion("tprequestpotion", Effects.instance(tpRequest, 20 * 60)));
+	public final RegHandle<Potion> tpAcceptPotionType = REG.register(Registries.POTION, "tpacceptpotion",
+		() -> new Potion("tpacceptpotion", Effects.instance(tpAccept, 20 * 60)));
 
 	public void register(IEventBus modBus)
 	{
 		if (!WarForgeConfig.ENABLE_TPA_POTIONS)
 			return;
 
-		EFFECTS.register(modBus);
-		POTIONS.register(modBus);
-		net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(this::registerBrewingRecipes);
+		REG.register(modBus);
+		Brewing.register(this::registerBrewingRecipes);
 	}
 
 	public void preInit()
 	{
 	}
 
-	public void registerBrewingRecipes(RegisterBrewingRecipesEvent event)
+	private void registerBrewingRecipes(Brewing.Mixer mixer)
 	{
 		if (!WarForgeConfig.ENABLE_TPA_POTIONS)
 			return;
 
-		PotionBrewing.Builder builder = event.getBuilder();
-		builder.addMix(Potions.LEAPING, Items.ENDER_PEARL, tpRequestPotionType);
-		builder.addMix(Potions.LEAPING, Items.ENDER_EYE, tpAcceptPotionType);
+		mixer.addMix(LEAPING, Items.ENDER_PEARL, tpRequestPotionType);
+		mixer.addMix(LEAPING, Items.ENDER_EYE, tpAcceptPotionType);
 	}
 }

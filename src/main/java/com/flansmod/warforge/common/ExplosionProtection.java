@@ -25,7 +25,7 @@ public final class ExplosionProtection {
     }
 
     public static boolean isProtected(Level level, UUID igniter, BlockPos pos) {
-        if (level == null || level.isClientSide || pos == null) {
+        if (level == null || level.isClientSide() || pos == null) {
             return false;
         }
         try {
@@ -38,7 +38,7 @@ public final class ExplosionProtection {
     }
 
     public static void filter(Level level, UUID igniter, Collection<BlockPos> positions) {
-        if (positions == null || positions.isEmpty() || level == null || level.isClientSide) {
+        if (positions == null || positions.isEmpty() || level == null || level.isClientSide()) {
             return;
         }
         Iterator<BlockPos> iterator = positions.iterator();

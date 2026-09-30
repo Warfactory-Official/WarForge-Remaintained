@@ -25,6 +25,7 @@ import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockBehaviour;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -33,7 +34,7 @@ import net.minecraft.world.level.block.entity.BlockEntityTicker;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
-import net.minecraft.world.level.block.state.properties.DirectionProperty;
+import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.level.material.PushReaction;
 import net.minecraft.world.phys.BlockHitResult;
 
@@ -55,10 +56,10 @@ import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.TRANSLUCE
 
 public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
     //25s break time, no effective tool.
-    public static final DirectionProperty FACING = BlockStateProperties.HORIZONTAL_FACING;
+    public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
 
-    public BlockSiegeCamp() {
-        super(Properties.of()
+    public BlockSiegeCamp(BlockBehaviour.Properties properties) {
+        super(properties
                 .strength(-1.0F, 30000000.0F) //Makes sense. We probably don't wanna let people bomb it
                 .noLootTable()
                 .noOcclusion());
@@ -90,13 +91,13 @@ public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
     @Override
     @Nullable
     public <T extends BlockEntity> BlockEntityTicker<T> getTicker(Level level, BlockState state, BlockEntityType<T> type) {
-        if (level.isClientSide || type != Content.TE_SIEGE_CAMP.get()) return null;
+        if (level.isClientSide() || type != Content.TE_SIEGE_CAMP.get()) return null;
         return (lvl, pos, st, be) -> ((TileEntitySiegeCamp) be).tick();
     }
 
     @Override
     public boolean canSurvive(BlockState state, LevelReader world, BlockPos pos) {
-        if (world instanceof Level level && !level.isClientSide) {
+        if (world instanceof Level level && !level.isClientSide()) {
             if (FACTIONS.isChunkContested(new DimChunkPos(level.dimension(), pos)))
                 return false;
 
@@ -116,7 +117,7 @@ public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
     // called after block place
     @Override
     public void setPlacedBy(Level world, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
             BlockEntity te = world.getBlockEntity(pos);
             if (te instanceof TileEntitySiegeCamp siegeCamp) {
                 FACTIONS.onNonCitadelClaimPlaced(siegeCamp, placer);
@@ -128,9 +129,9 @@ public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
     }
 
     @Override
-    public InteractionResult useWithoutItem(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
+    protected InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
         if (player.isShiftKeyDown()) {
-            if (!world.isClientSide) return InteractionResult.SUCCESS;
+            if (!world.isClientSide()) return InteractionResult.SUCCESS;
             TileEntityClaim te = (TileEntityClaim) world.getBlockEntity(pos);
             PacketRemoveClaim packet = new PacketRemoveClaim();
 
@@ -142,7 +143,7 @@ public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
         }
 
 
-        if (!world.isClientSide) {
+        if (!world.isClientSide()) {
             TileEntityClaim te = (TileEntityClaim) world.getBlockEntity(pos);
             Faction faction = FACTIONS.getFaction(te.getFaction());
             if (faction == null) {
@@ -166,7 +167,7 @@ public class BlockSiegeCamp extends MultiBlockColumn implements EntityBlock {
             );
         }
 
-        return world.isClientSide ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
+        return world.isClientSide() ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
     }
 
     private List<SiegeCampAttackInfo> CalculatePossibleAttackDirections(Level world, BlockPos pos, Player player) {

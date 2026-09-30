@@ -14,9 +14,11 @@ import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import com.flansmod.warforge.platform.WFBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import com.flansmod.warforge.compat.Nbt;
 
-public class TileEntityLeaderboard extends BlockEntity
+public class TileEntityLeaderboard extends WFBlockEntity
 {
 	public static final int NUM_ENTRIES = 6;
 	// Client only really
@@ -30,26 +32,9 @@ public class TileEntityLeaderboard extends BlockEntity
 	// Does nothing, just for the BlockEntityRenderer
 
 	@Override
-	public Packet<ClientGamePacketListener> getUpdatePacket()
+	protected void writeSyncData(CompoundTag tags, HolderLookup.Provider registries)
 	{
-		return ClientboundBlockEntityDataPacket.create(this);
-	}
-
-	@Override
-	public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet, HolderLookup.Provider registries)
-	{
-		CompoundTag tags = packet.getTag();
-
-		for(int i = 0; i < NUM_ENTRIES; i++)
-		{
-			topNames[i] = tags.getString("#" + i);
-		}
-	}
-
-	@Override
-	public CompoundTag getUpdateTag(HolderLookup.Provider registries)
-	{
-		CompoundTag tags = super.getUpdateTag(registries);
+		super.writeSyncData(tags, registries);
 
 		ArrayList<Faction> tempList = new ArrayList<Faction>();
 		WarForgeMod.LEADERBOARD.GetSortedList(((BlockLeaderboard)getBlockState().getBlock()).stat, tempList);
@@ -65,16 +50,14 @@ public class TileEntityLeaderboard extends BlockEntity
 				tags.putString("#" + i, "");
 			}
 		}
-
-		return tags;
 	}
 
 	@Override
-	public void handleUpdateTag(CompoundTag tags, HolderLookup.Provider registries)
+	protected void readSyncData(CompoundTag tags, HolderLookup.Provider registries)
 	{
 		for(int i = 0; i < NUM_ENTRIES; i++)
 		{
-			topNames[i] = tags.getString("#" + i);
+			topNames[i] = Nbt.getString(tags, "#" + i);
 		}
 	}
 }

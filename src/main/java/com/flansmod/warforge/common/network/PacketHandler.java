@@ -8,10 +8,9 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.fml.loading.FMLEnvironment;
-import net.neoforged.neoforge.network.PacketDistributor;
+import com.flansmod.warforge.platform.NetworkPlatform;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
+import com.flansmod.warforge.platform.Platform;
 
 /**
  * Flan's Mod packet handler class. Directs packet data to packet classes.
@@ -21,7 +20,7 @@ import net.neoforged.neoforge.server.ServerLifecycleHooks;
 public class PacketHandler
 {
 	/**
-	 * Packet type + handler registration now happens in WFNetwork via RegisterPayloadHandlersEvent.
+	 * Packet types are listed in WFNetwork.PACKETS and registered by platform.NetworkPlatform.
 	 */
 	public void initialise()
 	{
@@ -44,7 +43,7 @@ public class PacketHandler
 	 */
 	public void sendToAll(PacketBase packet)
 	{
-		PacketDistributor.sendToAllPlayers(packet);
+		NetworkPlatform.sendToAll(packet);
 	}
 
 	/**
@@ -53,7 +52,7 @@ public class PacketHandler
 	public void sendTo(PacketBase packet, ServerPlayer player)
 	{
 		if (player == null) return;
-		PacketDistributor.sendToPlayer(player, packet);
+		NetworkPlatform.sendTo(packet, player);
 	}
 
 	/**
@@ -64,7 +63,7 @@ public class PacketHandler
 		MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
 		if (server == null) return;
 		ServerLevel level = server.getLevel(dimension);
-		if (level != null) PacketDistributor.sendToPlayersInDimension(level, packet);
+		if (level != null) NetworkPlatform.sendToDimension(packet, level);
 	}
 
 	/**
@@ -75,7 +74,7 @@ public class PacketHandler
 		MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
 		if (server == null) return;
 		ServerLevel level = server.getLevel(dimension);
-		if (level != null) PacketDistributor.sendToPlayersNear(level, null, x, y, z, range, packet);
+		if (level != null) NetworkPlatform.sendToAllAround(packet, level, x, y, z, range);
 	}
 
 	/**
@@ -83,7 +82,7 @@ public class PacketHandler
 	 */
 	public void sendToServer(PacketBase packet)
 	{
-		PacketDistributor.sendToServer(packet);
+		NetworkPlatform.sendToServer(packet);
 	}
 
 	//Vanilla packets follow
@@ -111,7 +110,7 @@ public class PacketHandler
 	 */
 	public void sendToServer(Packet<?> packet)
 	{
-		if (FMLEnvironment.dist == Dist.CLIENT)
+		if (Platform.isClient())
 			ClientPacketHandler.sendToServer(packet);
 	}
 }
