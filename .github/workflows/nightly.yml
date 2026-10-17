@@ -68,6 +68,7 @@ jobs:
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v7
+        continue-on-error: true  # org artifact quota full => still publish
         with:
           name: nightly-artifacts
           path: build/artifact-upload/**
