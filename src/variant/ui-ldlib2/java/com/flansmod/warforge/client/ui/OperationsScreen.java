@@ -44,29 +44,28 @@ public final class OperationsScreen {
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
         int siegeSectionHeight = FOB_Y - SIEGE_Y - 6;
         int fobSectionHeight = HEIGHT - FOB_Y - 12;
-        int headerWidth = WIDTH - CONTENT_LEFT * 2 - 18;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, HEIGHT);
         root.addChild(panel);
 
         headerBackdrop(panel, WIDTH);
         colorStripe(panel, hasFaction ? data.factionColor : NO_FACTION_STRIPE, HEIGHT);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
-        title(panel, "War Room", TEXT_PRIMARY, headerWidth);
+        title(panel, "War Room", TEXT_PRIMARY);
 
         if (!hasFaction) {
-            subtitle(panel, text("You are not currently in a faction", TEXT_SECONDARY), headerWidth);
+            subtitle(panel, text("You are not currently in a faction", TEXT_SECONDARY));
             show(root, mc);
             return;
         }
 
-        subtitle(panel, boldText(data.factionName, data.factionColor), headerWidth);
+        subtitle(panel, text(data.factionName, data.factionColor));
 
         UIElement siegeSection = section(panel, CONTENT_LEFT, SIEGE_Y, sectionWidth, siegeSectionHeight);
         UIElement fobSection = section(panel, CONTENT_LEFT, FOB_Y, sectionWidth, fobSectionHeight);
 
-        Label siegeTitle = width(boldText("Active Sieges", TEXT_MUTED), sectionWidth - 10);
+        Label siegeTitle = fit(text("Active Sieges", TEXT_MUTED));
         siegeTitle.layout(l -> l.marginBottom(4));
         siegeSection.addChild(siegeTitle);
         ScrollerView siegeList = insetList(sectionWidth - 10, siegeSectionHeight - 28);
@@ -79,13 +78,13 @@ public final class OperationsScreen {
         }
         siegeSection.addChild(siegeList);
 
-        Label fobTitle = width(boldText("Forward Operating Bases", TEXT_MUTED), sectionWidth - 10);
+        Label fobTitle = fit(text("Forward Operating Bases", TEXT_MUTED));
         fobTitle.layout(l -> l.marginBottom(4));
         fobSection.addChild(fobTitle);
         String fobInfo = "Warp is available only while your faction is under siege. Tickets regenerate each siege cycle.";
-        Label fobDescription = scrollingText(literal(fobInfo, TEXT_MUTED, false), sectionWidth - 10);
+        Label fobDescription = wrap(text(fobInfo, TEXT_MUTED), sectionWidth);
         fobDescription.layout(l -> l.marginBottom(6));
-        fobSection.addChild(tooltip(fobDescription, fobInfo));
+        fobSection.addChild(fobDescription);
         ScrollerView fobList = insetList(sectionWidth - 10, fobSectionHeight - 46);
         if (data.fobs.isEmpty()) {
             fobList.addScrollViewChild(emptyLine("No FOBs established yet."));
@@ -105,7 +104,7 @@ public final class OperationsScreen {
 
     private static UIElement emptyLine(String message) {
         UIElement line = box(ROW_WIDTH, 21);
-        place(line, text(message, TEXT_PRIMARY), 6, 6, ROW_WIDTH - 6, 9);
+        place(line, fit(text(message, TEXT_PRIMARY)), 6, 6);
         return line;
     }
 

@@ -32,9 +32,13 @@ public class ColorPickerElement extends UIElement {
         layout(l -> l.flexDirection(FlexDirection.ROW).gapColumn(gap).widthStretch());
 
         UIElement bars = new UIElement();
-        bars.layout(l -> l.flexDirection(FlexDirection.COLUMN).gapRow(BAR_GAP).flexGrow(1));
+        bars.layout(l -> l.flexDirection(FlexDirection.COLUMN).flexGrow(1));
         for (int channel = 0; channel < 3; channel++) {
-            bars.addChild(new Bar(channel));
+            Bar bar = new Bar(channel);
+            if (channel < 2) {
+                bar.layout(l -> l.marginBottom(BAR_GAP));
+            }
+            bars.addChild(bar);
         }
         addChild(bars);
 

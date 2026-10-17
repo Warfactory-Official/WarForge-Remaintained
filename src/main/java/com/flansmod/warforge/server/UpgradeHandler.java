@@ -5,6 +5,7 @@ import com.electronwill.nightconfig.toml.TomlFormat;
 import com.electronwill.nightconfig.toml.TomlParser;
 import com.electronwill.nightconfig.toml.TomlWriter;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.compat.CommonTags;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -24,7 +25,7 @@ public class UpgradeHandler {
     public static final String STUB = """
             # WarForge citadel progression. Each faction starts at level 0 and spends the listed
             # materials at its citadel to reach the next level, unlocking more claims, force-loaded
-            # chunks, insurance slots and FOBs. Requirements use vanilla items and Forge tags so the
+            # chunks, insurance slots and FOBs. Requirements use vanilla items and common tags so the
             # tree works on a plain install; edit freely to fit your pack.
 
             [[levels]]
@@ -48,8 +49,8 @@ public class UpgradeHandler {
             max_fobs = 2
             extra_claim_cost = []
             requirements = [
-                { type = "ore", id = "forge:ingots/iron", count = 32 },
-                { type = "ore", id = "forge:ingots/copper", count = 16 },
+                { type = "ore", id = "%1$s:ingots/iron", count = 32 },
+                { type = "ore", id = "%1$s:ingots/copper", count = 16 },
             ]
 
             [[levels]]
@@ -62,8 +63,8 @@ public class UpgradeHandler {
             max_fobs = 2
             extra_claim_cost = []
             requirements = [
-                { type = "ore", id = "forge:ingots/gold", count = 32 },
-                { type = "ore", id = "forge:gems/diamond", count = 8 },
+                { type = "ore", id = "%1$s:ingots/gold", count = 32 },
+                { type = "ore", id = "%1$s:gems/diamond", count = 8 },
             ]
 
             [[levels]]
@@ -76,10 +77,10 @@ public class UpgradeHandler {
             max_fobs = 3
             extra_claim_cost = []
             requirements = [
-                { type = "ore", id = "forge:gems/diamond", count = 16 },
+                { type = "ore", id = "%1$s:gems/diamond", count = 16 },
                 { type = "item", id = "minecraft:netherite_ingot", count = 1 },
             ]
-            """;
+            """.formatted(CommonTags.NAMESPACE);
 
     protected HashMap<ItemMatcher, Integer>[] LEVELS;
     protected int[] LIMITS;

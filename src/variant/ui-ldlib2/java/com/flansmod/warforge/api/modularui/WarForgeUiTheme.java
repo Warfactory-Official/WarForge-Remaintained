@@ -28,12 +28,12 @@ import java.util.List;
 import java.util.function.Supplier;
 
 /**
- * The look of the WarForge menus for LDLib2, modelled on the ModularUI menus of the 1.20.1 build
- * (ModularGuiStyle there): the same colours, a grey vanilla panel with a dark header strip, a faction colour
- * stripe on the left, dark bordered sections and inset lists, and dark bordered buttons.
- *
- * <p>Panels are laid out like the 1.20.1 ones: a panel has a fixed size and its parts are placed at absolute
- * positions ({@link #place}); sections lay their own children out top to bottom.
+ * WarForge menus on LDLib2 = ModularUI menus of 1.20.1 (ModularGuiStyle). Layout parity with ModularUI:
+ * <ul>
+ * <li>Flow: children on main axis, centred on cross axis ({@link #section}, {@link #flow}).</li>
+ * <li>Text widget: as wide as its text, wrapped at parent width ({@link #fit}, {@link #wrap}).</li>
+ * <li>{@code Text.BOLD} / {@code style(BOLD)} never rendered there => plain text; only inline formatting is bold.</li>
+ * </ul>
  */
 public final class WarForgeUiTheme {
     // Colours of ModularGuiStyle (1.20.1)
@@ -66,6 +66,8 @@ public final class WarForgeUiTheme {
     public static final int SUBTITLE_Y = 27;
     public static final int BODY_Y = 54;
     public static final int INVENTORY_GAP = 8;
+    /** {@link #inventoryPanel} height. */
+    public static final int INVENTORY_BOX_HEIGHT = 86;
     public static final int BUTTON_HEIGHT = 18;
     public static final float TITLE_FONT_SIZE = 9f * 1.15f;
 
@@ -105,9 +107,9 @@ public final class WarForgeUiTheme {
      * The root of a screen: its panels stacked top to bottom and centred (the panel and the player inventory
      * below it are centred on the screen as one group, like the 1.20.1 menus).
      */
-    public static UIElement screenRoot(int gap) {
+    public static UIElement screenRoot() {
         UIElement root = new UIElement();
-        root.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.CENTER).gapRow(gap));
+        root.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.CENTER));
         return root;
     }
 
@@ -169,12 +171,25 @@ public final class WarForgeUiTheme {
         return place(panel, box(6, height, fill(0xFF000000 | (color & 0xFFFFFF))), 0, 0, 6, height);
     }
 
-    /** A dark section; its children are laid out top to bottom inside a 5 pixel padding. */
+    /** ModularUI Flow: main axis start, cross axis centre. */
+    public static UIElement flow(FlexDirection direction) {
+        UIElement flow = new UIElement();
+        flow.layout(l -> l.flexDirection(direction).alignItems(AlignItems.CENTER).flexShrink(0));
+        return flow;
+    }
+
+    /** A dark section: column flow inside a 5 pixel padding. */
     public static UIElement section(int width, int height) {
-        UIElement section = new UIElement();
-        section.layout(l -> l.flexDirection(FlexDirection.COLUMN).width(width).height(height).paddingAll(5));
+        UIElement section = flow(FlexDirection.COLUMN);
+        section.layout(l -> l.width(width).height(height).paddingAll(5));
         section.style(s -> s.background(sectionBackdrop()));
         return section;
+    }
+
+    /** Flow child at a fixed cross-axis distance from the parent's end edge (ModularUI {@code right(n)}). */
+    public static <T extends UIElement> T fromEnd(T child, float distance, float parentPadding) {
+        child.layout(l -> l.alignSelf(AlignItems.END).marginRight(distance - parentPadding));
+        return child;
     }
 
     /** A section placed at (x, y) in the panel. */
@@ -210,10 +225,11 @@ public final class WarForgeUiTheme {
             v.layout(l -> l.paddingAll(0));
             v.style(s -> s.background(background));
         });
+        // ModularUI ListWidget: rows centred on the cross axis.
+        list.viewContainer(c -> c.layout(l -> l.alignItems(AlignItems.CENTER).minWidthPercent(100)));
         return list;
     }
 
-    /** The player inventory in a vanilla grey box (5 pixel padding). See {@link #panel(int, int, boolean)} for client. */
     /**
      * The vanilla slot sprite, as the 1.20.1 menus draw their slots. LDLib2's own slot sprite is nine-sliced, and
      * LDLib2 26 draws it with a thicker, darker rim than LDLib2 for 1.21.1; this 18x18 sprite looks the same on both.
@@ -231,10 +247,11 @@ public final class WarForgeUiTheme {
         return element;
     }
 
-    public static UIElement inventoryPanel(boolean client) {
+    /** Player inventory in a vanilla grey box (5 pixel padding), gap below the previous root child. See {@link #panel(int, int, boolean)} for client. */
+    public static UIElement inventoryPanel(boolean client, int gap) {
         InventorySlots inventory = vanillaSlots(new InventorySlots());
         UIElement box = new UIElement();
-        box.layout(l -> l.paddingAll(5));
+        box.layout(l -> l.paddingAll(5).marginTop(gap));
         UIElement backdrop = backdrop(client);
         backdrop.layout(l -> l.positionType(TaffyPosition.ABSOLUTE).left(0).top(0).widthPercent(100).heightPercent(100));
         box.addChild(backdrop);
@@ -252,10 +269,12 @@ public final class WarForgeUiTheme {
         return Component.literal(value).withStyle(style);
     }
 
+    /** ModularUI text widget height: lines * 9 - 1 (8 for one line); lines 9 apart. */
     public static Label label(Component value) {
         Label label = new Label();
         label.setValue(value);
-        label.textStyle(t -> t.textShadow(false));
+        label.textStyle(t -> t.textShadow(false).lineSpacing(0));
+        label.layout(l -> l.height(8));
         return label;
     }
 
@@ -273,40 +292,53 @@ public final class WarForgeUiTheme {
         return label;
     }
 
-    /** The large bold title of a panel header (bold, shadow, 1.15 scale). */
+    /** Panel header title: shadow, 1.15 scale. */
     public static Label title(String value, int rgb) {
-        Label label = shadowText(value, rgb, true);
+        Label label = fit(shadowText(value, rgb, false));
         label.textStyle(t -> t.fontSize(TITLE_FONT_SIZE));
+        label.layout(l -> l.height(10));
         return label;
     }
 
-    /** Places the title at the header position of a panel. */
-    public static Label title(UIElement panel, String value, int rgb, int width) {
-        return place(panel, title(value, rgb), CONTENT_LEFT, HEADER_Y, width, 11);
+    public static Label title(UIElement panel, String value, int rgb) {
+        return place(panel, title(value, rgb), CONTENT_LEFT, HEADER_Y);
     }
 
-    /** Places a subtitle line below the title of a panel. */
-    public static Label subtitle(UIElement panel, Label label, int width) {
-        return place(panel, label, CONTENT_LEFT, SUBTITLE_Y, width, 9);
+    public static Label subtitle(UIElement panel, Label label) {
+        return place(panel, fit(label), CONTENT_LEFT, SUBTITLE_Y);
+    }
+
+    /** As wide as its text (one line). */
+    public static <T extends Label> T fit(T label) {
+        label.textStyle(t -> t.adaptiveWidth(true));
+        label.layout(l -> l.flexShrink(0));
+        return label;
+    }
+
+    /**
+     * As wide as its widest line, wrapped at maxWidth (ModularUI wraps at the parent's width). Server-side trees
+     * (client = false) are never drawn, so they skip the font.
+     */
+    public static Label wrap(Label label, int maxWidth, boolean client) {
+        int[] size = client ? ClientText.wrappedSize(label.getText(), maxWidth) : new int[]{maxWidth, 8};
+        label.textStyle(t -> t.textWrap(TextWrap.WRAP));
+        label.layout(l -> l.width(size[0]).height(size[1]).flexShrink(0));
+        return label;
+    }
+
+    public static Label wrap(Label label, int maxWidth) {
+        return wrap(label, maxWidth, true);
     }
 
     /** Text that scrolls when hovered if it is wider than its box (ScrollingTextWidget of 1.20.1). */
     public static Label scrollingText(Component value, int width) {
         Label label = label(value);
-        label.layout(l -> l.width(width).height(9).flexShrink(0));
+        label.layout(l -> l.width(width).flexShrink(0));
         label.textStyle(t -> t.textWrap(TextWrap.HOVER_ROLL));
         return label;
     }
 
-    /** Text that wraps to the given width. */
-    public static Label wrappedText(String value, int rgb, int width, int lines) {
-        Label label = text(value, rgb);
-        label.layout(l -> l.width(width).height(lines * 9 + (lines - 1)).flexShrink(0));
-        label.textStyle(t -> t.textWrap(TextWrap.WRAP).lineSpacing(1));
-        return label;
-    }
-
-    /** Gives a flow child a fixed width (and 9 pixel height). */
+    /** Gives a flow child a fixed width. */
     public static <T extends UIElement> T width(T element, int width) {
         element.layout(l -> l.width(width).flexShrink(0));
         return element;
@@ -417,13 +449,22 @@ public final class WarForgeUiTheme {
                 IGuiTexture.group(new ColorRectTexture(0xFF8C8C8C), new ColorBorderTexture(-1, 0xFFFFFFFF)));
     }
 
-    /** The small close button of a panel (10x10, 8 pixels from the top right corner). */
-    public static Button closeButton(UIElement panel, int panelWidth) {
-        Button button = vanillaButton("x", 10, 10);
+    /** Panel close button: ModularUI CROSS_TINY glyph, no backdrop, 10x10 at (panelWidth - 18, 8). */
+    public static Button closeButton(UIElement panel, int panelWidth, boolean client) {
+        Button button = new Button();
+        button.setText(Component.empty());
+        button.buttonStyle(s -> s.baseTexture(IGuiTexture.EMPTY).hoverTexture(IGuiTexture.EMPTY).pressedTexture(IGuiTexture.EMPTY));
         button.layout(l -> l.paddingAll(0));
-        button.text.layout(l -> l.marginHorizontal(0));
-        button.textStyle(t -> t.fontSize(8f));
+        if (client) {
+            UIElement cross = new CrossElement();
+            cross.layout(l -> l.positionType(TaffyPosition.ABSOLUTE).left(0).top(0).width(10).height(10));
+            button.addChild(cross);
+        }
         return place(panel, button, panelWidth - 18, 8, 10, 10);
+    }
+
+    public static Button closeButton(UIElement panel, int panelWidth) {
+        return closeButton(panel, panelWidth, true);
     }
 
     // ---------------------------------------------------------------- small parts

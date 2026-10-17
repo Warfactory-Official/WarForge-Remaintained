@@ -10,6 +10,8 @@ import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
 import com.flansmod.warforge.common.blocks.TileEntityCitadel;
 import com.flansmod.warforge.common.blocks.TileEntityFob;
 import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
+import com.flansmod.warforge.common.network.PacketEstablishFob;
+import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
 import com.lowdragmc.lowdraglib2.gui.factory.BlockUIMenuType;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
@@ -19,6 +21,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ItemSlot;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
+import com.lowdragmc.lowdraglib2.gui.ui.elements.TextField;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.inventory.InventorySlots;
 import com.lowdragmc.lowdraglib2.gui.texture.IGuiTexture;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Horizontal;
@@ -72,7 +75,7 @@ public final class BlockUis {
     }
 
     private static void closeButton(UIElement panel, int width, BlockUIMenuType.BlockUIHolder holder) {
-        Button close = com.flansmod.warforge.api.modularui.WarForgeUiTheme.closeButton(panel, width);
+        Button close = com.flansmod.warforge.api.modularui.WarForgeUiTheme.closeButton(panel, width, isClient(holder));
         close.setOnServerClick(event -> onServer(holder, BlockUiActions::close));
     }
 
@@ -98,7 +101,7 @@ public final class BlockUis {
         boolean client = isClient(holder);
         BlockEntity be = holder.player.level().getBlockEntity(holder.pos);
 
-        UIElement root = screenRoot(INVENTORY_GAP);
+        UIElement root = screenRoot();
         UIElement panel = panel(CITADEL_WIDTH, CITADEL_HEIGHT, client);
         root.addChild(panel);
 
@@ -116,20 +119,24 @@ public final class BlockUis {
                 grid.addChild(slot(new ItemSlot().bind(citadel, i)));
             }
 
-            // Faction flag (right)
+            // Faction flag (right): flow 210 wide over a 215 wide backdrop
             int flagX = CONTENT_LEFT + 110;
-            UIElement flagSection = place(panel, box(215, 80, sectionBackdrop()), flagX, CITADEL_STORAGE_Y, 215, 80);
-            place(flagSection, boldText("Faction Flag", TEXT_PRIMARY), 13, 5, 120, 9);
+            place(panel, box(215, 80, sectionBackdrop()), flagX, CITADEL_STORAGE_Y, 215, 80);
+            UIElement flagSection = section(210, 80);
+            flagSection.style(s -> s.background(IGuiTexture.EMPTY));
+            place(panel, flagSection, flagX, CITADEL_STORAGE_Y, 210, 80);
+            Label flagTitle = fromEnd(fit(text("Faction Flag", TEXT_PRIMARY)), 130, 5);
+            flagTitle.layout(l -> l.marginBottom(5));
+            flagSection.addChild(flagTitle);
             if (!citadel.factionFlagId.isEmpty()) {
                 place(flagSection, flagPreview(citadel.factionFlagId, client), (210 - 95) / 2f, 20, 95, 54);
             } else {
-                place(flagSection, text("Choose once. This cannot be changed later.", TEXT_MUTED), 5, 19, 205, 9);
+                flagSection.addChild(wrap(text("Choose once. This cannot be changed later.", TEXT_MUTED), 210, client));
                 if (hasFaction) {
                     UUID factionId = faction.uuid;
-                    place(flagSection, serverButton("Choose", 50, holder, sp -> BlockUiActions.chooseFlag(sp, factionId)),
-                            15, 28, 50, BUTTON_HEIGHT);
+                    flagSection.addChild(serverButton("Choose", 50, holder, sp -> BlockUiActions.chooseFlag(sp, factionId)));
                 } else {
-                    place(panel, text("Create a faction first", 0xD6DBE0), 180, CITADEL_STORAGE_Y + 42, 150, 9);
+                    place(panel, fit(text("Create a faction first", 0xD6DBE0)), 180, CITADEL_STORAGE_Y + 42);
                 }
             }
 
@@ -137,32 +144,40 @@ public final class BlockUis {
 
             // Command surface (bottom)
             int actionsWidth = CITADEL_WIDTH - CONTENT_LEFT * 2;
-            UIElement actions = place(panel, box(actionsWidth, 65, sectionBackdrop()), CONTENT_LEFT, CITADEL_ACTIONS_Y, actionsWidth, 65);
-            place(actions, boldText("Command Surface", TEXT_PRIMARY), 11, 5, 120, 9);
+            UIElement actions = section(panel, CONTENT_LEFT, CITADEL_ACTIONS_Y, actionsWidth, 65);
+            Label actionsTitle = fromEnd(fit(text("Command Surface", TEXT_PRIMARY)), 220, 5);
+            actionsTitle.layout(l -> l.marginBottom(4));
+            actions.addChild(actionsTitle);
             if (hasFaction) {
                 UUID factionId = faction.uuid;
                 int rowX = 5 + 2 + 10;
                 int[] columns = {rowX, rowX + 95, rowX + 190};
                 place(actions, serverButton("Insurance", 75, holder, sp -> BlockUiActions.openInsurance(sp, factionId)),
-                        columns[0], 20, 75, BUTTON_HEIGHT);
+                        columns[0], 19, 75, BUTTON_HEIGHT);
                 place(actions, serverButton("Faction Stats", 75, holder, sp -> BlockUiActions.showFactionInfo(sp, citadel.getFaction())),
-                        columns[1], 20, 75, BUTTON_HEIGHT);
+                        columns[1], 19, 75, BUTTON_HEIGHT);
                 place(actions, serverButton("Members", 75, holder, BlockUiActions::openMembers),
-                        columns[2], 20, 75, BUTTON_HEIGHT);
+                        columns[2], 19, 75, BUTTON_HEIGHT);
                 int column = 0;
                 if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
                     place(actions, serverButton("Upgrade", 75, holder, sp -> BlockUiActions.openUpgrade(sp, factionId)),
-                            columns[column++], 42, 75, BUTTON_HEIGHT);
+                            columns[column++], 41, 75, BUTTON_HEIGHT);
                 }
                 place(actions, serverButton("Recolor", 75, holder, sp -> BlockUiActions.openRecolour(sp, citadel)),
-                        columns[column++], 42, 75, BUTTON_HEIGHT);
+                        columns[column++], 41, 75, BUTTON_HEIGHT);
                 Button disband = dangerButton("Disband", 75, null);
                 disband.setOnServerClick(event -> onServer(holder, BlockUiActions::disband));
-                place(actions, disband, columns[column], 42, 75, BUTTON_HEIGHT);
+                place(actions, disband, columns[column], 41, 75, BUTTON_HEIGHT);
             } else {
-                place(actions, serverButton("Create Faction", 100, holder, sp -> BlockUiActions.openCreateFaction(sp, holder.pos)),
-                        5 + 2 + 2, 22, 100, BUTTON_HEIGHT);
-                place(actions, text("The placer can establish the faction from here.", TEXT_MUTED), 5 + 2 + 2, 44, actionsWidth - 20, 9);
+                UIElement column = flow(FlexDirection.COLUMN);
+                column.layout(l -> l.width(actionsWidth - 10).marginTop(2));
+                Button create = serverButton("Create Faction", 100, holder, sp -> BlockUiActions.openCreateFaction(sp, holder.pos));
+                create.layout(l -> l.marginAll(2));
+                column.addChild(create);
+                Label placer = fit(text("The placer can establish the faction from here.", TEXT_MUTED));
+                placer.layout(l -> l.marginAll(2));
+                column.addChild(placer);
+                actions.addChild(column);
             }
 
             colorStripe(panel, stripe, CITADEL_HEIGHT);
@@ -171,14 +186,14 @@ public final class BlockUis {
             String title = hasFaction ? citadel.getClaimDisplayName() : "Unclaimed Citadel";
             String subtitle = hasFaction ? "Faction vault, banner relay, and command center"
                     : "Claimed by the placer until a faction is founded";
-            title(panel, title, hasFaction ? citadel.colour : TEXT_PRIMARY, CITADEL_WIDTH - CONTENT_LEFT * 2 - 18);
-            subtitle(panel, text(subtitle, TEXT_SECONDARY), CITADEL_WIDTH - CONTENT_LEFT * 2 - 18);
+            title(panel, title, hasFaction ? citadel.colour : TEXT_PRIMARY);
+            subtitle(panel, text(subtitle, TEXT_SECONDARY));
         } else {
             headerBackdrop(panel, CITADEL_WIDTH);
             closeButton(panel, CITADEL_WIDTH, holder);
         }
 
-        root.addChild(inventoryPanel(client));
+        root.addChild(inventoryPanel(client, INVENTORY_GAP));
         return ModularUI.of(UI.of(root), holder.player);
     }
 
@@ -199,7 +214,7 @@ public final class BlockUis {
 
     private static ModularUI basicClaim(BlockUIMenuType.BlockUIHolder holder) {
         boolean client = isClient(holder);
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(CLAIM_WIDTH, CLAIM_HEIGHT, client);
         root.addChild(panel);
 
@@ -241,9 +256,8 @@ public final class BlockUis {
     private static ModularUI fob(BlockUIMenuType.BlockUIHolder holder) {
         boolean client = isClient(holder);
         int sectionWidth = FOB_WIDTH - CONTENT_LEFT * 2;
-        int headerWidth = FOB_WIDTH - CONTENT_LEFT * 2 - 18;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(FOB_WIDTH, FOB_HEIGHT, client);
         root.addChild(panel);
 
@@ -252,24 +266,44 @@ public final class BlockUis {
         Faction owner = fob == null ? null : WarForgeMod.FACTIONS.getFaction(fob.ownerFaction);
 
         headerBackdrop(panel, FOB_WIDTH);
-        UIElement body = place(panel, box(sectionWidth, FOB_HEIGHT - BODY_Y - 12, sectionBackdrop()),
+        place(panel, box(sectionWidth, FOB_HEIGHT - BODY_Y - 12, sectionBackdrop()),
                 CONTENT_LEFT, BODY_Y, sectionWidth, FOB_HEIGHT - BODY_Y - 12);
         colorStripe(panel, owner != null ? owner.colour : NO_FACTION_STRIPE, FOB_HEIGHT);
         closeButton(panel, FOB_WIDTH, holder);
-        title(panel, "Forward Operating Base", TEXT_PRIMARY, headerWidth);
+        title(panel, "Forward Operating Base", TEXT_PRIMARY);
 
         if (fob != null) {
             boolean established = !fob.ownerFaction.equals(new UUID(0, 0)) && !fob.name.isEmpty();
+            float buttonX = (FOB_WIDTH - 90) / 2f;
             if (established) {
-                subtitle(panel, boldText(fob.name, TEXT_PRIMARY), headerWidth);
+                subtitle(panel, text(fob.name, TEXT_PRIMARY));
                 Label tickets = text("Warp Tickets: " + fob.tickets + " / " + fob.maxTickets,
                         fob.tickets > 0 ? TEXT_SUCCESS : TEXT_WARNING);
                 tickets.textStyle(t -> t.textAlignHorizontal(Horizontal.CENTER));
-                place(body, tickets, 0, 8, sectionWidth, 9);
-                place(body, serverButton("Warp", 90, holder, sp -> BlockUiActions.warpToFob(sp, holder.pos)),
-                        (sectionWidth - 90) / 2f, 34, 90, BUTTON_HEIGHT);
+                place(panel, tickets, CONTENT_LEFT, BODY_Y + 8, sectionWidth, 9);
+                Button warp = actionButton("Warp", 90, fob.tickets > 0);
+                if (fob.tickets > 0) {
+                    warp.setOnServerClick(event -> onServer(holder, sp -> BlockUiActions.warpToFob(sp, holder.pos)));
+                }
+                place(panel, warp, buttonX, BODY_Y + 34, 90, BUTTON_HEIGHT);
             } else {
-                subtitle(panel, text("This FOB is not established.", TEXT_SECONDARY), headerWidth);
+                subtitle(panel, text("Enter a name to establish this FOB.", TEXT_SECONDARY));
+                TextField name = new TextField().setText("").setAnyString();
+                name.style(s -> s.background(insetBackdrop()));
+                place(panel, name, CONTENT_LEFT, BODY_Y + 8, sectionWidth - 16, 18);
+                Button establish = actionButton("Establish", 90, true);
+                establish.setOnClick(event -> {
+                    String value = name.getValue().trim();
+                    if (value.isEmpty()) {
+                        return;
+                    }
+                    PacketEstablishFob packet = new PacketEstablishFob();
+                    packet.mPos = new DimBlockPos(holder.player.level().dimension(), holder.pos);
+                    packet.mName = value;
+                    WarForgeMod.NETWORK.sendToServer(packet);
+                    holder.player.closeContainer();
+                });
+                place(panel, establish, buttonX, BODY_Y + 34, 90, BUTTON_HEIGHT);
             }
         }
 
@@ -289,9 +323,10 @@ public final class BlockUis {
 
     private static ModularUI islandCollector(BlockUIMenuType.BlockUIHolder holder) {
         boolean client = isClient(holder);
-        int headerWidth = COLLECTOR_WIDTH - CONTENT_LEFT * 2 - 18;
 
-        UIElement root = screenRoot(0);
+        // Panel centred alone, inventory hung below it: spacer of the inventory's height above.
+        UIElement root = screenRoot();
+        root.addChild(box(1, INVENTORY_BOX_HEIGHT));
         UIElement panel = panel(COLLECTOR_WIDTH, COLLECTOR_HEIGHT, client);
         root.addChild(panel);
 
@@ -306,10 +341,10 @@ public final class BlockUis {
         colorStripe(panel, hasFaction ? collector.colour : NO_FACTION_STRIPE, COLLECTOR_HEIGHT);
         closeButton(panel, COLLECTOR_WIDTH, holder);
 
-        title(panel, "Faction Yield Storage", TEXT_PRIMARY, headerWidth);
-        subtitle(panel, boldText(hasFaction ? collector.factionName : "Unclaimed", hasFaction ? collector.colour : TEXT_SECONDARY), headerWidth);
+        title(panel, "Faction Yield Storage", TEXT_PRIMARY);
+        subtitle(panel, text(hasFaction ? collector.factionName : "Unclaimed", hasFaction ? collector.colour : TEXT_SECONDARY));
 
-        Label heading = width(boldText("Collected Yield", TEXT_PRIMARY), COLLECTOR_LIST_WIDTH);
+        Label heading = fit(text("Collected Yield", TEXT_PRIMARY));
         heading.layout(l -> l.marginBottom(4));
         storage.addChild(heading);
 
@@ -338,7 +373,7 @@ public final class BlockUis {
             storage.addChild(list);
         }
 
-        root.addChild(inventoryPanel(client));
+        root.addChild(inventoryPanel(client, 0));
         return ModularUI.of(UI.of(root), holder.player);
     }
 }

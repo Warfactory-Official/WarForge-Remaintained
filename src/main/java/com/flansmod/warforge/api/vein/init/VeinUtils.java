@@ -3,8 +3,11 @@ package com.flansmod.warforge.api.vein.init;
 import org.apache.commons.lang3.tuple.Pair;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
+import com.flansmod.warforge.api.WarforgeAPI;
 import com.flansmod.warforge.api.vein.VeinKey;
+import com.flansmod.warforge.api.vein.VeinWeightProvider;
 import com.flansmod.warforge.server.ItemMatcher;
+import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2FloatOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
@@ -26,6 +29,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.ToDoubleFunction;
 
 import static com.flansmod.warforge.client.ClientProxy.VEIN_ENTRIES;
 import static com.flansmod.warforge.common.WarForgeMod.LOGGER;
@@ -431,9 +435,22 @@ public class VeinUtils {
         if (!DIM_VEIN_WEIGHT_MAP.containsKey(dim)) { return null; }  // if we cannot generate any chunks for this dim, return null
         ensureMegachunkPopulated(dim, megachunkKey);
 
+        int[] chunkHash = generateChunkHash(chunkX, chunkZ, seed);
+        VeinWeightProvider provider = WarforgeAPI.veinWeightProvider();
+        VeinWeightProvider.Assignment assigned = provider == null ? null : provider.assigned(dim, chunkX, chunkZ);
+        if (assigned != null) {
+            return assigned.vein() == null ? null
+                    : Pair.of(assigned.vein(), VeinWeightProvider.shift(chunkHash[1], assigned.richness()));
+        }
+
         if (gradientEnabled && gradientGatesOut(chunkX, chunkZ, seed)) { return null; }
 
-        int[] chunkHash = generateChunkHash(chunkX, chunkZ, seed);
+        ToDoubleFunction<Vein> multipliers = provider == null ? null : provider.multipliers(dim, chunkX, chunkZ);
+        if (multipliers != null) {
+            Pair<Vein, Quality> rolled = weightedVeinRoll(dim, chunkHash, multipliers);
+            return rolled == null ? null : Pair.of(rolled.getLeft(), VeinWeightProvider.shift(chunkHash[1],
+                    provider.richness(dim, chunkX, chunkZ, rolled.getLeft())));
+        }
         Object2ShortAVLTreeMap<VeinKey> currDimWeights = DIM_VEIN_WEIGHT_MAP.get(dim);
         var currMegachunk = MEGA_CHUNK_OCCURRENCE_DATA.get(dim).get(megachunkKey);
 
@@ -466,6 +483,29 @@ public class VeinUtils {
 
         if (currVein == null) { return null; }  // dont return a pair with null info
         return Pair.of(currVein, Quality.getQuality(chunkHash[1]));
+    }
+
+    // ids from the weight tree: veins dropped for overflowing 10000 stay excluded
+    private Pair<Vein, Quality> weightedVeinRoll(ResourceKey<Level> dim, int[] chunkHash, ToDoubleFunction<Vein> multipliers) {
+        Object2ShortAVLTreeMap<VeinKey> dimWeights = DIM_VEIN_WEIGHT_MAP.get(dim);
+        ArrayList<Vein> veins = new ArrayList<>();
+        DoubleArrayList weights = new DoubleArrayList();
+        double total = dimWeights.defaultReturnValue();
+        for (var entry : dimWeights.object2ShortEntrySet()) {
+            if (entry.getKey() == VeinKey.NULL_KEY || entry.getShortValue() == NULL_VEIN_ID) { continue; }
+            Vein vein = ID_TO_VEINS.get(entry.getShortValue());
+            double weight = vein.getDimWeight(dim) * Math.max(0.0, multipliers.applyAsDouble(vein));
+            if (weight <= 0.0) { continue; }
+            veins.add(vein);
+            weights.add(weight);
+            total += weight;
+        }
+        double roll = chunkHash[0] / 2147483648.0 * total;
+        for (int i = 0; i < veins.size(); ++i) {
+            roll -= weights.getDouble(i);
+            if (roll < 0.0) { return Pair.of(veins.get(i), Quality.getQuality(chunkHash[1])); }
+        }
+        return null;
     }
 
     public short getDimWeight(Vein vein, ResourceKey<Level> dim) {

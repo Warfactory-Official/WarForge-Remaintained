@@ -1,14 +1,12 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.ui.InsuranceUi;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 public class PacketRequestInsurance extends PacketBase {
@@ -33,36 +31,28 @@ public class PacketRequestInsurance extends PacketBase {
         }
 
         Faction faction = WarForgeMod.FACTIONS.getFaction(effectiveId);
-        PacketInsuranceData response = new PacketInsuranceData();
-
+        PacketInsuranceData view = new PacketInsuranceData();
         if (faction == null) {
-            WarForgeMod.NETWORK.sendTo(response, player);
+            InsuranceUi.open(player, view, null);
             return;
         }
-
-        response.hasFaction = true;
-        response.factionId = faction.uuid;
-        response.factionName = faction.name;
-        response.factionColor = faction.colour;
-        response.canWithdraw = WarForgeMod.isOp(player)
-                || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.LEADER);
 
         // factionId is the client's, so this must not become "read any faction's stash": the vault
         // contents only go to members of that faction (ops included for moderation).
         if (!WarForgeMod.isOp(player) && !faction.isPlayerInFaction(player.getUUID())) {
             PacketSecurity.violation(player, "insurance request for a faction they are not in (" + effectiveId + ")");
-            WarForgeMod.NETWORK.sendTo(new PacketInsuranceData(), player);
+            InsuranceUi.open(player, view, null);
             return;
         }
 
-        int slotCount = faction.getInsuranceSlotCount();
-        List<ItemStack> stacks = new ArrayList<>();
-        for (int i = 0; i < slotCount; i++) {
-            stacks.add(faction.getInsuranceStack(i));
-        }
-        response.stacks = stacks;
-
-        WarForgeMod.NETWORK.sendTo(response, player);
+        view.hasFaction = true;
+        view.factionId = faction.uuid;
+        view.factionName = faction.name;
+        view.factionColor = faction.colour;
+        view.canDeposit = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER);
+        view.canVoid = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.LEADER);
+        view.slotCount = faction.getInsuranceSlotCount();
+        InsuranceUi.open(player, view, faction);
     }
 
     @Override

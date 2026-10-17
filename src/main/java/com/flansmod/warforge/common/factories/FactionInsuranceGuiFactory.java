@@ -1,9 +1,8 @@
 package com.flansmod.warforge.common.factories;
 
-import com.flansmod.warforge.client.ui.InsuranceScreen;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketRequestInsurance;
-import net.minecraft.world.entity.player.Player;
+import com.flansmod.warforge.common.ui.InsuranceUi;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
@@ -16,6 +15,7 @@ public final class FactionInsuranceGuiFactory {
     }
 
     public static void init() {
+        InsuranceUi.register();
     }
 
     @OnlyIn(Dist.CLIENT)
@@ -38,13 +38,5 @@ public final class FactionInsuranceGuiFactory {
         PacketRequestInsurance packet = new PacketRequestInsurance();
         packet.factionId = factionId;
         WarForgeMod.NETWORK.sendToServer(packet);
-    }
-
-    @OnlyIn(Dist.CLIENT)
-    public void openInsuranceScreen() {
-        InsuranceScreen.open();
-    }
-
-    public void open(Player player, UUID factionId) {
     }
 }

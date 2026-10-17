@@ -50,7 +50,7 @@ public final class FlagSelectScreen {
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
         int bodyHeight = HEIGHT - BODY_Y - 12;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, HEIGHT);
         root.addChild(panel);
 
@@ -59,15 +59,15 @@ public final class FlagSelectScreen {
         colorStripe(panel, factionColour, HEIGHT);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Faction Flag", TEXT_PRIMARY, WIDTH - CONTENT_LEFT * 2 - 18);
+        title(panel, "Faction Flag", TEXT_PRIMARY);
         if (!factionName.isEmpty()) {
-            subtitle(panel, boldText(factionName, factionColour), WIDTH - CONTENT_LEFT * 2 - 18);
+            subtitle(panel, text(factionName, factionColour));
         }
 
         String statusText = canChoose
                 ? "Choose once. This cannot be changed later."
                 : "Flag locked: " + UiText.flagDisplayName(currentFlagId);
-        Label status = width(text(statusText, TEXT_SECONDARY), sectionWidth - 10);
+        Label status = wrap(text(statusText, TEXT_SECONDARY), sectionWidth);
         status.layout(l -> l.marginBottom(6));
         body.addChild(status);
 

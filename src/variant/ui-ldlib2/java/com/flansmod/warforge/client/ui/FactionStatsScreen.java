@@ -22,7 +22,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import dev.vfyjxf.taffy.style.FlexDirection;
-import dev.vfyjxf.taffy.style.FlexWrap;
+import dev.vfyjxf.taffy.style.TaffyPosition;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
@@ -61,45 +61,43 @@ public final class FactionStatsScreen {
         if (hasFaction) {
             buttons = actionButtons(mc, info);
         }
-        int rows = countRows(buttons, rowWidth);
-        int height = BASE_HEIGHT + (rows - 1) * ACTION_ROW_HEIGHT;
+        List<List<Action>> rows = splitRows(buttons, rowWidth);
+        int height = BASE_HEIGHT + (rows.size() - 1) * ACTION_ROW_HEIGHT;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, height);
         root.addChild(panel);
 
         headerBackdrop(panel, WIDTH);
         UIElement body = section(panel, CONTENT_LEFT, BODY_Y, sectionWidth, 118);
-        UIElement actionSection = section(panel, CONTENT_LEFT, ACTIONS_Y, sectionWidth, 34 + (rows - 1) * ACTION_ROW_HEIGHT);
+        UIElement actionSection = section(panel, CONTENT_LEFT, ACTIONS_Y, sectionWidth, 34 + (rows.size() - 1) * ACTION_ROW_HEIGHT);
         colorStripe(panel, hasFaction ? info.colour : NO_FACTION_STRIPE, height);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Faction Stats", TEXT_PRIMARY, 180);
+        title(panel, "Faction Stats", TEXT_PRIMARY);
 
         if (!hasFaction) {
-            subtitle(panel, text("No faction information is available.", TEXT_SECONDARY), WIDTH - CONTENT_LEFT * 2 - 18);
+            subtitle(panel, text("No faction information is available.", TEXT_SECONDARY));
             show(root, mc);
             return;
         }
 
-        subtitle(panel, boldText(info.factionName, info.colour), 180);
+        subtitle(panel, text(info.factionName, info.colour));
 
-        // Leader, top right of the header
+        // Leader, top right of the header: right(35), top(10)
         PlayerDisplayInfo leader = info.getPlayerInfo(info.mLeaderID);
-        String leaderText = "Leader: " + (leader == null ? "Unknown" : leader.username);
-        int leaderTextWidth = mc.font.width(leaderText);
-        int leaderRowWidth = 2 + 2 + 20 + 2 + leaderTextWidth + 2;
-        UIElement leaderRow = place(panel, row(leaderRowWidth, 20), WIDTH - 35 - leaderRowWidth, 10, leaderRowWidth, 20);
-        leaderRow.layout(l -> l.paddingHorizontal(2));
+        UIElement leaderRow = flow(FlexDirection.ROW);
+        leaderRow.layout(l -> l.positionType(TaffyPosition.ABSOLUTE).right(35).top(10).height(20).paddingHorizontal(2));
         PlayerFaceElement leaderFace = new PlayerFaceElement(info.mLeaderID);
         leaderFace.layout(l -> l.width(20).height(20).marginHorizontal(2).flexShrink(0));
         leaderRow.addChild(leaderFace);
-        leaderRow.addChild(width(text(leaderText, TEXT_SECONDARY), leaderTextWidth + 1));
+        leaderRow.addChild(fit(text("Leader: " + (leader == null ? "Unknown" : leader.username), TEXT_SECONDARY)));
+        panel.addChild(leaderRow);
 
-        Label overview = width(boldText("Faction Overview", TEXT_PRIMARY), rowWidth);
+        Label overview = fit(text("Faction Overview", TEXT_PRIMARY));
         overview.layout(l -> l.marginBottom(4));
         body.addChild(overview);
-        Label blurb = width(text("Standing, territory, membership, and citadel progression.", TEXT_MUTED), rowWidth);
+        Label blurb = wrap(text("Standing, territory, membership, and citadel progression.", TEXT_MUTED), sectionWidth);
         blurb.layout(l -> l.marginBottom(6));
         body.addChild(blurb);
 
@@ -120,13 +118,21 @@ public final class FactionStatsScreen {
         statRow(grid, 148, 54, "Stash", String.valueOf(stashSlots), "slots");
         body.addChild(grid);
 
-        UIElement actionRow = new UIElement();
-        actionRow.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(FlexWrap.WRAP).width(rowWidth)
-                .paddingTop(2).gapColumn(8).gapRow(ACTION_ROW_HEIGHT - BUTTON_HEIGHT));
-        for (Action action : buttons) {
-            actionRow.addChild(action.button());
+        // First row 26 high (buttons centred: y 4); wrapped rows ACTION_ROW_HEIGHT. Buttons after the first: margin 4 each side.
+        for (int r = 0; r < rows.size(); r++) {
+            UIElement actionRow = flow(FlexDirection.ROW);
+            boolean first = r == 0;
+            actionRow.layout(l -> l.width(rowWidth).height(first ? BUTTON_HEIGHT + 8 : ACTION_ROW_HEIGHT));
+            List<Action> row = rows.get(r);
+            for (int i = 0; i < row.size(); i++) {
+                Button button = row.get(i).button();
+                if (i > 0) {
+                    button.layout(l -> l.marginHorizontal(4));
+                }
+                actionRow.addChild(button);
+            }
+            actionSection.addChild(actionRow);
         }
-        actionSection.addChild(actionRow);
 
         show(root, mc);
     }
@@ -162,24 +168,30 @@ public final class FactionStatsScreen {
         return buttons;
     }
 
-    private static int countRows(List<Action> buttons, int rowWidth) {
-        int rows = 1;
+    /** Rows of buttons that fit rowWidth; a button after the first of its row takes 4 + width + 4. */
+    private static List<List<Action>> splitRows(List<Action> buttons, int rowWidth) {
+        List<List<Action>> rows = new ArrayList<>();
+        List<Action> row = new ArrayList<>();
         int used = 0;
         for (Action action : buttons) {
-            if (used > 0 && used + 8 + action.width() > rowWidth) {
-                rows++;
-                used = action.width();
-            } else {
-                used += used > 0 ? 8 + action.width() : action.width();
+            int need = row.isEmpty() ? action.width() : action.width() + 8;
+            if (!row.isEmpty() && used + need > rowWidth) {
+                rows.add(row);
+                row = new ArrayList<>();
+                need = action.width();
+                used = 0;
             }
+            row.add(action);
+            used += need;
         }
+        rows.add(row);
         return rows;
     }
 
     private static void statRow(UIElement grid, int x, int y, String label, String value, String extra) {
         UIElement row = place(grid, row(136, 16), x, y, 136, 16);
         row.addChild(width(text(label, TEXT_PRIMARY), 52));
-        row.addChild(width(boldText(value, TEXT_PRIMARY), 42));
+        row.addChild(width(text(value, TEXT_PRIMARY), 42));
         row.addChild(width(text(extra, 0xBBBBBB), 42));
     }
 

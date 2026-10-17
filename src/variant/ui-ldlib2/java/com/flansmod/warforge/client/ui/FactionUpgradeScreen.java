@@ -65,7 +65,7 @@ public final class FactionUpgradeScreen {
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
         int contentWidth = sectionWidth - 10;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, HEIGHT);
         root.addChild(panel);
 
@@ -75,10 +75,10 @@ public final class FactionUpgradeScreen {
         colorStripe(panel, color, HEIGHT);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Citadel Upgrade", TEXT_PRIMARY, WIDTH - CONTENT_LEFT * 2 - 18);
-        subtitle(panel, shadowText(data.mFactionName, color, true), WIDTH - CONTENT_LEFT * 2 - 18);
+        title(panel, "Citadel Upgrade", TEXT_PRIMARY);
+        subtitle(panel, shadowText(data.mFactionName, color, false));
 
-        Label prompt = width(text("Requirements to advance from level " + data.level + " to level " + (data.level + 1), TEXT_MUTED), contentWidth);
+        Label prompt = fit(text("Requirements to advance from level " + data.level + " to level " + (data.level + 1), TEXT_MUTED));
         prompt.layout(l -> l.marginBottom(6));
         body.addChild(prompt);
 
@@ -115,8 +115,7 @@ public final class FactionUpgradeScreen {
         UIElement actionRow = row(contentWidth, BUTTON_HEIGHT);
         actionRow.addChild(actionButton("Close", closeWidth, () -> ClientCompat.setScreen(null)));
         actionRow.addChild(box(contentWidth - closeWidth - upgradeWidth, BUTTON_HEIGHT));
-        // Officers may always send the request (the server checks the materials); others see it disabled.
-        Button upgradeButton = actionButton("Upgrade", upgradeWidth, data.outrankingOfficer, () -> {
+        Button upgradeButton = actionButton("Upgrade", upgradeWidth, data.outrankingOfficer && allMet, () -> {
             PacketRequestUpgrade packet = new PacketRequestUpgrade();
             packet.factionID = data.mFactionID;
             WarForgeMod.NETWORK.sendToServer(packet);
@@ -167,18 +166,18 @@ public final class FactionUpgradeScreen {
     /** "Upgrade Outcome": claims and insurance slots before and after the upgrade (createUpgradeOutcomePanel of 1.20.1). */
     private static UIElement outcomePanel(int level) {
         UIElement panel = new UIElement();
-        panel.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.START)
+        panel.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.CENTER)
                 .height(OUTCOME_HEIGHT).flexShrink(0));
 
-        Label heading = fitted(boldText("Upgrade Outcome", TEXT_PRIMARY));
+        Label heading = fit(text("Upgrade Outcome", TEXT_PRIMARY));
         heading.layout(l -> l.marginBottom(1));
         panel.addChild(heading);
-        Label levels = fitted(shadowText("Level " + level + " -> " + (level + 1), TEXT_WARNING, true));
+        Label levels = fit(shadowText("Level " + level + " -> " + (level + 1), TEXT_WARNING, false));
         levels.layout(l -> l.marginBottom(2));
         panel.addChild(levels);
 
         UIElement deltaRow = new UIElement();
-        deltaRow.layout(l -> l.flexDirection(FlexDirection.ROW).height(20).marginTop(2));
+        deltaRow.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).height(20).marginTop(2));
         UIElement claims = deltaCard("Claims",
                 String.valueOf(WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(level)),
                 String.valueOf(WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(level + 1)),
@@ -197,18 +196,18 @@ public final class FactionUpgradeScreen {
 
     private static UIElement deltaCard(String label, String previous, String next, int previousColor, int nextColor) {
         UIElement card = new UIElement();
-        card.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.START));
-        card.addChild(fitted(text(label, TEXT_SECONDARY)));
+        card.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.CENTER));
+        card.addChild(fit(text(label, TEXT_SECONDARY)));
 
         UIElement values = new UIElement();
         values.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).height(11));
-        Label before = fitted(shadowText(previous, previousColor, false));
+        Label before = fit(shadowText(previous, previousColor, false));
         before.textStyle(t -> t.fontSize(TITLE_FONT_SIZE));
         before.layout(l -> l.height(11));
-        Label arrow = fitted(text("→", TEXT_SECONDARY));
+        Label arrow = fit(text("→", TEXT_SECONDARY));
         arrow.textStyle(t -> t.fontSize(8f));
         arrow.layout(l -> l.marginHorizontal(1).height(8));
-        Label after = fitted(shadowText(next, nextColor, true));
+        Label after = fit(shadowText(next, nextColor, false));
         after.textStyle(t -> t.fontSize(TITLE_FONT_SIZE));
         after.layout(l -> l.height(11));
         values.addChild(before);
@@ -218,18 +217,11 @@ public final class FactionUpgradeScreen {
         return card;
     }
 
-    /** A label as wide as its text. */
-    private static Label fitted(Label label) {
-        label.textStyle(t -> t.adaptiveWidth(true));
-        label.layout(l -> l.flexShrink(0));
-        return label;
-    }
-
     /** The small "max level" panel of 1.20.1. */
     private static void openMaxLevel(Minecraft mc, PacketUpgradeUI data, int color) {
         int width = 220;
         int height = 86;
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(width, height);
         root.addChild(panel);
         place(panel, box(width, height, headerBackdrop()), 0, 0, width, height);

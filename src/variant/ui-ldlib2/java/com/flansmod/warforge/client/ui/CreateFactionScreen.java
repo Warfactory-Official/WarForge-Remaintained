@@ -50,7 +50,7 @@ public final class CreateFactionScreen {
         int innerLeft = CONTENT_LEFT + INNER_PAD;
         int innerWidth = sectionWidth - INNER_PAD * 2;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, height);
         root.addChild(panel);
 
@@ -59,7 +59,7 @@ public final class CreateFactionScreen {
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
         String titleText = recolour ? "Set Faction Colour" : "Create Faction";
-        title(panel, titleText, TEXT_PRIMARY, WIDTH - CONTENT_LEFT * 2 - 18);
+        title(panel, titleText, TEXT_PRIMARY);
 
         TextField nameField = null;
         int colourLabelY = BODY_Y + 8;

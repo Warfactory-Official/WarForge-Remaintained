@@ -92,7 +92,7 @@ public final class ClaimManagerScreen {
         ClaimMapModel.Cell centerCell = ClaimMapModel.cell(center, radius, radius, radius, modes);
         int accentColor = centerCell.info.factionId.equals(Faction.nullUuid) ? NO_FACTION_STRIPE : centerCell.info.colour;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(width, height);
         root.addChild(panel);
 
@@ -104,7 +104,7 @@ public final class ClaimManagerScreen {
         colorStripe(panel, accentColor, height);
         closeButton(panel, width).setOnClick(event -> ClientCompat.setScreen(null));
 
-        place(panel, title(ClaimMapModel.title(modes), TEXT_PRIMARY), CONTENT_LEFT, HEADER_Y, width - CONTENT_LEFT * 2 - 18, 11);
+        title(panel, ClaimMapModel.title(modes), TEXT_PRIMARY);
         place(panel, scrollingText(literal(ClaimMapModel.centerLine(center, radius), TEXT_SECONDARY, false), width - CONTENT_LEFT * 2 - 18),
                 CONTENT_LEFT, SUBTITLE_Y, width - CONTENT_LEFT * 2 - 18, 9);
 

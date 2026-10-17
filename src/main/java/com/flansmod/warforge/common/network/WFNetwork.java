@@ -80,7 +80,6 @@ public final class WFNetwork {
             c2s(PacketFactionMemberManagerAction.class, PacketFactionMemberManagerAction::new, Bucket.ACTION),
             c2s(PacketRequestMemberData.class, PacketRequestMemberData::new, Bucket.QUERY),
             s2c(PacketMemberData.class, PacketMemberData::new),
-            c2s(PacketFactionInsuranceAction.class, PacketFactionInsuranceAction::new, Bucket.ACTION),
             c2s(PacketRequestInsurance.class, PacketRequestInsurance::new, Bucket.QUERY),
             s2c(PacketInsuranceData.class, PacketInsuranceData::new),
             s2c(PacketJourneyMapClaims.class, PacketJourneyMapClaims::new),

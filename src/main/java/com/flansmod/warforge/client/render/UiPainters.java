@@ -37,7 +37,11 @@ public final class UiPainters {
         int drawX = x + (width - drawWidth) / 2;
         int drawY = y + (height - drawHeight) / 2;
 
+        // LDLib2 can leave the shader colour non-white => flag invisible (see SkinUtil.drawFace).
+        graphics.setColor(1.0F, 1.0F, 1.0F, 1.0F);
+        graphics.flush();
         graphics.blit(texture, drawX, drawY, drawWidth, drawHeight, 0f, 0f, dims[0], dims[1], dims[0], dims[1]);
+        graphics.flush();
     }
 
     public static void playerFace(Gui2D graphics, UUID playerId, int x, int y, int size) {

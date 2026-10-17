@@ -69,7 +69,7 @@ public final class SiegeCampScreen {
         int mapLeft = CONTENT_LEFT + MAP_GUTTER;
         int mapTop = mapY + MAP_GUTTER;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(width, height);
         root.addChild(panel);
 
@@ -81,7 +81,7 @@ public final class SiegeCampScreen {
         colorStripe(panel, data.color, height);
         closeButton(panel, width).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Siege Target Map", TEXT_PRIMARY, width - CONTENT_LEFT * 2 - 18);
+        title(panel, "Siege Target Map", TEXT_PRIMARY);
         place(panel, scrollingText(literal(model.campLine(), TEXT_SECONDARY, false), width - CONTENT_LEFT * 2 - 18),
                 CONTENT_LEFT, SUBTITLE_Y, width - CONTENT_LEFT * 2 - 18, 9);
 

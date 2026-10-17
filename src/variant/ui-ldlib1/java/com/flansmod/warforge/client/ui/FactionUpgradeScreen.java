@@ -102,7 +102,7 @@ public final class FactionUpgradeScreen {
         int actionY = ACTIONS_Y + 5;
         panel.addWidget(WarForgeUiTheme.at(WarForgeUiTheme.actionButton("Close", 94, click -> ClientScreens.close()), textX, actionY));
 
-        ButtonWidget upgrade = WarForgeUiTheme.actionButton("Upgrade", 104, data.outrankingOfficer, click -> {
+        ButtonWidget upgrade = WarForgeUiTheme.actionButton("Upgrade", 104, data.outrankingOfficer && allMet, click -> {
             PacketRequestUpgrade packet = new PacketRequestUpgrade();
             packet.factionID = data.mFactionID;
             WarForgeMod.NETWORK.sendToServer(packet);

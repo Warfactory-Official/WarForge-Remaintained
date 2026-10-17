@@ -5,6 +5,7 @@ import com.flansmod.warforge.client.ui.model.UiText;
 import com.flansmod.warforge.client.util.PlayerFaceElement;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
+import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
 import com.flansmod.warforge.common.network.PacketFactionAllianceAction;
 import com.flansmod.warforge.common.network.PacketFactionMemberManagerAction;
 import com.flansmod.warforge.common.network.PacketMemberData;
@@ -18,6 +19,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.Button;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.Label;
 import com.lowdragmc.lowdraglib2.gui.ui.elements.ScrollerView;
 import dev.vfyjxf.taffy.style.AlignContent;
+import dev.vfyjxf.taffy.style.FlexDirection;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
@@ -52,9 +54,8 @@ public final class MemberManagerScreen {
 
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
         int listSectionHeight = HEIGHT - LIST_Y - 12;
-        int headerWidth = WIDTH - CONTENT_LEFT * 2 - 18;
 
-        UIElement root = screenRoot(0);
+        UIElement root = screenRoot();
         UIElement panel = panel(WIDTH, HEIGHT);
         root.addChild(panel);
 
@@ -65,18 +66,17 @@ public final class MemberManagerScreen {
         colorStripe(panel, data.hasFaction ? data.factionColor : NO_FACTION_STRIPE, HEIGHT);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Faction Members", TEXT_PRIMARY, headerWidth);
+        title(panel, "Faction Members", TEXT_PRIMARY);
         if (data.hasFaction) {
-            UIElement headerRow = place(panel, row(headerWidth, 12), CONTENT_LEFT, SUBTITLE_Y, headerWidth, 12);
-            headerRow.layout(l -> l.alignItems(dev.vfyjxf.taffy.style.AlignItems.START));
-            Label name = boldText(data.factionName, data.factionColor);
-            Label separator = text(" | ", TEXT_SECONDARY);
-            Label role = text("Role: " + UiText.formatRole(data.viewerRole), UiText.roleColor(data.viewerRole));
-            headerRow.addChild(width(name, mc.font.width(name.getValue()) + 1));
-            headerRow.addChild(width(separator, mc.font.width(separator.getValue())));
-            headerRow.addChild(width(role, mc.font.width(role.getValue()) + 1));
+            UIElement headerRow = place(panel, flow(FlexDirection.ROW), CONTENT_LEFT, SUBTITLE_Y);
+            headerRow.layout(l -> l.height(12));
+            headerRow.addChild(fit(text(data.factionName, data.factionColor)));
+            headerRow.addChild(fit(text(" | ", TEXT_SECONDARY)));
+            headerRow.addChild(fit(text("Role: " + UiText.formatRole(data.viewerRole), UiText.roleColor(data.viewerRole))));
+            place(panel, actionButton("Stats", 58, () -> FactionStatsGuiFactory.INSTANCE.openClientSibling(data.factionId)),
+                    WIDTH - 80, 11, 58, BUTTON_HEIGHT);
         } else {
-            subtitle(panel, text("You are not currently in a faction", TEXT_SECONDARY), headerWidth);
+            subtitle(panel, text("You are not currently in a faction", TEXT_SECONDARY));
         }
 
         UIElement tabRow = row(sectionWidth - 10, BUTTON_HEIGHT);
@@ -90,7 +90,7 @@ public final class MemberManagerScreen {
         tabSection.addChild(tabRow);
 
         if (!data.hasFaction && data.page != FactionMemberManagerGuiData.Page.INVITES) {
-            Label info = width(text("Join or create a faction before using the member console.", TEXT_INFO), sectionWidth - 10);
+            Label info = wrap(text("Join or create a faction before using the member console.", TEXT_INFO), sectionWidth);
             info.layout(l -> l.marginVertical(6));
             listSection.addChild(info);
             show(root, mc);
@@ -110,12 +110,12 @@ public final class MemberManagerScreen {
                     : "Accept one of your outstanding faction invites.";
         };
 
-        Label titleLabel = width(boldText(sectionTitle, TEXT_MUTED), sectionWidth - 10);
+        Label titleLabel = fit(text(sectionTitle, TEXT_MUTED));
         titleLabel.layout(l -> l.marginBottom(4));
         listSection.addChild(titleLabel);
-        Label description = scrollingText(literal(sectionDescription, TEXT_MUTED, false), sectionWidth - 10);
+        Label description = wrap(text(sectionDescription, TEXT_MUTED), sectionWidth);
         description.layout(l -> l.marginBottom(6));
-        listSection.addChild(tooltip(description, sectionDescription));
+        listSection.addChild(description);
 
         boolean alliancePage = data.page == FactionMemberManagerGuiData.Page.ALLIANCES;
         if (alliancePage) {
@@ -126,7 +126,7 @@ public final class MemberManagerScreen {
             listSection.addChild(allyToggle);
         }
 
-        ScrollerView list = insetList(sectionWidth - 10, listSectionHeight - 46 - (alliancePage ? 23 : 0));
+        ScrollerView list = insetList(sectionWidth - 10, listSectionHeight - 46 - (alliancePage ? 22 : 0));
 
         if (data.page == FactionMemberManagerGuiData.Page.MEMBERS) {
             if (data.members.isEmpty()) {
@@ -179,7 +179,7 @@ public final class MemberManagerScreen {
 
     private static UIElement emptyLine(String message) {
         UIElement line = box(ROW_WIDTH, 21);
-        place(line, text(message, TEXT_PRIMARY), 6, 6, ROW_WIDTH - 6, 9);
+        place(line, fit(text(message, TEXT_PRIMARY)), 6, 6);
         return line;
     }
 

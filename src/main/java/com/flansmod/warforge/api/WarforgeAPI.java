@@ -4,6 +4,7 @@ import com.flansmod.warforge.compat.Chunks;
 
 import com.flansmod.warforge.api.interfaces.IChunkReinforcer;
 import com.flansmod.warforge.api.interfaces.IClaimStrengthModifier;
+import com.flansmod.warforge.api.vein.VeinWeightProvider;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -297,5 +298,22 @@ public final class WarforgeAPI {
             }
         }
         return stackingSum + bestNonStacking;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Veins
+    // ---------------------------------------------------------------------------------------------
+
+    @Nullable
+    private static volatile VeinWeightProvider veinWeightProvider;
+
+    /** Survives {@code /f vein reload}. Install before players join: JourneyMap AUTO rolls veins around them. */
+    public static void setVeinWeightProvider(@Nullable VeinWeightProvider provider) {
+        veinWeightProvider = provider;
+    }
+
+    @Nullable
+    public static VeinWeightProvider veinWeightProvider() {
+        return veinWeightProvider;
     }
 }
