@@ -82,3 +82,21 @@ dependencies {
     // SuperbWarfare (curse.maven:superb-warfare-1218165) and AshVehicle (curse.maven:ashvehicle-1291715): the compat
     // mixin @targets are strings, so they compile without the jars. EffortlessBuilding is not used.
 }
+
+publishing {
+    publications {
+        named<MavenPublication>("mavenJava") {
+            version = "${prop("mod.version")}-SNAPSHOT"
+        }
+    }
+    repositories {
+        maven {
+            name = "WarfactorySnapshots"
+            url = uri("https://repo.warfactory.co/snapshots")
+            credentials {
+                username = findProperty("warfactoryUser") as String? ?: System.getenv("WARFACTORY_MAVEN_USER")
+                password = findProperty("warfactoryToken") as String? ?: System.getenv("WARFACTORY_MAVEN_TOKEN")
+            }
+        }
+    }
+}
