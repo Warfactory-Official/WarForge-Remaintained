@@ -34,10 +34,17 @@ public final class ClientRenderEvents {
         });
     }
 
-    /** Runs after the vanilla HUD is drawn (client only). The float is the partial tick. */
+    /**
+     * Runs after the vanilla HUD is drawn (client only). The float is the partial tick. Not while a Flashback replay
+     * plays or exports: the footage is meant to be clean.
+     */
     public static void onHud(BiConsumer<Gui2D, Float> handler) {
-        Platform.gameBus().addListener((RenderGuiEvent.Post event) ->
-                handler.accept(Gui2D.of(event.getGuiGraphics()), event.getPartialTick().getGameTimeDeltaPartialTick(false)));
+        Platform.gameBus().addListener((RenderGuiEvent.Post event) -> {
+            if (FlashbackReplay.active()) {
+                return;
+            }
+            handler.accept(Gui2D.of(event.getGuiGraphics()), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+        });
     }
 
     /**
