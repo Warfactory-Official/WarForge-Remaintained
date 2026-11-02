@@ -124,6 +124,7 @@ public class WarForgeMod {
             WarForgeConfig.onRegistriesReady();
             loadUpgradeConfig();
             if (ModList.get().isLoaded("golemcore")) com.flansmod.warforge.compat.golem.GolemProtection.register();
+            if (ModList.get().isLoaded("ftbteams")) com.flansmod.warforge.compat.ftbteams.FtbTeamsLink.register();
         });
     }
 

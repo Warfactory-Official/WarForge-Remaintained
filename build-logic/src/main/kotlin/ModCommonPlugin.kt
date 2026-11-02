@@ -103,6 +103,14 @@ class ModCommonPlugin : Plugin<Project> {
             name = "Dynmap"
             content { includeGroup("us.dynmap") }
         }
+        maven("https://maven.ftb.dev/releases") { // FTB Teams API (compileOnly, compat/ftbteams)
+            name = "FTB"
+            content { includeGroup("dev.ftb.mods") }
+        }
+        maven("https://maven.architectury.dev") { // FTB Teams/Library transitive
+            name = "Architectury"
+            content { includeGroup("dev.architectury") }
+        }
         mavenLocal { // Golem Core (compileOnly, compat/golem)
             name = "GolemLocal"
             content { includeGroup("dev.golem") }

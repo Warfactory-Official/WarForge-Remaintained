@@ -152,6 +152,10 @@ Central-siege-day mode only (`Enable Per-Siege timer = false`): `Siege Day Lengt
 | `JourneyMap Vein Display Mode` | `DISABLED`; `AUTO` streams veins around each player, `PLAYER` only chunks the player loaded |
 | `JourneyMap Vein Auto Radius` | 24 (1..128) |
 
+### FTB Teams
+
+- `Lock FTB Party Creation` (default true): disables FTB party create/join so parties only come from factions.
+
 ### Dynmap
 
 - Layer shows only when Dynmap is installed on the server (dedicated or integrated) and `Enable Dynmap Layer`. Layer keys marked "start" are read at server start; opacity, interval and zone labels apply live.

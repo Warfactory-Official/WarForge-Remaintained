@@ -40,6 +40,8 @@ deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:forge-1.20.1-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:forge-1.20.1-26.5.0"
 # Carry On (compile-only compat + dev runtime); Modrinth version ids because version numbers repeat per loader.
 deps.carryon = "maven.modrinth:carry-on:edGQD16r"
+deps.ftbteams = "dev.ftb.mods:ftb-teams-forge:2001.3.2"
+deps.ftblibrary = "dev.ftb.mods:ftb-library-forge:2001.2.0"
 deps.journeymap_api_jarjar = "META-INF/jarjar/journeymap-api-forge-1.20.1-2.0.0.jar"
 
 [neoforge]
@@ -73,6 +75,7 @@ deps.journeymap = "maven.modrinth:journeymap:1.21.1-6.0.6+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-1.21.1-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-1.21.1-26.5.0"
 deps.carryon = "maven.modrinth:carry-on:PV8oLZ1q"
+deps.ftbteams = "dev.ftb.mods:ftb-teams-neoforge:2101.1.11"
 
 [neoforge."26.1.2"]
 data_run_type = "clientData"
@@ -92,6 +95,7 @@ deps.journeymap = "maven.modrinth:journeymap:26.1.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.1.2-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.1.2-26.5.0"
 deps.carryon = "maven.modrinth:carry-on:c2uJiLoV"
+deps.ftbteams = "dev.ftb.mods:ftb-teams-neoforge:26.1.2.5"
 
 [neoforge."26.2"]
 data_run_type = "clientData"
@@ -110,3 +114,4 @@ deps.journeymap = "maven.modrinth:journeymap:26.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.2-1.46.1"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.2-26.5.1"
 deps.carryon = "maven.modrinth:carry-on:EMd9Jyxc"
+deps.ftbteams = "dev.ftb.mods:ftb-teams-neoforge:26.1.2.5"

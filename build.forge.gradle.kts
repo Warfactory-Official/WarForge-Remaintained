@@ -56,6 +56,8 @@ dependencies {
     "modCompileOnly"(prop("deps.xaero_worldmap"))
     "modCompileOnly"(prop("deps.xaero_minimap"))
     "modCompileOnly"(prop("deps.carryon"))
+    "modCompileOnly"(prop("deps.ftbteams"))
+    "modCompileOnly"(prop("deps.ftblibrary"))
 
     // The JourneyMap and Xaero mods themselves, dev-runtime only (client runs).
     "modLocalRuntime"(prop("deps.journeymap"))

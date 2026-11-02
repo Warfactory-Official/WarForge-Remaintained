@@ -42,6 +42,7 @@ public class WarForgeConfig {
     public static final String CATEGORY_ALLIANCES = "Alliances";
     public static final String CATEGORY_GENERAL = "General";
     public static final String CATEGORY_DYNMAP = "Dynmap";
+    public static final String CATEGORY_FTB_TEAMS = "FTB Teams";
 
     public static final ModConfigSpec SPEC;
 
@@ -80,6 +81,7 @@ public class WarForgeConfig {
     public static int CLAIM_MANAGER_RADIUS = 4;
     public static boolean CLAIM_MAP_WHOLE_WORLD = true;
     public static boolean DYNMAP_ENABLED = true;
+    public static boolean FTB_LOCK_PARTY_CREATION = true;
     public static String DYNMAP_LAYER_LABEL = "Factions";
     public static String DYNMAP_SAFE_ZONE_LABEL = "Safe Zone";
     public static String DYNMAP_WAR_ZONE_LABEL = "War Zone";
@@ -318,6 +320,7 @@ public class WarForgeConfig {
     private static ModConfigSpec.IntValue CLAIM_MANAGER_RADIUS_V;
     private static ModConfigSpec.BooleanValue CLAIM_MAP_WHOLE_WORLD_V;
     private static ModConfigSpec.BooleanValue DYNMAP_ENABLED_V;
+    private static ModConfigSpec.BooleanValue FTB_LOCK_PARTY_CREATION_V;
     private static ModConfigSpec.ConfigValue<String> DYNMAP_LAYER_LABEL_V;
     private static ModConfigSpec.ConfigValue<String> DYNMAP_SAFE_ZONE_LABEL_V;
     private static ModConfigSpec.ConfigValue<String> DYNMAP_WAR_ZONE_LABEL_V;
@@ -569,6 +572,10 @@ public class WarForgeConfig {
         JOURNEYMAP_VEIN_AUTO_RADIUS_V = cfg.comment("In AUTO vein mode, how many chunks around each player to reveal veins for. Larger values reveal more of the map but cause the server to generate and store veins over a wider area.").defineInRange("JourneyMap Vein Auto Radius", JOURNEYMAP_VEIN_AUTO_RADIUS, 1, 128);
         cfg.pop();
 
+        cfg.push(CATEGORY_FTB_TEAMS);
+        FTB_LOCK_PARTY_CREATION_V = cfg.comment("With FTB Teams installed, factions are mirrored as FTB parties. True disables FTB's own party creation and joining so parties only come from factions.").define("Lock FTB Party Creation", FTB_LOCK_PARTY_CREATION);
+        cfg.pop();
+
         cfg.push(CATEGORY_DYNMAP);
         DYNMAP_ENABLED_V = cfg.comment("Show faction claims, safe zones and war zones as a Dynmap layer, if Dynmap is installed on the server. Read at server start.").define("Enable Dynmap Layer", DYNMAP_ENABLED);
         DYNMAP_LAYER_LABEL_V = cfg.comment("Name of the Dynmap layer. Read at server start.").define("Dynmap Layer Label", DYNMAP_LAYER_LABEL);
@@ -800,6 +807,7 @@ public class WarForgeConfig {
         CLAIM_MANAGER_RADIUS = src.integer(CLAIM_MANAGER_RADIUS_V);
         CLAIM_MAP_WHOLE_WORLD = src.bool(CLAIM_MAP_WHOLE_WORLD_V);
         DYNMAP_ENABLED = src.bool(DYNMAP_ENABLED_V);
+        FTB_LOCK_PARTY_CREATION = src.bool(FTB_LOCK_PARTY_CREATION_V);
         DYNMAP_LAYER_LABEL = src.string(DYNMAP_LAYER_LABEL_V);
         DYNMAP_SAFE_ZONE_LABEL = src.string(DYNMAP_SAFE_ZONE_LABEL_V);
         DYNMAP_WAR_ZONE_LABEL = src.string(DYNMAP_WAR_ZONE_LABEL_V);

@@ -44,12 +44,14 @@ public final class MembershipService {
         clearInvitesToPlayer(playerId);
         faction.messageAll(t("member.joined", playerName(playerId), faction.getName()));
         FactionDisplay.refreshTabName(playerId);
+        FactionTeams.sync(faction);
     }
 
     void leave(Faction faction, UUID playerId) {
         faction.removeMember(playerId);
         hub.registry.unindexMember(playerId);
         FactionDisplay.refreshTabName(playerId);
+        FactionTeams.sync(faction);
     }
 
     /** Sets the leader (previous leader becomes officer) and announces it. */
@@ -58,6 +60,7 @@ public final class MembershipService {
             return false;
         }
         faction.messageAll(t("member.made_leader", playerName(playerId), faction.getName()));
+        FactionTeams.sync(faction);
         return true;
     }
 
@@ -284,6 +287,7 @@ public final class MembershipService {
             faction.demote(targetId);
         }
         faction.messageAll(t(promote ? "member.promoted" : "member.demoted", playerName(targetId)));
+        FactionTeams.sync(faction);
         return true;
     }
 
@@ -353,6 +357,7 @@ public final class MembershipService {
 
     public void onLoggedIn(ServerPlayer player) {
         hub.combatLog.onLogin(player.getUUID());
+        FactionTeams.playerLoggedIn(player.getUUID());
         Faction faction = hub.registry.getFactionOfPlayer(player.getUUID());
         if (faction == null) {
             return;

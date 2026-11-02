@@ -49,6 +49,7 @@ dependencies {
     compileOnly(prop("deps.xaero_minimap"))
     // Carry On: compileOnly for compat/carryon (gated mixin + client check); never shipped.
     compileOnly(prop("deps.carryon"))
+    compileOnly(prop("deps.ftbteams"))
 
     "localRuntime"(prop("deps.journeymap"))
     "localRuntime"(prop("deps.xaero_worldmap"))

@@ -144,6 +144,7 @@ public final class FactionLifecycleService {
         forEachOwnedClaim(faction, ClaimBlockEntity.class, claim -> claim.updateFactionName(newName));
         hub.namePlates.broadcastFaction(faction);
         FactionDisplay.refreshFactionTabNames(faction);
+        FactionTeams.sync(faction);
         Notifications.messageAll(t("rename.announce", oldName, newName));
         return true;
     }
@@ -158,6 +159,7 @@ public final class FactionLifecycleService {
         // push now so a reopened citadel panel shows the new accent immediately
         PlayerSyncService.syncClaimToPlayer(player, faction.getCitadelPos().toRegularPos());
         hub.namePlates.broadcastFaction(faction);
+        FactionTeams.sync(faction);
         return true;
     }
 
@@ -284,6 +286,7 @@ public final class FactionLifecycleService {
         faction.messageAll(t(faction.getMemberCount() > 0 ? "lifecycle.disbanded" : "lifecycle.abandoned", faction.getName()));
         ArrayList<UUID> formerMembers = new ArrayList<>(faction.getMemberIds());
         faction.clearMembers();
+        FactionTeams.dissolve(id, formerMembers);
         for (UUID member : formerMembers) {
             hub.registry.unindexMember(member);
             FactionDisplay.refreshTabName(member);
