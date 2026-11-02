@@ -99,6 +99,14 @@ class ModCommonPlugin : Plugin<Project> {
             name = "Modrinth"
             content { includeGroup("maven.modrinth") }
         }
+        maven("https://repo.mikeprimm.com") { // Dynmap marker API (compileOnly, compat/dynmap)
+            name = "Dynmap"
+            content { includeGroup("us.dynmap") }
+        }
+        mavenLocal { // Golem Core (compileOnly, compat/golem)
+            name = "GolemLocal"
+            content { includeGroup("dev.golem") }
+        }
         mavenCentral()
     }
 
@@ -108,6 +116,8 @@ class ModCommonPlugin : Plugin<Project> {
 
         dependencies.apply {
             add("compileOnly", "org.jetbrains:annotations:24.1.0")
+            add("compileOnly", prop("deps.golem"))
+            add("compileOnly", "us.dynmap:DynmapCoreAPI:3.7-beta-6")
             add("compileOnly", "org.projectlombok:lombok:1.18.42")
             add("annotationProcessor", "org.projectlombok:lombok:1.18.42")
             add("testImplementation", platform("org.junit:junit-bom:5.11.4"))

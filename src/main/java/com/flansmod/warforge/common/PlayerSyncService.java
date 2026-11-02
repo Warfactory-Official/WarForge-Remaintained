@@ -55,7 +55,8 @@ public final class PlayerSyncService {
                             spec.insuranceSlots(), spec.loadedChunks()), target));
         }
 
-        ArrayList<Vein> veins = new ArrayList<>(WarForgeMod.VEIN_HANDLER.ID_TO_VEINS.values());
+        ArrayList<Vein> veins = WarForgeConfig.ENABLE_CHUNK_VEINS
+                ? new ArrayList<>(WarForgeMod.VEIN_HANDLER.ID_TO_VEINS.values()) : new ArrayList<>();
         int index = 0;
         while (index < veins.size()) {
             PacketVeinEntries packet = new PacketVeinEntries();

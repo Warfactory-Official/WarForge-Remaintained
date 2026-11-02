@@ -836,6 +836,10 @@ public class CommandFactions {
     }
 
     private static boolean veinReady(CommandSourceStack src) {
+        if (!WarForgeConfig.ENABLE_CHUNK_VEINS) {
+            src.sendFailure(t("cmd.vein_disabled"));
+            return false;
+        }
         if (WarForgeMod.VEIN_HANDLER == null || !WarForgeMod.VEIN_HANDLER.hasFinishedInit) {
             src.sendFailure(t("cmd.vein_not_ready"));
             return false;

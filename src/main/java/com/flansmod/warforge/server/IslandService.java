@@ -1,5 +1,6 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.CitadelBlockEntity;
 import com.flansmod.warforge.common.blocks.IslandCollectorBlockEntity;
@@ -93,7 +94,9 @@ public final class IslandService {
 
     /** Daily yield: pending +1 per claim, then pay out loaded collectors and the citadel. */
     void awardYields(Faction faction) {
-        faction.incrementPendingYields();
+        if (WarForgeConfig.ENABLE_CHUNK_VEINS) {
+            faction.incrementPendingYields();
+        }
 
         ArrayList<DimBlockPos> stale = null;
         for (DimBlockPos collectorPos : faction.getIslandCollectors()) {

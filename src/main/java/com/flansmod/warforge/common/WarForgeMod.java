@@ -44,6 +44,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
 import net.neoforged.neoforge.event.ServerChatEvent;
@@ -122,6 +123,7 @@ public class WarForgeMod {
             IMultiBlockInit.registerMaps();
             WarForgeConfig.onRegistriesReady();
             loadUpgradeConfig();
+            if (ModList.get().isLoaded("golemcore")) com.flansmod.warforge.compat.golem.GolemProtection.register();
         });
     }
 
@@ -351,6 +353,9 @@ public class WarForgeMod {
     public void serverStarted(ServerStartedEvent event) {
         CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.registry.getAllFactions());
         FACTIONS.recalculateAllWealth();
+        if (WarForgeConfig.DYNMAP_ENABLED && ModList.get().isLoaded("dynmap")) {
+            com.flansmod.warforge.compat.dynmap.DynmapBridge.start(FACTIONS);
+        }
     }
 
     @SubscribeEvent
@@ -368,6 +373,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void serverStopped(ServerStoppedEvent event) {
+        com.flansmod.warforge.compat.dynmap.DynmapBridge.stop();
         SaveManager.saveAndStop("Server Stop");
         CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;

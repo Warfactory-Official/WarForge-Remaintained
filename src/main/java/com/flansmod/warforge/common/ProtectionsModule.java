@@ -43,6 +43,7 @@ import javax.annotation.Nonnull;
 import java.util.HashMap;
 import java.util.UUID;
 import com.flansmod.warforge.compat.Stacks;
+import com.flansmod.warforge.compat.carryon.CarryOnCompat;
 
 public class ProtectionsModule {
     /** Ops who toggled /f protection; server only. */
@@ -254,6 +255,13 @@ public class ProtectionsModule {
             return;
 
         Block placedBlock = event.getPlacedBlock().getBlock();
+        // Carry On fires this before setting the block: getPlacedBlock is the replaced state
+        if (eventEntity instanceof Player player) {
+            Block carried = CarryOnCompat.carriedBlock(player);
+            if (carried != null) {
+                placedBlock = carried;
+            }
+        }
         if (eventEntity == null && BuiltInRegistries.BLOCK.getKey(placedBlock).getNamespace().equals("mekanism")) {
             return;
         }
@@ -263,6 +271,10 @@ public class ProtectionsModule {
 
         if (placeDenied(config, placedBlock))
             event.setCanceled(true);
+    }
+
+    public static boolean mayPlace(Player player, Level level, BlockPos pos, Block block) {
+        return isOpOverride(player) || !placeDenied(getProtections(player.getUUID(), new DimBlockPos(level.dimension(), pos)), block);
     }
 
     public static boolean placeDenied(ProtectionConfig config, Block block) {

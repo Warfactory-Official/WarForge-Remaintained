@@ -20,6 +20,8 @@
 	"warforge.info.vein.unrecognized": "Unrecognized vein in current chunk; wait for sync to finish or relog if the issue persists.",
 	"warforge.info.vein.toggle.enabled": "Chunk ore overlay enabled.",
 	"warforge.info.vein.toggle.disabled": "Chunk ore overlay disabled.",
+	"warforge.client.carryon.blocked": "Put down what you are carrying first.",
+	"warforge.client.veins.disabled": "Chunk veins are disabled on this server.",
 
 	"warforge.veins.gold": "%s Gold Vein",
 	"warforge.veins.gold_diamond": "%s Gold-Diamond Vein",
@@ -535,6 +537,8 @@
 	"warforge.server.cmd.flag_usage": "Usage: /f flag <factionName> <set <flagId> | reset>",
 	"warforge.server.cmd.rename_usage": "Usage: /f rename <oldFactionName> <newFactionName>",
 	"warforge.server.cmd.vein_not_ready": "The vein system is not initialized yet",
+	"warforge.server.carryon.denied": "You cannot place the carried block here; it was dropped.",
+	"warforge.server.cmd.vein_disabled": "Chunk veins are disabled in the server config",
 	"warforge.server.cmd.vein_console_at": "From the console you must specify 'at <chunkX> <chunkZ> [dim] [radius]'",
 	"warforge.server.cmd.vein_info_none": "%s: no stored vein (rolls from the seed on first access)",
 	"warforge.server.cmd.vein_info_cleared": "%s: cleared (no vein)",

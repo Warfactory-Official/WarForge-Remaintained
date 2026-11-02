@@ -6,6 +6,7 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.dynmap.DynmapBridge;
 import com.flansmod.warforge.compat.Keys;
 import com.flansmod.warforge.compat.Nbt;
 import net.minecraft.core.registries.Registries;
@@ -44,6 +45,7 @@ public class FactionStorage {
         registry.update();
         combatLog.tick();
         mapSync.tick();
+        DynmapBridge.tick();
     }
 
     public void advanceYieldDay() {

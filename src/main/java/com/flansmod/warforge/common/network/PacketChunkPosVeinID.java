@@ -6,6 +6,7 @@ import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.api.vein.VeinCodec;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
@@ -49,6 +50,9 @@ public class PacketChunkPosVeinID extends ServerboundPacket {
     public void handleServerSide(ServerPlayer playerEntity) {
         if (veinLocation == null) {
             PacketSecurity.violation(playerEntity, "vein query with no position");
+            return;
+        }
+        if (!WarForgeConfig.ENABLE_CHUNK_VEINS) {
             return;
         }
 

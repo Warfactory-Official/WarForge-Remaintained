@@ -129,6 +129,7 @@ Central-siege-day mode only (`Enable Per-Siege timer = false`): `Siege Day Lengt
 
 | Key | Default | Note |
 |---|---|---|
+| `Enable Chunk Veins` | true | false: see [Veins](veins.md#disabling) |
 | `Yield Day Length` | 3600 | Seconds |
 | `Global Poor / Fair / Rich Quality Multiplier` | 0.5 / 1.0 / 2.0 | Fallback when a vein has no `quals` |
 | `Tick-Based Yield Timer`, `Tick-Based Siege Timers`, `Tick-Based Siege Momentum`, `Tick-Based Offline Raid Protection`, `Tick-Based Siege Grace`, `Tick-Based Citadel Move Cooldown`, `Tick-Based Truces`, `Tick-Based Faction Rejoin Cooldown` | false | true: timer advances on server ticks, not wall clock |
@@ -150,6 +151,21 @@ Central-siege-day mode only (`Enable Per-Siege timer = false`): `Siege Day Lengt
 | `Faction Prefix In Chat` / `Faction Prefix In Tab List` | true / true |
 | `JourneyMap Vein Display Mode` | `DISABLED`; `AUTO` streams veins around each player, `PLAYER` only chunks the player loaded |
 | `JourneyMap Vein Auto Radius` | 24 (1..128) |
+
+### Dynmap
+
+- Layer shows only when Dynmap is installed on the server (dedicated or integrated) and `Enable Dynmap Layer`. Layer keys marked "start" are read at server start; opacity, interval and zone labels apply live.
+- Runtime exists for Forge 1.20.1 only (Dynmap has no NeoForge build); see `docs/api.md` compat note.
+
+| Key | Default |
+|---|---|
+| `Enable Dynmap Layer` | true (start) |
+| `Dynmap Layer Label` | `Factions` (start) |
+| `Dynmap Safe Zone Label` / `Dynmap War Zone Label` | `Safe Zone` / `War Zone` |
+| `Dynmap Hide By Default` | false (start) |
+| `Dynmap Layer Priority` | 0 (-1000..1000, start) |
+| `Dynmap Fill Opacity` / `Dynmap Stroke Opacity` | 0.35 / 0.8 |
+| `Dynmap Update Seconds` | 5 (1..3600) |
 
 ### Warps
 

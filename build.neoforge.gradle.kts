@@ -47,8 +47,11 @@ dependencies {
     // Xaero's World Map and Minimap: compileOnly for the claim highlighters (client/xaero, added by mixins).
     compileOnly(prop("deps.xaero_worldmap"))
     compileOnly(prop("deps.xaero_minimap"))
+    // Carry On: compileOnly for compat/carryon (gated mixin + client check); never shipped.
+    compileOnly(prop("deps.carryon"))
 
     "localRuntime"(prop("deps.journeymap"))
     "localRuntime"(prop("deps.xaero_worldmap"))
     "localRuntime"(prop("deps.xaero_minimap"))
+    "localRuntime"(prop("deps.carryon"))
 }

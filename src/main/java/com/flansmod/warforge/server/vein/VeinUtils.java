@@ -7,6 +7,7 @@ import com.flansmod.warforge.api.vein.VeinCodec;
 import com.flansmod.warforge.api.vein.VeinEntry;
 import com.flansmod.warforge.api.vein.VeinView;
 import com.flansmod.warforge.api.WarforgeAPI;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.api.vein.VeinKey;
 import com.flansmod.warforge.api.vein.VeinWeightProvider;
 import it.unimi.dsi.fastutil.doubles.DoubleArrayList;
@@ -83,7 +84,7 @@ public class VeinUtils {
     }
 
     public boolean dimHasVeins(ResourceKey<Level> dim) {
-        return DIM_VEIN_WEIGHT_MAP.containsKey(dim);
+        return WarForgeConfig.ENABLE_CHUNK_VEINS && DIM_VEIN_WEIGHT_MAP.containsKey(dim);
     }
 
     public short getVeinId(ResourceKey<Level> dim, VeinKey key) {

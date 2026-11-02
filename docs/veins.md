@@ -5,6 +5,16 @@ Vein = metadata on a chunk. A faction claiming the chunk receives its ores each 
 - One vein per chunk at most; no vein => nothing produced.
 - Not a physical structure; read via HUD overlay and Territory Map.
 
+## Disabling
+
+`Enable Chunk Veins = false` in `[Yields]`:
+
+- No vein rolled, loaded or paid out; claims gain no pending yields, wealth is 0.
+- Ore overlay (`O`), Territory Map vein tooltips and JourneyMap vein layer hidden; no vein packets sent or answered.
+- `/f vein ...` answers disabled.
+- API: `veins()` empty, `findVein` / `veinAt` null.
+- Stored veins and `veins.toml` kept; re-enabling restores them. `/f reload` applies, wealth recomputed.
+
 ## Assignment
 
 - Deterministic from world seed and chunk coordinates; stored once rolled.

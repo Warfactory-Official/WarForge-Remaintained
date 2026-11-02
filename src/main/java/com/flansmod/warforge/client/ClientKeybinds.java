@@ -34,6 +34,10 @@ public final class ClientKeybinds {
             player.sendSystemMessage(Component.translatable(shown ? "warforge.client.borders.enabled" : "warforge.client.borders.disabled"));
         }
         if (TOGGLE_VEIN_OVERLAY.consumeClick()) {
+            if (!WarForgeConfig.ENABLE_CHUNK_VEINS) {
+                player.sendSystemMessage(Component.translatable("warforge.client.veins.disabled"));
+                return;
+            }
             boolean shown = VeinHud.toggleVisible();
             player.sendSystemMessage(Component.translatable(shown ? "warforge.info.vein.toggle.enabled" : "warforge.info.vein.toggle.disabled"));
         }

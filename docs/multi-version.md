@@ -107,6 +107,14 @@ entity renderers (pole, flag wave, beacon beam, leaderboard, name plates), chat,
 into claims), chunk loading after a restart, combat-log drops, the JourneyMap and Xaero's map overlays, and
 save and load with two clients.
 
+## Carry On
+
+- Optional (`carryon`); compileOnly on every node, dev runtime only.
+- Placement: Carry On's `EntityPlaceEvent` reports the replaced state; protections judge the carried block.
+- Failsafe `placeCarried` (hit, death, disconnect, command): `CarryOnPlacementMixin` (gated by `CompatMixinPlugin`); protected target => block dropped as item, nothing placed.
+- Forge 1.20.1 (LDLib 1 container screens): WF screens refuse to open while carrying; Carry On cancels container screen init. LDLib2 screens are not container screens.
+- In-game: place in own claim, place in foreign claim, hit while carrying (`dropCarriedWhenHit`) inside a foreign claim with a chest, map key while carrying on 1.20.1.
+
 ## Worlds and items across Minecraft versions
 
 There is **no data migration between Minecraft versions**. WarForge keeps the same save keys on every version, but

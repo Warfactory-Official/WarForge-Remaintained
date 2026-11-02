@@ -10,7 +10,9 @@ import com.flansmod.warforge.api.vein.VeinSample;
 import com.flansmod.warforge.api.vein.VeinView;
 import com.flansmod.warforge.api.vein.VeinWeightProvider;
 import com.flansmod.warforge.common.ExplosionProtection;
+import com.flansmod.warforge.common.NonPlayerProtection;
 import com.flansmod.warforge.common.ProtectionsModule;
+import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.PacketClientNotification;
@@ -30,6 +32,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -209,6 +212,21 @@ public final class WarforgeAPI {
         ExplosionProtection.filterByFaction(level, igniterFaction, positions);
     }
 
+    /**
+     * Whether an effect of {@code kind} may alter blocks of {@code chunk}. The actor is {@code player}'s faction, else
+     * {@code faction}; neither => outsider. Uniform per chunk. Flag mapping: docs/api.md.
+     */
+    public static boolean mayAlter(ResourceKey<Level> dim, ChunkPos chunk, @Nullable UUID player, @Nullable UUID faction, AlterKind kind) {
+        server();
+        return NonPlayerProtection.mayAlter(new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)), player, faction, kind);
+    }
+
+    /** Whether an effect of {@code kind} caused by {@code player}/{@code faction} may harm {@code victim}. Non-players: true. */
+    public static boolean mayHarm(Level level, Entity victim, @Nullable UUID player, @Nullable UUID faction, HarmKind kind) {
+        server();
+        return NonPlayerProtection.mayHarm(level, victim, player, faction, kind);
+    }
+
     /** Toast to every online member. Equal {@code dedupeToken}s replace each other on the client; null: no dedupe. */
     public static void notifyFaction(UUID factionId, @Nullable String dedupeToken, Component message, NotificationStyle style, long durationMs) {
         Faction faction = faction(factionId);
@@ -331,11 +349,11 @@ public final class WarforgeAPI {
         return veinWeightProvider;
     }
 
-    /** All configured veins; empty before veins load. */
+    /** All configured veins; empty before veins load or when chunk veins are disabled. */
     public static List<VeinView> veins() {
         VeinUtils handler = WarForgeMod.VEIN_HANDLER;
         server();
-        if (handler == null) return List.of();
+        if (handler == null || !WarForgeConfig.ENABLE_CHUNK_VEINS) return List.of();
         ArrayList<VeinView> out = new ArrayList<>(handler.ID_TO_VEINS.size());
         for (Vein vein : handler.ID_TO_VEINS.values()) {
             out.add(vein.view());
@@ -343,16 +361,16 @@ public final class WarforgeAPI {
         return List.copyOf(out);
     }
 
-    /** By translation key or numeric id; null when unknown. */
+    /** By translation key or numeric id; null when unknown or chunk veins are disabled. */
     @Nullable
     public static VeinView findVein(String key) {
         server();
         VeinUtils handler = WarForgeMod.VEIN_HANDLER;
-        Vein vein = handler == null ? null : handler.findVein(key);
+        Vein vein = handler == null || !WarForgeConfig.ENABLE_CHUNK_VEINS ? null : handler.findVein(key);
         return vein == null ? null : vein.view();
     }
 
-    /** The chunk's vein (rolled and stored on first query); null for no vein or veins not loaded. */
+    /** The chunk's vein (rolled and stored on first query); null for no vein, veins not loaded or chunk veins disabled. */
     @Nullable
     public static VeinSample veinAt(ServerLevel level, int chunkX, int chunkZ) {
         server();

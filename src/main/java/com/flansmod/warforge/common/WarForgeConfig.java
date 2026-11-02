@@ -41,9 +41,11 @@ public class WarForgeConfig {
     public static final String CATEGORY_DISPLAY = "Display";
     public static final String CATEGORY_ALLIANCES = "Alliances";
     public static final String CATEGORY_GENERAL = "General";
+    public static final String CATEGORY_DYNMAP = "Dynmap";
 
     public static final ModConfigSpec SPEC;
 
+    public static boolean ENABLE_CHUNK_VEINS = true;
     public static int YIELD_DAY_LENGTH = 3600; // s
     public static boolean TICK_YIELDS = false;
     public static boolean TICK_SIEGES = false;
@@ -77,6 +79,15 @@ public class WarForgeConfig {
     public static int MIN_DISTANCE_BETWEEN_FACTIONS = 1;
     public static int CLAIM_MANAGER_RADIUS = 4;
     public static boolean CLAIM_MAP_WHOLE_WORLD = true;
+    public static boolean DYNMAP_ENABLED = true;
+    public static String DYNMAP_LAYER_LABEL = "Factions";
+    public static String DYNMAP_SAFE_ZONE_LABEL = "Safe Zone";
+    public static String DYNMAP_WAR_ZONE_LABEL = "War Zone";
+    public static boolean DYNMAP_HIDE_BY_DEFAULT = false;
+    public static int DYNMAP_LAYER_PRIORITY = 0;
+    public static double DYNMAP_FILL_OPACITY = 0.35;
+    public static double DYNMAP_STROKE_OPACITY = 0.8;
+    public static int DYNMAP_UPDATE_SECONDS = 5;
     public static int ISLAND_COLLECTOR_SLOTS = 100;
     public static boolean ENABLE_OFFLINE_RAID_PROTECTION = true;
     public static int OFFLINE_RAID_PROTECTION_HOURS = 24;
@@ -306,6 +317,15 @@ public class WarForgeConfig {
     private static ModConfigSpec.IntValue MIN_DISTANCE_BETWEEN_FACTIONS_V;
     private static ModConfigSpec.IntValue CLAIM_MANAGER_RADIUS_V;
     private static ModConfigSpec.BooleanValue CLAIM_MAP_WHOLE_WORLD_V;
+    private static ModConfigSpec.BooleanValue DYNMAP_ENABLED_V;
+    private static ModConfigSpec.ConfigValue<String> DYNMAP_LAYER_LABEL_V;
+    private static ModConfigSpec.ConfigValue<String> DYNMAP_SAFE_ZONE_LABEL_V;
+    private static ModConfigSpec.ConfigValue<String> DYNMAP_WAR_ZONE_LABEL_V;
+    private static ModConfigSpec.BooleanValue DYNMAP_HIDE_BY_DEFAULT_V;
+    private static ModConfigSpec.IntValue DYNMAP_LAYER_PRIORITY_V;
+    private static ModConfigSpec.DoubleValue DYNMAP_FILL_OPACITY_V;
+    private static ModConfigSpec.DoubleValue DYNMAP_STROKE_OPACITY_V;
+    private static ModConfigSpec.IntValue DYNMAP_UPDATE_SECONDS_V;
     private static ModConfigSpec.IntValue ISLAND_COLLECTOR_SLOTS_V;
     private static ModConfigSpec.BooleanValue ENABLE_OFFLINE_RAID_PROTECTION_V;
     private static ModConfigSpec.IntValue OFFLINE_RAID_PROTECTION_HOURS_V;
@@ -362,6 +382,7 @@ public class WarForgeConfig {
     private static ModConfigSpec.IntValue ALLIANCE_TRUCE_DURATION_MINUTES_V;
     private static ModConfigSpec.IntValue MAX_ALLIES_V;
 
+    private static ModConfigSpec.BooleanValue ENABLE_CHUNK_VEINS_V;
     private static ModConfigSpec.IntValue YIELD_DAY_LENGTH_V;
     private static ModConfigSpec.BooleanValue TICK_YIELDS_V;
     private static ModConfigSpec.BooleanValue TICK_SIEGES_V;
@@ -509,6 +530,7 @@ public class WarForgeConfig {
 
         cfg.push(CATEGORY_YIELDS);
         String qualityText = "The global multiplier for %s quality veins which all veins fall back to if they do not have an override.";
+        ENABLE_CHUNK_VEINS_V = cfg.comment("If false, chunks have no veins: nothing is generated, claims yield nothing, and vein overlays, map layers and /f vein commands are disabled. Stored veins are kept and return when re-enabled.").define("Enable Chunk Veins", ENABLE_CHUNK_VEINS);
         YIELD_DAY_LENGTH_V = cfg.comment("The length of time between yields, in real-world seconds.").defineInRange("Yield Day Length", YIELD_DAY_LENGTH, 1, Integer.MAX_VALUE);
         String tickComment = "If true, this timer advances on server ticks (game time that pauses while the server is stopped or not ticking) instead of real-world wall-clock time. Each timer is independent. Do not change on an existing world that has active factions; stored timestamps are not converted. NOT safely hot-reloadable: /war reloadConfig will read the new value, but flipping the timebase on a live world mixes tick-time and wall-clock timestamps and corrupts active timers, so only change this with the server stopped.";
         TICK_YIELDS_V = cfg.comment("Passive yield cycle. " + tickComment).define("Tick-Based Yield Timer", TICK_YIELDS);
@@ -545,6 +567,18 @@ public class WarForgeConfig {
                         + "PLAYER = a chunk's vein only appears once the player has walked into and loaded that chunk; unobserved veins are never sent to the client.")
                 .define("JourneyMap Vein Display Mode", "DISABLED", o -> isJourneyMapMode(o));
         JOURNEYMAP_VEIN_AUTO_RADIUS_V = cfg.comment("In AUTO vein mode, how many chunks around each player to reveal veins for. Larger values reveal more of the map but cause the server to generate and store veins over a wider area.").defineInRange("JourneyMap Vein Auto Radius", JOURNEYMAP_VEIN_AUTO_RADIUS, 1, 128);
+        cfg.pop();
+
+        cfg.push(CATEGORY_DYNMAP);
+        DYNMAP_ENABLED_V = cfg.comment("Show faction claims, safe zones and war zones as a Dynmap layer, if Dynmap is installed on the server. Read at server start.").define("Enable Dynmap Layer", DYNMAP_ENABLED);
+        DYNMAP_LAYER_LABEL_V = cfg.comment("Name of the Dynmap layer. Read at server start.").define("Dynmap Layer Label", DYNMAP_LAYER_LABEL);
+        DYNMAP_SAFE_ZONE_LABEL_V = cfg.comment("Dynmap label of safe zone areas.").define("Dynmap Safe Zone Label", DYNMAP_SAFE_ZONE_LABEL);
+        DYNMAP_WAR_ZONE_LABEL_V = cfg.comment("Dynmap label of war zone areas.").define("Dynmap War Zone Label", DYNMAP_WAR_ZONE_LABEL);
+        DYNMAP_HIDE_BY_DEFAULT_V = cfg.comment("The Dynmap layer starts unticked in the layer list. Read at server start.").define("Dynmap Hide By Default", DYNMAP_HIDE_BY_DEFAULT);
+        DYNMAP_LAYER_PRIORITY_V = cfg.comment("Dynmap layer order; higher draws above. Read at server start.").defineInRange("Dynmap Layer Priority", DYNMAP_LAYER_PRIORITY, -1000, 1000);
+        DYNMAP_FILL_OPACITY_V = cfg.comment("Fill opacity of claim areas on Dynmap, 0 to 1.").defineInRange("Dynmap Fill Opacity", DYNMAP_FILL_OPACITY, 0d, 1d);
+        DYNMAP_STROKE_OPACITY_V = cfg.comment("Outline opacity of claim areas on Dynmap, 0 to 1.").defineInRange("Dynmap Stroke Opacity", DYNMAP_STROKE_OPACITY, 0d, 1d);
+        DYNMAP_UPDATE_SECONDS_V = cfg.comment("Seconds between Dynmap layer refreshes. Only changed factions are rebuilt.").defineInRange("Dynmap Update Seconds", DYNMAP_UPDATE_SECONDS, 1, 3600);
         cfg.pop();
 
         cfg.push(CATEGORY_WARPS);
@@ -765,6 +799,15 @@ public class WarForgeConfig {
         MIN_DISTANCE_BETWEEN_FACTIONS = src.integer(MIN_DISTANCE_BETWEEN_FACTIONS_V);
         CLAIM_MANAGER_RADIUS = src.integer(CLAIM_MANAGER_RADIUS_V);
         CLAIM_MAP_WHOLE_WORLD = src.bool(CLAIM_MAP_WHOLE_WORLD_V);
+        DYNMAP_ENABLED = src.bool(DYNMAP_ENABLED_V);
+        DYNMAP_LAYER_LABEL = src.string(DYNMAP_LAYER_LABEL_V);
+        DYNMAP_SAFE_ZONE_LABEL = src.string(DYNMAP_SAFE_ZONE_LABEL_V);
+        DYNMAP_WAR_ZONE_LABEL = src.string(DYNMAP_WAR_ZONE_LABEL_V);
+        DYNMAP_HIDE_BY_DEFAULT = src.bool(DYNMAP_HIDE_BY_DEFAULT_V);
+        DYNMAP_LAYER_PRIORITY = src.integer(DYNMAP_LAYER_PRIORITY_V);
+        DYNMAP_FILL_OPACITY = src.dbl(DYNMAP_FILL_OPACITY_V);
+        DYNMAP_STROKE_OPACITY = src.dbl(DYNMAP_STROKE_OPACITY_V);
+        DYNMAP_UPDATE_SECONDS = src.integer(DYNMAP_UPDATE_SECONDS_V);
         ISLAND_COLLECTOR_SLOTS = src.integer(ISLAND_COLLECTOR_SLOTS_V);
         ENABLE_OFFLINE_RAID_PROTECTION = src.bool(ENABLE_OFFLINE_RAID_PROTECTION_V);
         OFFLINE_RAID_PROTECTION_HOURS = src.integer(OFFLINE_RAID_PROTECTION_HOURS_V);
@@ -822,6 +865,7 @@ public class WarForgeConfig {
         ALLIANCE_TRUCE_DURATION_MINUTES = src.integer(ALLIANCE_TRUCE_DURATION_MINUTES_V);
         MAX_ALLIES = src.integer(MAX_ALLIES_V);
 
+        ENABLE_CHUNK_VEINS = src.bool(ENABLE_CHUNK_VEINS_V);
         YIELD_DAY_LENGTH = src.integer(YIELD_DAY_LENGTH_V);
         TICK_YIELDS = src.bool(TICK_YIELDS_V);
         TICK_SIEGES = src.bool(TICK_SIEGES_V);
@@ -848,7 +892,7 @@ public class WarForgeConfig {
 
         FACTION_PREFIX_IN_CHAT = src.bool(FACTION_PREFIX_IN_CHAT_V);
         FACTION_PREFIX_IN_TABLIST = src.bool(FACTION_PREFIX_IN_TABLIST_V);
-        JOURNEYMAP_VEIN_MODE = parseJourneyMapMode(src.string(JOURNEYMAP_VEIN_MODE_V));
+        JOURNEYMAP_VEIN_MODE = ENABLE_CHUNK_VEINS ? parseJourneyMapMode(src.string(JOURNEYMAP_VEIN_MODE_V)) : JM_MODE_DISABLED;
         JOURNEYMAP_VEIN_AUTO_RADIUS = src.integer(JOURNEYMAP_VEIN_AUTO_RADIUS_V);
 
         ENABLE_F_HOME_COMMAND = src.bool(ENABLE_F_HOME_COMMAND_V);

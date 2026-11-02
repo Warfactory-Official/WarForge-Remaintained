@@ -55,11 +55,13 @@ dependencies {
     // go through the remapping mod* configurations.
     "modCompileOnly"(prop("deps.xaero_worldmap"))
     "modCompileOnly"(prop("deps.xaero_minimap"))
+    "modCompileOnly"(prop("deps.carryon"))
 
     // The JourneyMap and Xaero mods themselves, dev-runtime only (client runs).
     "modLocalRuntime"(prop("deps.journeymap"))
     "modLocalRuntime"(prop("deps.xaero_worldmap"))
     "modLocalRuntime"(prop("deps.xaero_minimap"))
+    "modLocalRuntime"(prop("deps.carryon"))
 }
 
 tasks.named<Jar>("jar") {

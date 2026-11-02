@@ -21,6 +21,8 @@ pack_format = "15"
 loader_dependency_range = "[47,)"
 minecraft_version_range = "[1.20.1,1.20.2)"
 deps.forge = "47.4.23"
+# Golem Core: compileOnly for compat/golem; resolved from mavenLocal (publishToMavenLocal in Golem-Core). TODO: remote repo.
+deps.golem = "dev.golem:golemcore-forge-1.20.1:1.0.3+1.20.1"
 deps.parchment_minecraft = "1.20.1"
 deps.parchment = "2023.09.03"
 # LDLib v1 (UI framework on Forge 1.20.1; a different API from LDLib2).
@@ -32,6 +34,8 @@ deps.journeymap = "maven.modrinth:journeymap:1.20.1-6.0.6+forge"
 # same in every version; XaeroLib comes inside both jars.
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:forge-1.20.1-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:forge-1.20.1-26.5.0"
+# Carry On (compile-only compat + dev runtime); Modrinth version ids because version numbers repeat per loader.
+deps.carryon = "maven.modrinth:carry-on:edGQD16r"
 deps.journeymap_api_jarjar = "META-INF/jarjar/journeymap-api-forge-1.20.1-2.0.0.jar"
 
 [neoforge]
@@ -47,6 +51,7 @@ pack_format = "34"
 loader_dependency_range = "[21.1.1,22)"
 minecraft_version_range = "[1.21.1,1.22)"
 deps.neoforge = "21.1.248"
+deps.golem = "dev.golem:golemcore-neoforge-1.21.1:1.0.3+1.21.1"
 deps.parchment_minecraft = "1.21.1"
 deps.parchment = "2024.11.17"
 # LDLib2 (UI framework) on maven.firstdark.dev; the ':all' classifier bundles impl + Yoga.
@@ -62,6 +67,7 @@ deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:2.0.0-1.21.1-2026
 deps.journeymap = "maven.modrinth:journeymap:1.21.1-6.0.6+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-1.21.1-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-1.21.1-26.5.0"
+deps.carryon = "maven.modrinth:carry-on:PV8oLZ1q"
 
 [neoforge."26.1.2"]
 data_run_type = "clientData"
@@ -72,6 +78,7 @@ mixin_java = "JAVA_25"
 loader_dependency_range = "[26.1.2,26.2)"
 minecraft_version_range = "[26.1.2,26.2)"
 deps.neoforge = "26.1.2.112"
+deps.golem = "dev.golem:golemcore-neoforge-26.1:1.0.3+26.1"
 deps.ldlib2_artifact = "ldlib2-neoforge-26.1"
 deps.ldlib2 = "26.1.2.41"
 ldlib_dependency_range = "[26.1.2.41,)"
@@ -79,6 +86,7 @@ deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:2.0.0-26.1-202605
 deps.journeymap = "maven.modrinth:journeymap:26.1.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.1.2-1.46.0"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.1.2-26.5.0"
+deps.carryon = "maven.modrinth:carry-on:c2uJiLoV"
 
 [neoforge."26.2"]
 data_run_type = "clientData"
@@ -88,6 +96,7 @@ mixin_java = "JAVA_25"
 loader_dependency_range = "[26.2,26.3)"
 minecraft_version_range = "[26.2,26.3)"
 deps.neoforge = "26.2.0.88"
+deps.golem = "dev.golem:golemcore-neoforge-26.1:1.0.3+26.1"
 deps.ldlib2_artifact = "ldlib2-neoforge-26.2"
 deps.ldlib2 = "26.2.2.41.a"
 ldlib_dependency_range = "[26.2.2.41.a,)"
@@ -95,3 +104,4 @@ deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:26.2-2.0.0-202606
 deps.journeymap = "maven.modrinth:journeymap:26.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.2-1.46.1"
 deps.xaero_minimap = "maven.modrinth:xaeros-minimap:neoforge-26.2-26.5.1"
+deps.carryon = "maven.modrinth:carry-on:EMd9Jyxc"
