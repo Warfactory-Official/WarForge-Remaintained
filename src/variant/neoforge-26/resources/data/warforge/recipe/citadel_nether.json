@@ -1,0 +1,16 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "GGG",
+    "GSG",
+    "OOO"
+  ],
+  "key": {
+    "S": "minecraft:ghast_tear",
+    "G": "minecraft:glowstone",
+    "O": "minecraft:nether_brick"
+  },
+  "result": {
+    "id": "warforge:citadelblock"
+  }
+}

@@ -1,8 +1,7 @@
 package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.OperationsGuiData;
-import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.common.network.OperationsGuiData;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.Siege;
@@ -16,7 +15,7 @@ import net.minecraft.world.entity.player.Player;
 import java.util.Map;
 import com.flansmod.warforge.compat.Keys;
 
-public class PacketRequestOperations extends PacketBase {
+public class PacketRequestOperations extends ServerboundPacket {
     @Override
     public void encodeInto(FriendlyByteBuf data) {
     }
@@ -28,33 +27,33 @@ public class PacketRequestOperations extends PacketBase {
     @Override
     public void handleServerSide(ServerPlayer player) {
         PacketOperationsData resp = new PacketOperationsData();
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
         if (faction == null) {
             WarForgeMod.NETWORK.sendTo(resp, player);
             return;
         }
         resp.hasFaction = true;
-        resp.factionId = faction.uuid;
-        resp.factionName = faction.name;
-        resp.factionColor = faction.colour;
+        resp.factionId = faction.getUuid();
+        resp.factionName = faction.getName();
+        resp.factionColor = faction.getColour();
         resp.warpTicketCost = 1 + FobWarpQueue.vehicleExtraCost(player.getVehicle());
 
-        boolean ownerInSiege = WarForgeMod.FACTIONS.isFactionInActiveSiege(faction.uuid);
+        boolean ownerInSiege = WarForgeMod.FACTIONS.sieges.isFactionInActiveSiege(faction.getUuid());
 
-        for (Map.Entry<DimChunkPos, Siege> entry : WarForgeMod.FACTIONS.getSieges().entrySet()) {
+        for (Map.Entry<DimChunkPos, Siege> entry : WarForgeMod.FACTIONS.sieges.entries().entrySet()) {
             Siege siege = entry.getValue();
-            boolean attacking = faction.uuid.equals(siege.attackingFaction);
-            boolean defending = faction.uuid.equals(siege.defendingFaction);
+            boolean attacking = faction.getUuid().equals(siege.attackingFaction);
+            boolean defending = faction.getUuid().equals(siege.defendingFaction);
             if (!attacking && !defending) {
                 continue;
             }
-            Faction attacker = WarForgeMod.FACTIONS.getFaction(siege.attackingFaction);
-            Faction defender = WarForgeMod.FACTIONS.getFaction(siege.defendingFaction);
+            Faction attacker = WarForgeMod.FACTIONS.registry.getFaction(siege.attackingFaction);
+            Faction defender = WarForgeMod.FACTIONS.registry.getFaction(siege.defendingFaction);
             OperationsGuiData.SiegeEntry siegeEntry = new OperationsGuiData.SiegeEntry();
-            siegeEntry.attackerName = attacker == null ? "Unknown" : attacker.name;
-            siegeEntry.defenderName = defender == null ? "Unknown" : defender.name;
-            siegeEntry.attackerColor = attacker == null ? 0xFFFFFF : attacker.colour;
-            siegeEntry.defenderColor = defender == null ? 0xFFFFFF : defender.colour;
+            siegeEntry.attackerName = attacker == null ? "Unknown" : attacker.getName();
+            siegeEntry.defenderName = defender == null ? "Unknown" : defender.getName();
+            siegeEntry.attackerColor = attacker == null ? 0xFFFFFF : attacker.getColour();
+            siegeEntry.defenderColor = defender == null ? 0xFFFFFF : defender.getColour();
             siegeEntry.chunkX = entry.getKey().x;
             siegeEntry.chunkZ = entry.getKey().z;
             siegeEntry.dimName = Keys.id(entry.getKey().dim).toString();

@@ -5,6 +5,7 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.testing.Test
 import org.gradle.jvm.tasks.Jar
 import org.gradle.jvm.toolchain.JavaLanguageVersion
 import org.gradle.kotlin.dsl.apply
@@ -53,16 +54,16 @@ class ModCommonPlugin : Plugin<Project> {
         configureJar()
         useNeoFormMutex()
 
-        val guardCheck = tasks.register<CheckNoVersionGuards>("checkNoVersionGuards") {
-            group = "verification"
-            description = "Fails if a Stonecutter version comment is in shared code (src/main)."
-            sources.from(rootProject.fileTree("src/main"))
+        tasks.named("check") { dependsOn(":checkNoVersionGuards") }
+
+        tasks.withType<Test>().configureEach {
+            // Level.OVERWORLD needs bootstrapped vanilla registries, which only 1.21.1 tolerates without a launcher.
+            useJUnitPlatform { if (mcVersion != "1.21.1") excludeTags("needs-registries") }
         }
-        tasks.named("check") { dependsOn(guardCheck) }
 
         tasks.withType<JavaCompile>().configureEach {
             options.encoding = "UTF-8"
-            options.compilerArgs.addAll(listOf("-Xmaxerrs", "2000", "-Xmaxwarns", "0"))
+            options.compilerArgs.addAll(listOf("-Xmaxerrs", "2000", "-Xlint:unchecked,rawtypes"))
         }
 
         extensions.configure<IdeaModel> {
@@ -79,6 +80,7 @@ class ModCommonPlugin : Plugin<Project> {
             }
             repositories.maven(rootProject.uri("repo"))
         }
+        if (loader == "neoforge") configureSnapshotPublishing()
 
         configurePlatformPublishing()
     }
@@ -89,10 +91,6 @@ class ModCommonPlugin : Plugin<Project> {
         maven("https://maven.firstdark.dev/releases") { name = "FirstDark Releases" }
         maven("https://modmaven.dev") { name = "ModMaven" } // AE2 Yoga (LDLib2 transitive) and other ecosystem libs
         maven("https://maven.parchmentmc.org") { name = "ParchmentMC" }
-        maven("https://cursemaven.com") { // CurseForge artifacts (SBW, AshVehicle, EffortlessBuilding)
-            name = "CurseMaven"
-            content { includeGroup("curse.maven") }
-        }
         maven("https://jm.gserv.me/repository/maven-public/") { // the only place the JourneyMap client API is published
             name = "JourneyMap"
             content { includeGroup("info.journeymap") }
@@ -101,22 +99,20 @@ class ModCommonPlugin : Plugin<Project> {
             name = "Modrinth"
             content { includeGroup("maven.modrinth") }
         }
-        maven("https://api.cloudsmith.io/maven/geckolib3/geckolib/") { name = "GeckoLib" } // SBW runtime dep for dev runs
-        maven("https://thedarkcolour.github.io/KotlinForForge/") { name = "KotlinForForge" } // SBW runtime dep
-        maven("https://repo.warfactory.co/releases") { name = "Warfactory Releases" }
         mavenCentral()
-        mavenLocal()
     }
 
     private fun Project.configureDependencies() {
-        // localRuntime: dev-only runtime mods (map mods, SBW, GeckoLib, KFF) that are NOT shipped.
-        val localRuntime = configurations.create("localRuntime")
-        configurations.named("runtimeClasspath") { extendsFrom(localRuntime) }
+        // localRuntime: dev-only runtime mods (map mods) that are NOT shipped.
+        configurations.create("localRuntime")
 
         dependencies.apply {
             add("compileOnly", "org.jetbrains:annotations:24.1.0")
             add("compileOnly", "org.projectlombok:lombok:1.18.42")
             add("annotationProcessor", "org.projectlombok:lombok:1.18.42")
+            add("testImplementation", platform("org.junit:junit-bom:5.11.4"))
+            add("testImplementation", "org.junit.jupiter:junit-jupiter")
+            add("testRuntimeOnly", "org.junit.platform:junit-platform-launcher")
         }
     }
 
@@ -132,6 +128,7 @@ class ModCommonPlugin : Plugin<Project> {
             "minecraft_version_range" to prop("minecraft_version_range"),
             "loader_version_range" to prop("loader_version_range"),
             "loader_dependency_range" to prop("loader_dependency_range"),
+            "ldlib_dependency_range" to prop("ldlib_dependency_range"),
             // Only the pre-26 pack.mcmeta has a pack_format; 26.x declares no format (NeoForge then accepts any).
             "pack_format" to (propOrNull("pack_format") ?: ""),
             "mixin_java" to prop("mixin_java"),
@@ -161,6 +158,19 @@ class ModCommonPlugin : Plugin<Project> {
                     "Implementation-Vendor" to prop("mod.authors"),
                 )
             )
+        }
+    }
+
+    private fun Project.configureSnapshotPublishing() {
+        extensions.configure<PublishingExtension> {
+            publications.named<MavenPublication>("mavenJava") { version = "${prop("mod.version")}-SNAPSHOT" }
+            repositories.maven("https://repo.warfactory.co/snapshots") {
+                name = "WarfactorySnapshots"
+                credentials {
+                    username = findProperty("warfactoryUser") as String? ?: System.getenv("WARFACTORY_MAVEN_USER")
+                    password = findProperty("warfactoryToken") as String? ?: System.getenv("WARFACTORY_MAVEN_TOKEN")
+                }
+            }
         }
     }
 }

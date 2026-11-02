@@ -8,14 +8,6 @@
 	"block.warforge.legacyleaderboard": "Блок таблицы лидеров (Наследие)",
 	"block.warforge.notorietyleaderboard": "Блок таблицы лидеров (Слава)",
 
-	"effect.warforge.tpaccept": "Телевосприимчивость (Игроки могут tp к Вам)",
-	"effect.warforge.tprequest": "Телепортация (tp к ближайшему игроку с эффектом Телевосприимчивости)",
-	"item.minecraft.potion.effect.tpacceptpotion": "Зелье Телевосприимчивости",
-	"item.minecraft.potion.effect.tprequestpotion": "Зелье Телепортации",
-	"item.minecraft.splash_potion.effect.tpacceptpotion": "Взрывное зелье Телевосприимчивости",
-	"item.minecraft.splash_potion.effect.tprequestpotion": "Взрывное зелье Телепортации",
-	"item.minecraft.lingering_potion.effect.tpacceptpotion": "Туманное зелье Телевосприимчивости",
-	"item.minecraft.lingering_potion.effect.tprequestpotion": "Туманное зелье Телепортации",
 
 	"warforge.info.vein.rich": "Богатая",
 	"warforge.info.vein.fair": "Средняя",

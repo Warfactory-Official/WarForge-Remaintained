@@ -1,9 +1,7 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.client.ClientFlagRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 public class PacketFlagChunk extends PacketBase {
     public String flagId = "";
@@ -34,8 +32,7 @@ public class PacketFlagChunk extends PacketBase {
         height = in.readShort();
         partIndex = in.readShort();
         totalParts = in.readShort();
-        // Never size the array from the length field alone: cap it at both the chunking limit and
-        // what the buffer actually still holds, so a 4-byte lie can't ask for a 2GB allocation.
+        // never size from the length field alone: cap by chunk limit and remaining buffer
         int length = Math.min(PacketSecurity.clampCount(in.readInt(), MAX_CHUNK_BYTES), in.readableBytes());
         data = new byte[length];
         in.readBytes(data);
@@ -43,10 +40,5 @@ public class PacketFlagChunk extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        ClientFlagRegistry.receiveCustomFlagChunk(flagId, width, height, partIndex, totalParts, data);
     }
 }

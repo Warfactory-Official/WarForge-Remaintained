@@ -1,0 +1,73 @@
+package com.flansmod.warforge.common.network;
+
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
+import net.minecraft.world.entity.player.Player;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+public class FactionMemberManagerGuiData {
+    public enum Page {
+        MEMBERS,
+        INVITES,
+        ALLIANCES
+    }
+
+    public static class AllianceEntry {
+        public static final byte KIND_ALLY = 0;        // a current ally (offer Break)
+        public static final byte KIND_PENDING = 1;     // an incoming alliance request (offer Accept/Decline)
+        public static final byte KIND_INVITABLE = 2;   // a faction we could invite (offer Invite)
+
+        public UUID factionId = FactionIds.NONE;
+        public String factionName = "";
+        public int factionColor = 0x4E8E87;
+        public int onlineCount;
+        public byte kind = KIND_INVITABLE;
+    }
+
+    public static class MemberEntry {
+        public UUID playerId = FactionIds.NONE;
+        public String username = "";
+        public Role role = Role.MEMBER;
+        public boolean online;
+        public boolean self;
+        public boolean canKickOrLeave;
+        public boolean canPromote;
+        public boolean canDemote;
+        public boolean canTransferLeadership;
+    }
+
+    public static class InviteEntry {
+        public UUID playerId = FactionIds.NONE;
+        public String username = "";
+        public UUID factionId = FactionIds.NONE;
+        public int factionColor = 0x4E8E87;
+        public UUID inviterId = FactionIds.NONE;
+        public String inviterName = "";
+        public boolean incoming;
+        public boolean invited;
+        public boolean canInvite;
+        public boolean canAccept;
+    }
+
+    public Page page;
+    public boolean hasFaction;
+    public UUID factionId = FactionIds.NONE;
+    public String factionName = "";
+    public int factionColor = 0x4E8E87;
+    public Role viewerRole = Role.MEMBER;
+    public boolean canManageMembers;
+    public boolean canInvitePlayers;
+    public boolean canManageAlliances;
+    public boolean allowAllyInteraction;
+    public final List<MemberEntry> members = new ArrayList<>();
+    public final List<InviteEntry> inviteCandidates = new ArrayList<>();
+    public final List<AllianceEntry> alliances = new ArrayList<>();
+
+    public FactionMemberManagerGuiData(Player player, Page page) {
+        this.page = page;
+    }
+}

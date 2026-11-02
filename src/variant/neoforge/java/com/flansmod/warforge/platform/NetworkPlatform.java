@@ -1,6 +1,7 @@
 package com.flansmod.warforge.platform;
 
 import com.flansmod.warforge.Tags;
+import com.flansmod.warforge.client.ServerBound;
 import com.flansmod.warforge.common.network.PacketBase;
 import com.flansmod.warforge.common.network.WFNetwork;
 import com.flansmod.warforge.compat.Ids;
@@ -20,7 +21,6 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 import java.util.HashMap;
 import java.util.Map;
 
-/** Registers WFNetwork.PACKETS as NeoForge payloads and sends them. */
 public final class NetworkPlatform {
     private NetworkPlatform() {}
 
@@ -33,7 +33,6 @@ public final class NetworkPlatform {
         modBus.addListener(NetworkPlatform::onRegisterPayloads);
     }
 
-    /** The payload type of a packet class (PacketBase.type()). */
     static CustomPacketPayload.Type<?> typeOf(Class<?> packetClass) {
         CustomPacketPayload.Type<?> type = TYPES.get(packetClass);
         if (type == null) {

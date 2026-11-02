@@ -14,7 +14,6 @@ final class ClientText {
     private ClientText() {
     }
 
-    /** {width of widest line, lines * lineHeight - 1} of text split at maxWidth (ModularUI TextRenderer). */
     static int[] wrappedSize(Component text, int maxWidth) {
         Font font = Minecraft.getInstance().font;
         List<FormattedCharSequence> lines = font.split(text, maxWidth);

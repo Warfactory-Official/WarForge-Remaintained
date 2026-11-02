@@ -10,14 +10,9 @@ import net.neoforged.neoforge.transfer.transaction.TransactionContext;
 
 import java.util.Arrays;
 
-/**
- * Exposes an extract-only IItemHandler (the island collector's pull-only view) as the 26.x item resource handler.
- * Extractions inside a transaction are only recorded; they are applied to the handler when the outermost
- * transaction commits, and dropped if it is aborted. Insertion is always refused, like the wrapped view.
- */
+/** Extractions in a transaction are recorded, applied on outermost commit, dropped on abort. Insertion always refused. */
 public final class ExtractOnlyItemResources extends SnapshotJournal<int[]> implements ResourceHandler<ItemResource> {
     private final IItemHandler handler;
-    /** Items extracted per slot in the ongoing transaction, not yet taken from the handler. */
     private int[] pending = new int[0];
 
     public ExtractOnlyItemResources(IItemHandler handler) {

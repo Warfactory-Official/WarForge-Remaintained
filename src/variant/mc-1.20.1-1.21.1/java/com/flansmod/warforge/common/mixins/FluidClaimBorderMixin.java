@@ -1,6 +1,6 @@
 package com.flansmod.warforge.common.mixins;
 
-import com.flansmod.warforge.common.util.FluidClaimRules;
+import com.flansmod.warforge.common.protection.FluidClaimRules;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockGetter;
@@ -13,10 +13,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-//   Anti Obama system
-//    Prevents liquid flow into claimed chunks from claimed chunks, allows for flow out of claimed chunks into unclaimed
-
-
 @Mixin(FlowingFluid.class)
 public class FluidClaimBorderMixin {
 
@@ -25,6 +21,6 @@ public class FluidClaimBorderMixin {
                                              Direction direction, BlockPos toPos, BlockState toState,
                                              FluidState toFluid, Fluid fluid, CallbackInfoReturnable<Boolean> cir) {
         if (FluidClaimRules.blocksFlow(level, fromPos, toPos))
-            cir.setReturnValue(false); // foreign source flowing into a claim -- block it
+            cir.setReturnValue(false);
     }
 }

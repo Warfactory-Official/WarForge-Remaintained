@@ -1,20 +1,19 @@
 package com.flansmod.warforge.server.fob;
 
+import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Faction;
+import com.flansmod.warforge.compat.Nbt;
 import net.minecraft.nbt.CompoundTag;
 
 import java.util.UUID;
-import com.flansmod.warforge.compat.Nbt;
 
 public class Fob {
     public DimBlockPos pos = DimBlockPos.ZERO;
-    public UUID ownerFaction = Faction.nullUuid;
+    public UUID ownerFaction = FactionIds.NONE;
     public String name = "";
     public int tickets = 0;
     public int maxTickets = 0;
-    public long nextRegenMs = 0L;
     public int enemyHoldTicks = 0;
 
     public Fob() {
@@ -35,7 +34,6 @@ public class Fob {
         tags.putString("name", name);
         tags.putInt("tickets", tickets);
         tags.putInt("maxTickets", maxTickets);
-        tags.putLong("nextRegen", nextRegenMs);
         tags.putInt("enemyHoldTicks", enemyHoldTicks);
     }
 
@@ -44,7 +42,6 @@ public class Fob {
         name = Nbt.getString(tags, "name");
         tickets = Nbt.getInt(tags, "tickets");
         maxTickets = Nbt.getInt(tags, "maxTickets");
-        nextRegenMs = Nbt.getLong(tags, "nextRegen");
         enemyHoldTicks = Nbt.getInt(tags, "enemyHoldTicks");
     }
 }

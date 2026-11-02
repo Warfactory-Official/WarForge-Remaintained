@@ -5,7 +5,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
-public class PacketRequestNamePlate extends PacketBase {
+public class PacketRequestNamePlate extends ServerboundPacket {
     public String name;
 
     @Override
@@ -20,7 +20,7 @@ public class PacketRequestNamePlate extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        WarForgeMod.FACTIONS.requestNamePlateCacheEntry(playerEntity, name);
+        WarForgeMod.FACTIONS.namePlates.reply(playerEntity, name);
     }
 
     @Override

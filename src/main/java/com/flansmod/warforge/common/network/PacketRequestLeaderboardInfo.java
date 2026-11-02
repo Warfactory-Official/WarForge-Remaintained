@@ -6,37 +6,37 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
-public class PacketRequestLeaderboardInfo extends PacketBase
+public class PacketRequestLeaderboardInfo extends ServerboundPacket
 {
-	public FactionStat stat = FactionStat.TOTAL;
-	public int firstIndex = 0;
+    public FactionStat stat = FactionStat.TOTAL;
+    public int firstIndex = 0;
 
-	@Override
-	public void encodeInto(FriendlyByteBuf data)
-	{
-		data.writeInt(firstIndex);
-		data.writeInt(stat.ordinal());
-	}
+    @Override
+    public void encodeInto(FriendlyByteBuf data)
+    {
+        data.writeInt(firstIndex);
+        data.writeInt(stat.ordinal());
+    }
 
-	@Override
-	public void decodeInto(FriendlyByteBuf data)
-	{
-		firstIndex = data.readInt();
-		stat = PacketSecurity.readEnumInt(data, FactionStat.values(), FactionStat.TOTAL);
-	}
+    @Override
+    public void decodeInto(FriendlyByteBuf data)
+    {
+        firstIndex = data.readInt();
+        stat = PacketSecurity.readEnumInt(data, FactionStat.values(), FactionStat.TOTAL);
+    }
 
-	@Override
-	public void handleServerSide(ServerPlayer playerEntity)
-	{
-		PacketLeaderboardInfo packet = new PacketLeaderboardInfo();
-		packet.info = WarForgeMod.LEADERBOARD.CreateInfo(firstIndex, stat, playerEntity.getUUID());
-		WarForgeMod.NETWORK.sendTo(packet, playerEntity);
-	}
+    @Override
+    public void handleServerSide(ServerPlayer playerEntity)
+    {
+        PacketLeaderboardInfo packet = new PacketLeaderboardInfo();
+        packet.info = WarForgeMod.LEADERBOARD.createInfo(firstIndex, stat, playerEntity.getUUID());
+        WarForgeMod.NETWORK.sendTo(packet, playerEntity);
+    }
 
-	@Override
-	public void handleClientSide(Player clientPlayer)
-	{
-		WarForgeMod.LOGGER.error("Received LeaderboardInfo request on client");
-	}
+    @Override
+    public void handleClientSide(Player clientPlayer)
+    {
+        WarForgeMod.LOGGER.error("Received LeaderboardInfo request on client");
+    }
 
 }

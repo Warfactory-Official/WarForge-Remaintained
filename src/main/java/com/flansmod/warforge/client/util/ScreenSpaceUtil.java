@@ -2,29 +2,40 @@ package com.flansmod.warforge.client.util;
 
 import net.minecraft.client.Minecraft;
 
-import java.util.function.IntConsumer;
-import java.util.function.IntSupplier;
+public final class ScreenSpaceUtil {
+    private static final int BOTTOM_ANCHOR_RESERVED = 43;
 
-//GOD this ui is a clusterfuck
-public class ScreenSpaceUtil {
+    private static int screenWidth;
+    private static int screenHeight;
+    private static int topLeftOffset, topRightOffset, topOffset;
+    private static int bottomLeftOffset, bottomRightOffset, bottomOffset;
 
+    private ScreenSpaceUtil() {
+    }
 
-    public static int RESOLUTIONY;
-    public static int RESOLUTIONX;
-    // Positive = offset downward/right
-    // Negative = offset upward/left
-    public static int topLeftOffset, topRightOffset, topOffset;
-    public static int bottomLeftOffset, bottomRightOffset, bottomOffset;
-    static Minecraft minecraft = Minecraft.getInstance();
-    public static int TEXTHEIGHT = minecraft.font.lineHeight;
+    public static int textHeight() {
+        return Minecraft.getInstance().font.lineHeight;
+    }
+
+    public static int screenWidth() {
+        return screenWidth;
+    }
+
+    public static int screenHeight() {
+        return screenHeight;
+    }
 
     public static void resetOffsets() {
-        RESOLUTIONX = minecraft.getWindow().getGuiScaledWidth();
-        RESOLUTIONY = minecraft.getWindow().getGuiScaledHeight();
+        var window = Minecraft.getInstance().getWindow();
+        resetOffsets(window.getGuiScaledWidth(), window.getGuiScaledHeight());
+    }
 
+    public static void resetOffsets(int width, int height) {
+        screenWidth = width;
+        screenHeight = height;
         topOffset = topLeftOffset = topRightOffset = 0;
-        bottomOffset = RESOLUTIONY - 43;  // -43 for toolbar + hunger/ hearts?
-        bottomLeftOffset = bottomRightOffset = RESOLUTIONY;
+        bottomOffset = height - BOTTOM_ANCHOR_RESERVED;
+        bottomLeftOffset = bottomRightOffset = height;
     }
 
     public static int centerX(int screenWidth, int elementWidth) {
@@ -42,24 +53,10 @@ public class ScreenSpaceUtil {
         };
     }
 
-    public static boolean isCenter(ScreenPos pos) {
-        return switch (pos) {
-            case TOP, BOTTOM -> true;
-            default -> false;
-        };
-    }
-
     public static int getXOffset(ScreenPos pos, int offset) {
         return switch (pos) {
             case TOP_RIGHT, BOTTOM_RIGHT -> -offset;
             case TOP, BOTTOM -> 0;
-            default -> offset;
-        };
-    }
-
-    public static int getXOffsetLocal(ScreenPos pos, int offset) {
-        return switch (pos) {
-            case TOP_RIGHT, BOTTOM_RIGHT -> -offset;
             default -> offset;
         };
     }
@@ -72,7 +69,6 @@ public class ScreenSpaceUtil {
     }
 
     public static int getX(ScreenPos pos, int elementWidth) {
-        int screenWidth = RESOLUTIONX;
         return switch (pos) {
             case TOP_LEFT, BOTTOM_LEFT -> 0;
             case TOP_RIGHT, BOTTOM_RIGHT -> screenWidth - elementWidth;
@@ -88,14 +84,14 @@ public class ScreenSpaceUtil {
                 yield offset;
             }
             case TOP_LEFT -> {
-                int preLeftoffset = topLeftOffset;
+                int offset = topLeftOffset;
                 topLeftOffset += elementHeight;
-                yield preLeftoffset;
+                yield offset;
             }
             case TOP_RIGHT -> {
-                int preRightOffset = topRightOffset;
+                int offset = topRightOffset;
                 topRightOffset += elementHeight;
-                yield preRightOffset;
+                yield offset;
             }
             case BOTTOM -> {
                 bottomOffset -= elementHeight;
@@ -109,7 +105,17 @@ public class ScreenSpaceUtil {
                 bottomRightOffset -= elementHeight;
                 yield bottomRightOffset;
             }
-            default -> centerY(RESOLUTIONY, elementHeight);
+        };
+    }
+
+    public static int currentY(ScreenPos pos) {
+        return switch (pos) {
+            case TOP -> topOffset;
+            case TOP_LEFT -> topLeftOffset;
+            case TOP_RIGHT -> topRightOffset;
+            case BOTTOM -> bottomOffset;
+            case BOTTOM_LEFT -> bottomLeftOffset;
+            case BOTTOM_RIGHT -> bottomRightOffset;
         };
     }
 
@@ -128,71 +134,16 @@ public class ScreenSpaceUtil {
         return pos == ScreenPos.TOP || pos == ScreenPos.BOTTOM;
     }
 
-
     public enum ScreenPos {
-        TOP_LEFT(
-                () -> 0,
-                () -> topLeftOffset,
-                val -> topLeftOffset = val
-        ),
-        BOTTOM_LEFT(
-                () -> 0,
-                () -> bottomLeftOffset,
-                val -> bottomLeftOffset = val
-        ),
-        TOP(
-                () -> centerX(RESOLUTIONX, 0),
-                () -> topOffset,
-                val -> topOffset = val
-        ),
-        BOTTOM(
-                () -> centerX(RESOLUTIONX, 0),
-                () -> bottomOffset,
-                val -> bottomOffset = val
-        ),
-        TOP_RIGHT(
-                () -> RESOLUTIONX,
-                () -> topRightOffset,
-                val -> topRightOffset = val
-        ),
-        BOTTOM_RIGHT(
-                () -> RESOLUTIONX,
-                () -> bottomRightOffset,
-                val -> bottomRightOffset = val
-        );
-
-        private final IntSupplier xSupplier;
-        private final IntSupplier ySupplier;
-        private final IntConsumer ySetter;
-
-        ScreenPos(IntSupplier xSupplier, IntSupplier ySupplier, IntConsumer ySetter) {
-            this.xSupplier = xSupplier;
-            this.ySupplier = ySupplier;
-            this.ySetter = ySetter;
-        }
+        TOP_LEFT, BOTTOM_LEFT, TOP, BOTTOM, TOP_RIGHT, BOTTOM_RIGHT;
 
         public static ScreenPos fromString(String name) {
             for (ScreenPos pos : values()) {
-                if (pos.name().equalsIgnoreCase(name)) return pos;
+                if (pos.name().equalsIgnoreCase(name)) {
+                    return pos;
+                }
             }
-
-            return TOP; // default fallback
-        }
-
-        public int getX() {
-            return xSupplier.getAsInt();
-        }
-
-        public int getY() {
-            return ySupplier.getAsInt();
-        }
-
-        public void setY(int newY) {
-            ySetter.accept(newY);
-        }
-
-        public void incrementY(int delta) {
-            setY(getY() + delta);
+            return TOP;
         }
     }
 }

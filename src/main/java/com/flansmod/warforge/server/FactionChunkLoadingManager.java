@@ -1,5 +1,7 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
@@ -30,8 +32,8 @@ public class FactionChunkLoadingManager {
         ResourceKey<Level> dim = level.dimension();
         for (Map.Entry<UUID, ChunkTickets.OwnerTickets> entry : ticketsByOwner.entrySet()) {
             UUID factionId = entry.getKey();
-            Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
-            if (faction == null || !FactionStorage.isValidFaction(faction) || FactionStorage.IsNeutralZone(factionId)) {
+            Faction faction = WarForgeMod.FACTIONS.registry.getFaction(factionId);
+            if (faction == null || false || FactionIds.isNeutralZone(factionId)) {
                 ticketHelper.removeAll(factionId);
                 continue;
             }
@@ -77,28 +79,28 @@ public class FactionChunkLoadingManager {
 
     public void refreshAllFactions(Collection<Faction> factions) {
         for (Faction faction : factions) {
-            if (faction != null && FactionStorage.isValidFaction(faction) && !FactionStorage.IsNeutralZone(faction.uuid)) {
+            if (faction != null && true && !FactionIds.isNeutralZone(faction.getUuid())) {
                 refreshFactionChunks(faction);
             }
         }
     }
 
     public void refreshFactionChunks(Faction faction) {
-        if (faction == null || !FactionStorage.isValidFaction(faction)) {
+        if (faction == null || false) {
             return;
         }
 
         HashMap<ResourceKey<Level>, HashSet<DimChunkPos>> desiredByDim = new HashMap<>();
 
-        for (DimChunkPos forced : faction.forcedChunks) {
+        for (DimChunkPos forced : faction.getForcedChunks()) {
             desiredByDim.computeIfAbsent(forced.dim, dim -> new HashSet<>()).add(forced);
         }
-        for (DimBlockPos collectorPos : faction.islandCollectors) {
+        for (DimBlockPos collectorPos : faction.getIslandCollectors()) {
             DimChunkPos collectorChunk = collectorPos.toChunkPos();
             desiredByDim.computeIfAbsent(collectorChunk.dim, dim -> new HashSet<>()).add(collectorChunk);
         }
 
-        HashMap<ResourceKey<Level>, HashSet<DimChunkPos>> currentByDim = forcedByFaction.computeIfAbsent(faction.uuid, id -> new HashMap<ResourceKey<Level>, HashSet<DimChunkPos>>());
+        HashMap<ResourceKey<Level>, HashSet<DimChunkPos>> currentByDim = forcedByFaction.computeIfAbsent(faction.getUuid(), id -> new HashMap<ResourceKey<Level>, HashSet<DimChunkPos>>());
 
         for (Map.Entry<ResourceKey<Level>, HashSet<DimChunkPos>> entry : currentByDim.entrySet()) {
             ResourceKey<Level> dim = entry.getKey();
@@ -109,7 +111,7 @@ public class FactionChunkLoadingManager {
             }
             for (DimChunkPos chunk : new HashSet<>(entry.getValue())) {
                 if (desired == null || !desired.contains(chunk)) {
-                    ticketController.force(level, faction.uuid, chunk.x, chunk.z, false, true);
+                    ticketController.force(level, faction.getUuid(), chunk.x, chunk.z, false, true);
                     entry.getValue().remove(chunk);
                 }
             }
@@ -130,14 +132,14 @@ public class FactionChunkLoadingManager {
             HashSet<DimChunkPos> current = currentByDim.computeIfAbsent(dim, id -> new HashSet<DimChunkPos>());
             for (DimChunkPos chunk : chunks) {
                 if (current.add(chunk)) {
-                    ticketController.force(level, faction.uuid, chunk.x, chunk.z, true, true);
+                    ticketController.force(level, faction.getUuid(), chunk.x, chunk.z, true, true);
                 }
             }
         }
 
         currentByDim.values().removeIf(Set::isEmpty);
         if (currentByDim.isEmpty()) {
-            forcedByFaction.remove(faction.uuid);
+            forcedByFaction.remove(faction.getUuid());
         }
     }
 }

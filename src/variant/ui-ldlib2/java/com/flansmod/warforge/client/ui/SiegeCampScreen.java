@@ -1,14 +1,15 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ui.model.DataRevision;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.compat.ClientCompat;
-import com.flansmod.warforge.api.Time;
-import com.flansmod.warforge.api.modularui.ChunkMapViewport;
+import com.flansmod.warforge.client.map.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapCellElement;
+import com.flansmod.warforge.client.ui.model.MomentumTooltip;
 import com.flansmod.warforge.client.ui.model.SiegeMapModel;
-import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
-import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.client.ui.model.SiegeCampAttackInfoRender;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
@@ -19,14 +20,11 @@ import net.minecraft.network.chat.Component;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** The siege camp target map, laid out like GuiSiegeCamp of the 1.20.1 build. */
 @OnlyIn(Dist.CLIENT)
 public final class SiegeCampScreen {
+    private static final DataRevision REVISION = new DataRevision();
     private static final int CELL_SIZE = 64;
     private static final int INFO_HEIGHT = 48;
     private static final int LEGEND_HEIGHT = 28;
@@ -37,6 +35,9 @@ public final class SiegeCampScreen {
     }
 
     public static void open(PacketSiegeCampInfo data) {
+        if (data != null && REVISION.unchanged(ClientCompat.screen(), data)) {
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
             return;
@@ -81,16 +82,16 @@ public final class SiegeCampScreen {
         colorStripe(panel, data.color, height);
         closeButton(panel, width).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Siege Target Map", TEXT_PRIMARY);
+        title(panel, tr("warforge.ui.siege_target_map"), TEXT_PRIMARY);
         place(panel, scrollingText(literal(model.campLine(), TEXT_SECONDARY, false), width - CONTENT_LEFT * 2 - 18),
                 CONTENT_LEFT, SUBTITLE_Y, width - CONTENT_LEFT * 2 - 18, 9);
 
-        Label momentum = scrollingText(literal("Current momentum: " + data.momentum, TEXT_PRIMARY, false), mapSectionWidth - 10);
+        Label momentum = scrollingText(literal(tr("warforge.ui.current_momentum_d", data.momentum), TEXT_PRIMARY, false), mapSectionWidth - 10);
         momentum.layout(l -> l.marginBottom(4));
-        infoSection.addChild(tooltip(momentum, momentumTooltip()));
-        infoSection.addChild(scrollingText(literal("Select a target chunk around the siege camp. Center tile is your current camp position.",
+        infoSection.addChild(tooltip(momentum, MomentumTooltip.lines().toArray(new Component[0])));
+        infoSection.addChild(scrollingText(literal(tr("warforge.ui.select_a_target_chunk_around_the_siege_camp_cent"),
                 TEXT_MUTED, false), mapSectionWidth - 10));
-        legendSection.addChild(scrollingText(literal("Click an attackable chunk to begin the siege. Tooltips show faction ownership, claim type, and vein data.",
+        legendSection.addChild(scrollingText(literal(tr("warforge.ui.click_an_attackable_chunk_to_begin_the_siege_too"),
                 TEXT_MUTED, false), mapSectionWidth - 10));
 
         for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
@@ -111,23 +112,9 @@ public final class SiegeCampScreen {
             }
         }
 
-        ClientCompat.setScreen(new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal("Siege Target Map")));
+        ModularUIScreen built = new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal(tr("warforge.ui.siege_target_map")));
+        REVISION.shown(built);
+        ClientCompat.setScreen(built);
     }
 
-    private static Component[] momentumTooltip() {
-        List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal("§6Momentum System§r"));
-        lines.add(Component.literal("§7Momentum affects siege duration.§r"));
-        lines.add(Component.literal("§7Gained via §aWON§7 sieges, lost on §cLOST§7 sieges.§r"));
-        lines.add(Component.literal("§7Expires after §b" + WarForgeConfig.SIEGE_MOMENTUM_DURATION + " minutes§7.§r"));
-        for (Byte level : WarForgeConfig.SIEGE_MOMENTUM_TIME.keySet()) {
-            Integer seconds = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(level);
-            if (seconds == null) {
-                continue;
-            }
-            lines.add(Component.literal("§eLevel " + level + "§r: §a"
-                    + new Time(seconds * 1000L).getFormattedTime(Time.TimeFormat.MINUTES_SECONDS, Time.Verbality.SHORT)));
-        }
-        return lines.toArray(new Component[0]);
-    }
 }

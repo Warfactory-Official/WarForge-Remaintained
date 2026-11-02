@@ -2,68 +2,61 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.blocks.TileEntityCitadel;
+import com.flansmod.warforge.common.blocks.CitadelBlockEntity;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import com.flansmod.warforge.compat.Keys;
 
-public class PacketCreateFaction extends PacketBase
+public class PacketCreateFaction extends ServerboundPacket
 {
-	public DimBlockPos mCitadelPos;
-	public String mFactionName = "";
-	public int mColour = 0xffffff;
+    public DimBlockPos citadelPos;
+    public String factionName = "";
+    public int colour = 0xffffff;
 
+    @Override
+    public void encodeInto(FriendlyByteBuf data)
+    {
+        writeUTF(data, Keys.id(citadelPos.dim).toString());
+        data.writeInt(citadelPos.getX());
+        data.writeInt(citadelPos.getY());
+        data.writeInt(citadelPos.getZ());
+        data.writeInt(colour);
+        writeUTF(data, factionName, PacketSecurity.MAX_NAME);
+    }
 
-	@Override
-	public void encodeInto(FriendlyByteBuf data)
-	{
-		writeUTF(data, Keys.id(mCitadelPos.dim).toString());
-		data.writeInt(mCitadelPos.getX());
-		data.writeInt(mCitadelPos.getY());
-		data.writeInt(mCitadelPos.getZ());
-		data.writeInt(mColour);
-		writeUTF(data, mFactionName, PacketSecurity.MAX_NAME);
-	}
+    @Override
+    public void decodeInto(FriendlyByteBuf data)
+    {
+        ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
+        int x = data.readInt();
+        int y = data.readInt();
+        int z = data.readInt();
+        citadelPos = new DimBlockPos(dim, x, y, z);
+        colour = data.readInt();
+        factionName = readUTF(data, PacketSecurity.MAX_NAME);
+    }
 
-	@Override
-	public void decodeInto(FriendlyByteBuf data)
-	{
-		ResourceKey<Level> dim = PacketSecurity.readDimOrOverworld(data);
-		int x = data.readInt();
-		int y = data.readInt();
-		int z = data.readInt();
-		mCitadelPos = new DimBlockPos(dim, x, y, z);
-		mColour = data.readInt();
-		mFactionName = readUTF(data, PacketSecurity.MAX_NAME);
-	}
+    @Override
+    public void handleServerSide(ServerPlayer playerEntity)
+    {
+        // GUI opens only at the placer's own citadel; require the same instead of a client-picked position
+        if(!PacketSecurity.requireReach(playerEntity, citadelPos, "create faction"))
+            return;
 
-	@Override
-	public void handleServerSide(ServerPlayer playerEntity)
-	{
-		// The create-faction GUI only opens when the player is standing at the citadel they placed,
-		// so require the same here rather than trusting a position the client picked.
-		if(!PacketSecurity.requireReach(playerEntity, mCitadelPos, "create faction"))
-			return;
+        CitadelBlockEntity citadel = PacketSecurity.blockEntityAt(playerEntity, citadelPos, CitadelBlockEntity.class, "create faction");
+        if(citadel == null)
+            return;
 
-		TileEntityCitadel citadel = PacketSecurity.blockEntityAt(playerEntity, mCitadelPos, TileEntityCitadel.class, "create faction");
-		if(citadel == null)
-			return;
+        WarForgeMod.FACTIONS.lifecycle.requestCreate(citadel, playerEntity, factionName, colour & 0xffffff);
+    }
 
-		// requestCreateFaction owns the rest: citadel unowned, chunk unclaimed, caller is the placer.
-		WarForgeMod.FACTIONS.requestCreateFaction(citadel, playerEntity, mFactionName, mColour & 0xffffff);
-	}
-
-	@Override
-	public void handleClientSide(Player clientPlayer)
-	{
-		WarForgeMod.LOGGER.error("Recieved create faction message on client");
-	}
-
+    @Override
+    public void handleClientSide(Player clientPlayer)
+    {
+        WarForgeMod.LOGGER.error("create faction message received on client");
+    }
 }

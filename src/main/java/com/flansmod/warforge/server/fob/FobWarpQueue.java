@@ -1,23 +1,30 @@
 package com.flansmod.warforge.server.fob;
 
+import java.util.Map;
+import java.util.HashMap;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.server.TeleportUtil;
 import com.flansmod.warforge.compat.Teleports;
-import net.minecraft.world.phys.Vec3;
+import com.flansmod.warforge.server.TeleportUtil;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
+import static com.flansmod.warforge.server.ServerText.t;
+
+/** Stand-still countdown before a FOB warp. Holds ids, never entities: players can log out mid-warp. */
 public class FobWarpQueue {
     private static final int TICKS_PER_SECOND = 20;
-    private final List<PendingWarp> mPendingWarps = new ArrayList<PendingWarp>();
+    private static final double LANDING_OFFSET_Y = 1.5D;
+    private final List<PendingWarp> pendingWarps = new ArrayList<>();
 
     public static void forceTouchChunk(DimBlockPos target) {
         ServerLevel level = WarForgeMod.MC_SERVER.getLevel(target.dim);
@@ -26,30 +33,49 @@ public class FobWarpQueue {
         }
     }
 
+    private static volatile Map<String, Integer> vehicleCost = Map.of();
+
+    /** Parses the configured {@code entityTypeId=extraCost} entries. */
+    public static void configureVehicleCost(List<String> entries) {
+        HashMap<String, Integer> parsed = new HashMap<>();
+        for (String entry : entries) {
+            String[] split = entry.split("=");
+            if (split.length != 2) {
+                WarForgeMod.LOGGER.warn("Ignoring malformed FOB vehicle cost '{}'", entry);
+                continue;
+            }
+            try {
+                parsed.put(split[0].trim(), Integer.parseInt(split[1].trim()));
+            } catch (NumberFormatException e) {
+                WarForgeMod.LOGGER.warn("Ignoring FOB vehicle cost '{}'", entry, e);
+            }
+        }
+        vehicleCost = Map.copyOf(parsed);
+    }
+
     public static int vehicleExtraCost(Entity vehicle) {
         if (vehicle == null) {
             return 0;
         }
-        String id = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString();
-        Integer extra = WarForgeConfig.FOB_VEHICLE_TICKET_COST.get(id);
+        Integer extra = vehicleCost.get(BuiltInRegistries.ENTITY_TYPE.getKey(vehicle.getType()).toString());
         return extra == null ? 0 : Math.max(0, extra);
     }
 
-    private static void warpVehicle(ServerPlayer player, Entity vehicle, DimBlockPos target) {
-        if (vehicle == null || player.getVehicle() != vehicle) {
+    private static void warpVehicle(ServerPlayer player, UUID vehicleId, DimBlockPos target) {
+        Entity vehicle = player.getVehicle();
+        if (vehicle == null || !vehicle.getUUID().equals(vehicleId)) {
             return;
         }
-
         ServerLevel targetLevel = WarForgeMod.MC_SERVER.getLevel(target.dim);
         if (targetLevel == null) {
             return;
         }
 
-        List<Entity> passengers = new ArrayList<Entity>(vehicle.getPassengers());
+        List<Entity> passengers = new ArrayList<>(vehicle.getPassengers());
         vehicle.ejectPassengers();
 
         double x = target.getX() + 0.5D;
-        double y = target.getY() + 1.5D;
+        double y = target.getY() + LANDING_OFFSET_Y;
         double z = target.getZ() + 0.5D;
 
         Entity movedVehicle = vehicle;
@@ -76,69 +102,73 @@ public class FobWarpQueue {
         }
     }
 
-    public boolean hasPendingWarp(java.util.UUID playerId) {
-        for (PendingWarp warp : mPendingWarps) {
-            if (warp.player != null && warp.player.getUUID().equals(playerId)) return true;
+    public boolean hasPendingWarp(UUID playerId) {
+        for (PendingWarp warp : pendingWarps) {
+            if (warp.playerId.equals(playerId)) return true;
         }
         return false;
     }
 
     public void requestFobWarp(ServerPlayer player, Fob fob, int cost) {
-        if (player == null || fob == null) {
-            return;
-        }
-
         PendingWarp warp = new PendingWarp();
-        warp.player = player;
-        warp.vehicle = player.getVehicle();
+        warp.playerId = player.getUUID();
+        warp.vehicleId = player.getVehicle() == null ? null : player.getVehicle().getUUID();
         warp.pos = player.blockPosition();
         warp.target = new DimBlockPos(fob.pos.dim, fob.pos.getX(), fob.pos.getY(), fob.pos.getZ());
         warp.fob = fob;
         warp.cost = cost;
         warp.ticksRemaining = WarForgeConfig.FOB_WARP_TICKS;
-        mPendingWarps.add(warp);
-
-        player.sendSystemMessage(Component.literal("Warp started. Stand still."));
+        pendingWarps.add(warp);
+        player.sendSystemMessage(t("fob.warp_started"));
     }
 
-    public void update() {
-        for (int i = mPendingWarps.size() - 1; i >= 0; i--) {
-            PendingWarp warp = mPendingWarps.get(i);
-
-            if (!warp.player.blockPosition().equals(warp.pos)) {
-                warp.fob.tickets = Math.min(warp.fob.maxTickets, warp.fob.tickets + warp.cost);
-                warp.player.sendSystemMessage(Component.literal("Warp cancelled."));
-                mPendingWarps.remove(i);
-                continue;
-            }
-
-            if (warp.ticksRemaining % TICKS_PER_SECOND == 0) {
-                warp.player.sendSystemMessage(Component.literal("Warping in " + (warp.ticksRemaining / TICKS_PER_SECOND)));
-            }
-
-            warp.ticksRemaining--;
-
-            if (warp.ticksRemaining <= 0) {
-                fireWarp(warp);
-                mPendingWarps.remove(i);
+    /** Logout: the warp is dropped and its tickets refunded. */
+    public void cancel(UUID playerId) {
+        for (int i = pendingWarps.size() - 1; i >= 0; i--) {
+            PendingWarp warp = pendingWarps.get(i);
+            if (warp.playerId.equals(playerId)) {
+                refund(warp);
+                pendingWarps.remove(i);
             }
         }
     }
 
-    private void fireWarp(PendingWarp warp) {
-        forceTouchChunk(warp.target);
-        warpVehicle(warp.player, warp.vehicle, warp.target);
-        TeleportUtil.teleportPlayer(warp.player, warp.target.dim, warp.target.toRegularPos());
+    public void update() {
+        for (int i = pendingWarps.size() - 1; i >= 0; i--) {
+            PendingWarp warp = pendingWarps.get(i);
+            ServerPlayer player = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(warp.playerId);
+
+            if (player == null || !player.blockPosition().equals(warp.pos)) {
+                refund(warp);
+                if (player != null) {
+                    player.sendSystemMessage(t("fob.warp_cancelled"));
+                }
+                pendingWarps.remove(i);
+                continue;
+            }
+            if (warp.ticksRemaining % TICKS_PER_SECOND == 0) {
+                player.sendSystemMessage(t("fob.warp_countdown", warp.ticksRemaining / TICKS_PER_SECOND));
+            }
+            if (--warp.ticksRemaining <= 0) {
+                forceTouchChunk(warp.target);
+                warpVehicle(player, warp.vehicleId, warp.target);
+                TeleportUtil.teleportPlayer(player, warp.target.dim, warp.target.toRegularPos());
+                pendingWarps.remove(i);
+            }
+        }
     }
 
-    private static class PendingWarp {
-        public ServerPlayer player;
-        public Entity vehicle;
-        public int ticksRemaining;
-        public BlockPos pos;
+    private static void refund(PendingWarp warp) {
+        warp.fob.tickets = Math.min(warp.fob.maxTickets, warp.fob.tickets + warp.cost);
+    }
 
-        public DimBlockPos target;
-        public Fob fob;
-        public int cost;
+    private static final class PendingWarp {
+        private UUID playerId;
+        private UUID vehicleId;
+        private int ticksRemaining;
+        private BlockPos pos;
+        private DimBlockPos target;
+        private Fob fob;
+        private int cost;
     }
 }

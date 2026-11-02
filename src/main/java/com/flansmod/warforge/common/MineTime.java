@@ -16,19 +16,8 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 import com.flansmod.warforge.compat.Ids;
 
-/**
- * MineTime soft protection. Where territory rules would otherwise cancel a block break, MineTime
- * lets the break happen but slows it down — either by a time multiplier or to a fixed break time.
- *
- * <p>Each {@link com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig} profile owns its own
- * MineTime instance, so the system can be enabled (and tuned) per zone rather than globally.
- *
- * <p>A blacklist excludes blocks from the system, and a whitelist both opts blocks in and lets each
- * entry carry its own value override that applies even when the profile has MineTime disabled. Entries
- * accept exact ids ({@code gregtech:steam_macerator}), {@code *} globs ({@code gregtech:*},
- * {@code minecraft:*_ore}) and block tags ({@code #forge:ores}) so a single line can catch every
- * machine from a mod.
- */
+// Soft protection: slows a denied break instead of cancelling it. One instance per ProtectionConfig profile.
+// Entries: exact id, '*' glob, #tag. Whitelist entry values override even when the profile is disabled.
 public final class MineTime {
     public enum Mode {
         /** Result break time = natural time × value. */
@@ -80,11 +69,7 @@ public final class MineTime {
         this.blacklist = parsedBlacklist;
     }
 
-    /**
-     * Resolves how a block that territory rules would deny breaking should be handled.
-     *
-     * @return the slow-down to apply, or {@code null} to keep the hard cancel (full protection).
-     */
+    // null => keep hard cancel
     public Rule resolve(Block block) {
         for (Entry entry : whitelist) {
             if (entry.pattern().matches(block)) {
@@ -98,7 +83,6 @@ public final class MineTime {
         return new Rule(defaultMode, defaultValue);
     }
 
-    /** Computes the BreakSpeed the player should get under a resolved rule. */
     public static float applySpeed(Rule rule, float baseSpeed, BlockState state, Level level, BlockPos pos, Player player) {
         switch (rule.mode()) {
             case MULTIPLIER -> {

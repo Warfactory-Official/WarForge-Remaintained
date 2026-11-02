@@ -9,28 +9,19 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 
-/**
- * Base class of every WarForge block entity. The vanilla save/load and client-sync methods differ between
- * versions; this class maps them to the four hooks below, which always work on a CompoundTag with the same keys.
- */
 public abstract class WFBlockEntity extends BlockEntity {
     protected WFBlockEntity(BlockEntityType<?> type, BlockPos pos, BlockState state) {
         super(type, pos, state);
     }
 
-    /** Writes the saved data. Call super first. */
     protected void writeData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Reads the saved data. Call super first. */
     protected void readData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Writes the data sent to clients (chunk load and block updates). Call super first. */
     protected void writeSyncData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Reads the data sent to clients. */
     protected void readSyncData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Server side: the block of this block entity is being replaced by a different block (before removal). */
     public void onBlockRemoved() {}
 
     @Override

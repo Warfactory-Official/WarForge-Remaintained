@@ -1,11 +1,12 @@
 package com.flansmod.warforge.common.ui;
 
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.ScrollArea;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
-import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.compat.Ids;
 import com.flansmod.warforge.common.network.PacketInsuranceData;
 import com.flansmod.warforge.common.util.FactionInsuranceItemHandler;
 import com.flansmod.warforge.server.Faction;
@@ -18,7 +19,6 @@ import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import com.lowdragmc.lowdraglib.side.item.IItemTransfer;
 import com.lowdragmc.lowdraglib.side.item.forge.ItemTransferHelperImpl;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -30,26 +30,17 @@ import org.jetbrains.annotations.Nullable;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.CONTENT_LEFT;
 
-/** Insurance stash menu (GuiFactionInsurance of 1.20.1): deposit-only slots, leader voids per slot. */
 public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
-    private static final InsuranceUi INSTANCE = new InsuranceUi();
+    static final InsuranceUi INSTANCE = new InsuranceUi();
     private static final int WIDTH = 356;
     private static final int HEIGHT = 180;
     private static final int BODY_Y = 54;
     private static final int SECTION_WIDTH = WIDTH - CONTENT_LEFT * 2;
     private static final int CELL_SIZE = 18;
     private static final int LIST_HEIGHT = 56;
-    private static boolean registered = false;
 
     private InsuranceUi() {
-        super(new ResourceLocation(Tags.MODID, "insurance"));
-    }
-
-    public static synchronized void register() {
-        if (!registered) {
-            UIFactory.register(INSTANCE);
-            registered = true;
-        }
+        super(Ids.of(Tags.MODID, "insurance"));
     }
 
     public static void open(ServerPlayer player, PacketInsuranceData view, @Nullable Faction faction) {
@@ -70,7 +61,7 @@ public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
         return new Holder(view, new ItemStackHandler(view.slotCount) {
             @Override
             public boolean isItemValid(int slot, ItemStack stack) {
-                return !WarForgeConfig.isInsuranceBlacklisted(stack);
+                return !FactionInsuranceItemHandler.isBlacklisted(stack);
             }
         }, null, true);
     }
@@ -80,7 +71,6 @@ public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
         holder.view.encodeInto(syncData);
     }
 
-    /** {@code faction} only on the server (void target). */
     public record Holder(PacketInsuranceData view, IItemHandlerModifiable stash, @Nullable Faction faction,
                          boolean isRemote) implements IUIHolder {
         @Override
@@ -90,7 +80,7 @@ public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
 
         @Override
         public boolean isInvalid() {
-            return faction != null && WarForgeMod.FACTIONS.getFaction(faction.uuid) != faction;
+            return faction != null && WarForgeMod.FACTIONS.registry.getFaction(faction.getUuid()) != faction;
         }
 
         @Override
@@ -112,29 +102,29 @@ public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
         panel.addWidget(WarForgeUiTheme.closeButton(WIDTH, click -> {
             if (!click.isRemote && player instanceof ServerPlayer sp) BlockUiActions.close(sp);
         }));
-        panel.addWidget(WarForgeUiTheme.title("Insurance Stash"));
+        panel.addWidget(WarForgeUiTheme.title(tr("warforge.ui.insurance_stash")));
         panel.addWidget(view.hasFaction
                 ? WarForgeUiTheme.subtitle(view.factionName, view.factionColor, true)
-                : WarForgeUiTheme.subtitle("No faction selected", WarForgeUiTheme.TEXT_SECONDARY, true));
+                : WarForgeUiTheme.subtitle(tr("warforge.ui.no_faction_selected"), WarForgeUiTheme.TEXT_SECONDARY, true));
 
         int textX = CONTENT_LEFT + 5;
         if (!view.hasFaction) {
-            panel.addWidget(Label.text("No insurance stash is available.", WarForgeUiTheme.TEXT_NOTE).at(textX, BODY_Y + 5 + 6));
+            panel.addWidget(Label.text(tr("warforge.ui.no_insurance_stash_is_available"), WarForgeUiTheme.TEXT_NOTE).at(textX, BODY_Y + 5 + 6));
             return root;
         }
 
         int y = BODY_Y + 5;
-        panel.addWidget(Label.bold("Protected Reserve", WarForgeUiTheme.TEXT_PRIMARY).at(textX, y));
+        panel.addWidget(Label.bold(tr("warforge.ui.protected_reserve"), WarForgeUiTheme.TEXT_PRIMARY).at(textX, y));
         y += 9 + 4;
         panel.addWidget(Label.text(view.canDeposit
-                        ? "Officers and leaders may deposit. Stored items cannot be withdrawn."
-                        : "Only officers and leaders may deposit into the stash.",
+                        ? tr("warforge.ui.officers_and_leaders_may_deposit_stored_items_ca")
+                        : tr("warforge.ui.only_officers_and_leaders_may_deposit_into_the_s"),
                 WarForgeUiTheme.TEXT_MUTED).clip(SECTION_WIDTH - 10).at(textX, y));
         y += 9 + 2;
         panel.addWidget(Label.text(view.canVoid
-                        ? "Leader actions: use the red X to permanently void a slot."
-                        : "Only the leader can void stored items to free space.",
-                view.canVoid ? 0xFFCC88 : WarForgeUiTheme.TEXT_MUTED).clip(SECTION_WIDTH - 10).at(textX, y));
+                        ? tr("warforge.ui.leader_actions_use_the_red_x_to_permanently_void")
+                        : tr("warforge.ui.only_the_leader_can_void_stored_items_to_free_sp"),
+                view.canVoid ? WarForgeUiTheme.TEXT_LEADER_ACTION : WarForgeUiTheme.TEXT_MUTED).clip(SECTION_WIDTH - 10).at(textX, y));
         y += 9 + 4;
 
         int listWidth = SECTION_WIDTH - 10;
@@ -150,7 +140,7 @@ public final class InsuranceUi extends UIFactory<InsuranceUi.Holder> {
                 ButtonWidget voidButton = WarForgeUiTheme.smallDangerButton("x", 8, 8, click -> {
                     if (!click.isRemote && holder.faction != null) holder.faction.setInsuranceStack(captured, ItemStack.EMPTY);
                 });
-                voidButton.setHoverTooltips("Click to void the slot", "Warning, this cannot be undone");
+                voidButton.setHoverTooltips(tr("warforge.ui.click_to_void_the_slot"), tr("warforge.ui.warning_this_cannot_be_undone"));
                 list.addAt(voidButton, cellX + 10, cellY);
             }
         }

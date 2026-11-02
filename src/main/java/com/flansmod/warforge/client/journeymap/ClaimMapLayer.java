@@ -1,8 +1,8 @@
 package com.flansmod.warforge.client.journeymap;
 
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.api.Color4i;
-import com.flansmod.warforge.client.MinimapClaimCache;
+import com.flansmod.warforge.client.ClaimMapStyle;
+import com.flansmod.warforge.client.ClientBorderCache;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.display.DisplayType;
@@ -21,24 +21,20 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * JourneyMap integration drawing a faction-coloured fill over each claimed chunk.
- * <p>
- * Consumes {@link MinimapClaimCache} only (packed colour + chunk position); faction identity is never
- * available here, matching the deliberately minimal claim payload.
- */
 @ParametersAreNonnullByDefault
-public class ClaimMapLayer implements MinimapClaimCache.Listener {
+public class ClaimMapLayer implements ClientBorderCache.Listener {
     private static final Logger LOGGER = LogManager.getLogger(Tags.MODNAME);
     private static final int CLAIM_OVERLAY_Y = 70;
+    private static final int STROKE_WIDTH = 2;
+    private static final int LABEL_MIN_ZOOM = 2;
 
     private final Map<DimChunkPos, PolygonOverlay> overlays = new HashMap<>();
     private IClientAPI jmAPI;
 
     void attach(final IClientAPI jmClientApi) {
         this.jmAPI = jmClientApi;
-        // Register last so the cache replay (inside setListener) sees a live API reference.
-        MinimapClaimCache.addListener(this);
+        // Last: the cache replay inside addListener needs jmAPI.
+        ClientBorderCache.addListener(this);
     }
 
     private String getModId() {
@@ -82,26 +78,24 @@ public class ClaimMapLayer implements MinimapClaimCache.Listener {
     }
 
     private PolygonOverlay buildOverlay(DimChunkPos key, int colour) {
-        Color4i color = new Color4i(colour);
-        int rgb = (color.getRed() << 16) | (color.getGreen() << 8) | color.getBlue();
-        float fillOpacity = (color.getAlpha() & 0xFF) / 255.0f;
+        int rgb = colour & 0xFFFFFF;
 
         ShapeProperties shapeProps = new ShapeProperties()
-                .setStrokeWidth(2)
-                .setStrokeColor(rgb).setStrokeOpacity(Math.max(fillOpacity, 0.7f))
-                .setFillColor(rgb).setFillOpacity(Math.min(fillOpacity, 0.4f));
+                .setStrokeWidth(STROKE_WIDTH)
+                .setStrokeColor(rgb).setStrokeOpacity(ClaimMapStyle.borderOpacity(colour))
+                .setFillColor(rgb).setFillOpacity(ClaimMapStyle.fillOpacity(colour));
 
         TextProperties textProps = new TextProperties()
                 .setColor(rgb)
                 .setOpacity(1f)
-                .setMinZoom(2)
+                .setMinZoom(LABEL_MIN_ZOOM)
                 .setFontShadow(true);
 
         MapPolygon polygon = PolygonHelper.createChunkPolygon(key.x, CLAIM_OVERLAY_Y, key.z);
 
         PolygonOverlay overlay = new PolygonOverlay(getModId(), key.dim, shapeProps, polygon);
         overlay.setOverlayGroupName("WarForge Claims")
-                .setLabel(String.format("Claim [%s, %s]", key.x, key.z))
+                .setLabel(ClaimMapStyle.label(key.x, key.z).getString())
                 .setTextProperties(textProps);
         return overlay;
     }

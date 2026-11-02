@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common.ui;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.blocks.TileEntityCitadel;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
+import com.flansmod.warforge.common.blocks.CitadelBlockEntity;
+import com.flansmod.warforge.common.network.FactionMemberManagerGuiData;
 import com.flansmod.warforge.common.network.PacketDisbandFaction;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.network.PacketOpenCreateFaction;
@@ -31,9 +31,8 @@ public final class BlockUiActions {
         player.closeContainer();
     }
 
-    /** Sends the faction info screen of a faction (nothing if it does not exist). */
     public static void showFactionInfo(ServerPlayer player, UUID factionId) {
-        Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
+        Faction faction = WarForgeMod.FACTIONS.registry.getFaction(factionId);
         if (faction != null) {
             PacketFactionInfo packet = new PacketFactionInfo();
             packet.info = faction.createInfo(player.getUUID());
@@ -42,8 +41,15 @@ public final class BlockUiActions {
     }
 
     public static void chooseFlag(ServerPlayer player, UUID factionId) {
+        Faction faction = WarForgeMod.FACTIONS.registry.getFaction(factionId);
+        if (faction == null) {
+            return;
+        }
         PacketOpenFlagSelect packet = new PacketOpenFlagSelect();
         packet.factionId = factionId;
+        packet.factionName = faction.getName();
+        packet.factionColor = faction.getColour();
+        packet.currentFlagId = faction.getFlagId();
         WarForgeMod.NETWORK.sendTo(packet, player);
     }
 
@@ -61,23 +67,21 @@ public final class BlockUiActions {
 
     public static void openUpgrade(ServerPlayer player, UUID factionId) {
         PacketRequestUpgradeUI request = new PacketRequestUpgradeUI();
-        request.mFactionIDRequest = factionId;
+        request.factionIdRequest = factionId;
         request.handleServerSide(player);
     }
 
-    public static void openRecolour(ServerPlayer player, TileEntityCitadel citadel) {
+    public static void openRecolour(ServerPlayer player, CitadelBlockEntity citadel) {
         PacketOpenRecolour packet = new PacketOpenRecolour();
         packet.colour = citadel.colour;
         WarForgeMod.NETWORK.sendTo(packet, player);
     }
 
-    /** Disbands the player's faction and closes the UI. */
     public static void disband(ServerPlayer player) {
         new PacketDisbandFaction().handleServerSide(player);
         player.closeContainer();
     }
 
-    /** Opens the create-faction screen for the citadel at pos. */
     public static void openCreateFaction(ServerPlayer player, BlockPos pos) {
         PacketOpenCreateFaction packet = new PacketOpenCreateFaction();
         packet.pos = new DimBlockPos(player.level().dimension(), pos);
@@ -85,19 +89,25 @@ public final class BlockUiActions {
     }
 
     public static void unclaim(ServerPlayer player, DimBlockPos claimPos) {
-        WarForgeMod.FACTIONS.requestRemoveClaim(player, claimPos);
+        WarForgeMod.FACTIONS.claimService.requestRemoveClaim(player, claimPos);
     }
 
     public static void moveCitadel(ServerPlayer player) {
-        WarForgeMod.FACTIONS.requestMoveCitadel(player, DimBlockPos.ZERO);
+        WarForgeMod.FACTIONS.citadels.requestMoveCitadel(player, DimBlockPos.ZERO);
     }
 
-    /** Warps the player to the FOB whose block is at pos. */
     public static void warpToFob(ServerPlayer player, BlockPos pos) {
         DimBlockPos dpos = new DimBlockPos(player.level().dimension(), pos);
         Fob warpTarget = WarForgeMod.FOBS.getFobAt(dpos.toChunkPos());
         if (warpTarget != null) {
             WarForgeMod.FOBS.requestFobWarp(player, warpTarget);
+        }
+    }
+
+    public static void openClaimBlock(net.minecraft.world.entity.player.Player player, net.minecraft.core.BlockPos pos) {
+        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
+            com.flansmod.warforge.common.PlayerSyncService.syncClaimToPlayer(player, pos);
+            com.flansmod.warforge.platform.WFUiBlock.openUi(serverPlayer, pos);
         }
     }
 }

@@ -10,26 +10,23 @@ import net.minecraft.util.ARGB;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 
-/**
- * 2D drawing for the HUD, toasts and UI widgets. Wraps the version's GUI graphics object and offers the operations
- * the mod uses, so the drawing code is the same on every version.
- *
- * <p>26.x has no shader colour. setColor keeps a colour here and passes it to the blits and faces. These are the
- * draws that the shader colour tinted in 1.21.1 (fills and text were batched and drawn later, untinted).
- */
+/** 26.x has no shader colour: setColor keeps a colour and passes it to blits and faces; fills and text stay untinted. */
 public final class Gui2D {
-    private final GuiGraphicsExtractor graphics;
+    private static final Gui2D SHARED = new Gui2D();
+    private static final float QUARTER_TURN = (float) (Math.PI / 2);
+
+    private GuiGraphicsExtractor graphics;
     private int color = -1;
 
-    private Gui2D(GuiGraphicsExtractor graphics) {
-        this.graphics = graphics;
+    private Gui2D() {
     }
 
     public static Gui2D of(GuiGraphicsExtractor graphics) {
-        return new Gui2D(graphics);
+        SHARED.graphics = graphics;
+        SHARED.color = -1;
+        return SHARED;
     }
 
-    /** The wrapped vanilla graphics object. */
     public GuiGraphicsExtractor raw() {
         return graphics;
     }
@@ -42,23 +39,34 @@ public final class Gui2D {
         graphics.fillGradient(x0, y0, x1, y1, argbTop, argbBottom);
     }
 
-    /** Draws a w x h region of the texture starting at (u, v), 1:1. */
+    public void fillGradientH(int x0, int y0, int x1, int y1, int argbLeft, int argbRight) {
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(x0, y1);
+        graphics.pose().rotate(-QUARTER_TURN);
+        graphics.fillGradient(0, 0, y1 - y0, x1 - x0, argbLeft, argbRight);
+        graphics.pose().popMatrix();
+    }
+
+    public void border(int x0, int y0, int x1, int y1, int thickness, int argb) {
+        fill(x0, y0, x1, y0 + thickness, argb);
+        fill(x0, y1 - thickness, x1, y1, argb);
+        fill(x0, y0 + thickness, x0 + thickness, y1 - thickness, argb);
+        fill(x1 - thickness, y0 + thickness, x1, y1 - thickness, argb);
+    }
+
     public void blit(Identifier texture, int x, int y, float u, float v, int w, int h, int texWidth, int texHeight) {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, u, v, w, h, texWidth, texHeight, color);
     }
 
-    /** Draws the uWidth x vHeight region of the texture at (u, v), scaled to w x h. */
     public void blit(Identifier texture, int x, int y, int w, int h, float u, float v, int uWidth, int vHeight,
                      int texWidth, int texHeight) {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, u, v, w, h, uWidth, vHeight, texWidth, texHeight, color);
     }
 
-    /** Text with a shadow. */
     public void text(Font font, String text, int x, int y, int color) {
         text(font, text, x, y, color, true);
     }
 
-    /** Text with a shadow. */
     public void text(Font font, Component text, int x, int y, int color) {
         text(font, text, x, y, color, true);
     }
@@ -79,21 +87,17 @@ public final class Gui2D {
         graphics.item(stack, x, y);
     }
 
-    /** Draws a player's face (with hat layer) from their skin texture. */
     public void playerFace(Identifier skin, int x, int y, int size) {
         PlayerFaceExtractor.extractRenderState(graphics, skin, x, y, size, true, false, color);
     }
 
-    /** Multiplies the colour of the following texture draws. Reset with setColor(1, 1, 1, 1). */
     public void setColor(float red, float green, float blue, float alpha) {
         color = ARGB.colorFromFloat(alpha, red, green, blue);
     }
 
-    /** Enables alpha blending for the following texture draws. The 26.x GUI pipelines always blend. */
     public void enableBlend() {
     }
 
-    /** Draws everything queued so far. The 26.x GUI keeps the draw order itself, so there is nothing to do. */
     public void flush() {
     }
 
@@ -113,7 +117,7 @@ public final class Gui2D {
         graphics.pose().scale(x, y);
     }
 
-    /** Before 1.21.6 a text colour with an alpha below 4 was drawn opaque. 26.x draws it invisible. */
+    /** Alpha < 4 drew opaque before 1.21.6; 26.x draws it invisible. */
     private static int textColor(int color) {
         return (color & 0xFC000000) == 0 ? color | 0xFF000000 : color;
     }

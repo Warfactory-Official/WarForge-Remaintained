@@ -26,7 +26,6 @@ public class ColorPickerElement extends UIElement {
         this(rgb, 40, 8);
     }
 
-    /** A picker with a swatch of the given width, gap pixels to the right of the three bars. */
     public ColorPickerElement(int rgb, int swatchWidth, int gap) {
         Color.RGBtoHSB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF, hsb);
         layout(l -> l.flexDirection(FlexDirection.ROW).gapColumn(gap).widthStretch());
@@ -50,7 +49,6 @@ public class ColorPickerElement extends UIElement {
     public int getRGB() {
         return Color.HSBtoRGB(hsb[0], hsb[1], hsb[2]);
     }
-
 
     private final class Bar extends WFUiElement {
         private final int channel;

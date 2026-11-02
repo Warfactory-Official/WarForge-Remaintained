@@ -12,22 +12,27 @@ WarForge builds four jars from one source tree with [Stonecutter](https://stonec
 ## Building
 
 - All nodes: `./gradlew buildAll`
-- One node: `./gradlew :26.1.2-neoforge:build` (also `runClient`, `runServer`, `runClient2`, `runData`)
+- One node: `./gradlew :26.1.2-neoforge:build` (also `test`, `runClient`, `runServer`, `runClient2`, `runData`)
+- Node list as JSON (CI matrix): `./gradlew -q printNodes`
+- Tests: JUnit 5 in `src/test/java`, run on every node (`:<node>:test`).
+  Test classpath = main plus Minecraft (`addModdingDependenciesTo`). Tests tagged `needs-registries` run on 1.21.1 only (vanilla registry bootstrap needs a launcher elsewhere).
+- Dev-only map mods (JourneyMap, Xaero) are on the client runs only; `runServer` never sees them.
 - The Gradle JVM must be Java 21 or later. Gradle downloads the Java 17 and 25 toolchains itself (foojay).
 
 The jars are in `versions/<node>/build/libs/` and are named `warforge-remaintained-<mc>-<loader>-<version>.jar`.
 
 ## CI and publishing
 
-- `ci.yml` builds each node in its own job, runs `checkNoVersionGuards`, uploads the jar, and starts the dedicated
-  server once (smoke test).
-- `platform-release.yml` runs `releaseBuild` and then the `curseforge` and `modrinth` tasks of every node. Each node
+- `ci.yml` takes the node list from `printNodes`, builds and tests each node in its own job (`build` runs `check`, which depends on
+  `checkNoVersionGuards`), uploads the jar, and starts the dedicated server once (smoke test).
+- `platform-release.yml` runs `buildAll` and then the `curseforge` and `modrinth` tasks of every node. Each node
   uploads its own jar with its own game version, loader and Java version. The Modrinth version number is
   `<version>+<mc>-<loader>`, for example `2.4.3+26.1.2-neoforge`.
 - Dependency relations come from `CURSEFORGE_RELATIONS` and `MODRINTH_RELATIONS`. Set
   `CURSEFORGE_RELATIONS_FORGE` / `_NEOFORGE` and `MODRINTH_RELATIONS_FORGE` / `_NEOFORGE` to give a loader its own
   list (LDLib 1 on Forge, LDLib2 on NeoForge).
 - The mod version is `version` in the `[mod]` section of `stonecutter.properties.toml`.
+- `mavenJava` snapshot publishing (`repo.warfactory.co/snapshots`) is configured for NeoForge nodes only.
 
 ## Source layout
 
@@ -39,10 +44,20 @@ The jars are in `versions/<node>/build/libs/` and are named `warforge-remaintain
 
 | Node | Variant folders |
 |---|---|
-| `1.20.1-forge` | `forge-1.20.1`, `mc-1.20.1-1.21.1`, `ui-ldlib1` |
+| `1.20.1-forge` | `forge-1.20.1`, `mc-1.20.1-1.21.1` (renamed), `ui-ldlib1` |
 | `1.21.1-neoforge` | `neoforge`, `neoforge-1.21.1`, `mc-1.20.1-1.21.1`, `ui-ldlib2` |
 | `26.1.2-neoforge` | `neoforge`, `neoforge-26`, `neoforge-26.1`, `ui-ldlib2` |
 | `26.2-neoforge` | `neoforge`, `neoforge-26`, `neoforge-26.2`, `ui-ldlib2` |
+
+- `mc-1.20.1-1.21.1` is written with NeoForge names; the Forge node compiles a copy with `FORGE_RENAMES` applied
+  (`Variants.kt`, same list as Stonecutter's replacements).
+- Data packs: `data/` in variant resource folders; formats differ per version:
+
+| Folder | Recipes | Loot, tags |
+|---|---|---|
+| `forge-1.20.1` | `recipes/`, `{"item"}` ingredients, result `{"item"}` | `loot_tables/`, `tags/blocks/` |
+| `neoforge-1.21.1` | `recipe/`, `{"item"}` ingredients, result `{"id"}` | `neoforge`: `loot_table/`, `tags/block/` |
+| `neoforge-26` | `recipe/`, plain `"id"` / `"#tag"` ingredients, result `{"id"}` | `neoforge`: `loot_table/`, `tags/block/` |
 
 Folder names say who uses them: a loader (`neoforge`), a loader and version range (`neoforge-26` is every
 NeoForge 26.x node), vanilla code shared by both loaders (`mc-1.20.1-1.21.1`), or a UI library.
@@ -54,24 +69,34 @@ Most version differences are in small classes in `com.flansmod.warforge.compat` 
 
 ## Rules
 
-1. **No Stonecutter comments in `src/main`.** The `checkNoVersionGuards` task (part of `check`) fails the build if
-   `//?` or `/*?` appears there. Put the difference in a variant class instead.
+1. **No Stonecutter comments in `src/main` or `src/variant`.** The root `checkNoVersionGuards` task (part of every
+   node's `check`) fails the build if `//?` or `/*?` appears there. Put the difference in a variant class instead.
 2. **Stonecutter string replacements are only for true one-to-one renames.** They are declared in
-   `stonecutter.gradle.kts`: the Forge package names and `ModConfigSpec` for the Forge node, and
-   `ResourceLocation` to `Identifier` for 1.21.11 and later.
-3. **Variant folders are not processed by Stonecutter.** So a folder that nodes on both sides of 1.21.11 use
-   (`neoforge`, `ui-ldlib2`) must not name `ResourceLocation`. Use `var` or the return type of `Ids`.
+   `stonecutter.gradle.kts` (the Forge list is `FORGE_RENAMES` in `Variants.kt`): the Forge package names and
+   `ModConfigSpec` for the Forge node, and `ResourceLocation` to `Identifier` for 1.21.11 and later.
+3. **Variant folders are not processed by Stonecutter.** A folder that nodes on both sides of 1.21.11 use
+   (`neoforge`, `ui-ldlib2`) must not name `ResourceLocation`: use `var` or the return type of `Ids`. Forge package
+   names in a folder shared with Forge: only `mc-1.20.1-1.21.1` (renamed copy, see Source layout).
 4. **Resources with `${...}` tokens** are listed in `ModCommonPlugin.kt` (`mods.toml`, `neoforge.mods.toml`,
    `pack.mcmeta`, the mixin configs, `pole.json`). The values come from `stonecutter.properties.toml`. Other files
    are copied as they are.
+5. **The UI library is a hard dependency** (`ldlib` on Forge, `ldlib2` on NeoForge), `required` with a lower bound
+   from `ldlib_dependency_range`.
+
+## Block UIs
+
+- Tree structure = `BlockUiState` tag only (captured on the server). Client lacks server factions and unsynced config.
+- LDLib1: tag in `BlockUiFactory` open payload. LDLib2: `PacketBlockUiState` sent before the menu opens.
+- UI text: `warforge.ui.*` keys via `UiLang.tr`, resolved at build time.
+- Screen widgets: zero steady-state allocation in draw; text lines, textures and tooltips cached at build.
 
 ## Adding a version
 
 1. Add the node in `settings.gradle.kts` (`match("<mc>", "<loader>")`) and its section in
    `stonecutter.properties.toml`.
 2. Add its row in `Variants.kt`. Reuse folders where the APIs are the same.
-3. Compile. For each error, add a copy of the shim in the new folder, or split an existing folder when one class no
-   longer fits all the nodes that use it.
+3. Add `ldlib_dependency_range` and the `data/` formats of the new version. Compile. For each error, add a copy of
+   the shim in the new folder, or split an existing folder when one class no longer fits all the nodes that use it.
 4. Run `runServer` and `runClient`, and check the in-game list below.
 
 ## In-game checks
@@ -79,7 +104,7 @@ Most version differences are in small classes in `com.flansmod.warforge.compat` 
 Borders (own, ally, conquered, fast mode, corners, the B toggle, the distance limit, many claims at once), the
 placement overlay, the HUD (timers, vein overlay, siege bar, toasts), all 9 screens and the 4 block UIs, the block
 entity renderers (pole, flag wave, beacon beam, leaderboard, name plates), chat, protections (including fluid flow
-into claims), chunk loading after a restart, brewing, combat-log drops, the JourneyMap and Xaero's map overlays, and
+into claims), chunk loading after a restart, combat-log drops, the JourneyMap and Xaero's map overlays, and
 save and load with two clients.
 
 ## Worlds and items across Minecraft versions
@@ -89,12 +114,3 @@ item stacks use the save format of each Minecraft version (item NBT on 1.20.1, d
 or `warforgefactions.dat` from one Minecraft version is not converted when you load it on another. Insurance items and
 island collector contents can be lost or wrong if you move a world between Minecraft versions. Update worlds with the
 normal Minecraft upgrade path, and keep a backup.
-
-## Known issues kept as they were
-
-These existed before the multi-version work and are not changed by it:
-
-- Recipes are under `assets/` instead of `data/`, so the game does not load them.
-- There is no `data/` folder (no loot tables or tags).
-- The star circle particle has no particle JSON.
-- `ClaimFlagRenderer` is not used.

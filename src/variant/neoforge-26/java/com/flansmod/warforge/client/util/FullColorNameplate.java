@@ -1,5 +1,7 @@
 package com.flansmod.warforge.client.util;
 
+import java.util.HashMap;
+import java.util.Map;
 import com.flansmod.warforge.client.PlayerNametagCache;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
@@ -13,22 +15,30 @@ import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.phys.Vec3;
 
 public class FullColorNameplate {
-    /** A faction plate recorded during extraction, with the entity facts that the drawing needs. */
-    public record Plate(PlayerNametagCache.NamePlateData faction, float bbHeight, boolean sneaking,
-                        EntityRenderer<?, ?> renderer) {
+    private static final Map<String, Component> NAMES = new HashMap<>();
+
+    public static Component nameComponent(String name) {
+        Component component = NAMES.get(name);
+        if (component == null) {
+            if (NAMES.size() > 256) {
+                NAMES.clear();
+            }
+            component = Component.literal(name);
+            NAMES.put(name, component);
+        }
+        return component;
     }
 
-    /** The plate is drawn this many text pixels above the name tag, as before 26.x. */
+    public record Plate(PlayerNametagCache.NamePlateData faction, float bbHeight, boolean sneaking,
+                        EntityRenderer<?, ?> renderer, boolean seeThrough) {
+    }
+
     private static final int VERTICAL_SHIFT = -10;
 
-    /**
-     * Submits a faction nameplate with the same transform and text passes as the 1.21.1 renderer: at the entity
-     * position plus render offset, lifted to head height, turned to the camera and scaled to text size.
-     */
     public static void submit(Plate plate, EntityRenderState state, CameraRenderState camera, PoseStack pose,
                               SubmitNodeCollector collector) {
         Font font = Minecraft.getInstance().font;
-        Component name = Component.literal(plate.faction().name);
+        Component name = nameComponent(plate.faction().name);
         Vec3 offset = renderOffset(plate.renderer(), state);
 
         pose.pushPose();
@@ -44,10 +54,9 @@ public class FullColorNameplate {
         int color = textColor(plate.faction().color);
         int darker = textColor(plate.faction().darkerColor);
 
-        if (plate.sneaking()) {
-            collector.submitText(pose, xOffset, VERTICAL_SHIFT, text, false, Font.DisplayMode.NORMAL, state.lightCoords, darker, bgColor, 0);
+        if (plate.sneaking() || !plate.seeThrough()) {
+            collector.submitText(pose, xOffset, VERTICAL_SHIFT, text, false, Font.DisplayMode.NORMAL, state.lightCoords, plate.sneaking() ? darker : color, plate.sneaking() ? bgColor : 0, 0);
         } else {
-            // First pass behind blocks (see-through), second pass on top, matching vanilla.
             collector.submitText(pose, xOffset, VERTICAL_SHIFT, text, false, Font.DisplayMode.SEE_THROUGH, state.lightCoords, darker, bgColor, 0);
             collector.submitText(pose, xOffset, VERTICAL_SHIFT, text, false, Font.DisplayMode.NORMAL, state.lightCoords, color, 0, 0);
         }
@@ -60,7 +69,7 @@ public class FullColorNameplate {
         return ((EntityRenderer) renderer).getRenderOffset(state);
     }
 
-    /** Before 1.21.6 a text colour with an alpha below 4 was drawn opaque. 26.x draws it invisible. */
+    /** Alpha < 4 drew opaque before 1.21.6; 26.x draws it invisible. */
     private static int textColor(int color) {
         return (color & 0xFC000000) == 0 ? color | 0xFF000000 : color;
     }

@@ -12,11 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import xaero.common.minimap.highlight.AbstractHighlighter;
 import xaero.common.minimap.highlight.HighlighterRegistry;
 
-/**
- * Adds the claim highlighter to Xaero's Minimap (which does not show World Map highlighters itself). Its registry
- * is built for every session and made read-only by end(), so the highlighter is added just before that. Applied only
- * when xaerominimap is loaded (CompatMixinPlugin); an error here is logged and never breaks the minimap.
- */
+// Minimap does not show World Map highlighters itself. Registry made read-only by end(): add just before. Errors logged, never break the minimap.
 @Pseudo
 @Mixin(value = HighlighterRegistry.class, remap = false)
 public abstract class XaeroMinimapHighlighterMixin {

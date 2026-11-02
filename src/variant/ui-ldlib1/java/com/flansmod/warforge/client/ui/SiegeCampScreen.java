@@ -1,19 +1,21 @@
 package com.flansmod.warforge.client.ui;
 
-import com.flansmod.warforge.api.Time;
-import com.flansmod.warforge.api.modularui.ChunkMapViewport;
+import com.flansmod.warforge.client.ui.model.DataRevision;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
+import com.flansmod.warforge.client.map.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.MapCellElement;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
+import com.flansmod.warforge.client.ui.model.MomentumTooltip;
 import com.flansmod.warforge.client.ui.model.SiegeMapModel;
-import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.network.PacketSiegeCampInfo;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
-import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.client.ui.model.SiegeCampAttackInfoRender;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.network.chat.Style;
 import net.minecraft.network.chat.TextColor;
 import net.minecraftforge.api.distmarker.Dist;
@@ -25,9 +27,9 @@ import java.util.List;
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.CONTENT_LEFT;
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.HEADER_HEIGHT;
 
-/** The siege target map of a siege camp (layout of the 1.20.1 GuiSiegeCamp). */
 @OnlyIn(Dist.CLIENT)
 public final class SiegeCampScreen {
+    private static final DataRevision REVISION = new DataRevision();
     private static final int CELL_SIZE = 64;
     private static final int INFO_HEIGHT = 48;
     private static final int LEGEND_HEIGHT = 28;
@@ -38,6 +40,9 @@ public final class SiegeCampScreen {
     }
 
     public static void open(PacketSiegeCampInfo data) {
+        if (data != null && REVISION.unchanged(Minecraft.getInstance().screen, data)) {
+            return;
+        }
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
             return;
@@ -80,18 +85,18 @@ public final class SiegeCampScreen {
         panel.addWidget(WarForgeUiTheme.stripe(data.color, height));
         panel.addWidget(WarForgeUiTheme.closeButton(width, click -> ClientScreens.close()));
 
-        panel.addWidget(WarForgeUiTheme.title("Siege Target Map"));
+        panel.addWidget(WarForgeUiTheme.title(tr("warforge.ui.siege_target_map")));
         panel.addWidget(Label.text(model.campLine(), WarForgeUiTheme.TEXT_SECONDARY)
                 .clip(width - CONTENT_LEFT * 2 - 18).at(CONTENT_LEFT, WarForgeUiTheme.SUBTITLE_Y));
 
         int infoTextY = infoY + WarForgeUiTheme.SECTION_PADDING;
-        Label momentum = Label.text("Current momentum: " + data.momentum, WarForgeUiTheme.TEXT_PRIMARY)
+        Label momentum = Label.text(tr("warforge.ui.current_momentum_d", data.momentum), WarForgeUiTheme.TEXT_PRIMARY)
                 .clip(textWidth).at(CONTENT_LEFT + 5, infoTextY);
-        momentum.setHoverTooltips(momentumTooltip());
+        momentum.setHoverTooltips(MomentumTooltip.lines());
         panel.addWidget(momentum);
-        panel.addWidget(Label.text("Select a target chunk around the siege camp. Center tile is your current camp position.",
+        panel.addWidget(Label.text(tr("warforge.ui.select_a_target_chunk_around_the_siege_camp_cent"),
                 WarForgeUiTheme.TEXT_MUTED).clip(textWidth).at(CONTENT_LEFT + 5, infoTextY + 9 + 4));
-        panel.addWidget(Label.text("Click an attackable chunk to begin the siege. Tooltips show faction ownership, claim type, and vein data.",
+        panel.addWidget(Label.text(tr("warforge.ui.click_an_attackable_chunk_to_begin_the_siege_too"),
                 WarForgeUiTheme.TEXT_MUTED).clip(textWidth).at(CONTENT_LEFT + 5, legendY + WarForgeUiTheme.SECTION_PADDING));
 
         for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
@@ -107,41 +112,30 @@ public final class SiegeCampScreen {
                 MapCellElement cell = new MapCellElement(model.textureName(chunkInfo), chunkInfo, model.adjacency[index], CELL_SIZE);
                 cell.setSelfPosition(mapLeft + (i - viewport.startX) * CELL_SIZE, mapTop + (j - viewport.startZ) * CELL_SIZE);
                 cell.onClick = button -> model.attack(chunkInfo);
-                cell.setHoverTooltips(styledTooltip(model.tooltip(chunkInfo), chunkInfo));
+                cell.tooltipOnHover(() -> styledTooltip(model.tooltip(chunkInfo), chunkInfo));
                 panel.addWidget(cell);
             }
         }
 
-        ClientScreens.open(panel);
+        REVISION.shown(ClientScreens.open(panel));
     }
 
-    private static List<Component> momentumTooltip() {
-        List<Component> lines = new ArrayList<>();
-        lines.add(Component.literal("§6Momentum System§r"));
-        lines.add(Component.literal("§7Momentum affects siege duration.§r"));
-        lines.add(Component.literal("§7Gained via §aWON§7 sieges, lost on §cLOST§7 sieges.§r"));
-        lines.add(Component.literal("§7Expires after §b" + WarForgeConfig.SIEGE_MOMENTUM_DURATION + " minutes§7.§r"));
-        for (byte level : WarForgeConfig.SIEGE_MOMENTUM_TIME.keySet()) {
-            long time = WarForgeConfig.SIEGE_MOMENTUM_TIME.get(level) * 1000L;
-            lines.add(Component.literal("§eLevel " + level + "§r: §a"
-                    + new Time(time).getFormattedTime(Time.TimeFormat.MINUTES_SECONDS, Time.Verbality.SHORT)));
-        }
-        return lines;
+    private static boolean isAttackTime(Component line) {
+        return line.getContents() instanceof TranslatableContents contents
+                && contents.getKey().equals("warforge.client.siege_map.attack_time");
     }
 
-    /** Colours the model's tooltip like the 1.20.1 menu: owner in faction colour, attack lines in red. */
     private static List<Component> styledTooltip(List<Component> lines, SiegeCampAttackInfoRender chunkInfo) {
         List<Component> styled = new ArrayList<>(lines.size());
         for (int i = 0; i < lines.size(); i++) {
             Component line = lines.get(i);
-            String text = line.getString();
             if (i == 0) {
-                styled.add(chunkInfo.mFactionName.isEmpty()
+                styled.add(chunkInfo.factionName.isEmpty()
                         ? line.copy().withStyle(ChatFormatting.GREEN)
-                        : line.copy().withStyle(Style.EMPTY.withColor(TextColor.fromRgb(chunkInfo.mFactionColour & 0xFFFFFF))));
+                        : line.copy().withStyle(Style.EMPTY.withColor(TextColor.fromRgb(chunkInfo.factionColour & 0xFFFFFF))));
             } else if (chunkInfo.canAttack && i == lines.size() - 1) {
                 styled.add(line.copy().withStyle(ChatFormatting.BOLD, ChatFormatting.RED));
-            } else if (chunkInfo.canAttack && i == lines.size() - 2 && text.startsWith("Attack time")) {
+            } else if (chunkInfo.canAttack && isAttackTime(line)) {
                 styled.add(line.copy().withStyle(ChatFormatting.RED));
             } else {
                 styled.add(line);

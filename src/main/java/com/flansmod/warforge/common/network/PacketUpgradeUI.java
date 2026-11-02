@@ -1,26 +1,25 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.server.Faction;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
 public class PacketUpgradeUI extends PacketBase {
     public static PacketUpgradeUI latest = null;
 
-    public UUID mFactionID = Faction.nullUuid;
-    public String mFactionName = "";
+    public UUID factionId = FactionIds.NONE;
+    public String factionName = "";
     public int level = 0;
     public int color = 0xffff;
     public boolean outrankingOfficer = false;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        writeUUID(data, mFactionID);
-        writeUTF(data, mFactionName);
+        writeUUID(data, factionId);
+        writeUTF(data, factionName);
         data.writeInt(level);
         data.writeInt(color);
         data.writeBoolean(outrankingOfficer);
@@ -28,8 +27,8 @@ public class PacketUpgradeUI extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        mFactionID = readUUID(data);
-        mFactionName = readUTF(data);
+        factionId = readUUID(data);
+        factionName = readUTF(data);
         level = data.readInt();
         color = data.readInt();
         outrankingOfficer = data.readBoolean();
@@ -37,12 +36,6 @@ public class PacketUpgradeUI extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.LOGGER.error("Received a Upgrade UI packet on serverside");
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        latest = this;
-        com.flansmod.warforge.common.factories.FactionUpgradeGuiFactory.INSTANCE.openUpgradeScreen();
+        PacketSecurity.violation(player, "Received a Upgrade UI packet on serverside");
     }
 }

@@ -15,14 +15,14 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 import java.util.function.Supplier;
 
-/** Registers WFNetwork.PACKETS on a Forge SimpleChannel and sends them. The table order is the message index. */
 public final class NetworkPlatform {
     private NetworkPlatform() {}
 
-    private static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            Ids.of(Tags.MODID, "main"), () -> WFNetwork.VERSION, WFNetwork.VERSION::equals, WFNetwork.VERSION::equals);
+    private static SimpleChannel channel;
 
     public static void register(IEventBus modBus) {
+        channel = NetworkRegistry.newSimpleChannel(
+                Ids.of(Tags.MODID, "main"), () -> WFNetwork.VERSION, WFNetwork.VERSION::equals, WFNetwork.VERSION::equals);
         int index = 0;
         for (WFNetwork.Entry<?> entry : WFNetwork.PACKETS) {
             register(index++, entry);
@@ -31,9 +31,9 @@ public final class NetworkPlatform {
 
     private static <T extends PacketBase> void register(int index, WFNetwork.Entry<T> entry) {
         SimpleChannel.MessageBuilder<T> builder = switch (entry.direction()) {
-            case TO_SERVER -> CHANNEL.messageBuilder(entry.type(), index, NetworkDirection.PLAY_TO_SERVER);
-            case TO_CLIENT -> CHANNEL.messageBuilder(entry.type(), index, NetworkDirection.PLAY_TO_CLIENT);
-            case BOTH -> CHANNEL.messageBuilder(entry.type(), index);
+            case TO_SERVER -> channel.messageBuilder(entry.type(), index, NetworkDirection.PLAY_TO_SERVER);
+            case TO_CLIENT -> channel.messageBuilder(entry.type(), index, NetworkDirection.PLAY_TO_CLIENT);
+            case BOTH -> channel.messageBuilder(entry.type(), index);
         };
         builder.encoder(PacketBase::encodeInto)
                 .decoder(buf -> {
@@ -54,26 +54,25 @@ public final class NetworkPlatform {
     }
 
     public static void sendToAll(PacketBase packet) {
-        CHANNEL.send(PacketDistributor.ALL.noArg(), packet);
+        channel.send(PacketDistributor.ALL.noArg(), packet);
     }
 
     public static void sendTo(PacketBase packet, ServerPlayer player) {
-        CHANNEL.send(PacketDistributor.PLAYER.with(() -> player), packet);
+        channel.send(PacketDistributor.PLAYER.with(() -> player), packet);
     }
 
     public static void sendToDimension(PacketBase packet, ServerLevel level) {
-        CHANNEL.send(PacketDistributor.DIMENSION.with(level::dimension), packet);
+        channel.send(PacketDistributor.DIMENSION.with(level::dimension), packet);
     }
 
     public static void sendToAllAround(PacketBase packet, ServerLevel level, double x, double y, double z, double range) {
-        CHANNEL.send(PacketDistributor.NEAR.with(PacketDistributor.TargetPoint.p(x, y, z, range, level.dimension())), packet);
+        channel.send(PacketDistributor.NEAR.with(PacketDistributor.TargetPoint.p(x, y, z, range, level.dimension())), packet);
     }
 
     public static void sendToServer(PacketBase packet) {
-        CHANNEL.sendToServer(packet);
+        channel.sendToServer(packet);
     }
 
-    /** Client-only access, in its own class so the server never loads client classes. */
     private static final class ClientAccess {
         static net.minecraft.world.entity.player.Player player() {
             return net.minecraft.client.Minecraft.getInstance().player;

@@ -1,15 +1,15 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
-public class PacketFactionAllianceAction extends PacketBase {
+public class PacketFactionAllianceAction extends ServerboundPacket {
     public enum Action {
         INVITE,
         ACCEPT,
@@ -19,32 +19,28 @@ public class PacketFactionAllianceAction extends PacketBase {
     }
 
     public Action action = Action.INVITE;
-    public UUID target = Faction.nullUuid;
-    public FactionMemberManagerGuiData.Page page = FactionMemberManagerGuiData.Page.ALLIANCES;
+    public UUID target = FactionIds.NONE;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
         data.writeByte(action.ordinal());
         writeUUID(data, target);
-        data.writeByte(page.ordinal());
     }
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
         action = PacketSecurity.readEnum(data, Action.values(), Action.INVITE);
         target = readUUID(data);
-        page = PacketSecurity.readEnum(data, FactionMemberManagerGuiData.Page.values(),
-                FactionMemberManagerGuiData.Page.ALLIANCES);
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
         switch (action) {
-            case INVITE -> WarForgeMod.FACTIONS.requestInviteAlly(playerEntity, target);
-            case ACCEPT -> WarForgeMod.FACTIONS.requestAcceptAlliance(playerEntity, target);
-            case DECLINE -> WarForgeMod.FACTIONS.requestDeclineAlliance(playerEntity, target);
-            case BREAK -> WarForgeMod.FACTIONS.requestBreakAlliance(playerEntity, target);
-            case TOGGLE_ALLY_BUILD -> WarForgeMod.FACTIONS.requestToggleAllyInteraction(playerEntity);
+            case INVITE -> WarForgeMod.FACTIONS.alliances.requestInviteAlly(playerEntity, target);
+            case ACCEPT -> WarForgeMod.FACTIONS.alliances.requestAcceptAlliance(playerEntity, target);
+            case DECLINE -> WarForgeMod.FACTIONS.alliances.requestDeclineAlliance(playerEntity, target);
+            case BREAK -> WarForgeMod.FACTIONS.alliances.requestBreakAlliance(playerEntity, target);
+            case TOGGLE_ALLY_BUILD -> WarForgeMod.FACTIONS.alliances.requestToggleAllyInteraction(playerEntity);
         }
     }
 

@@ -5,7 +5,6 @@ import com.flansmod.warforge.client.render.UiPainters;
 
 import com.flansmod.warforge.client.render.Gui2D;
 
-import com.lowdragmc.lowdraglib2.gui.ui.UIElement;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 

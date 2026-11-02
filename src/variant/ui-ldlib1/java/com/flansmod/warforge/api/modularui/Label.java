@@ -17,18 +17,14 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import org.joml.Vector4f;
 
 import javax.annotation.Nonnull;
-import java.util.Collections;
+import javax.annotation.Nullable;
 import java.util.List;
 
-/**
- * A static text label, positioned absolutely (the ModularUI Text widget of the 1.20.1 menus). By default it is one
- * line at its natural size. {@link #wrap} wraps it to a width, {@link #clip} keeps one line cut to a width that
- * scrolls while hovered (ScrollingTextWidget), and {@link #box} gives it a fixed box in which the text is vertically
- * centred. On the server it only estimates its size (the size never decides the widget tree).
- */
 public class Label extends Widget {
     private static final int LINE_HEIGHT = 9;
     private static final int LINE_STEP = 10;
+    private static final Vector4f SCISSOR_MIN = new Vector4f();
+    private static final Vector4f SCISSOR_MAX = new Vector4f();
 
     private final Component text;
     private boolean shadow;
@@ -39,6 +35,8 @@ public class Label extends Widget {
     private int boxHeight = -1;
     private int align;
     private int lineCount = 1;
+    private @Nullable List<FormattedCharSequence> lines;
+    private int[] lineWidths = new int[0];
 
     public Label(Component text) {
         super(0, 0, 0, LINE_HEIGHT);
@@ -78,21 +76,18 @@ public class Label extends Widget {
         return this;
     }
 
-    /** Wraps the text to the width; the height follows the line count. */
     public Label wrap(int width) {
         this.wrapWidth = width;
         resize();
         return this;
     }
 
-    /** One line cut to the width; scrolls while hovered when it is longer. */
     public Label clip(int width) {
         this.clipWidth = width;
         resize();
         return this;
     }
 
-    /** A fixed box; the text is vertically centred in it (and cut to its width). */
     public Label box(int width, int height) {
         this.boxWidth = width;
         this.boxHeight = height;
@@ -119,12 +114,10 @@ public class Label extends Widget {
         return text;
     }
 
-    /** The number of lines after wrapping. */
     public int lineCount() {
         return lineCount;
     }
 
-    /** The unscaled natural width of the text. */
     public int naturalWidth() {
         if (LDLib.isRemote()) {
             return ClientText.width(text);
@@ -133,6 +126,7 @@ public class Label extends Widget {
     }
 
     private void resize() {
+        lines = null;
         int natural = Mth.ceil(naturalWidth() * scale);
         int lineHeight = Mth.ceil(LINE_HEIGHT * scale);
         if (boxWidth >= 0) {
@@ -152,32 +146,44 @@ public class Label extends Widget {
         }
     }
 
+    private void layoutLines(Font font) {
+        List<FormattedCharSequence> split = wrapWidth >= 0 && boxWidth < 0
+                ? font.split(text, Math.max(1, (int) (wrapWidth / scale)))
+                : List.of(text.getVisualOrderText());
+        int[] widths = new int[split.size()];
+        for (int i = 0; i < widths.length; i++) {
+            widths[i] = Mth.ceil(font.width(split.get(i)) * scale);
+        }
+        lines = split;
+        lineWidths = widths;
+    }
+
     @Override
     @OnlyIn(Dist.CLIENT)
     public void drawInBackground(@Nonnull GuiGraphics graphics, int mouseX, int mouseY, float partialTicks) {
         super.drawInBackground(graphics, mouseX, mouseY, partialTicks);
         Font font = Minecraft.getInstance().font;
+        if (lines == null) {
+            layoutLines(font);
+        }
         int x = getPositionX();
         int y = getPositionY();
         int width = getSizeWidth();
         int height = getSizeHeight();
 
-        List<FormattedCharSequence> lines = wrapWidth >= 0 && boxWidth < 0
-                ? font.split(text, Math.max(1, (int) (wrapWidth / scale)))
-                : Collections.singletonList(text.getVisualOrderText());
         boolean cut = clipWidth >= 0 || boxWidth >= 0;
         int textHeight = Mth.ceil((lines.size() * LINE_STEP - 1) * scale);
         int top = boxHeight >= 0 ? y + (height - textHeight) / 2 + 1 : y;
 
         if (cut) {
             var pose = graphics.pose().last().pose();
-            Vector4f min = pose.transform(new Vector4f(x, y - 1, 0, 1));
-            Vector4f max = pose.transform(new Vector4f(x + width, y + height + 1, 0, 1));
-            graphics.enableScissor((int) min.x, (int) min.y, (int) max.x, (int) max.y);
+            pose.transform(SCISSOR_MIN.set(x, y - 1, 0, 1));
+            pose.transform(SCISSOR_MAX.set(x + width, y + height + 1, 0, 1));
+            graphics.enableScissor((int) SCISSOR_MIN.x, (int) SCISSOR_MIN.y, (int) SCISSOR_MAX.x, (int) SCISSOR_MAX.y);
         }
         int lineY = top;
-        for (FormattedCharSequence line : lines) {
-            int lineWidth = Mth.ceil(font.width(line) * scale);
+        for (int i = 0; i < lines.size(); i++) {
+            int lineWidth = lineWidths[i];
             int lineX = x;
             if (cut && lineWidth > width) {
                 if (isMouseOverElement(mouseX, mouseY)) {
@@ -192,11 +198,15 @@ public class Label extends Widget {
             } else if (align == 2) {
                 lineX = x + width - lineWidth;
             }
-            graphics.pose().pushPose();
-            graphics.pose().translate(lineX, lineY, 0);
-            graphics.pose().scale(scale, scale, 1f);
-            graphics.drawString(font, line, 0, 0, 0xFFFFFFFF, shadow);
-            graphics.pose().popPose();
+            if (scale == 1f) {
+                graphics.drawString(font, lines.get(i), lineX, lineY, 0xFFFFFFFF, shadow);
+            } else {
+                graphics.pose().pushPose();
+                graphics.pose().translate(lineX, lineY, 0);
+                graphics.pose().scale(scale, scale, 1f);
+                graphics.drawString(font, lines.get(i), 0, 0, 0xFFFFFFFF, shadow);
+                graphics.pose().popPose();
+            }
             lineY += Mth.ceil(LINE_STEP * scale);
         }
         if (cut) {

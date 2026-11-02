@@ -1,21 +1,22 @@
 import org.gradle.api.Project
+import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.SourceSetContainer
 import org.gradle.kotlin.dsl.getByType
+import org.gradle.kotlin.dsl.register
 
-/**
- * The one table that says which version-specific source folders each node compiles.
- *
- * Shared code lives in src/main and is written for 1.21.1-neoforge. It must not contain Stonecutter comments
- * (see GuardCheck.kt). Code that differs between versions lives in src/variant/<folder>/{java,resources}. A class has
- * the same package and name in every folder that has a copy of it, so shared code calls it directly.
- *
- * Folder names say who uses them: a loader ("neoforge"), a loader + version range ("neoforge-26" = every NeoForge 26.x
- * node), vanilla code shared across loaders ("mc-1.20.1-1.21.1" = vanilla API before the 1.21.2 changes), or a UI
- * library ("ui-ldlib1", "ui-ldlib2").
- *
- * A folder used by nodes on both sides of 1.21.11 (for example "neoforge") must not name ResourceLocation, because
- * Stonecutter's ResourceLocation -> Identifier replacement only runs on src/main.
- */
+/** Variant folders written with NeoForge names; the Forge node compiles a copy with [FORGE_RENAMES] applied. */
+val RENAMED_FOR_FORGE: Set<String> = setOf("mc-1.20.1-1.21.1")
+
+/** Forge 1.20.1 names of NeoForge classes; the same renames Stonecutter applies to src/main. */
+val FORGE_RENAMES: List<Pair<String, String>> = listOf(
+    "net.neoforged.neoforge." to "net.minecraftforge.",
+    "net.neoforged.fml." to "net.minecraftforge.fml.",
+    "net.neoforged.api.distmarker." to "net.minecraftforge.api.distmarker.",
+    "net.neoforged.bus.api." to "net.minecraftforge.eventbus.api.",
+    "ModConfigSpec" to "ForgeConfigSpec",
+)
+
+/** The one table that says which version-specific source folders each node compiles. See docs/multi-version.md. */
 val VARIANTS: Map<String, List<String>> = mapOf(
     "1.20.1-forge" to listOf("forge-1.20.1", "mc-1.20.1-1.21.1", "ui-ldlib1"),
     "1.21.1-neoforge" to listOf("neoforge", "neoforge-1.21.1", "mc-1.20.1-1.21.1", "ui-ldlib2"),
@@ -28,8 +29,19 @@ fun Project.applyVariants() {
     val folders = VARIANTS[node] ?: error("No variant folders declared for node '$node' in Variants.kt")
     extensions.getByType<SourceSetContainer>().named("main") {
         folders.forEach { folder ->
-            java.srcDir(rootProject.file("src/variant/$folder/java"))
+            if (loader == "forge" && folder in RENAMED_FOR_FORGE) {
+                java.srcDir(renamedForForge(folder))
+            } else {
+                java.srcDir(rootProject.file("src/variant/$folder/java"))
+            }
             resources.srcDir(rootProject.file("src/variant/$folder/resources"))
         }
     }
 }
+
+private fun Project.renamedForForge(folder: String) =
+    tasks.register<Sync>("renameVariant-$folder") {
+        from(rootProject.file("src/variant/$folder/java"))
+        into(layout.buildDirectory.dir("generated/variant/$folder/java"))
+        filter { line -> FORGE_RENAMES.fold(line) { text, (from, to) -> text.replace(from, to) } }
+    }

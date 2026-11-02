@@ -1,7 +1,8 @@
 package com.flansmod.warforge.common.mixins;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.common.ExplosionProtection;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;
@@ -9,13 +10,10 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-// Superb Warfare's main blast (CustomExplosion) fires ExplosionEvent.Detonate, so ProtectionsModule
-// already filters it. Its explosive entities ALSO punch direct Level.destroyBlock holes ("extra
-// explosion effect" / impact craters) that fire no event and therefore bypass claims. Re-route those
-// through the same claim check. Targets are listed by string so this compiles without SBW on the
-// classpath; missing targets (e.g. the other version's packaging) are skipped by required:false, and
-// the whole mixin is only registered when SBW is present (see CompatMixinPlugin).
-// @Pseudo: the targets may be missing when compiling (Forge refmap generation still maps the redirect target).
+// SBW CustomExplosion fires ExplosionEvent.Detonate (filtered in ProtectionsModule); explosive entities also punch direct
+// Level.destroyBlock craters with no event => bypass claims; re-routed through the claim check.
+// Targets are strings (no compile dependency); missing ones skipped (required:false).
+// @Pseudo: targets may be missing at compile time; Forge refmap generation still maps the redirect target.
 @Pseudo
 @Mixin(remap = false, targets = {
         // C4 and the TM-62 mine moved entity -> entity.projectile between 0.8.8 and 0.8.9; list both.
@@ -43,7 +41,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 })
 @SuppressWarnings("unused")
 public class SbwExplosionClaimMixin {
-
     // method = "*" so the redirect also catches destroyBlock calls inside the forEach lambdas SBW uses
     // (e.g. C4Entity#lambda$explode$0). require = 0 keeps it inert rather than crashing on a version
     // where one of these classes no longer performs a direct destroy.
@@ -54,7 +51,7 @@ public class SbwExplosionClaimMixin {
                     remap = true),
             require = 0)
     private boolean warforge$guardExplosionDestroy(Level level, BlockPos pos, boolean dropBlock) {
-        if (ExplosionProtection.isProtected(level, Faction.nullUuid, pos)) {
+        if (ExplosionProtection.isProtected(level, FactionIds.NONE, pos)) {
             return false;
         }
         return level.destroyBlock(pos, dropBlock);

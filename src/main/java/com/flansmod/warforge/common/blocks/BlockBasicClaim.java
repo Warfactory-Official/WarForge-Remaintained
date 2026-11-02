@@ -1,8 +1,11 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.common.ClaimPlacementRules;
+import com.flansmod.warforge.common.PlayerSyncService;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.platform.WFUiBlock;
 
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -13,7 +16,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -45,8 +47,8 @@ import static com.flansmod.warforge.common.Content.dummyTranslusent;
 import static com.flansmod.warforge.common.Content.statue;
 import static com.flansmod.warforge.common.WarForgeMod.FACTIONS;
 import static com.flansmod.warforge.common.blocks.BlockDummy.MODEL;
-import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.KING;
-import static com.flansmod.warforge.common.blocks.BlockDummy.modelEnum.TRANSLUCENT;
+import static com.flansmod.warforge.common.blocks.BlockDummy.DummyModel.KING;
+import static com.flansmod.warforge.common.blocks.BlockDummy.DummyModel.TRANSLUCENT;
 
 public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IMultiBlock {
     public static final EnumProperty<Direction> FACING = BlockStateProperties.HORIZONTAL_FACING;
@@ -68,16 +70,15 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
     @Nullable
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         if (this == Content.basicClaimBlock)
-            return new TileEntityBasicClaim(pos, state);
+            return new BasicClaimBlockEntity(pos, state);
         else
-            return new TileEntityReinforcedClaim(pos, state);
+            return new ReinforcedClaimBlockEntity(pos, state);
     }
 
-    // returns the first located adjacent position (in SWNE order), or null if there was none
     public static DimChunkPos hasAdjacent(DimChunkPos sourcePos, Faction placingFaction) {
         for (Direction facing : Direction.Plane.HORIZONTAL) {
             DimChunkPos adj = new DimChunkPos(sourcePos.dim, sourcePos.x + facing.getStepX(), sourcePos.z + facing.getStepZ());
-            if (Objects.equals(FACTIONS.getClaims().get(adj), placingFaction.uuid)) { return adj; }
+            if (Objects.equals(FACTIONS.claims.getClaims().get(adj), placingFaction.getUuid())) { return adj; }
         }
 
         return null;
@@ -86,16 +87,14 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
     @Override
     public boolean canSurvive(BlockState state, LevelReader world, BlockPos pos) {
         if (world instanceof Level level && !level.isClientSide()) {
-            if (FACTIONS.isChunkContested(new DimChunkPos(level.dimension(), pos)))
+            if (FACTIONS.sieges.isChunkContested(new DimChunkPos(level.dimension(), pos)))
                 return false;
 
-            // Can't claim a chunk claimed by another faction
-            UUID existingClaim = FACTIONS.getClaim(new DimChunkPos(level.dimension(), pos));
-            if (!existingClaim.equals(Faction.nullUuid))
+            UUID existingClaim = FACTIONS.claims.getClaim(new DimChunkPos(level.dimension(), pos));
+            if (!existingClaim.equals(FactionIds.NONE))
                 return false;
         }
 
-        // Can only place on a solid surface
         if (!world.getBlockState(pos.below()).isFaceSturdy(world, pos.below(), Direction.UP))
             return false;
 
@@ -108,11 +107,14 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
         world.setBlock(pos, state.setValue(FACING, facing), 2);
         if (!world.isClientSide()) {
             BlockEntity te = world.getBlockEntity(pos);
-            if (te instanceof TileEntityBasicClaim claim) {
+            if (te instanceof BasicClaimBlockEntity claim) {
                 claim.onPlacedBy(placer);
-                // setUpMultiblock is intentionally deferred to TileEntityClaim.onServerSetFaction
-                // (reached via onNonCitadelClaimPlaced), unlike the base MultiBlockColumn/BlockCitadel path.
-                FACTIONS.onNonCitadelClaimPlaced(claim, placer);
+                // setUpMultiblock deferred to ClaimBlockEntity.onServerSetFaction
+                FACTIONS.claimService.onNonCitadelClaimPlaced(claim, placer);
+                Faction owner = FACTIONS.registry.getFactionOfPlayer(placer.getUUID());
+                if (owner != null && claim.getFaction().equals(owner.getUuid()) && placer instanceof Player player) {
+                    ClaimPlacementRules.chargeExtraCost(player, owner);
+                }
                 world.removeBlock(pos, false);
             }
         }
@@ -132,28 +134,26 @@ public class BlockBasicClaim extends MultiBlockColumn implements EntityBlock, IM
     @Override
     protected InteractionResult onUse(BlockState state, Level world, BlockPos pos, Player player, BlockHitResult hit) {
         if (player.isShiftKeyDown()) {
-            TileEntityBasicClaim claim = (TileEntityBasicClaim) world.getBlockEntity(pos);
+            BasicClaimBlockEntity claim = (BasicClaimBlockEntity) world.getBlockEntity(pos);
             claim.increaseRotation();
             return world.isClientSide() ? InteractionResult.CONSUME : InteractionResult.SUCCESS;
         }
         if (!world.isClientSide()) {
-            Faction playerFaction = FACTIONS.getFactionOfPlayer(player.getUUID());
-            TileEntityBasicClaim claimTE = (TileEntityBasicClaim) world.getBlockEntity(pos);
+            Faction playerFaction = FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+            BasicClaimBlockEntity claimTE = (BasicClaimBlockEntity) world.getBlockEntity(pos);
 
-            // Any factionless players, and players who aren't in this faction get an info panel
-            if (playerFaction == null || !playerFaction.uuid.equals(claimTE.factionUUID)) {
-                Faction citadelFaction = FACTIONS.getFaction(claimTE.factionUUID);
+            if (playerFaction == null || !playerFaction.getUuid().equals(claimTE.factionUUID)) {
+                Faction citadelFaction = FACTIONS.registry.getFaction(claimTE.factionUUID);
                 if (citadelFaction != null) {
                     PacketFactionInfo packet = new PacketFactionInfo();
                     packet.info = citadelFaction.createInfo(((ServerPlayer) player).getUUID());
                     WarForgeMod.NETWORK.sendTo(packet, (ServerPlayer) player);
                 } else {
-                    player.sendSystemMessage(Component.literal("This claim has no faction."));
+                    player.sendSystemMessage(Component.translatable("warforge.common.claim_no_faction"));
                 }
             }
-            // So anyone else will be from the target faction
             else if (player instanceof ServerPlayer serverPlayer) {
-                WarForgeMod.syncClaimToPlayer(player, pos);
+                PlayerSyncService.syncClaimToPlayer(player, pos);
                 WFUiBlock.openUi(serverPlayer, pos);
             }
         }

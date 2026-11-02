@@ -4,10 +4,10 @@ import com.flansmod.warforge.server.Leaderboard.FactionStat;
 
 public class LeaderboardInfo
 {
-	public static final int NUM_LEADERBOARD_ENTRIES_PER_PAGE = 10;
+    public static final int NUM_LEADERBOARD_ENTRIES_PER_PAGE = 10;
 
-	public int firstIndex = 0;
-	public FactionStat stat = FactionStat.TOTAL;
-	public FactionDisplayInfo[] factionInfos = new FactionDisplayInfo[NUM_LEADERBOARD_ENTRIES_PER_PAGE];
-	public FactionDisplayInfo myFaction = null;
+    public int firstIndex = 0;
+    public FactionStat stat = FactionStat.TOTAL;
+    public FactionDisplayInfo[] factionInfos = new FactionDisplayInfo[NUM_LEADERBOARD_ENTRIES_PER_PAGE];
+    public FactionDisplayInfo myFaction = null;
 }

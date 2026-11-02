@@ -1,0 +1,72 @@
+package com.flansmod.warforge.client.fx;
+
+import com.flansmod.warforge.common.Content;
+import lombok.RequiredArgsConstructor;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.texture.TextureManager;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.api.distmarker.OnlyIn;
+
+import java.util.Random;
+import com.flansmod.warforge.compat.Nbt;
+
+public class EffectUpgrade implements IEffect {
+    @Override
+    @OnlyIn(Dist.CLIENT)
+    public void runEffect(Level world, Player player, TextureManager man, Random rand, double x, double y, double z, CompoundTag data) {
+        double radius = Nbt.getDouble(data, "radius");
+        int segments = Nbt.getInt(data, "segments");
+        double speed = Nbt.getDouble(data, "speed");
+        int color = Nbt.getInt(data, "color");
+        int effectCount = Nbt.getInt(data, "count");
+        int red = (color >> 16) & 0xFF;
+        int green = (color >> 8) & 0xFF;
+        int blue = color & 0xFF;
+        float r = red / 255f;
+        float g = green / 255f;
+        float b = blue / 255f;
+
+        for (int j = 0; j <= effectCount; j++) {
+            EffectUpgradeContext context = new EffectUpgradeContext(BlockPos.containing(x, y, z), j * 0.1, radius, segments, speed, r, g, b);
+            AnimatedEffectHandler.add(new EffectAnimated<>(context, 60, (EffectUpgradeContext ctx, Integer i) -> {
+                Minecraft.getInstance().execute(() -> {
+                    ClientLevel world1 = Minecraft.getInstance().level;
+                    double angle = (2 * Math.PI * i / ctx.segments) + context.angleOffset;
+
+                    double rotatedAngle = angle + ctx.rotation;
+
+                    double px = ctx.pos.getX() + 0.5 + ctx.radius * Math.cos(rotatedAngle);
+                    double pz = ctx.pos.getZ() + 0.5 + ctx.radius * Math.sin(rotatedAngle);
+                    double py = ctx.pos.getY() + context.angleOffset;
+
+                    world1.addParticle(Content.STAR_CIRCLE_PARTICLE.get(), px, py, pz, r, g, b);
+                });
+                ctx.tickRotation(context.speed);
+
+            }));
+        }
+
+    }
+
+    @RequiredArgsConstructor
+    static class EffectUpgradeContext {
+        public final BlockPos pos;
+        public final double angleOffset;
+        public final double radius;
+        public final int segments;
+        public final double speed;
+        public final double r, g, b;
+        public double rotation = 0;
+
+        public void tickRotation(double delta) {
+            rotation += delta;
+            if (rotation > 2 * Math.PI) rotation -= 2 * Math.PI;
+        }
+
+    }
+}

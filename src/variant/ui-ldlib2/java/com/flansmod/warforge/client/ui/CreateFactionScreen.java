@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.client.util.ColorPickerElement;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -18,7 +19,6 @@ import net.neoforged.api.distmarker.OnlyIn;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** Create faction / set faction colour, laid out like GuiCreateFactionModular of the 1.20.1 build. */
 @OnlyIn(Dist.CLIENT)
 public final class CreateFactionScreen {
     private static final int WIDTH = 264;
@@ -58,13 +58,13 @@ public final class CreateFactionScreen {
         place(panel, box(sectionWidth, height - BODY_Y - 10, sectionBackdrop()), CONTENT_LEFT, BODY_Y, sectionWidth, height - BODY_Y - 10);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        String titleText = recolour ? "Set Faction Colour" : "Create Faction";
+        String titleText = recolour ? tr("warforge.ui.set_faction_colour") : tr("warforge.ui.create_faction");
         title(panel, titleText, TEXT_PRIMARY);
 
         TextField nameField = null;
         int colourLabelY = BODY_Y + 8;
         if (!recolour) {
-            place(panel, text("Faction Name", TEXT_SECONDARY), innerLeft, BODY_Y + 8, innerWidth, 9);
+            place(panel, text(tr("warforge.ui.faction_name"), TEXT_SECONDARY), innerLeft, BODY_Y + 8, innerWidth, 9);
             TextField field = new TextField().setText("").setAnyString();
             field.style(s -> s.background(insetBackdrop()));
             place(panel, field, innerLeft, BODY_Y + 18, innerWidth, 16);
@@ -72,7 +72,7 @@ public final class CreateFactionScreen {
             colourLabelY = BODY_Y + 42;
         }
 
-        place(panel, text("Colour", TEXT_SECONDARY), innerLeft, colourLabelY, innerWidth, 9);
+        place(panel, text(tr("warforge.ui.colour"), TEXT_SECONDARY), innerLeft, colourLabelY, innerWidth, 9);
 
         int barsY = colourLabelY + 12;
         int swatchX = innerLeft + BAR_WIDTH + 12;
@@ -82,10 +82,10 @@ public final class CreateFactionScreen {
 
         int btnY = height - 36;
         TextField finalNameField = nameField;
-        place(panel, actionButton(recolour ? "Set Colour" : "Create", 74, () -> {
+        place(panel, actionButton(recolour ? tr("warforge.ui.set_colour") : tr("warforge.ui.create"), 74, () -> {
             if (recolour) {
                 PacketSetFactionColour packet = new PacketSetFactionColour();
-                packet.mColour = picker.getRGB();
+                packet.colour = picker.getRGB();
                 WarForgeMod.NETWORK.sendToServer(packet);
             } else {
                 String name = finalNameField.getValue().trim();
@@ -93,14 +93,14 @@ public final class CreateFactionScreen {
                     return;
                 }
                 PacketCreateFaction packet = new PacketCreateFaction();
-                packet.mCitadelPos = PacketOpenCreateFaction.pendingCitadelPos;
-                packet.mFactionName = name;
-                packet.mColour = picker.getRGB();
+                packet.citadelPos = PacketOpenCreateFaction.pendingCitadelPos;
+                packet.factionName = name;
+                packet.colour = picker.getRGB();
                 WarForgeMod.NETWORK.sendToServer(packet);
             }
             ClientCompat.setScreen(null);
         }), innerLeft, btnY, 74, BUTTON_HEIGHT);
-        place(panel, actionButton("Cancel", 74, () -> ClientCompat.setScreen(null)), innerLeft + 82, btnY, 74, BUTTON_HEIGHT);
+        place(panel, actionButton(tr("warforge.ui.cancel"), 74, () -> ClientCompat.setScreen(null)), innerLeft + 82, btnY, 74, BUTTON_HEIGHT);
 
         ClientCompat.setScreen(new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal(titleText)));
     }

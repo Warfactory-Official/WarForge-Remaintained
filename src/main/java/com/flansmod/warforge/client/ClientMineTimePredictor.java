@@ -1,27 +1,18 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.compat.Chunks;
-
 import com.flansmod.warforge.common.MineTime;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.util.DimChunkPos;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 
 /**
- * Client mirror of {@link ProtectionsModule}'s server BreakSpeed handler. The server stays
- * authoritative; this only predicts the MineTime slow-down so survival mining of a protected block
- * does not rubber-band. It never blocks a break outright — the client cannot perfectly resolve
- * ally/siege/defended zones, so a hard cancel here could be a false positive. Hard protection remains a
- * server-side {@code BlockEvent.BreakEvent} cancel; over-predicting a slow-down (and never a block) is
- * the only error this can make, and the server corrects it.
+ * Never cancels a break: hard protection is the server's BreakEvent cancel; synced profile can lag a siege change by
+ * one border sync.
  */
 public class ClientMineTimePredictor {
 
@@ -33,17 +24,11 @@ public class ClientMineTimePredictor {
             return;
         if (player.getAbilities().instabuild)
             return;
-        if (ProtectionsModule.OP_OVERRIDE && WarForgeMod.isOp(player))
-            return;
-
         BlockPos blockPos = event.getPosition().orElse(null);
         if (blockPos == null)
             return;
 
-        ChunkPos cp = Chunks.of(blockPos);
-        DimChunkPos chunkPos = new DimChunkPos(level.dimension(), Chunks.x(cp), Chunks.z(cp));
-
-        ProtectionConfig config = ClientProtections.configFor(chunkPos);
+        ProtectionConfig config = ClientProtections.configFor(level.dimension(), blockPos.getX() >> 4, blockPos.getZ() >> 4);
         if (config == null)
             return; // unknown ownership: defer to the server
 

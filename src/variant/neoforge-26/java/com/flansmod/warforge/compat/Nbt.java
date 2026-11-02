@@ -11,10 +11,7 @@ import net.minecraft.nbt.TagParser;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * NBT reads with the 1.21.1 meaning: a missing key (or a value of the wrong type) gives 0, "", false, an empty
- * compound or an empty list. From 1.21.5 the vanilla getters return Optional, so shared code reads through here.
- */
+/** Missing or wrong-typed key => 0, "", false, empty compound/list (1.21.1 semantics); vanilla getters return Optional from 1.21.5. */
 public final class Nbt {
     private Nbt() {}
 
@@ -29,7 +26,6 @@ public final class Nbt {
     public static int[] getIntArray(CompoundTag tag, String key) { return tag.getIntArray(key).orElseGet(() -> new int[0]); }
     public static CompoundTag getCompound(CompoundTag tag, String key) { return tag.getCompoundOrEmpty(key); }
 
-    /** The list at key, or an empty list if it is missing or its elements are not of elementType (a Tag.TAG_* id). */
     public static ListTag getList(CompoundTag tag, String key, int elementType) {
         ListTag list = tag.getListOrEmpty(key);
         for (Tag element : list) {
@@ -38,10 +34,8 @@ public final class Nbt {
         return list;
     }
 
-    /** The compound at index, or an empty compound. */
     public static CompoundTag getCompound(ListTag list, int index) { return list.getCompoundOrEmpty(index); }
 
-    /** True if key holds a UUID (an int array of length 4). */
     public static boolean hasUUID(CompoundTag tag, String key) {
         return tag.get(key) instanceof IntArrayTag array && array.getAsIntArray().length == 4;
     }
@@ -53,20 +47,17 @@ public final class Nbt {
         return UUIDUtil.uuidFromIntArray(array.getAsIntArray());
     }
 
-    /** Stores a UUID as an int array of length 4 (the same bytes on every version). */
     public static void putUUID(CompoundTag tag, String key, UUID value) {
         tag.putIntArray(key, UUIDUtil.uuidToIntArray(value));
     }
 
     public static Set<String> keys(CompoundTag tag) { return tag.keySet(); }
 
-    /** The Tag.TAG_* id of the value at key, or 0 if it is missing. */
     public static int tagType(CompoundTag tag, String key) {
         Tag value = tag.get(key);
         return value == null ? 0 : value.getId();
     }
 
-    /** Parses SNBT text into a compound. */
     public static CompoundTag parse(String snbt) throws CommandSyntaxException {
         return TagParser.parseCompoundFully(snbt);
     }

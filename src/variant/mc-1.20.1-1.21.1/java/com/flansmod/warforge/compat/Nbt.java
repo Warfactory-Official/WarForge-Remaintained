@@ -8,10 +8,7 @@ import net.minecraft.nbt.TagParser;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * NBT reads with the 1.21.1 meaning: a missing key (or a value of the wrong type) gives 0, "", false, an empty
- * compound or an empty list. From 1.21.5 the vanilla getters return Optional, so shared code reads through here.
- */
+/** Missing or wrong-typed key => 0, "", false, empty compound/list (1.21.1 semantics); vanilla getters return Optional from 1.21.5. */
 public final class Nbt {
     private Nbt() {}
 
@@ -26,24 +23,18 @@ public final class Nbt {
     public static int[] getIntArray(CompoundTag tag, String key) { return tag.getIntArray(key); }
     public static CompoundTag getCompound(CompoundTag tag, String key) { return tag.getCompound(key); }
 
-    /** The list at key, or an empty list if it is missing or its elements are not of elementType (a Tag.TAG_* id). */
     public static ListTag getList(CompoundTag tag, String key, int elementType) { return tag.getList(key, elementType); }
 
-    /** The compound at index, or an empty compound. */
     public static CompoundTag getCompound(ListTag list, int index) { return list.getCompound(index); }
 
-    /** True if key holds a UUID (an int array of length 4). */
     public static boolean hasUUID(CompoundTag tag, String key) { return tag.hasUUID(key); }
     public static UUID getUUID(CompoundTag tag, String key) { return tag.getUUID(key); }
-    /** Stores a UUID as an int array of length 4 (the same bytes on every version). */
     public static void putUUID(CompoundTag tag, String key, UUID value) { tag.putUUID(key, value); }
 
     public static Set<String> keys(CompoundTag tag) { return tag.getAllKeys(); }
 
-    /** The Tag.TAG_* id of the value at key, or 0 if it is missing. */
     public static int tagType(CompoundTag tag, String key) { return tag.getTagType(key); }
 
-    /** Parses SNBT text into a compound. */
     public static CompoundTag parse(String snbt) throws CommandSyntaxException {
         return TagParser.parseTag(snbt);
     }

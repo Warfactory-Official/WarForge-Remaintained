@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common.util;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.server.Faction;
 import net.minecraft.world.item.ItemStack;
@@ -91,6 +92,20 @@ public class FactionInsuranceItemHandler implements IItemHandlerModifiable {
     }
 
     public boolean isItemValid(int slot, ItemStack stack) {
-        return slot >= 0 && slot < getSlots() && !WarForgeConfig.isInsuranceBlacklisted(stack);
+        return slot >= 0 && slot < getSlots() && !isBlacklisted(stack);
+    }
+
+    /** Items matching a configured registry-id glob cannot enter the stash. */
+    public static boolean isBlacklisted(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) {
+            return false;
+        }
+        String registryName = BuiltInRegistries.ITEM.getKey(stack.getItem()).toString();
+        for (String pattern : WarForgeConfig.INSURANCE_BLACKLIST_IDS) {
+            if (pattern != null && !pattern.isBlank() && Globs.matches(pattern.trim(), registryName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

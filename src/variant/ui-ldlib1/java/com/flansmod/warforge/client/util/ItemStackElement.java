@@ -5,20 +5,20 @@ import com.lowdragmc.lowdraglib.gui.widget.Widget;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.List;
 
-/**
- * Shows an item stack (icon, count and its tooltip) without a container slot, for client-only screens. With the
- * slot background it looks like an ItemSlot of the 1.20.1 menus.
- */
 @OnlyIn(Dist.CLIENT)
 public class ItemStackElement extends Widget {
     private final ItemStack stack;
     private final boolean decorations;
+    private @Nullable List<Component> tooltip;
 
     public ItemStackElement(ItemStack stack, int x, int y, int size, boolean slotBackground, boolean decorations) {
         super(x, y, size, size);
@@ -48,7 +48,10 @@ public class ItemStackElement extends Widget {
         super.drawInForeground(graphics, mouseX, mouseY, partialTicks);
         if (!stack.isEmpty() && isMouseOverElement(mouseX, mouseY) && getHoverElement(mouseX, mouseY) == this
                 && gui != null && gui.getModularUIGui() != null) {
-            gui.getModularUIGui().setHoverTooltip(Screen.getTooltipFromItem(Minecraft.getInstance(), stack), stack, null, null);
+            if (tooltip == null) {
+                tooltip = Screen.getTooltipFromItem(Minecraft.getInstance(), stack);
+            }
+            gui.getModularUIGui().setHoverTooltip(tooltip, stack, null, null);
         }
     }
 }

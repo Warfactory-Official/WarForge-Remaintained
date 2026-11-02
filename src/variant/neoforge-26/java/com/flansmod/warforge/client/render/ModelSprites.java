@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.render;
 
+import com.flansmod.warforge.common.WarForgeMod;
 import it.unimi.dsi.fastutil.ints.IntList;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.color.block.BlockTintSource;
@@ -30,30 +31,36 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
-/** Texture sprites of block and item models. The model API differs between versions. */
 public final class ModelSprites {
+    private static final Direction[] SPRITE_FACES = {Direction.UP, null};
+    private static boolean modelFailureLogged;
+
+    private static void logModelFailure(BlockState state, RuntimeException e) {
+        if (!modelFailureLogged) {
+            modelFailureLogged = true;
+            WarForgeMod.LOGGER.debug("Block model of {} threw while sampling sprites; further failures not logged", state, e);
+        }
+    }
+
     private ModelSprites() {}
 
-    /** A sprite of an item model with its tint colour (ARGB, 0xFFFFFFFF for none). */
     public record TintedSprite(TextureAtlasSprite sprite, int tint) {
     }
 
-    /**
-     * The distinct sprites of a block's model: the quads facing up (else the unculled quads), else the particle
-     * sprite. Only sprites accepted by usable are returned.
-     */
+    /** Up-facing quads, else unculled quads, else particle sprite; only sprites accepted by usable. */
     @SuppressWarnings("deprecation")
     public static Collection<TextureAtlasSprite> blockSprites(BlockState state, Predicate<TextureAtlasSprite> usable) {
         BlockStateModel model = Minecraft.getInstance().getModelManager().getBlockStateModelSet().get(state);
         List<BlockStateModelPart> parts = new ArrayList<>();
         try {
             model.collectParts(RandomSource.create(), parts);
-        } catch (Throwable ignored) {
+        } catch (RuntimeException e) {
+            logModelFailure(state, e);
             parts.clear();
         }
 
         Map<String, TextureAtlasSprite> sprites = new LinkedHashMap<>();
-        for (Direction facing : new Direction[]{Direction.UP, null}) {
+        for (Direction facing : SPRITE_FACES) {
             if (collectSprites(parts, facing, sprites, usable)) {
                 break;
             }
@@ -86,7 +93,6 @@ public final class ModelSprites {
         return added;
     }
 
-    /** Records the layers that the item model resolver adds (the render state keeps them private). */
     private static final class LayerCapture extends ItemStackRenderState {
         private final List<LayerRenderState> layers = new ArrayList<>();
 
@@ -98,9 +104,6 @@ public final class ModelSprites {
         }
     }
 
-    /**
-     * The distinct (sprite, tint) layers of an item's model in draw order, else its particle sprite untinted.
-     */
     public static List<TintedSprite> itemLayers(ItemStack stack) {
         Minecraft mc = Minecraft.getInstance();
         LayerCapture capture = new LayerCapture();
@@ -136,24 +139,21 @@ public final class ModelSprites {
         return ordered;
     }
 
-    /** The still texture sprite of a fluid, or null. */
     public static TextureAtlasSprite fluidStillSprite(FluidState fluidState) {
         return fluidModel(fluidState).stillMaterial().sprite();
     }
 
-    /** The tint colour (ARGB) of a fluid. */
     public static int fluidTint(FluidState fluidState) {
         FluidTintSource source = fluidModel(fluidState).fluidTintSource();
         return source == null ? 0xFFFFFFFF : source.color(fluidState);
     }
 
-    /** The block colour (tint index 0) at a position, or -1 for none. */
     public static int blockTint(BlockState state, Level level, BlockPos pos) {
         BlockTintSource source = Minecraft.getInstance().getBlockColors().getTintSource(state, 0);
         if (source == null) {
             return -1;
         }
-        // 26.x Level is no BlockAndTintGetter any more; the client level (the only caller) still is.
+        // 26.x Level is not a BlockAndTintGetter; the client level (sole caller) is
         return level instanceof BlockAndTintGetter tintGetter ? source.colorInWorld(state, tintGetter, pos) : source.color(state);
     }
 

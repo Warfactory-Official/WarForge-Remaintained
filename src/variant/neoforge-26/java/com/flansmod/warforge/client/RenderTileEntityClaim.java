@@ -1,8 +1,10 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.client.render.RenderDistances;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.client.render.RenderBounds;
-import com.flansmod.warforge.common.blocks.TileEntityClaim;
-import com.flansmod.warforge.server.Faction;
+import com.flansmod.warforge.common.blocks.ClaimBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
@@ -13,8 +15,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
-public class RenderTileEntityClaim implements BlockEntityRenderer<TileEntityClaim, PoleFlagRenderer.State> {
-
+public class RenderTileEntityClaim implements BlockEntityRenderer<ClaimBlockEntity, PoleFlagRenderer.State> {
     public RenderTileEntityClaim() {
     }
 
@@ -24,10 +25,10 @@ public class RenderTileEntityClaim implements BlockEntityRenderer<TileEntityClai
     }
 
     @Override
-    public void extractRenderState(TileEntityClaim te, PoleFlagRenderer.State state, float partialTicks, Vec3 cameraPosition,
+    public void extractRenderState(ClaimBlockEntity te, PoleFlagRenderer.State state, float partialTicks, Vec3 cameraPosition,
                                    ModelFeatureRenderer.@Nullable CrumblingOverlay breakProgress) {
         BlockEntityRenderState.extractBase(te, state, breakProgress);
-        PoleFlagRenderer.extract(state, !te.getFaction().equals(Faction.nullUuid), te.getLevel(), te.getBlockPos(),
+        PoleFlagRenderer.extract(state, !te.getFaction().equals(FactionIds.NONE), te.getLevel(), te.getBlockPos(),
                 te.rotation, te.factionFlagId, te.getPoleLength(), partialTicks);
     }
 
@@ -43,11 +44,11 @@ public class RenderTileEntityClaim implements BlockEntityRenderer<TileEntityClai
 
     @Override
     public int getViewDistance() {
-        return Integer.MAX_VALUE;
+        return RenderDistances.UNLIMITED;
     }
 
     @Override
-    public AABB getRenderBoundingBox(TileEntityClaim be) {
+    public AABB getRenderBoundingBox(ClaimBlockEntity be) {
         return RenderBounds.of(be);
     }
 }

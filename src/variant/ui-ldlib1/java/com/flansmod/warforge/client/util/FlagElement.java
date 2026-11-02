@@ -9,7 +9,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 import javax.annotation.Nonnull;
 
-/** Draws a faction flag scaled into the widget. */
 @OnlyIn(Dist.CLIENT)
 public class FlagElement extends Widget {
     private String flagId;

@@ -11,41 +11,15 @@ legacyForge {
         minecraftVersion = prop("deps.parchment_minecraft")
     }
 
-    runs {
-        configureEach {
-            systemProperty("forge.logging.markers", "REGISTRIES")
-            logLevel = org.slf4j.event.Level.DEBUG
-        }
-        register("client") {
-            client()
-            systemProperty("forge.enabledGameTestNamespaces", prop("mod.id"))
-        }
-        register("server") {
-            server()
-            programArgument("--nogui")
-            systemProperty("forge.enabledGameTestNamespaces", prop("mod.id"))
-        }
-        // Second client for local multiplayer testing.
-        register("client2") {
-            client()
-            gameDirectory = file("run_client2")
-            systemProperty("forge.enabledGameTestNamespaces", prop("mod.id"))
-        }
-        register("data") {
-            data()
-            programArguments.addAll(
-                "--mod", prop("mod.id"), "--all",
-                "--output", rootProject.file("src/generated/resources/").absolutePath,
-                "--existing", rootProject.file("src/main/resources/").absolutePath,
-            )
-        }
-    }
+    configureRuns(runs, "forge.enabledGameTestNamespaces", configurations["localRuntime"]) { data() }
 
     mods {
         register(prop("mod.id")) {
             sourceSet(sourceSets["main"])
         }
     }
+
+    addModdingDependenciesTo(sourceSets["test"])
 }
 
 mixin {
@@ -53,6 +27,8 @@ mixin {
     config("mixins.${prop("mod.id")}.json")
     config("mixins.${prop("mod.id")}.compat.json")
 }
+
+val modLocalRuntime = obfuscation.createRemappingConfiguration(configurations["localRuntime"])
 
 // JourneyMap 6.x on 1.20.1 ships its v2 API only inside the mod jar. Extract it to compile against; JourneyMap
 // supplies it at runtime. Its classes name Minecraft types only by class name (Mojang names on Forge 1.20.1 too),
@@ -80,12 +56,10 @@ dependencies {
     "modCompileOnly"(prop("deps.xaero_worldmap"))
     "modCompileOnly"(prop("deps.xaero_minimap"))
 
-    // The JourneyMap and Xaero mods themselves, dev-runtime only (client runs; see build.neoforge.gradle.kts).
-    if (gradle.startParameter.taskNames.none { it.lowercase().contains("server") }) {
-        "modRuntimeOnly"(prop("deps.journeymap"))
-        "modRuntimeOnly"(prop("deps.xaero_worldmap"))
-        "modRuntimeOnly"(prop("deps.xaero_minimap"))
-    }
+    // The JourneyMap and Xaero mods themselves, dev-runtime only (client runs).
+    "modLocalRuntime"(prop("deps.journeymap"))
+    "modLocalRuntime"(prop("deps.xaero_worldmap"))
+    "modLocalRuntime"(prop("deps.xaero_minimap"))
 }
 
 tasks.named<Jar>("jar") {

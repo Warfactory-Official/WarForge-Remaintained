@@ -1,12 +1,11 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
-import com.flansmod.warforge.server.Faction;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
+import com.flansmod.warforge.common.network.FactionMemberManagerGuiData;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -17,10 +16,10 @@ public class PacketMemberData extends PacketBase {
 
     public FactionMemberManagerGuiData.Page page = FactionMemberManagerGuiData.Page.MEMBERS;
     public boolean hasFaction = false;
-    public UUID factionId = Faction.nullUuid;
+    public UUID factionId = FactionIds.NONE;
     public String factionName = "";
     public int factionColor = 0x4E8E87;
-    public Faction.Role viewerRole = Faction.Role.MEMBER;
+    public Role viewerRole = Role.MEMBER;
     public boolean canManageMembers = false;
     public boolean canInvitePlayers = false;
     public boolean canManageAlliances = false;
@@ -86,7 +85,7 @@ public class PacketMemberData extends PacketBase {
         factionId = readUUID(data);
         factionName = readUTF(data);
         factionColor = data.readInt();
-        viewerRole = Faction.Role.values()[data.readByte()];
+        viewerRole = Role.values()[data.readByte()];
         canManageMembers = data.readBoolean();
         canInvitePlayers = data.readBoolean();
         canManageAlliances = data.readBoolean();
@@ -97,7 +96,7 @@ public class PacketMemberData extends PacketBase {
             FactionMemberManagerGuiData.MemberEntry member = new FactionMemberManagerGuiData.MemberEntry();
             member.playerId = readUUID(data);
             member.username = readUTF(data);
-            member.role = Faction.Role.values()[data.readByte()];
+            member.role = Role.values()[data.readByte()];
             member.online = data.readBoolean();
             member.self = data.readBoolean();
             member.canKickOrLeave = data.readBoolean();
@@ -137,12 +136,6 @@ public class PacketMemberData extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.LOGGER.error("Received PacketMemberData on server side");
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        latest = this;
-        FactionMemberManagerGuiFactory.INSTANCE.openMemberScreen();
+        PacketSecurity.violation(player, "Received PacketMemberData on server side");
     }
 }

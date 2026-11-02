@@ -25,6 +25,7 @@ deps.parchment_minecraft = "1.20.1"
 deps.parchment = "2023.09.03"
 # LDLib v1 (UI framework on Forge 1.20.1; a different API from LDLib2).
 deps.ldlib = "com.lowdragmc.ldlib:ldlib-forge-1.20.1:1.0.52.a"
+ldlib_dependency_range = "[1.0.52.a,)"
 # JourneyMap 6.x on 1.20.1 ships the v2 API only inside the mod jar (META-INF/jarjar), not on a maven repository.
 deps.journeymap = "maven.modrinth:journeymap:1.20.1-6.0.6+forge"
 # Xaero's World Map and Minimap (claim overlay, compile-only + client dev runtime). Their highlight API is the
@@ -51,6 +52,7 @@ deps.parchment = "2024.11.17"
 # LDLib2 (UI framework) on maven.firstdark.dev; the ':all' classifier bundles impl + Yoga.
 deps.ldlib2_artifact = "ldlib2-neoforge-1.21.1"
 deps.ldlib2 = "2.2.41"
+ldlib_dependency_range = "[2.2.41,)"
 deps.ldlib2_classifier = "all"
 # JourneyMap client API. Published only as a live SNAPSHOT, so the version is pinned to a timestamped build:
 # -SNAPSHOT would silently change what this compiles against between one build and the next.
@@ -72,6 +74,7 @@ minecraft_version_range = "[26.1.2,26.2)"
 deps.neoforge = "26.1.2.112"
 deps.ldlib2_artifact = "ldlib2-neoforge-26.1"
 deps.ldlib2 = "26.1.2.41"
+ldlib_dependency_range = "[26.1.2.41,)"
 deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:2.0.0-26.1-20260529.024148-13"
 deps.journeymap = "maven.modrinth:journeymap:26.1.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.1.2-1.46.0"
@@ -87,6 +90,7 @@ minecraft_version_range = "[26.2,26.3)"
 deps.neoforge = "26.2.0.88"
 deps.ldlib2_artifact = "ldlib2-neoforge-26.2"
 deps.ldlib2 = "26.2.2.41.a"
+ldlib_dependency_range = "[26.2.2.41.a,)"
 deps.journeymap_api = "info.journeymap:journeymap-api-neoforge:26.2-2.0.0-20260618.154206-2"
 deps.journeymap = "maven.modrinth:journeymap:26.2-6.0.9+neoforge"
 deps.xaero_worldmap = "maven.modrinth:xaeros-world-map:neoforge-26.2-1.46.1"

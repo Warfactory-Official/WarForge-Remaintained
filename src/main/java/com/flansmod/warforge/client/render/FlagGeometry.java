@@ -3,10 +3,6 @@ package com.flansmod.warforge.client.render;
 import com.flansmod.warforge.common.blocks.PoleGeometry;
 import net.minecraft.util.Mth;
 
-/**
- * The claim pole and its waving flag, independent of the render API. The block entity renderer of each version
- * turns these vertices into its own draw calls.
- */
 public final class FlagGeometry {
     private static final int WAVE_SEGMENTS = 8;
     private static final float WAVE_AMPLITUDE = 0.12F;
@@ -25,37 +21,28 @@ public final class FlagGeometry {
     private FlagGeometry() {
     }
 
-    /** One flag vertex in pole-model space: position, texture coordinates and the z of the face normal. */
     @FunctionalInterface
     public interface FlagVertex {
         void vertex(float x, float y, float z, float u, float v, float normalZ);
     }
 
-    /** Vertical stretch of the pole shaft for a pole length. */
     public static float shaftStretch(float poleLength) {
         return poleLength / NATURAL_SHAFT_LENGTH;
     }
 
-    /** Y of the top edge of the flag for a pole length. */
     public static float bannerTop(float poleLength) {
         return SHAFT_BASE_Y + poleLength - BANNER_BELOW_TOP;
     }
 
-    /** True if a pole model vertex at this Y belongs to the shaft (stretched), not the base. */
     public static boolean isShaftY(float y) {
         return y > SHAFT_BASE_Y + 1.0E-4F;
     }
 
-    /** Animation time of the wave. */
     public static float waveTime(long gameTime, float partialTicks) {
         return WAVE_SPEED * ((float) (gameTime % 100000L) + partialTicks);
     }
 
-    /**
-     * Emits the flag as quads (4 vertices each; a front and a back quad per wave segment).
-     *
-     * @param dims flag texture size {width, height}, or null (square)
-     */
+    /** @param dims flag texture size {width, height}, or null (square) */
     public static void emitFlag(int[] dims, float bannerTop, float time, FlagVertex out) {
         float aspect = (dims != null && dims.length == 2 && dims[1] > 0) ? (float) dims[0] / dims[1] : 1.0F;
         float boxAspect = MAX_BANNER_WIDTH / MAX_BANNER_HEIGHT;

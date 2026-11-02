@@ -4,18 +4,10 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-
 import java.awt.*;
 
-
-/**
- * Finally, a way to deal with colors that doesn't suck ass
- *
- * @author MrNorwood
- */
 @AllArgsConstructor
 public class Color4i {
-
     @Getter
     @Setter
     int alpha, red, green, blue;
@@ -168,6 +160,4 @@ public class Color4i {
         float result = (b < 0.5f) ? (2 * b * t) : (1 - 2 * (1 - b) * (1 - t));
         return clamp((int) (result * 255));
     }
-
-
 }

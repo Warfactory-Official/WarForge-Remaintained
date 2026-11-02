@@ -1,12 +1,9 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.factories.CreateFactionGuiFactory;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import com.flansmod.warforge.compat.Keys;
 
@@ -34,12 +31,5 @@ public class PacketOpenCreateFaction extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        // server→client only
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        pendingCitadelPos = pos;
-        CreateFactionGuiFactory.INSTANCE.openCreateScreen();
     }
 }

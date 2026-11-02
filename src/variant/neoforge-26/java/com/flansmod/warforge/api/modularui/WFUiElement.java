@@ -7,10 +7,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.UIElementRendererRegistry;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.GUIContext;
 import com.lowdragmc.lowdraglib2.gui.ui.rendering.IGUIContext;
 
-/**
- * An LDLib2 element that draws its contents through Gui2D. The LDLib2 draw hook differs between versions (an
- * overridden method before, a registered element renderer here).
- */
+/** LDLib2 draw hook: registered element renderer here, overridden method on older versions. */
 public abstract class WFUiElement extends UIElement {
     static {
         // Registered before the first element exists, so the renderer lookup never caches another renderer for it.
@@ -35,6 +32,5 @@ public abstract class WFUiElement extends UIElement {
         });
     }
 
-    /** Draws the element's contents, after its background. */
     protected abstract void draw(Gui2D graphics);
 }

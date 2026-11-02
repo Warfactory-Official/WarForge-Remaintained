@@ -9,7 +9,6 @@ import com.flansmod.warforge.common.util.DimChunkPos;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -37,11 +36,11 @@ public class SpawnModule {
     }
 
     private static boolean isOwnedClaim(ServerPlayer player, ResourceKey<Level> dim, BlockPos pos) {
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
         if (faction == null) {
             return false;
         }
-        return WarForgeMod.FACTIONS.getClaim(new DimChunkPos(dim, pos)).equals(faction.uuid);
+        return WarForgeMod.FACTIONS.claims.getClaim(new DimChunkPos(dim, pos)).equals(faction.getUuid());
     }
 
     private static boolean hasSpawnInOwnedClaim(ServerPlayer player) {
@@ -81,12 +80,12 @@ public class SpawnModule {
                 return;
             }
             event.setCanceled(true);
-            player.sendSystemMessage(Component.literal("You can only set a spawn point in chunks claimed by your faction."));
+            player.sendSystemMessage(ServerText.t("spawn.claims_only"));
             return;
         }
 
         event.setCanceled(true);
-        player.sendSystemMessage(Component.literal("Bed spawn points are disabled on this server."));
+        player.sendSystemMessage(ServerText.t("spawn.beds_disabled"));
     }
 
     @SubscribeEvent
@@ -103,12 +102,12 @@ public class SpawnModule {
             return;
         }
 
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
         if (faction == null) {
             return;
         }
 
-        DimBlockPos citadel = faction.citadelPos;
+        DimBlockPos citadel = faction.getCitadelPos();
         if (citadel == null || citadel.equals(DimBlockPos.ZERO)) {
             return;
         }
@@ -120,7 +119,7 @@ public class SpawnModule {
 
         BlockPos spawn = findCitadelSpawn(level, citadel);
 
-        if (player.level().dimension() != citadel.dim) {
+        if (!player.level().dimension().equals(citadel.dim)) {
             Entity result = Teleports.changeDimension(player, level, new Vec3(spawn.getX() + 0.5D, spawn.getY(), spawn.getZ() + 0.5D));
             if (result == null) return;
         }

@@ -4,14 +4,14 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.item.ItemStack;
+import com.flansmod.warforge.platform.ExtractOnlyItemResources;
+import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
-/** Item handler save format ({"Items": [{Slot, item...}], "Size": n}). The handler API differs between versions. */
 public final class ItemHandlers {
     private ItemHandlers() {}
 
-    /** Writes the same compound as ItemStackHandler.serializeNBT did before it was removed. */
-    public static CompoundTag serialize(ItemStackHandler handler, HolderLookup.Provider registries) {
+        public static CompoundTag serialize(ItemStackHandler handler, HolderLookup.Provider registries) {
         ListTag items = new ListTag();
         for (int i = 0; i < handler.getSlots(); i++) {
             ItemStack stack = handler.getStackInSlot(i);
@@ -25,5 +25,9 @@ public final class ItemHandlers {
         tag.put("Items", items);
         tag.putInt("Size", handler.getSlots());
         return tag;
+    }
+
+    public static Object capabilityView(IItemHandler pullOnlyView) {
+        return new ExtractOnlyItemResources(pullOnlyView);
     }
 }

@@ -1,33 +1,31 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.SyncedVeins;
 import com.flansmod.warforge.api.vein.Quality;
-import com.flansmod.warforge.client.ClientBorderCache;
-import com.flansmod.warforge.client.ClientClaimChunkCache;
-import com.flansmod.warforge.client.ClientProxy;
-import com.flansmod.warforge.client.ClientTickHandler;
-import com.flansmod.warforge.server.Faction;
-import net.minecraft.core.registries.Registries;
+import com.flansmod.warforge.common.ProtectionProfile;
+import com.flansmod.warforge.common.faction.ClaimType;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.compat.Keys;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import com.flansmod.warforge.compat.Keys;
 
 public class PacketClaimChunksData extends PacketBase {
     public ResourceKey<Level> dim = Level.OVERWORLD;
-    public int centerX;
-    public int centerZ;
-    public int radius;
-    public UUID playerFactionId = Faction.nullUuid;
+    public UUID playerFactionId = FactionIds.NONE;
     public int forceLoadedCount;
     public int forceLoadedMax;
     public int claimCount;
     public int claimMax;
+    /** Window the chunks were collected for; an outline sync replaces exactly this square. */
+    public int centerX;
+    public int centerZ;
+    public int radius;
     public boolean outlineOnly = false;
     public List<ClaimChunkInfo> chunks = new ArrayList<ClaimChunkInfo>();
 
@@ -60,6 +58,7 @@ public class PacketClaimChunksData extends PacketBase {
             data.writeInt(chunk.outlineColour);
             data.writeByte(chunk.outlineStyle);
             data.writeInt(chunk.conqueredRemainingMs);
+            data.writeByte(chunk.protection.ordinal());
         }
     }
 
@@ -89,9 +88,9 @@ public class PacketClaimChunksData extends PacketBase {
             info.factionName = readUTF(data, PacketSecurity.MAX_NAME);
             info.flagId = readUTF(data, PacketSecurity.MAX_FLAG_ID);
             info.colour = data.readInt();
-            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
+            info.claimType = ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
             short veinId = data.readShort();
-            info.vein = veinId < 0 ? null : ClientProxy.VEIN_ENTRIES.get(veinId);
+            info.vein = veinId < 0 ? null : SyncedVeins.ENTRIES.get(veinId);
             int qualityOrdinal = data.readByte();
             info.oreQuality = (qualityOrdinal < 0 || qualityOrdinal >= Quality.values().length)
                     ? null : Quality.values()[qualityOrdinal];
@@ -100,23 +99,12 @@ public class PacketClaimChunksData extends PacketBase {
             info.outlineColour = data.readInt();
             info.outlineStyle = data.readByte();
             info.conqueredRemainingMs = data.readInt();
+            info.protection = ProtectionProfile.fromId(data.readByte());
             chunks.add(info);
         }
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        if (outlineOnly) {
-            ClientBorderCache.replaceAll(dim, chunks);
-            ClientTickHandler.CLAIMS_DIRTY = true;
-            return;
-        }
-        ClientClaimChunkCache.replaceAll(dim, centerX, centerZ, radius, playerFactionId, forceLoadedCount, forceLoadedMax, claimCount, claimMax, chunks);
-        ClientTickHandler.CLAIMS_DIRTY = true;
-        com.flansmod.warforge.client.ui.ClaimManagerScreen.refreshIfOpen();
     }
 }

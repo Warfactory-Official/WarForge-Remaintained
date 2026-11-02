@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.ScrollArea;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
@@ -8,7 +9,6 @@ import com.flansmod.warforge.client.ui.model.UiText;
 import com.flansmod.warforge.client.util.FlagElement;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketChooseFactionFlag;
-import com.flansmod.warforge.server.Faction;
 import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import net.minecraft.client.Minecraft;
@@ -20,7 +20,6 @@ import java.util.UUID;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.CONTENT_LEFT;
 
-/** Faction flag selection (layout of the 1.20.1 GuiFactionFlagSelect). */
 @OnlyIn(Dist.CLIENT)
 public final class FlagSelectScreen {
     private static final int WIDTH = 332;
@@ -34,16 +33,12 @@ public final class FlagSelectScreen {
     private FlagSelectScreen() {
     }
 
-    public static void open(UUID factionId) {
+    public static void open(UUID factionId, String factionName, int factionColour, String currentFlagId) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
             return;
         }
 
-        Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
-        String factionName = faction != null ? faction.name : "";
-        int factionColour = faction != null ? faction.colour : 0xFFFFFF;
-        String currentFlagId = faction != null ? faction.flagId : "";
         boolean canChoose = currentFlagId.isEmpty();
 
         List<String> availableFlags = ClientFlagRegistry.getAvailableFlags();
@@ -53,15 +48,15 @@ public final class FlagSelectScreen {
         panel.addWidget(WarForgeUiTheme.section(CONTENT_LEFT, BODY_Y, SECTION_WIDTH, BODY_HEIGHT));
         panel.addWidget(WarForgeUiTheme.stripe(factionColour, HEIGHT));
         panel.addWidget(WarForgeUiTheme.closeButton(WIDTH, click -> ClientScreens.close()));
-        panel.addWidget(WarForgeUiTheme.title("Faction Flag"));
+        panel.addWidget(WarForgeUiTheme.title(tr("warforge.ui.faction_flag")));
         if (!factionName.isEmpty()) {
             panel.addWidget(WarForgeUiTheme.subtitle(factionName, factionColour, true));
         }
 
         int textX = CONTENT_LEFT + 5;
         String statusText = canChoose
-                ? "Choose once. This cannot be changed later."
-                : "Flag locked: " + UiText.flagDisplayName(currentFlagId);
+                ? tr("warforge.ui.choose_once_this_cannot_be_changed_later")
+                : tr("warforge.ui.flag_locked_s", UiText.flagDisplayName(currentFlagId));
         panel.addWidget(Label.text(statusText, WarForgeUiTheme.TEXT_SECONDARY).clip(SECTION_WIDTH - 10).at(textX, BODY_Y + 5));
 
         ScrollArea list = new ScrollArea(textX, BODY_Y + 5 + 9 + 6, SECTION_WIDTH - 10, BODY_HEIGHT - 30);
@@ -82,9 +77,9 @@ public final class FlagSelectScreen {
 
         ButtonWidget button;
         if (flagId.equals(currentFlagId)) {
-            button = WarForgeUiTheme.tabButton("Selected", 74, true, null);
+            button = WarForgeUiTheme.tabButton(tr("warforge.ui.selected"), 74, true, null);
         } else {
-            button = WarForgeUiTheme.actionButton("Choose", 74, canChoose, click -> {
+            button = WarForgeUiTheme.actionButton(tr("warforge.ui.choose"), 74, canChoose, click -> {
                 PacketChooseFactionFlag packet = new PacketChooseFactionFlag();
                 packet.factionId = factionId;
                 packet.flagId = flagId;

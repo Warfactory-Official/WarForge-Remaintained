@@ -2,7 +2,6 @@ package com.flansmod.warforge.api.modularui;
 
 import com.flansmod.warforge.client.render.Gui2D;
 
-/** ModularUI {@code gui/icons/cross_tiny} (10x10). */
 class CrossElement extends WFUiElement {
     private static final int[][] PIXELS = {{2, 2}, {7, 2}, {3, 3}, {6, 3}, {4, 4}, {5, 4}, {4, 5}, {5, 5}, {3, 6}, {6, 6}, {2, 7}, {7, 7}};
 

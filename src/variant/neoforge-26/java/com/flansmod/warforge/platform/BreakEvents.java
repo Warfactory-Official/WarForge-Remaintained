@@ -8,7 +8,6 @@ import net.neoforged.neoforge.event.level.block.BreakBlockEvent;
 
 import java.util.function.Consumer;
 
-/** The block-break event (its class name differs between versions). Used by GameEvents. */
 final class BreakEvents {
     private BreakEvents() {}
 

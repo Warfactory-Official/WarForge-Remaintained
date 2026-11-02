@@ -8,7 +8,6 @@ import net.minecraft.world.entity.player.Player;
 import java.util.Optional;
 import java.util.UUID;
 
-/** Player name/UUID lookups and op checks. The server's profile cache API differs between versions. */
 public final class Profiles {
     private Profiles() {}
 

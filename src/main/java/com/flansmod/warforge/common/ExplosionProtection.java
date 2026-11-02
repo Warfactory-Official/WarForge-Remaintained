@@ -1,8 +1,8 @@
 package com.flansmod.warforge.common;
 
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
+import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -21,20 +21,26 @@ public final class ExplosionProtection {
         if (exploder instanceof Player) {
             return exploder.getUUID();
         }
-        return Faction.nullUuid;
+        return FactionIds.NONE;
     }
 
     public static boolean isProtected(Level level, UUID igniter, BlockPos pos) {
         if (level == null || level.isClientSide() || pos == null) {
             return false;
         }
-        try {
-            DimBlockPos dimPos = new DimBlockPos(level.dimension(), pos);
-            ProtectionConfig config = ProtectionsModule.GetProtections(igniter == null ? Faction.nullUuid : igniter, dimPos);
-            return !config.EXPLOSION_DAMAGE || !config.BLOCK_REMOVAL;
-        } catch (Throwable ignored) {
-            return false;
+        DimBlockPos dimPos = new DimBlockPos(level.dimension(), pos);
+        ProtectionConfig config = ProtectionsModule.getProtections(igniter == null ? FactionIds.NONE : igniter, dimPos);
+        return !config.EXPLOSION_DAMAGE || !config.BLOCK_REMOVAL;
+    }
+
+    public static void filterByFaction(Level level, UUID igniterFaction, Collection<BlockPos> positions) {
+        if (positions == null || positions.isEmpty() || level == null || level.isClientSide()) {
+            return;
         }
+        positions.removeIf(pos -> {
+            ProtectionConfig config = ProtectionsModule.getProtectionsForFaction(igniterFaction, new DimBlockPos(level.dimension(), pos).toChunkPos());
+            return !config.EXPLOSION_DAMAGE || !config.BLOCK_REMOVAL;
+        });
     }
 
     public static void filter(Level level, UUID igniter, Collection<BlockPos> positions) {

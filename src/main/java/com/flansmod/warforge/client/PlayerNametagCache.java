@@ -9,45 +9,47 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nullable;
 
 public class PlayerNametagCache {
-    protected WarforgeCache<String, NamePlateData> cache;
+    public static final PlayerNametagCache INSTANCE = new PlayerNametagCache(60_000, 200);
 
-    public PlayerNametagCache(long l, int i) {
-        cache = new WarforgeCache<>(l, i);
+    private static final float DARKER_BRIGHTNESS = 0.25f;
+    private static final NamePlateData AWAITING_DATA = new NamePlateData("<awaiting>", 0xFFFFFF, 0xFFFFFF);
+    private static final NamePlateData NO_PLATE = new NamePlateData("", 0xFFFFFF, 0xFFFFFF);
+
+    private final WarforgeCache<String, NamePlateData> cache;
+
+    public PlayerNametagCache(long maxAgeMillis, int maxSize) {
+        cache = new WarforgeCache<>(maxAgeMillis, maxSize);
     }
 
-    public void purge(){
+    public void purge() {
         cache.clear();
     }
-    public void add(String name, String faction, int color){
-        cache.put(name, faction.isEmpty() ? null : new NamePlateData(faction,color, Color4i.fromRGB(color).withBrightness(0.25f).toRGB()));
+
+    public void add(String name, String faction, int color) {
+        cache.put(name, faction.isEmpty() ? NO_PLATE
+                : new NamePlateData(faction, color, Color4i.fromRGB(color).withBrightness(DARKER_BRIGHTNESS).toRGB()));
     }
-    public void remove(String name){
+
+    public void remove(String name) {
         cache.remove(name);
     }
 
-    public @Nullable NamePlateData requestIfAbsent(String player){
+    public @Nullable NamePlateData requestIfAbsent(String player) {
         NamePlateData data = cache.get(player);
         if (data == null) {
-            WarForgeMod.LOGGER.info("Requesting faction nametag for " + player);
-            var packet = new PacketRequestNamePlate();
+            PacketRequestNamePlate packet = new PacketRequestNamePlate();
             packet.name = player;
             WarForgeMod.NETWORK.sendToServer(packet);
             cache.put(player, AWAITING_DATA);
             return null;
         }
-        if (data == AWAITING_DATA) {
-            return null; // already requested, still waiting
-        }
-        return data; // valid result
+        return data == AWAITING_DATA || data == NO_PLATE ? null : data;
     }
-    private static final NamePlateData AWAITING_DATA = new NamePlateData("<awaiting>", 0xFFFFFF, 0xFFFFFF);
 
     @RequiredArgsConstructor
-   public static class NamePlateData {
-       final public String name;
-       final public int color;
-       final public int darkerColor;
-
-   }
-
+    public static class NamePlateData {
+        public final String name;
+        public final int color;
+        public final int darkerColor;
+    }
 }

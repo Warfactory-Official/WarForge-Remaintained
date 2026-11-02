@@ -1,74 +1,18 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeConfig.ProtectionConfig;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
-import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
-import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Faction;
-import com.flansmod.warforge.server.FactionStorage;
-import com.flansmod.warforge.server.Siege;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.Level;
 
-import java.util.UUID;
-
-
+/** The protection config the server resolved for this player in a chunk; the server stays authoritative. */
 public final class ClientProtections {
-    private ClientProtections() {}
-
-    public static ProtectionConfig configFor(DimChunkPos chunkPos) {
-        ProtectionConfig config = siegeZoneFor(chunkPos);
-        if (config != null)
-            return config;
-        ClaimChunkInfo info = ClientClaimChunkCache.get(chunkPos);
-        if (info == null)
-            info = ClientBorderCache.get(chunkPos);
-        if (info == null)
-            return null;
-        return zoneFor(info);
+    private ClientProtections() {
     }
 
-    private static ProtectionConfig siegeZoneFor(DimChunkPos chunkPos) {
-        SiegeCampProgressInfo warZone = null;
-        for (SiegeCampProgressInfo si : ClientProxy.sSiegeInfo.values()) {
-            if (si == null || si.attackingPos == null)
-                continue;
-            DimChunkPos camp = si.attackingPos.toChunkPos();
-            if (Siege.isPlayerInRadius(camp, chunkPos, si.siegedRadius))
-                return siegeProfile(true, isDefender(si));
-            if (warZone == null && Siege.isPlayerInRadius(camp, chunkPos, si.battleRadius))
-                warZone = si;
-        }
-        return warZone == null ? null : siegeProfile(false, isDefender(warZone));
-    }
-
-    private static boolean isDefender(SiegeCampProgressInfo si) {
-        UUID pf = ClientClaimChunkCache.playerFactionId;
-        return pf != null && !pf.equals(Faction.nullUuid)
-                && si.defendingFactionId != null && pf.equals(si.defendingFactionId);
-    }
-
-    private static ProtectionConfig siegeProfile(boolean sieged, boolean defender) {
-        if (sieged)
-            return defender ? WarForgeConfig.SIEGED_FRIEND : WarForgeConfig.SIEGED_FOE;
-        return defender ? WarForgeConfig.WAR_FRIEND : WarForgeConfig.WAR_FOE;
-    }
-
-
-    private static ProtectionConfig zoneFor(ClaimChunkInfo info) {
-        UUID owner = info.factionId;
-        if (owner == null || owner.equals(Faction.nullUuid))
-            owner = info.outlineFactionId; // border-only entries carry ownership here
-        if (owner == null || owner.equals(Faction.nullUuid))
-            return WarForgeConfig.UNCLAIMED;
-        if (owner.equals(FactionStorage.SAFE_ZONE_ID))
-            return WarForgeConfig.SAFE_ZONE;
-        if (owner.equals(FactionStorage.WAR_ZONE_ID))
-            return WarForgeConfig.WAR_ZONE;
-
-        boolean friend = !ClientClaimChunkCache.playerFactionId.equals(Faction.nullUuid)
-                && owner.equals(ClientClaimChunkCache.playerFactionId);
-        if (info.claimType == Faction.ClaimType.CITADEL)
-            return friend ? WarForgeConfig.CITADEL_FRIEND : WarForgeConfig.CITADEL_FOE;
-        return friend ? WarForgeConfig.CLAIM_FRIEND : WarForgeConfig.CLAIM_FOE;
+    /** Null while the chunk is outside the synced window or nothing applies to this player: defer to the server. */
+    public static ProtectionConfig configFor(ResourceKey<Level> dim, int chunkX, int chunkZ) {
+        ClaimChunkInfo info = ClientBorderCache.get(dim, chunkX, chunkZ);
+        return info == null ? null : info.protection.config();
     }
 }

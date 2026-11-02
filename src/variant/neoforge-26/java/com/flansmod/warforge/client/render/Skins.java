@@ -6,7 +6,6 @@ import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
-/** Player skin textures. The skin API differs between versions. */
 public final class Skins {
     private Skins() {}
 

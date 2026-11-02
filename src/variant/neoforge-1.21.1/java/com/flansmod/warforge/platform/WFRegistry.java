@@ -21,10 +21,6 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-/**
- * Registers WarForge objects. Make one per module, add the objects in static fields, then call
- * {@link #register(IEventBus)} from the mod constructor.
- */
 public final class WFRegistry {
     private final Map<ResourceKey<?>, DeferredRegister<?>> registers = new LinkedHashMap<>();
 
@@ -38,12 +34,10 @@ public final class WFRegistry {
         return new Handle<>(holder);
     }
 
-    /** A block. The factory gets fresh properties (with the id set where the version needs it) to add to. */
     public <B extends Block> RegHandle<B> block(String id, Function<BlockBehaviour.Properties, B> factory) {
         return register(Registries.BLOCK, id, () -> factory.apply(BlockBehaviour.Properties.of()));
     }
 
-    /** The item of a block. */
     public RegHandle<Item> blockItem(String id, RegHandle<? extends Block> block) {
         return register(Registries.ITEM, id, () -> new BlockItem(block.get(), new Item.Properties()));
     }
@@ -59,10 +53,16 @@ public final class WFRegistry {
         registers.values().forEach(register -> register.register(modBus));
     }
 
-    private record Handle<T, V extends T>(DeferredHolder<T, V> holder) implements RegHandle<V> {
+    private record Handle<T, V extends T>(DeferredHolder<T, V> deferred) implements RegHandle<V> {
         @Override
         public V get() {
-            return holder.get();
+            return deferred.get();
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public Holder<V> holder() {
+            return (Holder<V>) deferred;
         }
     }
 }

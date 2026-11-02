@@ -1,13 +1,12 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.SyncedVeins;
+import com.flansmod.warforge.common.faction.ClaimType;
+
 import com.flansmod.warforge.api.vein.Quality;
-import com.flansmod.warforge.client.ClientProxy;
-import com.flansmod.warforge.common.factories.SiegeCampGuiFactory;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.Vec3i;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -21,32 +20,32 @@ import com.flansmod.warforge.compat.Keys;
 public class PacketSiegeCampInfo extends PacketBase {
     public static PacketSiegeCampInfo lastReceived = null;
 
-    public DimBlockPos mSiegeCampPos;
-    public List<SiegeCampAttackInfo> mPossibleAttacks = new ArrayList<>();
+    public DimBlockPos siegeCampPos;
+    public List<SiegeCampAttackInfo> possibleAttacks = new ArrayList<>();
     public byte momentum;
     public int color;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        data.writeUtf(Keys.id(mSiegeCampPos.dim).toString());
-        data.writeInt(mSiegeCampPos.getX());
-        data.writeInt(mSiegeCampPos.getY());
-        data.writeInt(mSiegeCampPos.getZ());
+        data.writeUtf(Keys.id(siegeCampPos.dim).toString());
+        data.writeInt(siegeCampPos.getX());
+        data.writeInt(siegeCampPos.getY());
+        data.writeInt(siegeCampPos.getZ());
 
-        data.writeByte(mPossibleAttacks.size());
+        data.writeByte(possibleAttacks.size());
 
-        for (SiegeCampAttackInfo info : mPossibleAttacks) {
+        for (SiegeCampAttackInfo info : possibleAttacks) {
             data.writeBoolean(info.canAttack);
-            writeUUID(data, info.mFactionUUID);
-            writeUTF(data, info.mFactionName);
-            data.writeByte(info.mOffset.getX());
-            data.writeByte(info.mOffset.getZ());
-            data.writeInt(info.mFactionColour);
-            data.writeShort(info.mWarforgeVein != null ? info.mWarforgeVein.getId() : -1);
+            writeUUID(data, info.factionUuid);
+            writeUTF(data, info.factionName);
+            data.writeByte(info.offset.getX());
+            data.writeByte(info.offset.getZ());
+            data.writeInt(info.factionColour);
+            data.writeShort(info.warforgeVein != null ? info.warforgeVein.getId() : -1);
             writeUTF(data, info.claimType.serializedName);
 
             byte oreQualOrd = 0;
-            if (info.mOreQuality != null) { oreQualOrd = (byte) info.mOreQuality.ordinal(); }
+            if (info.oreQuality != null) { oreQualOrd = (byte) info.oreQuality.ordinal(); }
             data.writeByte(oreQualOrd);
 
             data.writeBoolean(info.conquered);
@@ -62,42 +61,50 @@ public class PacketSiegeCampInfo extends PacketBase {
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
-        mSiegeCampPos = new DimBlockPos(dim, x, y, z);
+        siegeCampPos = new DimBlockPos(dim, x, y, z);
 
         int numAttacks = PacketSecurity.clampCount(data.readByte(), 64);
-        mPossibleAttacks.clear();
+        possibleAttacks.clear();
         for (int i = 0; i < numAttacks; i++) {
             SiegeCampAttackInfo info = new SiegeCampAttackInfo();
 
             info.canAttack = data.readBoolean();
-            info.mFactionUUID = readUUID(data);
-            info.mFactionName = readUTF(data, PacketSecurity.MAX_NAME);
+            info.factionUuid = readUUID(data);
+            info.factionName = readUTF(data, PacketSecurity.MAX_NAME);
             int dx = data.readByte();
             int dz = data.readByte();
-            info.mOffset = new Vec3i(dx, 0, dz);
-            info.mFactionColour = data.readInt();
+            info.offset = new Vec3i(dx, 0, dz);
+            info.factionColour = data.readInt();
 
             short possibleVein = data.readShort();
-            info.mWarforgeVein = possibleVein < 0 ? null : ClientProxy.VEIN_ENTRIES.get(possibleVein);
-            info.claimType = Faction.ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
-            info.mOreQuality = PacketSecurity.readEnum(data, Quality.values(), Quality.values()[0]);
+            info.warforgeVein = possibleVein < 0 ? null : SyncedVeins.ENTRIES.get(possibleVein);
+            info.claimType = ClaimType.fromSerialized(readUTF(data, PacketSecurity.MAX_NAME));
+            info.oreQuality = PacketSecurity.readEnum(data, Quality.values(), Quality.values()[0]);
             info.conquered = data.readBoolean();
 
-            mPossibleAttacks.add(info);
+            possibleAttacks.add(info);
         }
         momentum = data.readByte();
         color = data.readInt();
 
     }
 
-    @Override
-    public void handleServerSide(ServerPlayer playerEntity) {
-        WarForgeMod.LOGGER.error("Received a siege info packet server side");
+    /** Sends the siege camp UI data to the player. */
+    public static void sendTo(net.minecraft.world.entity.player.Player player, DimBlockPos siegeCampPos,
+                              List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
+        if (!(player instanceof ServerPlayer serverPlayer)) {
+            return;
+        }
+        PacketSiegeCampInfo packet = new PacketSiegeCampInfo();
+        packet.siegeCampPos = siegeCampPos;
+        packet.possibleAttacks.addAll(possibleAttacks);
+        packet.momentum = momentum;
+        packet.color = color;
+        WarForgeMod.NETWORK.sendTo(packet, serverPlayer);
     }
 
     @Override
-    public void handleClientSide(Player clientPlayer) {
-        lastReceived = this;
-        SiegeCampGuiFactory.INSTANCE.openClient(this);
+    public void handleServerSide(ServerPlayer playerEntity) {
+        PacketSecurity.violation(playerEntity, "Received a siege info packet server side");
     }
 }

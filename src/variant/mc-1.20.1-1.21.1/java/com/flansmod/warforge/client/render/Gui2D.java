@@ -9,22 +9,20 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.item.ItemStack;
 
-/**
- * 2D drawing for the HUD, toasts and UI widgets. Wraps the version's GUI graphics object and offers the operations
- * the mod uses, so the drawing code is the same on every version.
- */
 public final class Gui2D {
-    private final GuiGraphics graphics;
+    private static final Gui2D SHARED = new Gui2D();
+    private static final float QUARTER_TURN = (float) (Math.PI / 2);
 
-    private Gui2D(GuiGraphics graphics) {
-        this.graphics = graphics;
+    private GuiGraphics graphics;
+
+    private Gui2D() {
     }
 
     public static Gui2D of(GuiGraphics graphics) {
-        return new Gui2D(graphics);
+        SHARED.graphics = graphics;
+        return SHARED;
     }
 
-    /** The wrapped vanilla graphics object. */
     public GuiGraphics raw() {
         return graphics;
     }
@@ -37,23 +35,34 @@ public final class Gui2D {
         graphics.fillGradient(x0, y0, x1, y1, argbTop, argbBottom);
     }
 
-    /** Draws a w x h region of the texture starting at (u, v), 1:1. */
+    public void fillGradientH(int x0, int y0, int x1, int y1, int argbLeft, int argbRight) {
+        graphics.pose().pushPose();
+        graphics.pose().translate(x0, y1, 0);
+        graphics.pose().last().pose().rotateZ(-QUARTER_TURN);
+        graphics.fillGradient(0, 0, y1 - y0, x1 - x0, argbLeft, argbRight);
+        graphics.pose().popPose();
+    }
+
+    public void border(int x0, int y0, int x1, int y1, int thickness, int argb) {
+        fill(x0, y0, x1, y0 + thickness, argb);
+        fill(x0, y1 - thickness, x1, y1, argb);
+        fill(x0, y0 + thickness, x0 + thickness, y1 - thickness, argb);
+        fill(x1 - thickness, y0 + thickness, x1, y1 - thickness, argb);
+    }
+
     public void blit(ResourceLocation texture, int x, int y, float u, float v, int w, int h, int texWidth, int texHeight) {
         graphics.blit(texture, x, y, u, v, w, h, texWidth, texHeight);
     }
 
-    /** Draws the uWidth x vHeight region of the texture at (u, v), scaled to w x h. */
     public void blit(ResourceLocation texture, int x, int y, int w, int h, float u, float v, int uWidth, int vHeight,
                      int texWidth, int texHeight) {
         graphics.blit(texture, x, y, w, h, u, v, uWidth, vHeight, texWidth, texHeight);
     }
 
-    /** Text with a shadow. */
     public void text(Font font, String text, int x, int y, int color) {
         text(font, text, x, y, color, true);
     }
 
-    /** Text with a shadow. */
     public void text(Font font, Component text, int x, int y, int color) {
         text(font, text, x, y, color, true);
     }
@@ -74,22 +83,18 @@ public final class Gui2D {
         graphics.renderItem(stack, x, y);
     }
 
-    /** Draws a player's face (with hat layer) from their skin texture. */
     public void playerFace(ResourceLocation skin, int x, int y, int size) {
         PlayerFaceRenderer.draw(graphics, skin, x, y, size);
     }
 
-    /** Multiplies the colour of the following draws (textures and fills). Reset with setColor(1, 1, 1, 1). */
     public void setColor(float red, float green, float blue, float alpha) {
         RenderSystem.setShaderColor(red, green, blue, alpha);
     }
 
-    /** Enables alpha blending for the following texture draws. */
     public void enableBlend() {
         RenderSystem.enableBlend();
     }
 
-    /** Draws everything queued so far (needed before changing render state between batched draws). */
     public void flush() {
         graphics.flush();
     }

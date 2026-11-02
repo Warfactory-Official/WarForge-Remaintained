@@ -1,14 +1,12 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.SyncedVeins;
 import com.flansmod.warforge.api.vein.Vein;
-import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
 
-import static com.flansmod.warforge.client.ClientProxy.VEIN_ENTRIES;
 
 public class PacketVeinEntries extends PacketBase {
     private ArrayList<Vein> veinBuffer = new ArrayList<>();
@@ -40,19 +38,15 @@ public class PacketVeinEntries extends PacketBase {
     @Override
     public void decodeInto(FriendlyByteBuf data) {
         while (data.readableBytes() > 0) {
-            veinBuffer.add(new Vein(data));
+            veinBuffer.add(new Vein(data, SyncedVeins.megachunkLength));
         }
+    }
+
+    public ArrayList<Vein> veins() {
+        return veinBuffer;
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        for (Vein vein : veinBuffer) {
-            VEIN_ENTRIES.put(vein.getId(), vein);
-            WarForgeMod.LOGGER.atDebug().log("Received vein of id <" + vein.getId() + "> with data: \n" + vein);
-        }
     }
 }

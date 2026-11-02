@@ -6,10 +6,6 @@ import net.minecraft.world.level.Level;
 import xaero.common.minimap.highlight.ChunkHighlighter;
 import xaero.hud.minimap.info.render.compile.InfoDisplayCompiler;
 
-/**
- * Colours claimed chunks on Xaero's Minimap. Added to its highlighter registry by XaeroMinimapHighlighterMixin; only
- * loaded when Xaero's Minimap is installed.
- */
 public class MinimapClaimHighlighter extends ChunkHighlighter {
     public MinimapClaimHighlighter() {
         super(true);

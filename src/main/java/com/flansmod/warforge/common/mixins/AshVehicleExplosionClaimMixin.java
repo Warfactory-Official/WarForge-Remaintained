@@ -1,7 +1,8 @@
 package com.flansmod.warforge.common.mixins;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.common.ExplosionProtection;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
@@ -10,15 +11,10 @@ import org.spongepowered.asm.mixin.Pseudo;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Redirect;
 
-// Ash Vehicles (an SBW addon) missiles/bombs punch direct Level.destroyBlock craters that fire no event
-// and so bypass claims, exactly like SBW. Re-route them through the same claim check. Most use the 2-arg
-// destroyBlock; the GBU-57 bunker buster uses the 3-arg (Entity) overload, so both are guarded. Targets
-// are strings so this compiles without Ash Vehicles present; the whole mixin is only registered when the
-// mod is loaded (see CompatMixinPlugin).
-// Ash Vehicles renamed its package Aru.Aru.* (older CF builds) -> aru.aru.* (newer "div" builds). Both
-// casings are listed so this protects claims regardless of which build the pack ships; the missing casing
-// is skipped harmlessly (require=0 + CompatMixinPlugin gates the whole mixin on the mod being present).
-// @Pseudo: the targets may be missing when compiling (Forge refmap generation still maps the redirect target).
+// Ash Vehicles direct Level.destroyBlock craters fire no event => bypass claims; re-routed through the claim check.
+// 2-arg destroyBlock, plus 3-arg (Entity) overload for GBU-57. Targets are strings (no compile dependency).
+// Package casing Aru.Aru.* (older CF builds) vs aru.aru.* (newer): both listed, missing one skipped (require=0).
+// @Pseudo: targets may be missing at compile time; Forge refmap generation still maps the redirect target.
 @Pseudo
 @Mixin(remap = false, targets = {
         "aru.aru.ashvehicle.entity.projectile.Agm114Entity",
@@ -38,7 +34,6 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 })
 @SuppressWarnings("unused")
 public class AshVehicleExplosionClaimMixin {
-
     // require = 0: each redirect only matches the subset of targets using that overload (e.g. only Gbu57
     // uses the 3-arg form), so the other targets legitimately yield zero injection points.
     @Redirect(
@@ -48,7 +43,7 @@ public class AshVehicleExplosionClaimMixin {
                     remap = true),
             require = 0)
     private boolean warforge$guardDestroy(Level level, BlockPos pos, boolean dropBlock) {
-        if (ExplosionProtection.isProtected(level, Faction.nullUuid, pos)) {
+        if (ExplosionProtection.isProtected(level, FactionIds.NONE, pos)) {
             return false;
         }
         return level.destroyBlock(pos, dropBlock);
@@ -61,7 +56,7 @@ public class AshVehicleExplosionClaimMixin {
                     remap = true),
             require = 0)
     private boolean warforge$guardDestroyWithEntity(Level level, BlockPos pos, boolean dropBlock, Entity breakingEntity) {
-        if (ExplosionProtection.isProtected(level, Faction.nullUuid, pos)) {
+        if (ExplosionProtection.isProtected(level, FactionIds.NONE, pos)) {
             return false;
         }
         return level.destroyBlock(pos, dropBlock, breakingEntity);

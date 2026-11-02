@@ -4,7 +4,7 @@ import com.flansmod.warforge.client.render.MapCellPainter;
 
 import com.flansmod.warforge.client.render.Gui2D;
 
-import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.client.ui.model.SiegeCampAttackInfoRender;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEventListener;
 import com.lowdragmc.lowdraglib2.gui.ui.event.UIEvents;
 import net.neoforged.api.distmarker.Dist;

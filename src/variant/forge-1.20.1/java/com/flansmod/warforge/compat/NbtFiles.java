@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Path;
 
-/** Compressed NBT file I/O without a size limit. The NbtIo signatures differ between versions. */
 public final class NbtFiles {
     private NbtFiles() {}
 

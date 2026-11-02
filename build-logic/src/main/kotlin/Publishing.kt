@@ -29,6 +29,12 @@ private fun Project.env(name: String): String? = providers.environmentVariable(n
 private fun Project.relations(platform: String): String =
     env("${platform}_RELATIONS_${loader.uppercase()}") ?: env("${platform}_RELATIONS") ?: ""
 
+private fun relationParts(dep: String): List<String> {
+    val parts = dep.split(':')
+    if (parts.size != 2 || parts.any { it.isEmpty() }) throw GradleException("Malformed relation '$dep', expected <type>:<id>")
+    return parts
+}
+
 private fun Project.releaseType(): String {
     val t = (env("RELEASE_TYPE") ?: "release").lowercase()
     if (t !in listOf("release", "beta", "alpha")) {
@@ -81,7 +87,7 @@ private fun Project.configureCurseForge(apiKey: String, debug: Boolean) {
                 "incomp" to "incompatible", "fail" to "incompatible", "tool" to "tool",
             )
             relations.split(';').filter { it.isNotEmpty() }.forEach { dep ->
-                val parts = dep.split(':')
+                val parts = relationParts(dep)
                 val type = typeMap[parts[0]] ?: parts[0]
                 if (type !in typeMap.values) throw GradleException("Invalid CurseForge dependency type: ${parts[0]}")
                 mainFile.addRelation(parts[1], type)
@@ -113,7 +119,7 @@ private fun Project.configureModrinth(apiKey: String, debug: Boolean) {
             "embed" to "embedded", "embedded" to "embedded", "incomp" to "incompatible", "fail" to "incompatible",
         )
         relations.split(';').filter { it.isNotEmpty() }.forEach { dep ->
-            val parts = dep.split(':')
+            val parts = relationParts(dep)
             val qual = parts[0].split('-')
             val scope = scopeMap[qual[0]] ?: qual[0]
             if (scope !in scopeMap.values) throw GradleException("Invalid Modrinth dependency scope: ${qual[0]}")

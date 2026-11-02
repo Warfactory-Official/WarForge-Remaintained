@@ -1,102 +1,78 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.compat.PlayerDataFile;
-import java.util.List;
-
-import com.flansmod.warforge.compat.Profiles;
-
-import com.flansmod.warforge.compat.PlayerRef;
-
-import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.common.WarClock;
 import com.flansmod.warforge.common.WarForgeConfig;
-import com.mojang.authlib.GameProfile;
+import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.compat.NbtFiles;
+import com.flansmod.warforge.compat.PlayerDataFile;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.players.PlayerList;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.storage.LevelResource;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
-import com.flansmod.warforge.compat.Nbt;
-import com.flansmod.warforge.compat.NbtFiles;
-import com.flansmod.warforge.compat.Stacks;
 
-
-public class CombatLogHandler {
-    private class PlayerInfo {
-        public DimBlockPos logoffPos;
-        public UUID playerID;
-        public long logoffTimestamp;
-
-        public PlayerInfo(DimBlockPos logoffPos, UUID playerID, long logoffTimestamp) {
-            this.logoffPos = logoffPos;
-            this.playerID = playerID;
-            this.logoffTimestamp = logoffTimestamp;
-        }
+/**
+ * Players who log out while their faction is in a siege and stay away longer than
+ * COMBAT_LOG_THRESHOLD lose their inventory at the logout position. Logging back in cancels it.
+ */
+public final class CombatLogHandler {
+    private record Logout(DimBlockPos position, long timestamp) {
     }
 
-    private List<PlayerInfo> enforcementList;
+    private final Map<UUID, Logout> pending = new LinkedHashMap<>();
 
-    public CombatLogHandler() {
-        enforcementList = new ArrayList<>();
+    void onLogout(ServerPlayer player) {
+        pending.put(player.getUUID(), new Logout(new DimBlockPos(player), WarClock.gameTimeMs));
     }
 
-    public void add(DimBlockPos logoffPos, UUID playerID, long logoffTimestamp) {
-        if (playerID == null)
+    void onLogin(UUID playerId) {
+        pending.remove(playerId);
+    }
+
+    /** Once per server tick. */
+    public void tick() {
+        if (pending.isEmpty()) {
             return;
-        enforcementList.add(new PlayerInfo(logoffPos, playerID, logoffTimestamp));
-    }
-
-    private void enforce(PlayerInfo player) {
-        MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
-        if (server == null) return;
-
-        // Retrieve player profile and data file
-        UUID playerUUID = player.playerID;
-        PlayerRef profile = Profiles.get(server, playerUUID).orElse(null);
-        if (profile == null) return;
-
-        Path worldDir = server.getWorldPath(LevelResource.ROOT);
-        Path playerDataFile = worldDir.resolve("playerdata/" + playerUUID + ".dat");
-
-        if (playerDataFile.toFile().exists() && playerDataFile.toFile().isFile()) {
-            try {
-                CompoundTag playerData = NbtFiles.readCompressed(playerDataFile);
-                if (playerData != null) {
-                    List<ItemStack> items = PlayerDataFile.takeInventory(playerData, server.registryAccess());
-                    DimBlockPos logoffPos = player.logoffPos;
-                    ServerLevel world = server.getLevel(logoffPos.dim);
-
-                    NbtFiles.writeCompressed(playerData, playerDataFile);
-
-                    for (ItemStack stack : items) {
-                        ItemEntity entityItem = new ItemEntity(world, logoffPos.getX(), logoffPos.getY(), logoffPos.getZ(), stack);
-                        world.addFreshEntity(entityItem);
-                    }
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
+        }
+        long now = WarClock.gameTimeMs;
+        Iterator<Map.Entry<UUID, Logout>> it = pending.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Logout> entry = it.next();
+            if (now - entry.getValue().timestamp() > WarForgeConfig.COMBAT_LOG_THRESHOLD) {
+                it.remove();
+                enforce(entry.getKey(), entry.getValue().position());
             }
         }
     }
 
-    public void doEnforcements(long timestamp) {
-        for (PlayerInfo info : enforcementList) {
-            // if the difference in the timestamp between when the player logged out and when this check is done exceeds the threshold, then enforcement is done
-            if (((int) (timestamp - info.logoffTimestamp)) > WarForgeConfig.COMBAT_LOG_THRESHOLD) enforce(info);
+    private static void enforce(UUID playerId, DimBlockPos logoffPos) {
+        MinecraftServer server = WarForgeMod.MC_SERVER;
+        Path playerDataFile = server.getWorldPath(LevelResource.ROOT).resolve("playerdata/" + playerId + ".dat");
+        ServerLevel world = server.getLevel(logoffPos.dim);
+        if (world == null || !Files.isRegularFile(playerDataFile)) {
+            return;
         }
-    }
-
-    public boolean isEmpty() {
-        return enforcementList.isEmpty();
+        try {
+            CompoundTag playerData = NbtFiles.readCompressed(playerDataFile);
+            List<ItemStack> items = PlayerDataFile.takeInventory(playerData, server.registryAccess());
+            NbtFiles.writeCompressed(playerData, playerDataFile);
+            for (ItemStack stack : items) {
+                world.addFreshEntity(new ItemEntity(world, logoffPos.getX(), logoffPos.getY(), logoffPos.getZ(), stack));
+            }
+        } catch (IOException e) {
+            WarForgeMod.LOGGER.error("Combat-log enforcement failed for {}", playerId, e);
+        }
     }
 }

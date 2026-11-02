@@ -2,15 +2,17 @@ package com.flansmod.warforge.client.render;
 
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.Color4i;
-import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
-import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
+import com.flansmod.warforge.client.util.ColorUtil;
+import com.flansmod.warforge.common.faction.ClaimType;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.client.ui.model.ClaimChunkRenderInfo;
+import com.flansmod.warforge.client.ui.model.SiegeCampAttackInfoRender;
 import com.flansmod.warforge.compat.Ids;
-import com.flansmod.warforge.server.Faction;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.resources.ResourceLocation;
 
-/** Drawing of one chunk cell of the claim/siege maps. Both UI libraries draw through this. */
 public final class MapCellPainter {
 
     public static final int CB_THICKNESS = 2;
@@ -22,9 +24,22 @@ public final class MapCellPainter {
     public static final int SIZE = 12;
 
     private static final int MAP_TEX_SIZE = 64;
+    private static final float TERRAIN_DIM = 0.9f;
+    private static final int PLACEHOLDER_COLOR = 0xFF2A2A2A;
+    private static final float OVERLAY_ALPHA = 0.5f;
+    private static final float OVERLAY_ALPHA_BOTH = 0.65f;
+    private static final int FACTION_TINT_ALPHA = 0x20;
+    private static final int EDGE_SHIFT = 16;
+    private static final int LABEL_X = 2;
+    private static final int LABEL_BOTTOM = 10;
+    private static final int FORCE_LOADED_RIGHT = 20;
+    private static final String FORCE_LOADED_LABEL = "[F]";
 
     private static final int ATTACK_ICON_SIZE = 46;
+    private static final int ATTACK_ICON_DRAW = 46;
     private static final int SELF_ICON_SIZE = 480;
+    private static final int SELF_ICON_DRAW = 48;
+    private static final int CENTER_ICON_DRAW = 24;
     private static final int CONQUERED_TEX_SIZE = 64;
     private static final int VEIN_TEX_SIZE = 16;
     private static final int CENTER_CUSTOM_ICON_SIZE = 64;
@@ -34,33 +49,36 @@ public final class MapCellPainter {
     private static final ResourceLocation SELF_ICON_BASE = Ids.of(Tags.MODID, "gui/icon_siege_self_base.png");
     private static final ResourceLocation CONQUERED_OVERLAY = Ids.of(Tags.MODID, "gui/conquered.png");
 
+    private static final Object2ObjectOpenHashMap<String, ResourceLocation> TEXTURES = new Object2ObjectOpenHashMap<>();
+
     private MapCellPainter() {
     }
 
-    /** True for the siege camp's own chunk (offset 0, 0). */
     public static boolean isCampChunk(SiegeCampAttackInfoRender chunkState) {
-        return chunkState.mOffset.getZ() == 0 && chunkState.mOffset.getX() == 0;
+        return chunkState.offset.getZ() == 0 && chunkState.offset.getX() == 0;
     }
 
-    /** The faction colour of a cell as float RGB (for tinting). */
     public static float[] factionRgb(SiegeCampAttackInfoRender chunkState) {
-        return Color4i.fromRGB(chunkState.mFactionColour).asFloatRGB();
+        return Color4i.fromRGB(chunkState.factionColour).asFloatRGB();
+    }
+
+    public static void clearTextureCache() {
+        TEXTURES.clear();
     }
 
     /**
-     * Draws a cell.
-     *
      * @param mapData   the cell's terrain texture path (warforge namespace)
-     * @param adjacency same-faction neighbours: north, east, south, west
+     * @param adjacency north, east, south, west: borders to draw where the neighbour is another faction
      */
     public static void paint(Gui2D graphics, String mapData, SiegeCampAttackInfoRender chunkState, boolean[] adjacency,
                              boolean campChunk, float[] rgb, int x, int y, int width, int height, boolean hovered) {
-        ResourceLocation mapTexture = Ids.of(Tags.MODID, mapData);
+        ResourceLocation mapTexture = TEXTURES.computeIfAbsent(mapData, MapCellPainter::resolveTexture);
+        boolean claimed = !chunkState.factionUuid.equals(FactionIds.NONE);
 
         graphics.enableBlend();
 
-        if (!hovered || chunkState.mFactionUUID.equals(Faction.nullUuid)) {
-            graphics.setColor(0.9f, 0.9f, 0.9f, 1f);
+        if (!hovered || !claimed) {
+            graphics.setColor(TERRAIN_DIM, TERRAIN_DIM, TERRAIN_DIM, 1f);
         } else {
             graphics.setColor(rgb[0], rgb[1], rgb[2], 1f);
         }
@@ -68,7 +86,7 @@ public final class MapCellPainter {
         if (DynamicTextures.isRegistered(mapTexture)) {
             graphics.blit(mapTexture, x, y, width, height, 0f, 0f, MAP_TEX_SIZE, MAP_TEX_SIZE, MAP_TEX_SIZE, MAP_TEX_SIZE);
         } else {
-            graphics.fill(x, y, x + width, y + height, 0xFF2A2A2A);
+            graphics.fill(x, y, x + width, y + height, PLACEHOLDER_COLOR);
         }
 
         graphics.setColor(1f, 1f, 1f, 1f);
@@ -76,76 +94,72 @@ public final class MapCellPainter {
         boolean conquered = chunkState.conquered;
         boolean battleZone = chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.battleZone;
         if (conquered || battleZone) {
-            float alpha = conquered && battleZone ? 0.65f : 0.5f;
+            float alpha = conquered && battleZone ? OVERLAY_ALPHA_BOTH : OVERLAY_ALPHA;
             graphics.setColor(1f, 1f, 1f, alpha);
             graphics.blit(CONQUERED_OVERLAY, x, y, width, height, 0f, 0f, CONQUERED_TEX_SIZE, CONQUERED_TEX_SIZE, CONQUERED_TEX_SIZE, CONQUERED_TEX_SIZE);
             graphics.setColor(1f, 1f, 1f, 1f);
         }
 
-        if (!chunkState.mFactionUUID.equals(Faction.nullUuid)) {
-            int baseNoAlpha = chunkState.mFactionColour & 0x00FFFFFF;
-            int base = baseNoAlpha | 0xFF000000;
-            int lightColor = brighten(base);
-            int darkColor = darken(base);
+        if (claimed) {
+            int base = chunkState.factionColour & 0x00FFFFFF;
+            int lightColor = ColorUtil.opaque(ColorUtil.shift(base, EDGE_SHIFT));
+            int darkColor = ColorUtil.opaque(ColorUtil.shift(base, -EDGE_SHIFT));
 
-            graphics.fill(x, y, x + width + 1, y + height + 1, baseNoAlpha | 0x20_000000);
+            graphics.fill(x, y, x + width + 1, y + height + 1, ColorUtil.argb(FACTION_TINT_ALPHA, base));
 
-            if (adjacency[0])
+            if (adjacency[0]) {
                 graphics.fill(x, y, x + width + 1, y + CB_THICKNESS, lightColor);
-            if (adjacency[3])
-                graphics.fill(x, y + CB_THICKNESS - 2, x + CB_THICKNESS, y + height, lightColor);
-
-            if (adjacency[2])
+            }
+            if (adjacency[3]) {
+                graphics.fill(x, y, x + CB_THICKNESS, y + height, lightColor);
+            }
+            if (adjacency[2]) {
                 graphics.fill(x, y + height - CB_THICKNESS, x + width, y + height, darkColor);
-            if (adjacency[1])
+            }
+            if (adjacency[1]) {
                 graphics.fill(x + width - CB_THICKNESS, y, x + width, y + height, darkColor);
+            }
         } else {
-            graphics.fill(x, y, x + width + 1, y + GRID_THICKNESS, GRID_COLOR);
-            graphics.fill(x, y + GRID_THICKNESS - 2, x + GRID_THICKNESS, y + height, GRID_COLOR);
-            graphics.fill(x, y + height - GRID_THICKNESS, x + width, y + height, GRID_COLOR);
-            graphics.fill(x + width - GRID_THICKNESS, y, x + width, y + height, GRID_COLOR);
+            graphics.border(x, y, x + width, y + height, GRID_THICKNESS, GRID_COLOR);
         }
 
         if (hovered) {
             if (chunkState.canAttack && !campChunk) {
                 graphics.setColor(rgb[0], rgb[1], rgb[2], 1f);
-                int xOffset = x + (width - 46) / 2;
-                int yOffset = y + (height - 46) / 2;
-                graphics.blit(ATTACK_ICON, xOffset, yOffset, 46, 46, 0f, 0f, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE);
+                graphics.blit(ATTACK_ICON, x + (width - ATTACK_ICON_DRAW) / 2, y + (height - ATTACK_ICON_DRAW) / 2,
+                        ATTACK_ICON_DRAW, ATTACK_ICON_DRAW, 0f, 0f, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE, ATTACK_ICON_SIZE);
                 graphics.setColor(1f, 1f, 1f, 1f);
             } else {
-                graphics.fill(x, y, x + width + 1, y + HL_THICKNESS, HL_COLOR);
-                graphics.fill(x, y + HL_THICKNESS - 2, x + HL_THICKNESS, y + height, HL_COLOR);
-                graphics.fill(x, y + height - HL_THICKNESS, x + width, y + height, HL_COLOR);
-                graphics.fill(x + width - HL_THICKNESS, y, x + width, y + height, HL_COLOR);
+                graphics.border(x, y, x + width, y + height, HL_THICKNESS, HL_COLOR);
             }
         }
 
         switch (chunkState.getCenterMarkType()) {
             case SIEGE_CAMP -> {
-                int xOffset = x + (width - 48) / 2;
-                int yOffset = y + (height - 48) / 2;
+                int xOffset = x + (width - SELF_ICON_DRAW) / 2;
+                int yOffset = y + (height - SELF_ICON_DRAW) / 2;
 
                 graphics.setColor(1f, 1f, 1f, 1f);
-                graphics.blit(SELF_ICON_BASE, xOffset, yOffset, 48, 48, 0f, 0f, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE);
+                graphics.blit(SELF_ICON_BASE, xOffset, yOffset, SELF_ICON_DRAW, SELF_ICON_DRAW, 0f, 0f, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE);
 
                 graphics.setColor(rgb[0], rgb[1], rgb[2], 1f);
-                graphics.blit(SELF_ICON, xOffset, yOffset, 48, 48, 0f, 0f, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE);
+                graphics.blit(SELF_ICON, xOffset, yOffset, SELF_ICON_DRAW, SELF_ICON_DRAW, 0f, 0f, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE, SELF_ICON_SIZE);
                 graphics.setColor(1f, 1f, 1f, 1f);
             }
             case PLAYER_FACE -> {
-                if (chunkState.getCenterIcon() == null) break;
-                int xOffset = x + (width - 24) / 2;
-                int yOffset = y + (height - 24) / 2;
+                if (chunkState.getCenterIcon() == null) {
+                    break;
+                }
                 graphics.setColor(1f, 1f, 1f, 1f);
-                graphics.playerFace(chunkState.getCenterIcon(), xOffset, yOffset, 24);
+                graphics.playerFace(chunkState.getCenterIcon(), x + (width - CENTER_ICON_DRAW) / 2, y + (height - CENTER_ICON_DRAW) / 2, CENTER_ICON_DRAW);
             }
             case CUSTOM_TEXTURE -> {
-                if (chunkState.getCenterIcon() == null) break;
-                int xOffset = x + (width - 24) / 2;
-                int yOffset = y + (height - 24) / 2;
+                if (chunkState.getCenterIcon() == null) {
+                    break;
+                }
                 graphics.setColor(1f, 1f, 1f, 1f);
-                graphics.blit(chunkState.getCenterIcon(), xOffset, yOffset, 24, 24, 0f, 0f, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE);
+                graphics.blit(chunkState.getCenterIcon(), x + (width - CENTER_ICON_DRAW) / 2, y + (height - CENTER_ICON_DRAW) / 2,
+                        CENTER_ICON_DRAW, CENTER_ICON_DRAW, 0f, 0f, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE, CENTER_CUSTOM_ICON_SIZE);
             }
             case NONE -> {
             }
@@ -156,31 +170,21 @@ public final class MapCellPainter {
             graphics.blit(chunkState.veinIcon, x + OFFSET, y + OFFSET, SIZE, SIZE, 0f, 0f, VEIN_TEX_SIZE, VEIN_TEX_SIZE, VEIN_TEX_SIZE, VEIN_TEX_SIZE);
         }
 
-        if (chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.claimType != Faction.ClaimType.NONE) {
+        if (chunkState instanceof ClaimChunkRenderInfo claimInfo && claimInfo.claimType != ClaimType.NONE) {
             Font font = Minecraft.getInstance().font;
             String label = claimInfo.claimType.shortLabel;
             if (!label.isEmpty()) {
-                graphics.text(font, label, x + 2, y + height - 10, 0xFFFFFFFF, true);
+                graphics.text(font, label, x + LABEL_X, y + height - LABEL_BOTTOM, 0xFFFFFFFF, true);
             }
             if (claimInfo.forceLoaded) {
-                graphics.text(font, "[F]", x + width - 20, y + height - 10, 0xFFFFFFFF, true);
+                graphics.text(font, FORCE_LOADED_LABEL, x + width - FORCE_LOADED_RIGHT, y + height - LABEL_BOTTOM, 0xFFFFFFFF, true);
             }
         }
 
         graphics.setColor(1f, 1f, 1f, 1f);
     }
 
-    private static int brighten(int color) {
-        int r = Math.min(((color >> 16) & 0xFF) + 16, 255);
-        int g = Math.min(((color >> 8) & 0xFF) + 16, 255);
-        int b = Math.min((color & 0xFF) + 16, 255);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
-    }
-
-    private static int darken(int color) {
-        int r = Math.max(((color >> 16) & 0xFF) - 16, 0);
-        int g = Math.max(((color >> 8) & 0xFF) - 16, 0);
-        int b = Math.max((color & 0xFF) - 16, 0);
-        return 0xFF000000 | (r << 16) | (g << 8) | b;
+    private static ResourceLocation resolveTexture(String mapData) {
+        return Ids.of(Tags.MODID, mapData);
     }
 }

@@ -2,7 +2,6 @@ package com.flansmod.warforge.common.network;
 
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -10,11 +9,8 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import com.flansmod.warforge.compat.Keys;
 
-// Client -> server. Declares a camp-less siege chosen from the claim map: stage 1 picks the target
-// chunk, stage 2 picks the chunk the siege is launched from. The server re-validates everything
-// (range, ownership, sieg-ability, cooldown, item cost) in FactionStorage#requestDeclareSiege, so a
-// crafted packet can do nothing the UI couldn't legitimately do.
-public class PacketDeclareSiege extends PacketBase {
+// server re-validates everything in FactionStorage#requestDeclareSiege
+public class PacketDeclareSiege extends ServerboundPacket {
     public DimChunkPos targetChunk = new DimChunkPos(Level.OVERWORLD, 0, 0);
     public DimChunkPos fromChunk = new DimChunkPos(Level.OVERWORLD, 0, 0);
 
@@ -38,7 +34,10 @@ public class PacketDeclareSiege extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        WarForgeMod.FACTIONS.requestDeclareSiege(playerEntity, targetChunk, fromChunk);
+        if (!PacketSecurity.requireSameDim(playerEntity, fromChunk.dim, "declare siege")) {
+            return;
+        }
+        WarForgeMod.FACTIONS.siegeService.requestDeclareSiege(playerEntity, targetChunk, fromChunk);
     }
 
     @Override

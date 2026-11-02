@@ -1,246 +1,181 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.compat.Levels;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
-
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-
+import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.compat.Levels;
 import net.minecraft.core.BlockPos;
-import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
-public class TeleportsModule
-{
-	private class PendingTeleport
-	{
-		public Player player;
-		public int ticksRemaining;
-		public BlockPos pos;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
-		public DimBlockPos target;
-	}
+import static com.flansmod.warforge.server.ServerText.t;
 
-	private class TpaRequest
-	{
-		public UUID requester;
-		public UUID target;
-		public int ticksRemaining;
-	}
+/** /f spawn, /f home and /f tpa: stand-still countdowns. Holds ids only; players can log out mid-countdown. */
+public class TeleportsModule {
+    private static final int TICKS_PER_SECOND = 20;
 
+    private static final class PendingTeleport {
+        private UUID playerId;
+        private int ticksRemaining;
+        private BlockPos pos;
+        private DimBlockPos target;
+    }
 
-	private List<PendingTeleport> mPendingTPs = new ArrayList<PendingTeleport>();
-	private List<TpaRequest> mTpaRequests = new ArrayList<TpaRequest>();
+    private static final class TpaRequest {
+        private UUID requester;
+        private UUID target;
+        private int ticksRemaining;
+    }
 
-	public void requestSpawn(Player player)
-	{
-		if(!WarForgeConfig.ENABLE_SPAWN_COMMAND)
-		{
-			player.sendSystemMessage(Component.literal("/f spawn is disabled on this server"));
-			return;
-		}
+    private final List<PendingTeleport> pendingTeleports = new ArrayList<>();
+    private final List<TpaRequest> tpaRequests = new ArrayList<>();
 
-		if(!WarForgeConfig.ALLOW_SPAWN_BETWEEN_DIMENSIONS && player.level().dimension() != Level.OVERWORLD)
-		{
-			player.sendSystemMessage(Component.literal("You need to be in the overworld"));
-			return;
-		}
+    public void requestSpawn(Player player) {
+        if (!WarForgeConfig.ENABLE_SPAWN_COMMAND) {
+            player.sendSystemMessage(t("tp.spawn_disabled"));
+            return;
+        }
+        if (!WarForgeConfig.ALLOW_SPAWN_BETWEEN_DIMENSIONS && !player.level().dimension().equals(Level.OVERWORLD)) {
+            player.sendSystemMessage(t("tp.need_overworld"));
+            return;
+        }
+        ServerLevel overworld = WarForgeMod.MC_SERVER.overworld();
+        schedule(player, new DimBlockPos(Level.OVERWORLD, Levels.sharedSpawnPos(overworld)));
+        player.sendSystemMessage(t("tp.started"));
+    }
 
-		ServerLevel overworld = WarForgeMod.MC_SERVER.overworld();
-		DimBlockPos target = new DimBlockPos(Level.OVERWORLD, Levels.sharedSpawnPos(overworld));
-		PendingTeleport tp = new PendingTeleport();
-		tp.player = player;
-		tp.pos = player.blockPosition();
-		tp.target = target;
-		tp.ticksRemaining = WarForgeConfig.NUM_TICKS_FOR_WARP_COMMANDS;
-		mPendingTPs.add(tp);
+    public void requestFHome(Player player) {
+        if (!WarForgeConfig.ENABLE_F_HOME_COMMAND) {
+            player.sendSystemMessage(t("tp.home_disabled"));
+            return;
+        }
+        Faction faction = FactionAccess.requireFaction(player);
+        if (faction == null) {
+            return;
+        }
+        DimBlockPos target = faction.getCitadelPos();
+        if (!WarForgeConfig.ALLOW_F_HOME_BETWEEN_DIMENSIONS && !target.dim.equals(player.level().dimension())) {
+            player.sendSystemMessage(t("tp.home_dimension"));
+            return;
+        }
+        schedule(player, target);
+        player.sendSystemMessage(t("tp.started"));
+    }
 
-		player.sendSystemMessage(Component.literal("Teleport started. Stand still."));
+    private void schedule(Player player, DimBlockPos target) {
+        PendingTeleport tp = new PendingTeleport();
+        tp.playerId = player.getUUID();
+        tp.pos = player.blockPosition();
+        tp.target = target;
+        tp.ticksRemaining = WarForgeConfig.NUM_TICKS_FOR_WARP_COMMANDS;
+        pendingTeleports.add(tp);
+    }
 
-	}
+    public void requestTpa(Player requester, ServerPlayer target) {
+        if (!WarForgeConfig.ENABLE_TPA_COMMAND) {
+            requester.sendSystemMessage(t("tp.tpa_disabled"));
+            return;
+        }
+        if (requester.getUUID().equals(target.getUUID())) {
+            requester.sendSystemMessage(t("tp.tpa_self"));
+            return;
+        }
+        tpaRequests.removeIf(r -> r.requester.equals(requester.getUUID()) && r.target.equals(target.getUUID()));
 
-	public void RequestFHome(Player player)
-	{
-		if(!WarForgeConfig.ENABLE_F_HOME_COMMAND)
-		{
-			player.sendSystemMessage(Component.literal("/f home is disabled on this server"));
-			return;
-		}
+        TpaRequest req = new TpaRequest();
+        req.requester = requester.getUUID();
+        req.target = target.getUUID();
+        req.ticksRemaining = WarForgeConfig.TPA_REQUEST_TIMEOUT_SECONDS * TICKS_PER_SECOND;
+        tpaRequests.add(req);
 
-		Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-		if(faction == null)
-		{
-			player.sendSystemMessage(Component.literal("You are not in a faction"));
-			return;
-		}
+        requester.sendSystemMessage(t("tp.tpa_sent", target.getName().getString()));
+        target.sendSystemMessage(t("tp.tpa_received", requester.getName().getString()));
+    }
 
-		DimBlockPos target = faction.citadelPos;
-		if(!WarForgeConfig.ALLOW_F_HOME_BETWEEN_DIMENSIONS && target.dim != player.level().dimension())
-		{
-			player.sendSystemMessage(Component.literal("You need to be in the same dimension as your citadel"));
-			return;
-		}
+    public void acceptTpa(ServerPlayer target, UUID requesterFilter) {
+        TpaRequest chosen = takeRequest(target, requesterFilter);
+        if (chosen == null) {
+            return;
+        }
+        ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(chosen.requester);
+        if (requester == null) {
+            target.sendSystemMessage(t("tp.tpa_offline"));
+            return;
+        }
+        schedule(requester, new DimBlockPos(target));
+        target.sendSystemMessage(t("tp.tpa_accepted", requester.getName().getString()));
+        requester.sendSystemMessage(t("tp.tpa_accepted_requester", target.getName().getString()));
+    }
 
-		PendingTeleport tp = new PendingTeleport();
-		tp.player = player;
-		tp.pos = player.blockPosition();
-		tp.target = target;
-		tp.ticksRemaining = WarForgeConfig.NUM_TICKS_FOR_WARP_COMMANDS;
-		mPendingTPs.add(tp);
+    public void denyTpa(ServerPlayer target, UUID requesterFilter) {
+        TpaRequest chosen = takeRequest(target, requesterFilter);
+        if (chosen == null) {
+            return;
+        }
+        ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(chosen.requester);
+        if (requester != null) {
+            requester.sendSystemMessage(t("tp.tpa_denied_requester", target.getName().getString()));
+        }
+        target.sendSystemMessage(t("tp.tpa_denied"));
+    }
 
-		player.sendSystemMessage(Component.literal("Teleport started. Stand still."));
-	}
+    /** Newest matching request, removed from the list; tells the player when there is none. */
+    private TpaRequest takeRequest(ServerPlayer target, UUID requesterFilter) {
+        if (!WarForgeConfig.ENABLE_TPA_COMMAND) {
+            target.sendSystemMessage(t("tp.tpa_disabled"));
+            return null;
+        }
+        for (int i = tpaRequests.size() - 1; i >= 0; i--) {
+            TpaRequest req = tpaRequests.get(i);
+            if (req.target.equals(target.getUUID()) && (requesterFilter == null || req.requester.equals(requesterFilter))) {
+                tpaRequests.remove(i);
+                return req;
+            }
+        }
+        target.sendSystemMessage(t("tp.tpa_none"));
+        return null;
+    }
 
-	public void requestTpa(Player requester, ServerPlayer target)
-	{
-		if(!WarForgeConfig.ENABLE_TPA_COMMAND)
-		{
-			requester.sendSystemMessage(Component.literal("/f tpa is disabled on this server"));
-			return;
-		}
+    /** Logout: drops the player's countdowns and requests. */
+    public void onLogout(UUID playerId) {
+        pendingTeleports.removeIf(tp -> tp.playerId.equals(playerId));
+        tpaRequests.removeIf(r -> r.requester.equals(playerId) || r.target.equals(playerId));
+    }
 
-		if(requester.getUUID().equals(target.getUUID()))
-		{
-			requester.sendSystemMessage(Component.literal("You cannot send a teleport request to yourself"));
-			return;
-		}
-
-		for(int i = mTpaRequests.size() - 1; i >= 0; i--)
-		{
-			TpaRequest req = mTpaRequests.get(i);
-			if(req.requester.equals(requester.getUUID()) && req.target.equals(target.getUUID()))
-			{
-				mTpaRequests.remove(i);
-			}
-		}
-
-		TpaRequest req = new TpaRequest();
-		req.requester = requester.getUUID();
-		req.target = target.getUUID();
-		req.ticksRemaining = WarForgeConfig.TPA_REQUEST_TIMEOUT_SECONDS * 20;
-		mTpaRequests.add(req);
-
-		requester.sendSystemMessage(Component.literal("Teleport request sent to " + target.getName().getString()));
-		target.sendSystemMessage(Component.literal(requester.getName().getString() + " wants to teleport to you. Use /f tpaccept or /f tpdeny"));
-	}
-
-	public void acceptTpa(ServerPlayer target, UUID requesterFilter)
-	{
-		if(!WarForgeConfig.ENABLE_TPA_COMMAND)
-		{
-			target.sendSystemMessage(Component.literal("/f tpa is disabled on this server"));
-			return;
-		}
-
-		TpaRequest chosen = findRequest(target.getUUID(), requesterFilter);
-		if(chosen == null)
-		{
-			target.sendSystemMessage(Component.literal("You have no pending teleport requests"));
-			return;
-		}
-		mTpaRequests.remove(chosen);
-
-		ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(chosen.requester);
-		if(requester == null)
-		{
-			target.sendSystemMessage(Component.literal("That player is no longer online"));
-			return;
-		}
-
-		PendingTeleport tp = new PendingTeleport();
-		tp.player = requester;
-		tp.pos = requester.blockPosition();
-		tp.target = new DimBlockPos(target);
-		tp.ticksRemaining = WarForgeConfig.NUM_TICKS_FOR_WARP_COMMANDS;
-		mPendingTPs.add(tp);
-
-		target.sendSystemMessage(Component.literal("Accepted teleport request from " + requester.getName().getString()));
-		requester.sendSystemMessage(Component.literal(target.getName().getString() + " accepted your request. Teleport started. Stand still."));
-	}
-
-	public void denyTpa(ServerPlayer target, UUID requesterFilter)
-	{
-		if(!WarForgeConfig.ENABLE_TPA_COMMAND)
-		{
-			target.sendSystemMessage(Component.literal("/f tpa is disabled on this server"));
-			return;
-		}
-
-		TpaRequest chosen = findRequest(target.getUUID(), requesterFilter);
-		if(chosen == null)
-		{
-			target.sendSystemMessage(Component.literal("You have no pending teleport requests"));
-			return;
-		}
-		mTpaRequests.remove(chosen);
-
-		ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(chosen.requester);
-		if(requester != null)
-		{
-			requester.sendSystemMessage(Component.literal(target.getName().getString() + " denied your teleport request"));
-		}
-		target.sendSystemMessage(Component.literal("Denied teleport request"));
-	}
-
-	private TpaRequest findRequest(UUID targetId, UUID requesterFilter)
-	{
-		for(int i = mTpaRequests.size() - 1; i >= 0; i--)
-		{
-			TpaRequest req = mTpaRequests.get(i);
-			if(req.target.equals(targetId) && (requesterFilter == null || req.requester.equals(requesterFilter)))
-			{
-				return req;
-			}
-		}
-		return null;
-	}
-
-	public void update()
-	{
-		for(int i = mPendingTPs.size() - 1; i >= 0; i--)
-		{
-			PendingTeleport tp = mPendingTPs.get(i);
-			if(!tp.player.blockPosition().equals(tp.pos))
-			{
-				tp.player.sendSystemMessage(Component.literal("Teleport cancelled."));
-				mPendingTPs.remove(i);
-				continue;
-			}
-
-			if(tp.ticksRemaining % 20 == 0)
-			{
-				tp.player.sendSystemMessage(Component.literal("Teleporting in " + (tp.ticksRemaining / 20)));
-			}
-
-			tp.ticksRemaining--;
-
-			if(tp.ticksRemaining == 0)
-			{
-				TeleportUtil.teleportPlayer( (ServerPlayer)tp.player, tp.target.dim, tp.target.toRegularPos());
-				mPendingTPs.remove(i);
-			}
-		}
-
-		for(int i = mTpaRequests.size() - 1; i >= 0; i--)
-		{
-			TpaRequest req = mTpaRequests.get(i);
-			req.ticksRemaining--;
-			if(req.ticksRemaining <= 0)
-			{
-				mTpaRequests.remove(i);
-				ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(req.requester);
-				if(requester != null)
-				{
-					requester.sendSystemMessage(Component.literal("Your teleport request expired"));
-				}
-			}
-		}
-	}
+    public void update() {
+        for (int i = pendingTeleports.size() - 1; i >= 0; i--) {
+            PendingTeleport tp = pendingTeleports.get(i);
+            ServerPlayer player = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(tp.playerId);
+            if (player == null || !player.blockPosition().equals(tp.pos)) {
+                if (player != null) {
+                    player.sendSystemMessage(t("tp.cancelled"));
+                }
+                pendingTeleports.remove(i);
+                continue;
+            }
+            if (tp.ticksRemaining % TICKS_PER_SECOND == 0) {
+                player.sendSystemMessage(t("tp.countdown", tp.ticksRemaining / TICKS_PER_SECOND));
+            }
+            if (--tp.ticksRemaining == 0) {
+                TeleportUtil.teleportPlayer(player, tp.target.dim, tp.target.toRegularPos());
+                pendingTeleports.remove(i);
+            }
+        }
+        for (int i = tpaRequests.size() - 1; i >= 0; i--) {
+            TpaRequest req = tpaRequests.get(i);
+            if (--req.ticksRemaining <= 0) {
+                tpaRequests.remove(i);
+                ServerPlayer requester = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(req.requester);
+                if (requester != null) {
+                    requester.sendSystemMessage(t("tp.tpa_expired"));
+                }
+            }
+        }
+    }
 }

@@ -5,7 +5,7 @@ import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.LivingEntity;
 
-/** Mob effect helpers. From 1.20.5 effects are passed as registry holders, before that as the effect object. */
+/** From 1.20.5 effects are holders; before, the effect object. */
 public final class Effects {
     private Effects() {}
 

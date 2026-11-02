@@ -10,10 +10,6 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.phys.Vec3;
 
-/**
- * The LDLib1 UI holder of a WarForge block UI: the block at a position, plus the display state the server captured
- * when opening (sent to the client in the open packet so both sides build the same widget tree).
- */
 public final class BlockUiHolder implements IUIHolder {
     private static final double MAX_DISTANCE_SQR = 8.0 * 8.0;
 

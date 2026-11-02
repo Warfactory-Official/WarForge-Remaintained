@@ -17,7 +17,7 @@ public final class WarForgeTabListHandler {
         if (!(event.getEntity() instanceof ServerPlayer self)) {
             return;
         }
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(self.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(self.getUUID());
         if (faction == null) {
             return;
         }

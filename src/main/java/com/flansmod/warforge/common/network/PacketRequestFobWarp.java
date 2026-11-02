@@ -3,7 +3,6 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.fob.Fob;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,15 +10,15 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import com.flansmod.warforge.compat.Keys;
 
-public class PacketRequestFobWarp extends PacketBase {
-    public DimBlockPos mPos;
+public class PacketRequestFobWarp extends ServerboundPacket {
+    public DimBlockPos pos;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        writeUTF(data, Keys.id(mPos.dim).toString());
-        data.writeInt(mPos.getX());
-        data.writeInt(mPos.getY());
-        data.writeInt(mPos.getZ());
+        writeUTF(data, Keys.id(pos.dim).toString());
+        data.writeInt(pos.getX());
+        data.writeInt(pos.getY());
+        data.writeInt(pos.getZ());
     }
 
     @Override
@@ -28,12 +27,15 @@ public class PacketRequestFobWarp extends PacketBase {
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
-        mPos = new DimBlockPos(dim, x, y, z);
+        pos = new DimBlockPos(dim, x, y, z);
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        Fob fob = WarForgeMod.FOBS.getFobAt(mPos.toChunkPos());
+        if (!PacketSecurity.requireSameDim(playerEntity, pos.dim, "FOB warp")) {
+            return;
+        }
+        Fob fob = WarForgeMod.FOBS.getFobAt(pos.toChunkPos());
         if (fob == null) {
             return;
         }
@@ -42,6 +44,6 @@ public class PacketRequestFobWarp extends PacketBase {
 
     @Override
     public void handleClientSide(Player clientPlayer) {
-        WarForgeMod.LOGGER.error("Recieved FOB warp request on client");
+        WarForgeMod.LOGGER.error("FOB warp request received on client");
     }
 }

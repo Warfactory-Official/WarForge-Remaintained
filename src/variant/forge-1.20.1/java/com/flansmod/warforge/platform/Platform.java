@@ -3,18 +3,24 @@ package com.flansmod.warforge.platform;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.minecraftforge.fml.loading.FMLPaths;
 
-/** Loader facts and the game event bus. */
 public final class Platform {
     private Platform() {}
 
-    /** True on the physical client (also true for the integrated server of a single-player game). */
     public static boolean isClient() {
         return FMLEnvironment.dist.isClient();
     }
 
-    /** The game event bus (NeoForge.EVENT_BUS / MinecraftForge.EVENT_BUS). */
+    public static boolean isDevelopment() {
+        return !FMLEnvironment.production;
+    }
+
     public static IEventBus gameBus() {
         return MinecraftForge.EVENT_BUS;
+    }
+
+    public static java.nio.file.Path configDir() {
+        return FMLPaths.CONFIGDIR.get();
     }
 }

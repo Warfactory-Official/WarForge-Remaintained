@@ -1,15 +1,16 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
-public class PacketRequestUpgrade extends PacketBase {
-    public UUID factionID = Faction.nullUuid;
+public class PacketRequestUpgrade extends ServerboundPacket {
+    public UUID factionID = FactionIds.NONE;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
@@ -23,7 +24,7 @@ public class PacketRequestUpgrade extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.FACTIONS.requestLevelUp(player, factionID);
+        WarForgeMod.FACTIONS.upgrades.requestLevelUp(player, factionID);
     }
 
     @Override

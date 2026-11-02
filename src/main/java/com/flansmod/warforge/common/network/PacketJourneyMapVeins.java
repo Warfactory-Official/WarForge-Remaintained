@@ -1,25 +1,14 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.client.JourneyMapVeinCache;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
 import java.util.List;
 import com.flansmod.warforge.compat.Keys;
 
-/**
- * Server -> client vein updates for the optional JourneyMap overlay.
- * <p>
- * Carries only chunk position + the compressed vein id/quality short (the same encoding the existing
- * vein HUD uses); the client resolves the icon from its already-synced vein definitions. The server
- * decides what each client may receive based on {@code JOURNEYMAP_VEIN_MODE}, so a client cannot learn
- * about veins it is not entitled to see.
- */
 public class PacketJourneyMapVeins extends PacketBase {
     public static final class Set {
         public final ResourceKey<Level> dim;
@@ -89,19 +78,5 @@ public class PacketJourneyMapVeins extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        // client-bound only
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        if (clear) {
-            JourneyMapVeinCache.applyClear();
-        }
-        for (Set s : sets) {
-            JourneyMapVeinCache.set(s.dim, s.x, s.z, s.veinInfo);
-        }
-        for (Remove r : removes) {
-            JourneyMapVeinCache.remove(r.dim, r.x, r.z);
-        }
     }
 }

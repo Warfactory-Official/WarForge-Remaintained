@@ -13,18 +13,13 @@ import net.neoforged.neoforge.common.world.chunk.TicketSet;
 import java.util.Map;
 import java.util.UUID;
 
-/** Force-loaded chunks owned by a UUID, which the loader saves and restores across restarts. */
 public final class ChunkTickets {
-    /** The saved tickets of one owner in one level, handed to the validator on world load. */
     public interface OwnerTickets {
-        /** Packed chunk positions (ChunkPos.getX/getZ) of the ticking tickets. */
         LongSet ticking();
 
-        /** Packed chunk positions of the non-ticking tickets. */
         LongSet nonTicking();
     }
 
-    /** Checks the saved tickets when a level loads; may remove them through {@link Remover}. */
     public interface Validator {
         void validate(ServerLevel level, Map<UUID, OwnerTickets> ticketsByOwner, Remover remover);
     }

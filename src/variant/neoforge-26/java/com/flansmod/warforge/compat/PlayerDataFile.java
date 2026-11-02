@@ -9,11 +9,9 @@ import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Offline player data (playerdata/&lt;uuid&gt;.dat). Where the items are saved differs between versions. */
 public final class PlayerDataFile {
     private PlayerDataFile() {}
 
-    /** Removes every item (inventory, armour, offhand) from the player data and returns them. */
     public static List<ItemStack> takeInventory(CompoundTag playerData, HolderLookup.Provider registries) {
         ListTag inventoryList = Nbt.getList(playerData, "Inventory", Tag.TAG_COMPOUND).copy();
         playerData.put("Inventory", new ListTag());
@@ -21,7 +19,7 @@ public final class PlayerDataFile {
         for (int i = 0; i < inventoryList.size(); i++) {
             stacks.add(Stacks.parse(registries, Nbt.getCompound(inventoryList, i)));
         }
-        // From 1.21.5 armour and the offhand item are saved in "equipment" (slot name -> item).
+        // 1.21.5+: armour and offhand live in "equipment" (slot name -> item)
         CompoundTag equipment = Nbt.getCompound(playerData, "equipment");
         for (String slot : equipment.keySet()) {
             stacks.add(Stacks.parse(registries, Nbt.getCompound(equipment, slot)));

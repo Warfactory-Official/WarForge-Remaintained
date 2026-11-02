@@ -3,11 +3,11 @@ package com.flansmod.warforge.client.journeymap;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
-import com.flansmod.warforge.api.vein.init.VeinUtils;
+import com.flansmod.warforge.client.ChunkVeinCache;
 import com.flansmod.warforge.client.JourneyMapVeinCache;
 import com.flansmod.warforge.client.util.LayeredItemIconCache;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.ItemMatcher;
+import com.flansmod.warforge.common.item.ItemMatcher;
 import journeymap.api.v2.client.IClientAPI;
 import journeymap.api.v2.client.display.DisplayType;
 import journeymap.api.v2.client.display.MarkerOverlay;
@@ -26,11 +26,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * JourneyMap integration drawing each chunk's ore vein as a small item icon at the chunk centre, matching the
- * icon the claim GUI shows. Reads {@link JourneyMapVeinCache} (the compressed vein short) and resolves the icon
- * from the already-synced vein definitions.
- */
 @ParametersAreNonnullByDefault
 public class VeinMapLayer implements JourneyMapVeinCache.Listener {
     private static final Logger LOGGER = LogManager.getLogger(Tags.MODNAME);
@@ -42,7 +37,7 @@ public class VeinMapLayer implements JourneyMapVeinCache.Listener {
 
     void attach(final IClientAPI jmClientApi) {
         this.jmAPI = jmClientApi;
-        // Register last so the cache replay (inside setListener) sees a live API reference.
+        // Last: the cache replay inside setListener needs jmAPI.
         JourneyMapVeinCache.setListener(this);
     }
 
@@ -111,9 +106,8 @@ public class VeinMapLayer implements JourneyMapVeinCache.Listener {
         return overlay;
     }
 
-    /** Resolve the item icon a vein should display, or {@code null} if there is none. */
     private ItemStack iconStackFor(short veinInfo) {
-        Pair<Vein, Quality> info = VeinUtils.decompressVeinInfo(veinInfo);
+        Pair<Vein, Quality> info = ChunkVeinCache.decompress(veinInfo);
         if (info == null || info.getLeft() == null) {
             return null;
         }

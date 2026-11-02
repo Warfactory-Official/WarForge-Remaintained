@@ -1,5 +1,7 @@
 package com.flansmod.warforge.client.render;
 
+import com.flansmod.warforge.api.client.NameplatePolicy;
+import com.flansmod.warforge.api.client.WarforgeClientApi;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.PlayerNametagCache;
 import com.flansmod.warforge.client.util.FullColorNameplate;
@@ -16,54 +18,48 @@ import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.event.RenderNameTagEvent;
 import net.neoforged.neoforge.client.event.SubmitCustomGeometryEvent;
-import org.joml.Matrix4f;
 
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-/** Client render hooks whose loader events differ between versions. */
 public final class ClientRenderEvents {
-    /** The faction plate of an entity, attached to its render state during extraction. */
     private static final ContextKey<FullColorNameplate.Plate> PLATE = new ContextKey<>(Ids.of(Tags.MODID, "faction_plate"));
+
+    private static final WorldRenderContext WORLD = new WorldRenderContext();
 
     private ClientRenderEvents() {}
 
-    /** Registers the render resources that need the mod bus (client only). */
     public static void init(IEventBus modBus) {
-        modBus.addListener((RegisterRenderPipelinesEvent event) -> event.registerPipeline(BorderGpu.PIPELINE));
+        modBus.addListener((RegisterRenderPipelinesEvent event) -> event.registerPipeline(BorderBackend.PIPELINE));
     }
 
-    /** Runs after translucent blocks are drawn in the world (client only). */
     public static void onAfterTranslucentBlocks(Consumer<WorldRenderContext> handler) {
         Platform.gameBus().addListener((RenderLevelStageEvent.AfterTranslucentBlocks event) -> {
             BorderGpu.setFrameView(event.getModelViewMatrix());
             float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-            handler.accept(new WorldRenderContext(partialTick, event.getPoseStack(), new Matrix4f(event.getModelViewMatrix())));
+            handler.accept(WORLD.update(partialTick, event.getPoseStack(), event.getModelViewMatrix()));
         });
     }
 
-    /** Runs after the vanilla HUD is drawn (client only). The float is the partial tick. */
-    public static void onHud(BiConsumer<Gui2D, Float> handler) {
-        Platform.gameBus().addListener((RenderGuiEvent.Post event) ->
-                handler.accept(Gui2D.of(event.getGuiGraphics()), event.getPartialTick().getGameTimeDeltaPartialTick(false)));
+    public static void onHud(HudHandler handler) {
+        Platform.gameBus().addListener((RenderGuiEvent.Post event) -> {
+            if (FlashbackReplay.active()) {
+                return;
+            }
+            handler.draw(Gui2D.of(event.getGuiGraphics()), event.getPartialTick().getGameTimeDeltaPartialTick(false));
+        });
     }
 
-    /**
-     * Draws a faction plate above name tags (client only). plateFor(entity, name tag text) returns the plate to
-     * draw, or null for none.
-     *
-     * <p>Before 26.x the plate was drawn in the name tag event, which fired for every rendered entity, also when
-     * vanilla hid the name. 26.x only fires the draw event for names that show, so the plate is recorded on the
-     * render state during extraction and drawn for every extracted entity from the custom geometry event.
-     */
+    /** CanRender fires only for names that show: plate recorded at extraction, drawn per extracted entity in SubmitCustomGeometryEvent. */
     public static void onPlayerNameTag(BiFunction<Entity, String, PlayerNametagCache.NamePlateData> plateFor) {
         Platform.gameBus().addListener((RenderNameTagEvent.CanRender event) -> {
             Component content = event.getContent();
             PlayerNametagCache.NamePlateData faction = content == null ? null : plateFor.apply(event.getEntity(), content.getString());
             Entity entity = event.getEntity();
-            event.getEntityRenderState().setRenderData(PLATE, faction == null ? null
-                    : new FullColorNameplate.Plate(faction, entity.getBbHeight(), entity.isDiscrete(), event.getEntityRenderer()));
+            NameplatePolicy.Mode mode = faction == null ? null : WarforgeClientApi.nameplateMode(entity);
+            event.getEntityRenderState().setRenderData(PLATE, faction == null || mode == NameplatePolicy.Mode.HIDDEN ? null
+                    : new FullColorNameplate.Plate(faction, entity.getBbHeight(), entity.isDiscrete(), event.getEntityRenderer(),
+                    mode == NameplatePolicy.Mode.SEE_THROUGH));
         });
         Platform.gameBus().addListener((SubmitCustomGeometryEvent event) -> {
             var level = event.getLevelRenderState();

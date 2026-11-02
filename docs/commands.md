@@ -1,115 +1,113 @@
 # Command Reference
 
-WarForge exposes a single command, `faction`, with the aliases `f`, `factions`, `war`, and `warforge`. Every example below uses `/f`, but any alias works (so `/faction info` and `/war info` are the same command).
+Root `faction`; aliases `f`, `factions`, `war`, `warforge`. Examples use `/f`.
 
-Most day-to-day group actions are also available through in-game GUIs (the citadel menu, the **Faction Members** screen, and the **Territory Map**). A few things — **alliances**, **claiming chunks**, and **declaring a siege from the map** — are GUI-only and have no chat command; those are called out below and documented in their own guides.
-
-- `/f` or `/f help` lists the commands available to you. Operators see extra entries.
-- Tab-completion is provided for subcommands, faction names, online players, and the `vein` / `offlineprotection` sub-options.
-
-## Player commands
-
-These are available to everyone. Some require a faction role (Officer or Leader); those are noted.
-
-### Faction membership
-
-| Command | Role | What it does |
-|---|---|---|
-| `/f create` | — | Informational only. Replies "Craft a Citadel to create a faction." You create a faction by placing a citadel and using its menu — see [Factions](factions.md). |
-| `/f invite <player>` | Officer+ | Invite an online player to your faction. They receive a clickable chat prompt and a toast. |
-| `/f accept [faction]` | — | Accept a pending faction invite. The name is optional if you have exactly one invite. |
-| `/f promote <player>` | Leader | Promote one of your Members to Officer. |
-| `/f demote <player>` | Leader | Demote one of your Officers to Member. |
-| `/f setleader <player>` | Leader | Transfer leadership to another member. The old leader becomes an Officer. |
-| `/f expel <player>` (alias `/f remove`) | Officer+ | Remove a player from your faction. You must outrank them. |
-| `/f leave` (alias `/f exit`) | — | Leave your faction. If you are the last member, the faction disbands. |
-| `/f disband` | Leader | Disband your faction (removes all claims and the citadel). |
-| `/f msg <text>` (alias `/f chat`) | — | Send a message to your faction members only. |
-
-> The same membership actions (invite, promote, demote, kick, leave, transfer) can be done from the **Faction Members** GUI, reached from the citadel menu's **Members** button or your inventory's faction button.
-
-### Information and leaderboards
-
-| Command | What it does |
-|---|---|
-| `/f info [faction]` | Show faction info. Players may only see their **own** faction's details; the name argument is mainly for the console. |
-| `/f time` | Time remaining until the next yield award and the next siege-progress advance. |
-| `/f top` | Overall leaderboard (legacy + notoriety + wealth). |
-| `/f wealth` (aliases `wealthtop`, `bal`, `baltop`) | Wealth leaderboard. |
-| `/f notoriety` (aliases `notorietytop`, `pvp`, `pvptop`) | Notoriety (PVP) leaderboard. |
-| `/f legacy` (aliases `legacytop`, `playtime`, `playtimetop`) | Legacy (playtime) leaderboard. |
-
-### Teleports and display
-
-| Command | What it does |
-|---|---|
-| `/f home` | Teleport to your faction home. Can be disabled in config, may require standing still, and may not cross dimensions depending on server settings. |
-| `/f spawn` | Teleport to world spawn (subject to the same kind of config gates as `/f home`). |
-| `/f vault redeem` | Redeem an unlocked insurance stash into your inventory (only after your faction was defeated and you are/were its leader). See [Factions](factions.md#insurance). |
-| `/f borders` | Toggle rendering of territory borders for yourself. |
-
-> `/f tpa`, `/f tp`, `/f tpaccept`, `/f tprequest` are not real teleport requests — they reply with a hint to brew a Teleportation / Telereception potion.
+- `/f`: usage hint. `/f help`: player list, plus operator list for ops.
+- Operator = game-master permission. Operator subcommands are hidden from help and tab completion for others.
+- Tab completion: faction names, online players, flag ids.
+- Console: player-only commands reply "players only".
 
 ## GUI-only actions (no command)
 
-Some features are intentionally driven entirely through the UI:
+| Action | Where |
+|---|---|
+| Claim / unclaim chunk, toggle force-load | Territory Map (`M`); claim consumes a claim block item. See [Factions](factions.md#claiming-territory) |
+| Alliances, ally access | Alliances tab of Faction Members. See [Alliances](alliances.md) |
+| Declare siege from map | Territory Map. See [Sieges](sieges.md#declaring-a-siege-from-the-map) |
+| Upgrade, move citadel, colour, flag | Citadel menu |
 
-- **Claiming / unclaiming chunks and toggling force-load** — the **Territory Map** (default hotkey, or the citadel/inventory buttons). See [Factions](factions.md#claiming-territory).
-- **Alliances** — the **Alliances** tab of the Faction Members GUI: invite a faction, accept/decline requests, break an alliance, and toggle whether allies may use your land. See [Alliances](alliances.md).
-- **Declaring a siege from the map** — pick a target chunk and a launch chunk on the Territory Map, consuming a Siege Camp block instead of physically placing one. See [Sieges](sieges.md#declaring-a-siege-from-the-map-no-camp).
+## Player commands
+
+### Membership
+
+| Command | Role | Effect |
+|---|---|---|
+| `/f create` | none | Hint only; place a citadel |
+| `/f invite <player>` | Officer+ | Invite online player; clickable chat prompt + toast |
+| `/f accept [faction]` | none | Accept invite; name optional when exactly one invite |
+| `/f promote <player>` | Leader | Member -> Officer |
+| `/f demote <player>` | Leader | Officer -> Member |
+| `/f setleader <name>` | Leader | Transfer leadership; name may be offline; old leader -> Officer |
+| `/f expel <player>` (`remove`) | Officer+ | Remove a lower-ranked member |
+| `/f leave` (`exit`) | none | Leave; Leader must transfer first unless last member; last member => disband; starts rejoin cooldown |
+| `/f disband` | Leader | Disband own faction; refused while defending a siege |
+| `/f msg <text>` (`chat`) | member | Faction chat |
+| `/f ally chat <text>` (`ally msg`, `allychat`, `ac`) | member | Message own faction and all transitively allied factions |
+| `/f vault redeem` | none | Claim unlocked insurance stash. See [Factions](factions.md#insurance) |
+
+### Information
+
+| Command | Effect |
+|---|---|
+| `/f info [faction]` | Own faction: full GUI. Other faction: name, leader, member count, citadel level, claim count. Ops additionally: notoriety, wealth, legacy. No argument without a faction => error |
+| `/f list` | All factions with member counts |
+| `/f time` | Time to next yield award and next siege-day advance |
+| `/f top` | Total leaderboard (legacy + notoriety + wealth) |
+| `/f wealth` (`wealthtop`, `bal`, `baltop`) | Wealth leaderboard |
+| `/f notoriety` (`notorietytop`, `pvp`, `pvptop`) | Notoriety leaderboard |
+| `/f legacy` (`legacytop`, `playtime`, `playtimetop`) | Legacy leaderboard |
+| `/f borders` | Toggle own border rendering |
+
+### Teleports
+
+Stand-still countdown `Num Ticks for Warps`; moving or logging out cancels. Gated by `[Warps]` config.
+
+| Command | Effect |
+|---|---|
+| `/f home` | To own citadel; cross-dimension only if `Allow /f home across dimensions` |
+| `/f spawn` | To overworld spawn; non-overworld start only if `Allow /spawn across dimensions` |
+| `/f tpa <player>` (`tprequest`, `tp`) | Request to teleport to player; expires after `TPA Request Timeout Seconds` |
+| `/f tpaccept [player]` | Accept newest (or named) request; requester starts countdown to the acceptor |
+| `/f tpdeny [player]` | Deny newest (or named) request |
 
 ## Operator commands
 
-These `/f` subcommands require operator permission. They appear in `/f help` only for operators.
+### Zones and protection
 
-### Zones and claims
-
-| Command | What it does |
+| Command | Effect |
 |---|---|
-| `/f safe` (aliases `safezone`, `claimsafe`) | Claim the chunk you are standing in as a **Safe Zone**. |
-| `/f war` (aliases `warzone`, `claimwarzone`) | Claim the chunk you are standing in as a **War Zone**. |
-| `/f protection` (aliases `opProtection`, `protectionOverride`) | Toggle the global op override that lets admins build inside protected areas. Announces the new state. |
+| `/f zone safe` / `war` / `remove` (`zones`) | Claim current chunk as Safe Zone / War Zone, or remove the zone claim |
+| `/f protection` (`opProtection`, `protectionOverride`) | Toggle own override; op bypasses protections |
 
-### Faction administration
+### Factions
 
-| Command | What it does |
+| Command | Effect |
 |---|---|
-| `/f disband <faction>` | Disband any faction (treated as a defeat — unlocks its insurance to its leader). |
-| `/f invite <player> <faction>` | Invite a player into a specific faction (not just your own). |
-| `/f rename <oldName> <newName>` | Rename a faction. |
-| `/f offlineprotection <faction> <enable\|disable\|status>` | Enable, disable, or query a faction's offline raid protection. `status` also prints online count and whether it is protected right now. |
-| `/f clearnotoriety` | Reset **all** factions' notoriety to 0. |
-| `/f clearlegacy` | Reset **all** factions' legacy to 0. |
-| `/f resetflagcooldowns` | Reset flag-move cooldowns. |
-| `/f debugmsg <title> <subtitle> <colorHex>` | Send yourself a test notification toast. `colorHex` is an RGB or ARGB hex value (e.g. `55FF55`). |
+| `/f disband <faction>` | Defeat any faction; unlocks insurance for its leader |
+| `/f invite <player> <faction>` | Invite into a specific faction |
+| `/f rename <old> <new>` | Rename |
+| `/f flag <faction> set <flagId>` | Set flag, bypasses unique-flag rule (`default:<id>` / `custom:<name>`) |
+| `/f flag <faction> reset` | Clear flag so the leader can choose again |
+| `/f offlineprotection <faction> <enable\|disable\|status>` | Per-faction offline raid protection override |
+| `/f clearnotoriety` / `/f clearlegacy` | Zero all factions' stat |
+| `/f conquered clear` | Remove conquered state from current chunk |
+| `/f conquered set <time>` | Set conquered timer on current chunk; `<time>` = `<n>[s\|m\|h\|d]`, bare number = seconds; credited to own faction |
+| `/f reload` (`reloadConfig`, `reloadconfig`) | Reload main config, upgrade levels, veins, flags; resync players. See [Configuration](configuration.md#applying-changes) |
+| `/f debugmsg <title> <subtitle> <colorHex>` | Test toast to self; `RRGGBB` or `AARRGGBB` |
 
 ### Sieges
 
-`/f siege` (alias `/f sieges`) manages active sieges. Full details in [Sieges](sieges.md#admin-commands).
-
-| Command | What it does |
+| Command | Effect |
 |---|---|
-| `/f siege list` (alias `l`) | List active sieges as `chunkX, chunkZ, dim; Attacker-Defender`. |
-| `/f siege terminate <chunkX> <chunkZ> <dim> [WIN\|LOSE\|NEUTRAL]` (alias `t`) | Force-end the siege on a defending chunk. Outcome is from the **attacker's** perspective; `WIN`/`LOSE` apply normal rewards and grace periods, `NEUTRAL` (the default) just cancels it. |
+| `/f siege list` (`l`; `sieges`) | `chunkX, chunkZ, dim; Attacker-Defender` |
+| `/f siege terminate <chunkX> <chunkZ> <dim> [WIN\|LOSE\|NEUTRAL]` (`t`) | Force-end; outcome from attacker view; default `NEUTRAL` (no rewards) |
 
 ### Veins
 
-`/f vein` manages ore veins. Full details in [Veins](veins.md).
-
 ```
-/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]
+/f vein <info | set <vein> [quality] | clear | reroll> [at <chunkX> <chunkZ> [dim] [radius]]
 ```
 
-- `info` — show the stored vein at the location.
-- `set <vein> [quality]` — force a vein (quality is `POOR`, `FAIR`, or `RICH`; default `FAIR`).
-- `clear` — remove the vein from the location.
-- `reroll` (alias `seed`) — reroll the vein from the world seed.
-- `at <chunkX> <chunkZ> [dim] [radius]` — operate on a specific chunk instead of the one you're standing in; `radius` (0–16) applies the action to a square area.
+| Part | Effect |
+|---|---|
+| `info` | Stored vein at chunk |
+| `set <vein> [quality]` | `<vein>` = translation key or numeric id; quality `POOR`/`FAIR`/`RICH`, default `FAIR` |
+| `clear` | Null vein |
+| `reroll` (`seed`) | Drop override, reroll from overworld seed |
+| `at ...` | Required from console; `dim` default sender dimension; `radius` clamped 0..16 (square) |
+
+Refreshes claim views of all online players. See [Veins](veins.md).
 
 ## See also
 
-- [Factions, Citadels and Upgrades](factions.md)
-- [The Siege System](sieges.md)
-- [Alliances](alliances.md)
-- [The Vein System](veins.md)
-- [Configuration Guide](configuration.md)
+[Factions](factions.md), [Sieges](sieges.md), [Alliances](alliances.md), [Veins](veins.md), [Configuration](configuration.md)

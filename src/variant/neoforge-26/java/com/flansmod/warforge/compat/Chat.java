@@ -4,7 +4,7 @@ import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 
-/** Chat component events. They became records per action in 1.21.5. */
+/** Chat component events are records per action from 1.21.5. */
 public final class Chat {
     private Chat() {}
 

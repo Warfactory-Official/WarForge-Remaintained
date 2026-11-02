@@ -1,21 +1,20 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.common.PlayerSyncService;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.platform.WFUiBlock;
 
-import com.flansmod.warforge.platform.WFBlock;
 
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.server.Faction;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -37,7 +36,7 @@ public class BlockIslandCollector extends WFUiBlock implements EntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new TileEntityIslandCollector(pos, state);
+        return new IslandCollectorBlockEntity(pos, state);
     }
 
     @Override
@@ -47,7 +46,7 @@ public class BlockIslandCollector extends WFUiBlock implements EntityBlock {
         }
 
         DimBlockPos collectorPos = new DimBlockPos(world.dimension(), pos);
-        boolean success = WarForgeMod.FACTIONS.registerCollector(player, collectorPos);
+        boolean success = WarForgeMod.FACTIONS.islands.registerCollector(player, collectorPos);
         if (!success) {
             world.removeBlock(pos, false);
             if (!player.isCreative()) {
@@ -70,7 +69,7 @@ public class BlockIslandCollector extends WFUiBlock implements EntityBlock {
     protected void onRemoved(BlockState state, Level world, BlockPos pos, BlockState newState, boolean isMoving) {
         if (!state.is(newState.getBlock())) {
             if (!world.isClientSide()) {
-                WarForgeMod.FACTIONS.unregisterCollector(new DimBlockPos(world.dimension(), pos));
+                WarForgeMod.FACTIONS.islands.unregisterCollector(new DimBlockPos(world.dimension(), pos));
             }
         }
         super.onRemoved(state, world, pos, newState, isMoving);
@@ -82,13 +81,13 @@ public class BlockIslandCollector extends WFUiBlock implements EntityBlock {
             return InteractionResult.SUCCESS;
         }
 
-        if (world.getBlockEntity(pos) instanceof TileEntityIslandCollector collector) {
-            if (!collector.getFaction().equals(Faction.nullUuid)
-                    && !WarForgeMod.FACTIONS.IsPlayerInFaction(player.getUUID(), collector.getFaction())
+        if (world.getBlockEntity(pos) instanceof IslandCollectorBlockEntity collector) {
+            if (!collector.getFaction().equals(FactionIds.NONE)
+                    && !WarForgeMod.FACTIONS.registry.isPlayerInFaction(player.getUUID(), collector.getFaction())
                     && !WarForgeMod.isOp(player)) {
                 return InteractionResult.SUCCESS;
             }
-            WarForgeMod.syncClaimToPlayer(player, pos);
+            PlayerSyncService.syncClaimToPlayer(player, pos);
             if (player instanceof ServerPlayer serverPlayer) {
                 WFUiBlock.openUi(serverPlayer, pos);
             }

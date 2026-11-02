@@ -1,15 +1,10 @@
 package com.flansmod.warforge.api;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 
 /**
- * A Cache datatype optimized for quick retrieval and purging of data.
- * It purges data inside either based on age or size limit as long as
- * that constraint isn't 0.
- *
+ * Cache purged by age and size. Entries stay in insertion order; overwriting a key re-inserts it as newest.
  *
  * @param <K> Key
  * @param <V> Value
@@ -17,60 +12,35 @@ import java.util.Map;
  */
 public class WarforgeCache<K, V> {
 
-    private final Map<K, Entry> cache = new HashMap<>();
-    private final Deque<Entry> queue = new ArrayDeque<>();
-    private final long maxAgeMillis; //0 to disable
-    private final int maxSize; //0 for infinite
+    private final LinkedHashMap<K, Entry<V>> cache = new LinkedHashMap<>();
+    private final long maxAgeMillis; // 0 disables expiry
+    private final int maxSize; // 0 is unbounded
 
     public WarforgeCache(long maxAgeMillis, int maxSize) {
         this.maxAgeMillis = maxAgeMillis;
         this.maxSize = maxSize;
     }
 
-    // put the key in, overriding any previous association
     public synchronized void put(K key, V value) {
+        cache.remove(key);
         purgeExpired();
-
-        if (!cache.containsKey(key) && maxSize > 0 && cache.size() >= maxSize) {
-            evictOldest();
+        if (maxSize > 0 && cache.size() >= maxSize) {
+            Iterator<Entry<V>> oldest = cache.values().iterator();
+            oldest.next();
+            oldest.remove();
         }
-
-        Entry entry = new Entry(key, value);
-        cache.put(key, entry);
-        queue.addLast(entry);
+        cache.put(key, new Entry<>(value, System.currentTimeMillis()));
     }
 
     public synchronized V get(K key) {
         purgeExpired();
-        Entry entry = cache.get(key);
+        Entry<V> entry = cache.get(key);
         return entry != null ? entry.value : null;
     }
 
-    // evicts oldest due to space constraints
-    private void evictOldest() {
-        Entry oldest = queue.pollFirst();
-        if (oldest != null) {
-            cache.remove(oldest.key);
-        }
-    }
-
-    public synchronized boolean contains(K key){
+    public synchronized boolean contains(K key) {
         purgeExpired();
         return cache.containsKey(key);
-    }
-
-    // removes oldest due
-    private void purgeExpired() {
-        long now = System.currentTimeMillis();
-        while (!queue.isEmpty() && maxAgeMillis > 0) {
-            Entry oldest = queue.peekFirst();
-            if (now - oldest.timestamp > maxAgeMillis) {
-                queue.pollFirst();
-                cache.remove(oldest.key);
-            } else {
-                break;
-            }
-        }
     }
 
     public synchronized int size() {
@@ -80,26 +50,22 @@ public class WarforgeCache<K, V> {
 
     public synchronized void clear() {
         cache.clear();
-        queue.clear();
     }
-    public synchronized void remove(K key){
-        purgeExpired();
-        Entry entry = cache.remove(key);
-        if (entry != null) {
-            queue.remove(entry);
+
+    public synchronized void remove(K key) {
+        cache.remove(key);
+    }
+
+    private void purgeExpired() {
+        if (maxAgeMillis <= 0) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Iterator<Entry<V>> it = cache.values().iterator();
+        while (it.hasNext() && now - it.next().timestamp > maxAgeMillis) {
+            it.remove();
         }
     }
 
-    private class Entry {
-        final K key;
-        final V value;
-        final long timestamp;
-
-        Entry(K key, V value) {
-            this.key = key;
-            this.value = value;
-            this.timestamp = System.currentTimeMillis();
-        }
-    }
+    private record Entry<V>(V value, long timestamp) {}
 }
-

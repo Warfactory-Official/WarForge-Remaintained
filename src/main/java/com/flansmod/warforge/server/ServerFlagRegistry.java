@@ -1,5 +1,9 @@
 package com.flansmod.warforge.server;
 
+import com.flansmod.warforge.common.util.Globs;
+import java.util.Set;
+import java.util.Locale;
+import java.util.HashSet;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketFlagChunk;
@@ -43,17 +47,73 @@ public class ServerFlagRegistry {
     private final Map<String, CustomFlagData> customFlags = new HashMap<String, CustomFlagData>();
 
     public void reload() {
+        flagWhitelist = parseFlagWhitelist(WarForgeConfig.FLAG_WHITELIST);
         customFlags.clear();
         Path dir = getCustomFlagsDir();
         try {
             Files.createDirectories(dir);
-            Files.list(dir)
-                    .filter(Files::isRegularFile)
-                    .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .forEach(this::tryLoadCustomFlag);
+            try (var files = Files.list(dir)) {
+                files.filter(Files::isRegularFile)
+                        .sorted(Comparator.comparing(path -> path.getFileName().toString()))
+                        .forEach(this::tryLoadCustomFlag);
+            }
         } catch (IOException e) {
             WarForgeMod.LOGGER.error("Failed to reload custom flags", e);
         }
+    }
+
+    private static volatile Map<String, Set<UUID>> flagWhitelist = Map.of();
+
+    private static boolean isDefaultFlagAvailable(String id) {
+        for (String allowed : WarForgeConfig.DEFAULT_FLAG_IDS) {
+            if (allowed != null && allowed.trim().equalsIgnoreCase(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isCustomFlagAvailable(String id) {
+        for (String allowed : WarForgeConfig.CUSTOM_FLAG_ALLOWLIST) {
+            if (allowed != null && !allowed.isBlank()
+                    && Globs.matches(allowed.trim().toLowerCase(Locale.ROOT), id.toLowerCase(Locale.ROOT))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Parses the {@code flagId=uuid1,uuid2} entries; a listed flag is exclusive to those players. */
+    private static Map<String, Set<UUID>> parseFlagWhitelist(String[] entries) {
+        HashMap<String, Set<UUID>> parsed = new HashMap<>();
+        for (String entry : entries) {
+            int eq = entry == null ? -1 : entry.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            String flagId = entry.substring(0, eq).trim().toLowerCase(Locale.ROOT);
+            if (flagId.isEmpty()) {
+                continue;
+            }
+            Set<UUID> uuids = parsed.computeIfAbsent(flagId, k -> new HashSet<>());
+            for (String raw : entry.substring(eq + 1).split(",")) {
+                String trimmed = raw.trim();
+                if (trimmed.isEmpty()) {
+                    continue;
+                }
+                try {
+                    uuids.add(UUID.fromString(trimmed));
+                } catch (IllegalArgumentException e) {
+                    WarForgeMod.LOGGER.warn("Ignoring invalid UUID '{}' in flag whitelist entry for {}", trimmed, flagId);
+                }
+            }
+        }
+        return Map.copyOf(parsed);
+    }
+
+    private static boolean isFlagAllowedForPlayer(String flagId, UUID player) {
+        Set<UUID> allowed = flagWhitelist.get(flagId.trim().toLowerCase(Locale.ROOT));
+        return allowed == null || (player != null && allowed.contains(player));
     }
 
     public boolean isAvailable(String flagId) {
@@ -61,7 +121,7 @@ public class ServerFlagRegistry {
             return false;
         }
         if (flagId.startsWith("default:")) {
-            return WarForgeConfig.isDefaultFlagAvailable(flagId.substring("default:".length()));
+            return isDefaultFlagAvailable(flagId.substring("default:".length()));
         }
         if (flagId.startsWith("custom:")) {
             return customFlags.containsKey(flagId.substring("custom:".length()));
@@ -70,7 +130,7 @@ public class ServerFlagRegistry {
     }
 
     public boolean isAvailable(String flagId, UUID player) {
-        return isAvailable(flagId) && WarForgeConfig.isFlagAllowedForPlayer(flagId, player);
+        return isAvailable(flagId) && isFlagAllowedForPlayer(flagId, player);
     }
 
     public List<String> getAvailableFlagIds() {
@@ -91,7 +151,7 @@ public class ServerFlagRegistry {
     public List<String> getAvailableFlagIds(UUID player) {
         ArrayList<String> result = new ArrayList<String>();
         for (String id : getAvailableFlagIds()) {
-            if (WarForgeConfig.isFlagAllowedForPlayer(id, player)) {
+            if (isFlagAllowedForPlayer(id, player)) {
                 result.add(id);
             }
         }
@@ -104,15 +164,11 @@ public class ServerFlagRegistry {
         WarForgeMod.NETWORK.sendTo(manifest, player);
 
         for (CustomFlagData data : customFlags.values()) {
-            syncExecutor.submit(() -> enqueueCustomFlagPackets(player, data));
+            syncExecutor.submit(() -> prepareCustomFlagPackets(player, data));
         }
     }
 
-    public void shutdown() {
-        syncExecutor.shutdownNow();
-    }
-
-    private void enqueueCustomFlagPackets(ServerPlayer player, CustomFlagData data) {
+    private void prepareCustomFlagPackets(ServerPlayer player, CustomFlagData data) {
         int totalChunks = Math.max(1, (int) Math.ceil(data.bytes.length / (double) CHUNK_SIZE));
         for (int index = 0; index < totalChunks; index++) {
             final int start = index * CHUNK_SIZE;
@@ -126,11 +182,12 @@ public class ServerFlagRegistry {
             packet.partIndex = index;
             packet.totalParts = totalChunks;
             packet.data = chunk;
-            SyncQueueHandler.enqueue(player, () -> {
+            // SyncQueueHandler is main-thread only
+            WarForgeMod.MC_SERVER.execute(() -> SyncQueueHandler.enqueue(player, () -> {
                 if (WarForgeMod.MC_SERVER.getPlayerList().getPlayer(player.getUUID()) != null) {
                     WarForgeMod.NETWORK.sendTo(packet, player);
                 }
-            });
+            }));
         }
     }
 
@@ -141,7 +198,7 @@ public class ServerFlagRegistry {
             return;
         }
         String id = fileName.substring(0, dot);
-        if (!WarForgeConfig.isCustomFlagAvailable(id)) {
+        if (!isCustomFlagAvailable(id)) {
             return;
         }
         try {
@@ -177,7 +234,7 @@ public class ServerFlagRegistry {
 
             customFlags.put(id, new CustomFlagData(id, source.getWidth(), source.getHeight(), sanitized));
         } catch (IOException e) {
-            WarForgeMod.LOGGER.error("Failed to load custom flag " + fileName, e);
+            WarForgeMod.LOGGER.error("Failed to load custom flag {}", fileName, e);
         }
     }
 

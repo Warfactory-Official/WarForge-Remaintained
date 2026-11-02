@@ -1,8 +1,9 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.client.render.RenderDistances;
 import com.flansmod.warforge.client.render.BeamGeometry;
 import com.flansmod.warforge.client.render.RenderBounds;
-import com.flansmod.warforge.common.blocks.TileEntityDummy;
+import com.flansmod.warforge.common.blocks.DummyBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.blockentity.BeaconRenderer;
@@ -15,9 +16,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
-public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDummy, RenderTileEntityDummy.State> {
-
-    /** The beam of the dummy block entity, captured during extraction. */
+public class RenderTileEntityDummy implements BlockEntityRenderer<DummyBlockEntity, RenderTileEntityDummy.State> {
     public static class State extends BlockEntityRenderState {
         public BeamGeometry.@Nullable Beam beam;
         public float animationTime;
@@ -32,7 +31,7 @@ public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDumm
     }
 
     @Override
-    public void extractRenderState(TileEntityDummy te, State state, float partialTicks, Vec3 cameraPosition,
+    public void extractRenderState(DummyBlockEntity te, State state, float partialTicks, Vec3 cameraPosition,
                                    ModelFeatureRenderer.@Nullable CrumblingOverlay breakProgress) {
         BlockEntityRenderState.extractBase(te, state, breakProgress);
         state.beam = BeamGeometry.of(te);
@@ -45,14 +44,14 @@ public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDumm
         if (beam == null) return;
 
         pose.pushPose();
-        pose.translate(0.0D, beam.start(), 0.0D); // X/Z centering done inside BeaconRenderer.submitBeaconBeam
+        pose.translate(0.0D, beam.start(), 0.0D);
         BeaconRenderer.submitBeaconBeam(pose, collector, BeaconRenderer.BEAM_LOCATION, 1.0F, state.animationTime, 0,
                 beam.height(), beam.packedColor(), 0.2F, 0.25F);
         pose.popPose();
     }
 
     @Override
-    public AABB getRenderBoundingBox(TileEntityDummy be) {
+    public AABB getRenderBoundingBox(DummyBlockEntity be) {
         return RenderBounds.of(be);
     }
 
@@ -63,6 +62,6 @@ public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDumm
 
     @Override
     public int getViewDistance() {
-        return 256;
+        return RenderDistances.STATUE;
     }
 }

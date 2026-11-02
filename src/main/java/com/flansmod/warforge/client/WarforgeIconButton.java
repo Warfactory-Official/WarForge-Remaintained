@@ -13,25 +13,17 @@ import com.flansmod.warforge.compat.Ids;
 public final class WarforgeIconButton extends WFButton {
     public static final ResourceLocation WARFORGE_BUTTONS_TEXTURE = Ids.of(Tags.MODID, "gui/icon_claim.png");
     public static final int WARFORGE_BUTTON_SIZE = 18;
+    private static final int HOVER_HIGHLIGHT = 0x80FFFFFF;
 
     private final int textureX;
     private final Runnable handler;
 
-    public WarforgeIconButton(int x, int y, int textureX, Runnable handler) {
+    /** @param textureX left edge of the icon in the button texture; label is a translation key */
+    public WarforgeIconButton(int x, int y, int textureX, String labelKey, Runnable handler) {
         super(x, y, WARFORGE_BUTTON_SIZE, WARFORGE_BUTTON_SIZE, CommonComponents.EMPTY);
         this.textureX = textureX;
         this.handler = handler;
-        setTooltip(Tooltip.create(Component.literal(labelFor(textureX))));
-    }
-
-    private static String labelFor(int textureX) {
-        return switch (textureX) {
-            case 0 -> "Territory Map";
-            case WARFORGE_BUTTON_SIZE -> "Faction Members";
-            case WARFORGE_BUTTON_SIZE * 2 -> "Faction Stats";
-            case WARFORGE_BUTTON_SIZE * 3 -> "Move Citadel";
-            default -> "Operations";
-        };
+        setTooltip(Tooltip.create(Component.translatable(labelKey)));
     }
 
     @Override
@@ -43,8 +35,7 @@ public final class WarforgeIconButton extends WFButton {
     protected void drawButton(Gui2D graphics, int mouseX, int mouseY, float partialTicks) {
         graphics.blit(WARFORGE_BUTTONS_TEXTURE, getX(), getY(), textureX, 0, WARFORGE_BUTTON_SIZE, WARFORGE_BUTTON_SIZE, 256, 256);
         if (isHoveredOrFocused()) {
-            // Vanilla slot-hover highlight (translucent white selection box).
-            graphics.fillGradient(getX(), getY(), getX() + WARFORGE_BUTTON_SIZE, getY() + WARFORGE_BUTTON_SIZE, 0x80FFFFFF, 0x80FFFFFF);
+            graphics.fill(getX(), getY(), getX() + WARFORGE_BUTTON_SIZE, getY() + WARFORGE_BUTTON_SIZE, HOVER_HIGHLIGHT);
         }
     }
 

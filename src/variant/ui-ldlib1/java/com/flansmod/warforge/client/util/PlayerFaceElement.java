@@ -10,7 +10,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import javax.annotation.Nonnull;
 import java.util.UUID;
 
-/** Draws a player's face (skin head) in the widget. */
 @OnlyIn(Dist.CLIENT)
 public class PlayerFaceElement extends Widget {
     private final UUID playerId;

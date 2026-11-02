@@ -1,60 +1,65 @@
 package com.flansmod.warforge.client.ui.model;
 
-import com.flansmod.warforge.compat.ClientCompat;
+import com.flansmod.warforge.client.ui.UiNavigation;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.api.modularui.ChunkMapTextureDaemon;
-import com.flansmod.warforge.api.modularui.ChunkMapUtil;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
-import com.flansmod.warforge.client.ClientProxy;
+import com.flansmod.warforge.client.ClientSiegeState;
+import com.flansmod.warforge.client.map.ChunkMapTextureDaemon;
+import com.flansmod.warforge.client.map.ChunkMapUtil;
 import com.flansmod.warforge.client.util.SkinUtil;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
+import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
-import com.flansmod.warforge.common.network.ClaimChunkRenderInfo;
+import com.flansmod.warforge.client.ui.model.ClaimChunkRenderInfo;
 import com.flansmod.warforge.common.network.PacketClaimChunkAction;
 import com.flansmod.warforge.common.network.PacketDeclareSiege;
 import com.flansmod.warforge.common.network.PacketRequestTerrainColors;
 import com.flansmod.warforge.common.network.SiegeCampAttackInfo;
-import com.flansmod.warforge.common.network.SiegeCampAttackInfoRender;
-import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
+import com.flansmod.warforge.client.ui.model.SiegeCampAttackInfoRender;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.compat.Ids;
 import com.flansmod.warforge.compat.Keys;
-import com.flansmod.warforge.server.Faction;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.Vec3i;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.api.distmarker.OnlyIn;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 
-/**
- * Data and actions of the claim manager (territory map) screen, independent of the UI library: the map modes,
- * the cell data, the tooltips and what a click does.
- */
 @OnlyIn(Dist.CLIENT)
 public final class ClaimMapModel {
+    public static boolean siegeTargetMode = false;
+    public static DimChunkPos siegeStartPickFor = null;
+
+    public static boolean isRemoteSiegeView() {
+        return siegeStartPickFor != null;
+    }
+
+    public static void resetSiegeState() {
+        siegeTargetMode = false;
+        siegeStartPickFor = null;
+    }
+
     public static final String TEXTURE_NAMESPACE = "claimmap";
+
+    private static final ResourceLocation ATTACK_ICON = Ids.of(Tags.MODID, "gui/icon_siege_attack.png");
+    private static final ClaimChunkInfo WILDERNESS = new ClaimChunkInfo();
 
     private ClaimMapModel() {
     }
 
-    /** The selection mode of the map. */
     public static final class Modes {
-        /** Picking the chunk to launch a siege from (the center is the target). */
         public final boolean startPick;
-        /** Picking the enemy claim to siege. */
         public final boolean target;
-        /** The player may declare a siege from the map. */
         public final boolean canDeclareSiege;
 
         private Modes(boolean startPick, boolean target, boolean canDeclareSiege) {
@@ -64,27 +69,24 @@ public final class ClaimMapModel {
         }
     }
 
-    /** Resolves the mode for a map centred at center (clears a stale siege origin pick). */
     public static Modes resolveModes(DimChunkPos center) {
-        DimChunkPos siegePickFor = ClaimManagerGuiFactory.siegeStartPickFor;
+        DimChunkPos siegePickFor = ClaimMapModel.siegeStartPickFor;
         boolean startPickMode = siegePickFor != null && siegePickFor.dim.equals(center.dim)
                 && siegePickFor.x == center.x && siegePickFor.z == center.z;
         if (siegePickFor != null && !startPickMode) {
-            ClaimManagerGuiFactory.siegeStartPickFor = null;
+            ClaimMapModel.siegeStartPickFor = null;
         }
-        boolean targetMode = ClaimManagerGuiFactory.siegeTargetMode && !startPickMode;
-        boolean canDeclareSiege = WarForgeConfig.SIEGE_ALLOW_UI_DECLARE
-                && !ClientClaimChunkCache.playerFactionId.equals(Faction.nullUuid);
+        boolean targetMode = ClaimMapModel.siegeTargetMode && !startPickMode;
+        boolean canDeclareSiege = WarForgeConfig.SIEGE_ALLOW_UI_DECLARE && ClientClaimChunkCache.playerHasFaction();
         return new Modes(startPickMode, targetMode, canDeclareSiege);
     }
 
-    /** Requests the terrain textures of the map, tinted with the claim colours. */
     public static void requestTextures(DimChunkPos center, int radius) {
-        HashMap<Long, Integer> tintByChunk = new HashMap<>();
+        Long2IntOpenHashMap tintByChunk = new Long2IntOpenHashMap();
         for (int x = center.x - radius; x <= center.x + radius; x++) {
             for (int z = center.z - radius; z <= center.z + radius; z++) {
-                ClaimChunkInfo info = ClientClaimChunkCache.get(new DimChunkPos(center.dim, x, z));
-                if (info != null && !info.factionId.equals(Faction.nullUuid)) {
+                ClaimChunkInfo info = ClientClaimChunkCache.get(center.dim, x, z);
+                if (info != null && !info.factionId.equals(FactionIds.NONE)) {
                     tintByChunk.put(ChunkMapUtil.key(x, z), info.colour);
                 }
             }
@@ -93,46 +95,41 @@ public final class ClaimMapModel {
     }
 
     public static String title(Modes modes) {
-        return modes.startPick ? "Choose Siege Origin" : modes.target ? "Select Siege Target" : "Territory Map";
+        return I18n.get(modes.startPick ? "warforge.client.map.title.siege_origin"
+                : modes.target ? "warforge.client.map.title.siege_target" : "warforge.client.map.title.territory");
     }
 
     public static String centerLine(DimChunkPos center, int radius) {
-        return "Center [" + center.x + ", " + center.z + "] | Radius " + radius + " | Dim " + Keys.id(center.dim);
+        return I18n.get("warforge.client.map.center", center.x, center.z, radius, Keys.id(center.dim));
     }
 
     public static String claimsLine() {
-        String claimCap = ClientClaimChunkCache.claimMax == Short.MAX_VALUE ? "INF" : String.valueOf(ClientClaimChunkCache.claimMax);
-        return "Claims " + ClientClaimChunkCache.claimCount + "/" + claimCap
-                + " | Loaded " + ClientClaimChunkCache.forceLoadedCount + "/" + ClientClaimChunkCache.forceLoadedMax;
+        String claimCap = ClientClaimChunkCache.claimMax() == Short.MAX_VALUE
+                ? I18n.get("warforge.client.map.unlimited") : String.valueOf(ClientClaimChunkCache.claimMax());
+        return I18n.get("warforge.client.map.claims", ClientClaimChunkCache.claimCount(), claimCap,
+                ClientClaimChunkCache.forceLoadedCount(), ClientClaimChunkCache.forceLoadedMax());
     }
 
     public static String legend(Modes modes) {
-        return modes.startPick
-                ? "Click a chunk to launch the siege from. This consumes one siege camp block."
-                : modes.target
-                ? "Click an enemy claim to target it, then pick where to attack from."
-                : "Left click claim/unclaim. Right click toggles force-loading.";
+        return I18n.get(modes.startPick ? "warforge.client.map.legend.origin"
+                : modes.target ? "warforge.client.map.legend.target" : "warforge.client.map.legend.manage");
     }
 
-    /** "Declare Siege": switches the map to target selection. */
     public static void declareSiege(DimChunkPos center, int radius, int pageX, int pageZ) {
-        ClaimManagerGuiFactory.siegeTargetMode = true;
-        ClaimManagerGuiFactory.INSTANCE.openClient(center, radius, pageX, pageZ);
+        ClaimMapModel.siegeTargetMode = true;
+        UiNavigation.openClaimManager(center, radius, pageX, pageZ);
     }
 
-    /** "Cancel" in target selection: back to the normal map. */
     public static void cancelTarget(DimChunkPos center, int radius, int pageX, int pageZ) {
-        ClaimManagerGuiFactory.resetSiegeState();
-        ClaimManagerGuiFactory.INSTANCE.openClient(center, radius, pageX, pageZ);
+        ClaimMapModel.resetSiegeState();
+        UiNavigation.openClaimManager(center, radius, pageX, pageZ);
     }
 
-    /** "Cancel" in origin selection: closes the map. */
     public static void cancelStartPick() {
-        ClaimManagerGuiFactory.resetSiegeState();
+        ClaimMapModel.resetSiegeState();
         ClientCompat.setScreen(null);
     }
 
-    /** One chunk of the map. */
     public static final class Cell {
         public final int chunkX;
         public final int chunkZ;
@@ -140,6 +137,9 @@ public final class ClaimMapModel {
         public final SiegeCampAttackInfoRender renderInfo;
         public final boolean[] adjacency;
         public final String textureName;
+
+        private Modes tooltipModes;
+        private List<Component> tooltip;
 
         private Cell(int chunkX, int chunkZ, ClaimChunkInfo info, SiegeCampAttackInfoRender renderInfo, boolean[] adjacency, String textureName) {
             this.chunkX = chunkX;
@@ -151,24 +151,21 @@ public final class ClaimMapModel {
         }
     }
 
-    /** The cell at grid position (i, j) of a map of the given radius around center. */
     public static Cell cell(DimChunkPos center, int radius, int i, int j, Modes modes) {
-        Minecraft mc = Minecraft.getInstance();
         int chunkX = center.x - radius + i;
         int chunkZ = center.z - radius + j;
-        ClaimChunkInfo info = getLiveInfo(center.dim, chunkX, chunkZ);
-        SiegeCampAttackInfo baseInfo = toMapState(info, center.x, center.z);
-        SiegeCampAttackInfoRender renderInfo = buildRenderInfo(center, baseInfo, info, chunkX, chunkZ, modes.startPick, mc);
+        ClaimChunkInfo info = liveInfo(center.dim, chunkX, chunkZ);
+        SiegeCampAttackInfo baseInfo = toMapState(info, chunkX - center.x, chunkZ - center.z);
+        SiegeCampAttackInfoRender renderInfo = buildRenderInfo(center, baseInfo, info, chunkX, chunkZ, modes.startPick);
         boolean[] adjacency = computeAdjacency(center.dim, center.x, center.z, radius, chunkX, chunkZ);
         String texName = ChunkMapTextureDaemon.getTextureName(TEXTURE_NAMESPACE, center.dim, chunkX, chunkZ);
         return new Cell(chunkX, chunkZ, info, renderInfo, adjacency, texName);
     }
 
-    /** A click with the mouse button on a cell. */
     public static void click(DimChunkPos center, int radius, Cell cell, Modes modes, int button) {
         Minecraft mc = Minecraft.getInstance();
         if (modes.startPick) {
-            handleStartPick(center, cell.chunkX, cell.chunkZ, mc);
+            handleStartPick(center, cell.chunkX, cell.chunkZ);
             return;
         }
         if (modes.target) {
@@ -187,83 +184,81 @@ public final class ClaimMapModel {
         WarForgeMod.NETWORK.sendToServer(packet);
     }
 
-    /** The hover tooltip of a cell. */
     public static List<Component> tooltip(DimChunkPos center, Cell cell, Modes modes) {
+        if (cell.tooltip == null || cell.tooltipModes != modes) {
+            cell.tooltip = buildTooltip(center, cell, modes);
+            cell.tooltipModes = modes;
+        }
+        return cell.tooltip;
+    }
+
+    private static List<Component> buildTooltip(DimChunkPos center, Cell cell, Modes modes) {
         ClaimChunkInfo info = cell.info;
-        int chunkX = cell.chunkX;
-        int chunkZ = cell.chunkZ;
         List<Component> lines = new ArrayList<>();
         if (modes.startPick) {
-            if (chunkX == center.x && chunkZ == center.z) {
-                lines.add(Component.literal("Siege target"));
-            } else {
-                lines.add(Component.literal("Click to launch the siege from here"));
-            }
+            lines.add(Component.translatable(cell.chunkX == center.x && cell.chunkZ == center.z
+                    ? "warforge.client.map.tip.siege_target" : "warforge.client.map.tip.launch_here"));
         } else if (modes.target) {
-            boolean enemy = !info.factionId.equals(Faction.nullUuid)
-                    && !info.factionId.equals(ClientClaimChunkCache.playerFactionId);
-            lines.add(Component.literal(enemy ? "Click to target this claim for a siege" : "Not a siege-able enemy claim"));
+            boolean enemy = !info.factionId.equals(FactionIds.NONE)
+                    && !info.factionId.equals(ClientClaimChunkCache.playerFactionId());
+            lines.add(Component.translatable(enemy ? "warforge.client.map.tip.target_enemy" : "warforge.client.map.tip.not_enemy"));
         }
-        if (info.factionId.equals(Faction.nullUuid)) {
-            lines.add(Component.literal("Wilderness"));
+        if (info.factionId.equals(FactionIds.NONE)) {
+            lines.add(Component.translatable("warforge.client.map.tip.wilderness"));
         } else {
-            lines.add(Component.literal("Faction: " + info.factionName));
+            lines.add(Component.translatable("warforge.client.map.tip.faction", info.factionName));
         }
-        lines.add(Component.literal("Claim Type: " + UiText.formatClaimType(info.claimType)));
-        lines.add(Component.literal("Chunk: [" + chunkX + ", " + chunkZ + "]"));
+        lines.add(Component.translatable("warforge.client.map.tip.claim_type", UiText.formatClaimType(info.claimType)));
+        lines.add(Component.translatable("warforge.client.map.tip.chunk", cell.chunkX, cell.chunkZ));
         if (info.vein != null) {
-            if (info.oreQuality != null) {
-                lines.add(Component.literal("Ore: " + UiText.translateVeinName(info.vein.translationKey,
-                        I18n.get(info.oreQuality.getTranslationKey()) + " [" +
-                                info.oreQuality.getMultString(info.vein) + "]")));
-            } else {
-                lines.add(Component.literal("Ore: " + UiText.translateVeinName(info.vein.translationKey)));
-            }
+            lines.add(Component.translatable("warforge.client.map.tip.ore", UiText.veinLabel(info.vein, info.oreQuality)));
         } else {
-            lines.add(Component.literal("No ores in this chunk"));
+            lines.add(Component.translatable("warforge.client.map.tip.no_ore"));
         }
         if (info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED)) {
-            lines.add(Component.literal("Force-loaded"));
+            lines.add(Component.translatable("warforge.client.map.tip.force_loaded"));
         }
         if (info.hasFlag(ClaimChunkInfo.FLAG_HAS_COLLECTOR)) {
-            lines.add(Component.literal("Has Faction Yield Storage"));
+            lines.add(Component.translatable("warforge.client.map.tip.collector"));
         }
         if (info.hasFlag(ClaimChunkInfo.FLAG_CAN_CLAIM)) {
-            lines.add(Component.literal("Left click to claim"));
+            lines.add(Component.translatable("warforge.client.map.tip.claim"));
         }
         if (info.hasFlag(ClaimChunkInfo.FLAG_CAN_UNCLAIM)) {
-            lines.add(Component.literal("Left click to unclaim"));
+            lines.add(Component.translatable("warforge.client.map.tip.unclaim"));
         }
         if (info.hasFlag(ClaimChunkInfo.FLAG_CAN_TOGGLE_FORCELOAD)) {
-            lines.add(Component.literal(info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED)
-                    ? "Right click to unforce-load" : "Right click to force-load"));
+            lines.add(Component.translatable(info.hasFlag(ClaimChunkInfo.FLAG_FORCE_LOADED)
+                    ? "warforge.client.map.tip.unforce" : "warforge.client.map.tip.force"));
         }
         return lines;
     }
 
-    private static SiegeCampAttackInfo toMapState(ClaimChunkInfo info, int centerX, int centerZ) {
+    private static SiegeCampAttackInfo toMapState(ClaimChunkInfo info, int offsetX, int offsetZ) {
         SiegeCampAttackInfo state = new SiegeCampAttackInfo();
         state.canAttack = false;
-        state.mOffset = new Vec3i(info.x - centerX, 0, info.z - centerZ);
-        state.mFactionUUID = info.factionId;
-        state.mFactionName = info.factionName;
-        state.mFactionColour = info.colour;
-        state.mWarforgeVein = info.vein;
-        state.mOreQuality = info.oreQuality;
+        state.offset = new Vec3i(offsetX, 0, offsetZ);
+        state.factionUuid = info.factionId;
+        state.factionName = info.factionName;
+        state.factionColour = info.colour;
+        state.warforgeVein = info.vein;
+        state.oreQuality = info.oreQuality;
         return state;
     }
 
-    private static SiegeCampAttackInfoRender buildRenderInfo(DimChunkPos center, SiegeCampAttackInfo baseInfo, ClaimChunkInfo info, int chunkX, int chunkZ, boolean startPickMode, Minecraft mc) {
+    private static SiegeCampAttackInfoRender buildRenderInfo(DimChunkPos center, SiegeCampAttackInfo baseInfo, ClaimChunkInfo info,
+                                                             int chunkX, int chunkZ, boolean startPickMode) {
         boolean isTarget = chunkX == center.x && chunkZ == center.z;
-        boolean battleZone = isBattleZoneChunk(center.dim, chunkX, chunkZ);
+        boolean battleZone = ClientSiegeState.inBattleZone(center.dim, chunkX, chunkZ);
         boolean highlight = startPickMode ? !isTarget : battleZone;
         ResourceLocation centerIcon;
         SiegeCampAttackInfoRender.CenterMarkType centerIconType;
         if (startPickMode) {
-            centerIcon = isTarget ? Ids.of(Tags.MODID, "gui/icon_siege_attack.png") : null;
+            centerIcon = isTarget ? ATTACK_ICON : null;
             centerIconType = SiegeCampAttackInfoRender.CenterMarkType.CUSTOM_TEXTURE;
         } else {
-            centerIcon = (isTarget && mc.player != null) ? SkinUtil.getPlayerFace(mc.player.getUUID()) : null;
+            Minecraft mc = Minecraft.getInstance();
+            centerIcon = isTarget && mc.player != null ? SkinUtil.getPlayerFace(mc.player.getUUID()) : null;
             centerIconType = SiegeCampAttackInfoRender.CenterMarkType.PLAYER_FACE;
         }
         return new ClaimChunkRenderInfo(
@@ -277,84 +272,66 @@ public final class ClaimMapModel {
         );
     }
 
-    private static boolean isBattleZoneChunk(ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        ChunkPos target = new ChunkPos(chunkX, chunkZ);
-        for (SiegeCampProgressInfo siegeInfo : ClientProxy.sSiegeInfo.values()) {
-            if (siegeInfo == null || siegeInfo.attackingPos == null || !siegeInfo.attackingPos.dim.equals(dim) || siegeInfo.warzoneChunks == null) {
-                continue;
-            }
-            if (siegeInfo.warzoneChunks.contains(target)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static ClaimChunkInfo getLiveInfo(ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        ClaimChunkInfo info = ClientClaimChunkCache.get(new DimChunkPos(dim, chunkX, chunkZ));
-        if (info != null) {
-            return info;
-        }
-        ClaimChunkInfo fallback = new ClaimChunkInfo();
-        fallback.x = chunkX;
-        fallback.z = chunkZ;
-        return fallback;
+    private static ClaimChunkInfo liveInfo(ResourceKey<Level> dim, int chunkX, int chunkZ) {
+        ClaimChunkInfo info = ClientClaimChunkCache.get(dim, chunkX, chunkZ);
+        return info != null ? info : WILDERNESS;
     }
 
     private static boolean[] computeAdjacency(ResourceKey<Level> dim, int centerX, int centerZ, int radius, int chunkX, int chunkZ) {
         boolean[] adjacency = new boolean[4];
-        ClaimChunkInfo current = getLiveInfo(dim, chunkX, chunkZ);
+        ClaimChunkInfo current = liveInfo(dim, chunkX, chunkZ);
         if (chunkZ > centerZ - radius) {
-            adjacency[0] = !current.factionId.equals(getLiveInfo(dim, chunkX, chunkZ - 1).factionId);
+            adjacency[0] = !current.factionId.equals(liveInfo(dim, chunkX, chunkZ - 1).factionId);
         }
         if (chunkX < centerX + radius) {
-            adjacency[1] = !current.factionId.equals(getLiveInfo(dim, chunkX + 1, chunkZ).factionId);
+            adjacency[1] = !current.factionId.equals(liveInfo(dim, chunkX + 1, chunkZ).factionId);
         }
         if (chunkZ < centerZ + radius) {
-            adjacency[2] = !current.factionId.equals(getLiveInfo(dim, chunkX, chunkZ + 1).factionId);
+            adjacency[2] = !current.factionId.equals(liveInfo(dim, chunkX, chunkZ + 1).factionId);
         }
         if (chunkX > centerX - radius) {
-            adjacency[3] = !current.factionId.equals(getLiveInfo(dim, chunkX - 1, chunkZ).factionId);
+            adjacency[3] = !current.factionId.equals(liveInfo(dim, chunkX - 1, chunkZ).factionId);
         }
         return adjacency;
     }
 
     private static void handleTargetPick(DimChunkPos center, int radius, ClaimChunkInfo info, int chunkX, int chunkZ) {
-        if (info.factionId.equals(Faction.nullUuid) || info.factionId.equals(ClientClaimChunkCache.playerFactionId)) {
-            status("Pick an enemy faction claim to siege", Minecraft.getInstance());
+        if (info.factionId.equals(FactionIds.NONE) || info.factionId.equals(ClientClaimChunkCache.playerFactionId())) {
+            status("warforge.client.map.pick_enemy");
             return;
         }
         DimChunkPos target = new DimChunkPos(center.dim, chunkX, chunkZ);
-        ClaimManagerGuiFactory.siegeTargetMode = false;
-        ClaimManagerGuiFactory.siegeStartPickFor = target;
+        ClaimMapModel.siegeTargetMode = false;
+        ClaimMapModel.siegeStartPickFor = target;
         int range = Math.min(WarForgeConfig.SIEGE_DECLARE_MAX_RANGE, WarForgeConfig.CLAIM_MANAGER_RADIUS);
         PacketRequestTerrainColors terrainReq = new PacketRequestTerrainColors();
         terrainReq.center = target;
         terrainReq.radius = range;
         WarForgeMod.NETWORK.sendToServer(terrainReq);
-        ClaimManagerGuiFactory.INSTANCE.openClient(target, range, -1, -1);
+        UiNavigation.openClaimManager(target, range, -1, -1);
     }
 
-    private static void handleStartPick(DimChunkPos center, int chunkX, int chunkZ, Minecraft mc) {
-        DimChunkPos target = ClaimManagerGuiFactory.siegeStartPickFor;
+    private static void handleStartPick(DimChunkPos center, int chunkX, int chunkZ) {
+        DimChunkPos target = ClaimMapModel.siegeStartPickFor;
         if (target == null) {
             return;
         }
         if (chunkX == target.x && chunkZ == target.z && center.dim.equals(target.dim)) {
-            status("Pick a chunk other than the target to launch from", mc);
+            status("warforge.client.map.pick_other");
             return;
         }
         PacketDeclareSiege packet = new PacketDeclareSiege();
         packet.targetChunk = target;
         packet.fromChunk = new DimChunkPos(center.dim, chunkX, chunkZ);
         WarForgeMod.NETWORK.sendToServer(packet);
-        ClaimManagerGuiFactory.resetSiegeState();
+        ClaimMapModel.resetSiegeState();
         ClientCompat.setScreen(null);
     }
 
-    private static void status(String message, Minecraft mc) {
+    private static void status(String langKey) {
+        Minecraft mc = Minecraft.getInstance();
         if (mc.player != null) {
-            ClientCompat.overlayMessage(mc.player, Component.literal(message));
+            ClientCompat.overlayMessage(mc.player, Component.translatable(langKey));
         }
     }
 

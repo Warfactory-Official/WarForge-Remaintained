@@ -16,11 +16,11 @@ import com.flansmod.warforge.compat.Nbt;
 
 public class DimBlockPos extends BlockPos
 {
-	public static final DimBlockPos ZERO = new DimBlockPos(Level.OVERWORLD, 0, 0, 0);
+    public static final DimBlockPos ZERO = new DimBlockPos(Level.OVERWORLD, 0, 0, 0);
 
-	public ResourceKey<Level> dim;
+    public ResourceKey<Level> dim;
 
-	public DimBlockPos(ResourceKey<Level> dim, int x, int y, int z)
+    public DimBlockPos(ResourceKey<Level> dim, int x, int y, int z)
     {
         super(x, y, z);
         this.dim = dim;
@@ -72,15 +72,15 @@ public class DimBlockPos extends BlockPos
         return n == 0 ? this : new DimBlockPos(this.dim, this.getX() + facing.getStepX() * n, this.getY() + facing.getStepY() * n, this.getZ() + facing.getStepZ() * n);
     }
 
-	// HASHING INTO A MAP DEPENDENT ON BLOCKPOS (VANILLA METHODS) WILL RETURN NULL DUE TO THIS CUSTOM IMPL HAVING A DIFFERENT VALUE
-	// (dimBlockPos -> func(BlockPos) -> hashMap<BlockPos>.get(blockPos.hashCode() [dimBlockPos.hashCode != blockPos.hashCode] -> diff value -> null
-	@Override
-	public int hashCode()
+    // HASHING INTO A MAP DEPENDENT ON BLOCKPOS (VANILLA METHODS) WILL RETURN NULL DUE TO THIS CUSTOM IMPL HAVING A DIFFERENT VALUE
+    // (dimBlockPos -> func(BlockPos) -> hashMap<BlockPos>.get(blockPos.hashCode() [dimBlockPos.hashCode != blockPos.hashCode] -> diff value -> null
+    @Override
+    public int hashCode()
     {
-		return super.hashCode() ^ (155225 * this.dim.hashCode() + 140501023);
+        return super.hashCode() ^ (155225 * this.dim.hashCode() + 140501023);
     }
 
-	@Override
+    @Override
     public boolean equals(Object other)
     {
         if (this == other)
@@ -95,59 +95,59 @@ public class DimBlockPos extends BlockPos
         		&& this.getZ() == dcpos.getZ();
     }
 
-	@Override
+    @Override
     public String toString()
     {
         return "[" + Keys.id(this.dim) + ": " + this.getX() + ", " + this.getY() + ", " + this.getZ() + "]";
     }
 
-	public String toFancyString()
-	{
-		return "[" + getX() + ", " + getY() + ", " + getZ() + "] in " + getDimensionName();
-	}
+    public String toFancyString()
+    {
+        return "[" + getX() + ", " + getY() + ", " + getZ() + "] in " + getDimensionName();
+    }
 
-	public String getDimensionName()
-	{
-		if (dim.equals(Level.NETHER))
-			return "The Nether";
-		if (dim.equals(Level.OVERWORLD))
-			return "The Overworld";
-		if (dim.equals(Level.END))
-			return "The End";
-		return "Dimension " + Keys.id(dim);
-	}
+    public String getDimensionName()
+    {
+        if (dim.equals(Level.NETHER))
+            return "The Nether";
+        if (dim.equals(Level.OVERWORLD))
+            return "The Overworld";
+        if (dim.equals(Level.END))
+            return "The End";
+        return "Dimension " + Keys.id(dim);
+    }
 
-	public CompoundTag writeToNBT()
-	{
-		CompoundTag tag = new CompoundTag();
-		tag.putString("dim", Keys.id(dim).toString());
-		tag.putIntArray("pos", new int[] { getX(), getY(), getZ() });
-		return tag;
-	}
+    public CompoundTag writeToNBT()
+    {
+        CompoundTag tag = new CompoundTag();
+        tag.putString("dim", Keys.id(dim).toString());
+        tag.putIntArray("pos", new int[] { getX(), getY(), getZ() });
+        return tag;
+    }
 
-	public void writeToNBT(CompoundTag tags, String prefix)
-	{
-		tags.put(prefix, writeToNBT());
-	}
+    public void writeToNBT(CompoundTag tags, String prefix)
+    {
+        tags.put(prefix, writeToNBT());
+    }
 
-	public static DimBlockPos readFromNBT(CompoundTag tags, String prefix)
-	{
-		if (tags.contains(prefix))
-			return readFromNBT(Nbt.getCompound(tags, prefix));
-		return DimBlockPos.ZERO;
-	}
+    public static DimBlockPos readFromNBT(CompoundTag tags, String prefix)
+    {
+        if (tags.contains(prefix))
+            return readFromNBT(Nbt.getCompound(tags, prefix));
+        return DimBlockPos.ZERO;
+    }
 
-	public static DimBlockPos readFromNBT(CompoundTag tag)
-	{
-		if (tag != null && tag.contains("dim") && tag.contains("pos"))
-		{
-			int[] data = Nbt.getIntArray(tag, "pos");
-			if (data.length == 3)
-			{
-				ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(tag, "dim")));
-				return new DimBlockPos(dim, data[0], data[1], data[2]);
-			}
-		}
-		return DimBlockPos.ZERO;
-	}
+    public static DimBlockPos readFromNBT(CompoundTag tag)
+    {
+        if (tag != null && tag.contains("dim") && tag.contains("pos"))
+        {
+            int[] data = Nbt.getIntArray(tag, "pos");
+            if (data.length == 3)
+            {
+                ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(Nbt.getString(tag, "dim")));
+                return new DimBlockPos(dim, data[0], data[1], data[2]);
+            }
+        }
+        return DimBlockPos.ZERO;
+    }
 }

@@ -3,13 +3,7 @@ package com.flansmod.warforge.common.util;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandler;
 
-/**
- * An {@link IItemHandler} view that forbids insertion but permits extraction.
- * <p>
- * Used to expose a yield collector's storage to automation (hoppers, pipes) so that items can be
- * pulled out from any side, while nothing can ever be pushed in. The mod still deposits yields by
- * writing to the backing handler directly; this wrapper only guards the externally exposed capability.
- */
+// Automation view: pull from any side, no insertion. Mod deposits via the backing handler.
 public class PullOnlyItemHandler implements IItemHandler {
     private final IItemHandler delegate;
 
@@ -29,7 +23,6 @@ public class PullOnlyItemHandler implements IItemHandler {
 
     @Override
     public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
-        // Pull-only: reject everything by returning the stack untouched.
         return stack;
     }
 

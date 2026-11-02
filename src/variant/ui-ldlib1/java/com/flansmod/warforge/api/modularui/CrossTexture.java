@@ -5,7 +5,6 @@ import net.minecraft.client.gui.GuiGraphics;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 
-/** A tiny 6x6 cross centred in the area (the close button icon). */
 public final class CrossTexture implements IGuiTexture {
     public static final CrossTexture INSTANCE = new CrossTexture();
     private static final int SIZE = 6;

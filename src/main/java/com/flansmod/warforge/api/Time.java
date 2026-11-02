@@ -2,12 +2,6 @@ package com.flansmod.warforge.api;
 
 import lombok.Getter;
 
-
-/**
- * Object used to track and format time;
- *
- * @author MrNorwood
- */
 public class Time {
     @Getter
     private long ms;               // duration in ms
@@ -62,7 +56,6 @@ public class Time {
         this.ms = ms;
         this.dirty = true;
     }
-
 
     public void change(long ms) {
         this.ms += ms;
@@ -136,7 +129,6 @@ public class Time {
                         .append(seconds).append(getFormattingSeparator(verbal, "s"));
             }
             case MINUTES_SECONDS -> {
-
                 sb.append(minutes + hours * 60).append(getFormattingSeparator(verbal, "m"))
                         .append(seconds).append(getFormattingSeparator(verbal, "s"));
             }

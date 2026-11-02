@@ -10,7 +10,12 @@ fun Project.prop(key: String): String = sc.properties.get<String>(key)
 
 /** A property from stonecutter.properties.toml for this node, or null if this node does not set it. */
 fun Project.propOrNull(key: String): String? =
-    runCatching { sc.properties.get<String>(key) }.getOrNull()?.takeIf { it.isNotBlank() }
+    try {
+        sc.properties.get<String>(key)
+    } catch (e: IllegalArgumentException) {
+        if (e.message?.startsWith("No such property") != true) throw e
+        null
+    }?.takeIf { it.isNotBlank() }
 
 /** The Minecraft version of this node, for example "1.21.1". */
 val Project.mcVersion: String

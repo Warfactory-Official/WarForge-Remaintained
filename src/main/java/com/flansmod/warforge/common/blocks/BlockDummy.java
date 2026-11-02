@@ -4,7 +4,6 @@ import com.flansmod.warforge.platform.WFBlock;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.StringRepresentable;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
@@ -29,18 +28,16 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import javax.annotation.Nullable;
 
 public class BlockDummy extends WFBlock implements EntityBlock {
-    public static final EnumProperty<modelEnum> MODEL = EnumProperty.create("model", modelEnum.class);
+    public static final EnumProperty<DummyModel> MODEL = EnumProperty.create("model", DummyModel.class);
 
     public BlockDummy(BlockBehaviour.Properties properties) {
         super(properties
                 .strength(-1.0F, 30000000.0F)
                 .sound(SoundType.STONE)
                 .noLootTable()
-                // Invisible structural placeholder above the citadel/claim base: it must not occlude
-                // the base block's adjacent (top) face and must not block skylight, otherwise the
-                // statue position renders dark and the base's top face is culled into a black hole.
+
                 .noOcclusion());
-        this.registerDefaultState(this.stateDefinition.any().setValue(MODEL, modelEnum.TRANSLUCENT));
+        this.registerDefaultState(this.stateDefinition.any().setValue(MODEL, DummyModel.TRANSLUCENT));
     }
 
     @Override
@@ -51,7 +48,7 @@ public class BlockDummy extends WFBlock implements EntityBlock {
     @Nullable
     @Override
     public BlockState getStateForPlacement(BlockPlaceContext context) {
-        return this.defaultBlockState().setValue(MODEL, modelEnum.TRANSLUCENT);
+        return this.defaultBlockState().setValue(MODEL, DummyModel.TRANSLUCENT);
     }
 
     @Override
@@ -74,7 +71,7 @@ public class BlockDummy extends WFBlock implements EntityBlock {
 
         if (player.isShiftKeyDown()) {
             BlockEntity masterTile = level.getBlockEntity(masterPos);
-            if (masterTile instanceof TileEntityClaim claim) {
+            if (masterTile instanceof ClaimBlockEntity claim) {
                 claim.increaseRotation();
                 return InteractionResult.SUCCESS;
             }
@@ -92,7 +89,7 @@ public class BlockDummy extends WFBlock implements EntityBlock {
     @Nullable
     @Override
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new TileEntityDummy(pos, state);
+        return new DummyBlockEntity(pos, state);
     }
 
     @Override
@@ -105,16 +102,13 @@ public class BlockDummy extends WFBlock implements EntityBlock {
         return Shapes.block();
     }
 
-    // Invisible placeholder: present no occlusion shape so it never culls the neighbouring claim
-    // base's top face (the dark "hole" symptom), and let skylight pass straight through so the statue
-    // rendered above the base is lit.
+    // no occlusion, skylight passes: else base top face culls dark under the statue
     @Override
     protected boolean isTransparentToLight(BlockState state) {
         return true;
     }
 
-    @Deprecated
-    public enum modelEnum implements StringRepresentable {
+    public enum DummyModel implements StringRepresentable {
         TRANSLUCENT,
         KING,
         KNIGHT,

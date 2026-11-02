@@ -49,7 +49,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew releaseBuild --no-daemon
+        run: ./gradlew buildAll --no-daemon
 
       - name: Prepare artifact bundle
         shell: bash

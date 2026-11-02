@@ -10,10 +10,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import javax.annotation.Nonnull;
 import java.awt.Color;
 
-/**
- * An HSB colour picker: three channel bars (hue, saturation, brightness) that are set by clicking or dragging, and a
- * preview swatch on the right (the 1.20.1 create-faction layout: 156px bars, 12px gap, swatch to the right).
- */
 @OnlyIn(Dist.CLIENT)
 public class ColorPickerElement extends Widget {
     private static final int BAR_HEIGHT = 12;
@@ -26,7 +22,6 @@ public class ColorPickerElement extends Widget {
     private final float[] hsb = new float[3];
     private int draggingChannel = -1;
 
-    /** A picker at x, y with bars of barWidth, then swatchGap, then a swatch of swatchWidth. */
     public ColorPickerElement(int rgb, int x, int y, int barWidth, int swatchGap, int swatchWidth) {
         super(x, y, barWidth + swatchGap + swatchWidth, HEIGHT);
         this.barWidth = barWidth;

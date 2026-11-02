@@ -1,20 +1,12 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.common.util.DimChunkPos;
+import it.unimi.dsi.fastutil.objects.Object2ShortMap;
+import it.unimi.dsi.fastutil.objects.Object2ShortOpenHashMap;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
-import java.util.HashMap;
-import java.util.Map;
-
-/**
- * Client-side store of the chunk veins this client is allowed to see, fed by {@code PacketJourneyMapVeins}.
- * <p>
- * Free of any JourneyMap references so it loads with or without JourneyMap. The optional JourneyMap vein
- * plugin registers itself as the {@link Listener} and turns these updates into icon markers; if JourneyMap
- * is absent the data simply sits inert. The payload is the compressed vein id/quality short only — the
- * icon is resolved client-side from the already-synced vein definitions.
- */
+/** No JourneyMap types: loads without the mod. */
 public final class JourneyMapVeinCache {
     public interface Listener {
         void onVeinSet(ResourceKey<Level> dim, int x, int z, short veinInfo);
@@ -24,7 +16,7 @@ public final class JourneyMapVeinCache {
         void onCleared();
     }
 
-    private static final Map<DimChunkPos, Short> VEINS = new HashMap<>();
+    private static final Object2ShortOpenHashMap<DimChunkPos> VEINS = new Object2ShortOpenHashMap<>();
     private static Listener listener;
 
     private JourneyMapVeinCache() {
@@ -33,9 +25,9 @@ public final class JourneyMapVeinCache {
     public static synchronized void setListener(Listener newListener) {
         listener = newListener;
         if (newListener != null) {
-            for (Map.Entry<DimChunkPos, Short> entry : VEINS.entrySet()) {
+            for (Object2ShortMap.Entry<DimChunkPos> entry : VEINS.object2ShortEntrySet()) {
                 DimChunkPos pos = entry.getKey();
-                newListener.onVeinSet(pos.dim, pos.x, pos.z, entry.getValue());
+                newListener.onVeinSet(pos.dim, pos.x, pos.z, entry.getShortValue());
             }
         }
     }
@@ -55,7 +47,10 @@ public final class JourneyMapVeinCache {
     }
 
     public static synchronized void remove(ResourceKey<Level> dim, int x, int z) {
-        if (VEINS.remove(new DimChunkPos(dim, x, z)) != null && listener != null) {
+        DimChunkPos key = new DimChunkPos(dim, x, z);
+        boolean known = VEINS.containsKey(key);
+        VEINS.removeShort(key);
+        if (known && listener != null) {
             listener.onVeinRemoved(dim, x, z);
         }
     }

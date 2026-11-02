@@ -1,277 +1,295 @@
 package com.flansmod.warforge.api;
 
-import com.flansmod.warforge.compat.Chunks;
-
+import com.flansmod.warforge.common.Notifications;
+import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.api.interfaces.IChunkReinforcer;
 import com.flansmod.warforge.api.interfaces.IClaimStrengthModifier;
+import com.flansmod.warforge.api.vein.Quality;
+import com.flansmod.warforge.api.vein.Vein;
+import com.flansmod.warforge.api.vein.VeinSample;
+import com.flansmod.warforge.api.vein.VeinView;
 import com.flansmod.warforge.api.vein.VeinWeightProvider;
+import com.flansmod.warforge.common.ExplosionProtection;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.compat.Chunks;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.FactionStorage;
+import com.flansmod.warforge.server.SiegeDifficulty;
+import com.flansmod.warforge.server.vein.VeinUtils;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.level.ChunkPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.chunk.LevelChunk;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 /**
- * Public, addon-facing entry points for WarForge (2.1.0+). Lets other mods reason about a faction's
- * claimed and currently-loaded territory and the siege reinforcement around a besieged chunk.
+ * Addon entry point. Server-thread only: every method except {@link #setVeinWeightProvider},
+ * {@link #addFobWarpVeto} and {@link #MOD_ID} throws {@link IllegalStateException} elsewhere.
+ * Positions are a dimension key plus {@link ChunkPos}/{@link BlockPos}. Nothing loads a chunk.
+ * Ownership is not permission: siege state, zones and alliance override it; use {@link #mayPlace}/{@link #mayBreak}.
  */
 public final class WarforgeAPI {
+    public static final String MOD_ID = Tags.MODID;
 
     private WarforgeAPI() {}
 
-    // ---------------------------------------------------------------------------------------------
-    // Ownership
-    //
-    // These read the claim map only. Nothing here loads a chunk, and nothing here is a permission
-    // check: knowing who owns a chunk does not tell you what you may do in it, because claim
-    // ownership is overridden by siege state, neutral zones and alliance. For "may I build here",
-    // use mayPlace / mayBreak below, which go through the same ProtectionsModule that actually
-    // cancels the event.
-    // ---------------------------------------------------------------------------------------------
-
-    /**
-     * The faction owning a chunk.
-     *
-     * <p>Returns {@code null} when the chunk is unclaimed, never {@link Faction#nullUuid}: the
-     * sentinel the internal claim map uses reads as a real owner to a caller that has not seen it
-     * before. The safe-zone and war-zone pseudo-factions are real owners and are returned as
-     * themselves; test them with {@link #isNeutralZone(UUID)}.</p>
-     */
-    @Nullable
-    public static UUID ownerOf(DimChunkPos pos) {
-        if (pos == null) return null;
-        UUID owner = WarForgeMod.FACTIONS.getClaim(pos);
-        return owner == null || owner.equals(Faction.nullUuid) ? null : owner;
+    /** Same layout as {@code ChunkPos.asLong}: x in the low 32 bits, z in the high 32. */
+    public static long pack(int chunkX, int chunkZ) {
+        return (chunkX & 0xFFFFFFFFL) | ((chunkZ & 0xFFFFFFFFL) << 32);
     }
 
-    /** @see #ownerOf(DimChunkPos) */
-    @Nullable
-    public static UUID ownerOf(DimBlockPos pos) {
-        return pos == null ? null : ownerOf(pos.toChunkPos());
+    public static int unpackX(long packed) {
+        return (int) packed;
     }
 
-    /**
-     * Owners of many chunks in one pass, which is the shape anything route- or region-shaped wants:
-     * a long alignment crosses a thousand chunk columns and is re-queried on every edit.
-     *
-     * @return claimed chunks only, in iteration order. Unclaimed chunks are absent rather than
-     *         mapped to null, so the result size is the count of claimed chunks.
-     */
-    public static Map<DimChunkPos, UUID> ownersAlong(Collection<DimChunkPos> chunks) {
-        Map<DimChunkPos, UUID> out = new LinkedHashMap<>();
-        if (chunks == null) return out;
-        for (DimChunkPos pos : chunks) {
-            UUID owner = ownerOf(pos);
-            if (owner != null) out.put(pos, owner);
+    public static int unpackZ(long packed) {
+        return (int) (packed >>> 32);
+    }
+
+    private static MinecraftServer server() {
+        MinecraftServer server = WarForgeMod.MC_SERVER;
+        if (server == null || !server.isSameThread()) {
+            throw new IllegalStateException("WarforgeAPI must be called on the server thread");
+        }
+        return server;
+    }
+
+    private static FactionStorage factions() {
+        server();
+        return WarForgeMod.FACTIONS;
+    }
+
+    @Nullable
+    private static Faction faction(@Nullable UUID factionId) {
+        return FactionIds.isValid(factionId) ? factions().registry.getFaction(factionId) : null;
+    }
+
+    /** Faction of a player, or null. */
+    @Nullable
+    public static UUID factionOf(@Nullable UUID player) {
+        if (!FactionIds.isValid(player)) return null;
+        Faction faction = factions().registry.getFactionOfPlayer(player);
+        return faction == null ? null : faction.getUuid();
+    }
+
+    /** Owning player faction; null when unclaimed or a zone. */
+    @Nullable
+    public static UUID ownerOf(ResourceKey<Level> dim, ChunkPos chunk) {
+        UUID owner = factions().claims.getClaim(new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)));
+        return FactionIds.isValid(owner) && !FactionIds.isNeutralZone(owner) ? owner : null;
+    }
+
+    public static ZoneKind zoneAt(ResourceKey<Level> dim, ChunkPos chunk) {
+        UUID owner = factions().claims.getClaim(new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)));
+        if (!FactionIds.isValid(owner)) return ZoneKind.WILDERNESS;
+        if (FactionIds.SAFE_ZONE.equals(owner)) return ZoneKind.SAFE_ZONE;
+        if (FactionIds.WAR_ZONE.equals(owner)) return ZoneKind.WAR_ZONE;
+        return ZoneKind.FACTION;
+    }
+
+    public static SiegeZoneKind siegeZoneAt(ResourceKey<Level> dim, ChunkPos chunk) {
+        return switch (factions().sieges.getSiegeZone(new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk))).zone) {
+            case SIEGED -> SiegeZoneKind.SIEGED;
+            case WAR -> SiegeZoneKind.WAR;
+            default -> SiegeZoneKind.NONE;
+        };
+    }
+
+    /** Owners of the claimed chunks among {@code chunks}; unclaimed chunks are absent. */
+    public static Map<ChunkPos, UUID> ownersAlong(ResourceKey<Level> dim, Collection<ChunkPos> chunks) {
+        Map<ChunkPos, UUID> out = new LinkedHashMap<>();
+        for (ChunkPos chunk : chunks) {
+            UUID owner = ownerOf(dim, chunk);
+            if (owner != null) out.put(chunk, owner);
         }
         return out;
     }
 
-    /**
-     * What kind of claim covers a chunk. {@link Faction.ClaimType#NONE} when unclaimed, and
-     * {@code ADMIN} or {@code WARZONE} for the two citadel-less neutral zones.
-     */
-    public static Faction.ClaimType claimTypeAt(DimChunkPos pos) {
-        UUID owner = ownerOf(pos);
-        if (owner == null) return Faction.ClaimType.NONE;
-        Faction faction = WarForgeMod.FACTIONS.getFaction(owner);
-        return faction == null ? Faction.ClaimType.NONE : faction.getClaimType(pos);
+    public static boolean isMember(UUID factionId, UUID player) {
+        Faction faction = faction(factionId);
+        return faction != null && faction.isPlayerInFaction(player);
     }
 
-    /** Whether a faction id is one of the two zone pseudo-factions rather than a player faction. */
-    public static boolean isNeutralZone(@Nullable UUID factionId) {
-        return factionId != null && FactionStorage.IsNeutralZone(factionId);
+    /** 0 for an unknown faction. */
+    public static int memberCount(UUID factionId) {
+        Faction faction = faction(factionId);
+        return faction == null ? 0 : faction.getMemberCount();
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Identity and standing
-    //
-    // Enough for an addon to decide who may see a thing, and to draw it in the owner's colours. Note
-    // the deliberate split: alliance and truce are different relationships, and an addon hiding
-    // information from enemies wants alliance, not a ceasefire.
-    // ---------------------------------------------------------------------------------------------
-
-    /** The faction a player belongs to, or null. */
-    @Nullable
-    public static UUID factionOfPlayer(@Nullable UUID playerId) {
-        if (playerId == null || playerId.equals(Faction.nullUuid)) return null;
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerId);
-        return faction == null ? null : faction.uuid;
+    /** Snapshot of a faction's claimed chunks per dimension as packed chunk longs. */
+    public static Map<ResourceKey<Level>, LongSet> claimedChunks(UUID factionId) {
+        Faction faction = faction(factionId);
+        if (faction == null) return Map.of();
+        HashMap<ResourceKey<Level>, LongSet> out = new HashMap<>();
+        for (DimBlockPos claim : faction.getClaimPositions()) {
+            DimChunkPos chunk = claim.toChunkPos();
+            out.computeIfAbsent(chunk.dim, k -> new LongOpenHashSet()).add(pack(chunk.x, chunk.z));
+        }
+        return Collections.unmodifiableMap(out);
     }
 
-    /** A faction's display name, or null when there is no such faction. */
     @Nullable
     public static String factionName(@Nullable UUID factionId) {
-        Faction faction = factionOrNull(factionId);
-        return faction == null ? null : faction.name;
+        Faction faction = faction(factionId);
+        return faction == null ? null : faction.getName();
     }
 
-    /**
-     * A faction's chosen colour as 0xRRGGBB.
-     *
-     * @return {@code fallback} when there is no such faction, so a caller drawing something always has
-     *         a colour and never has to branch
-     */
+    /** 0xRRGGBB, or {@code fallback} for an unknown faction. */
     public static int factionColour(@Nullable UUID factionId, int fallback) {
-        Faction faction = factionOrNull(factionId);
-        return faction == null ? fallback : (faction.colour & 0xFFFFFF);
+        Faction faction = faction(factionId);
+        return faction == null ? fallback : (faction.getColour() & 0xFFFFFF);
     }
 
-    /**
-     * Whether two factions are allied, which includes a faction with itself.
-     *
-     * <p>Alliance only. A truce is a ceasefire between enemies and is not a reason to share anything,
-     * so {@link #areAlliedOrTruced} is a separate question with a separate name.</p>
-     *
-     * <p>Checked in both directions. The set is documented as mutual, but a one-sided entry would
-     * otherwise silently mean two players disagree about what each can see.</p>
-     */
+    /** Alliance only, a faction with itself included; truce excluded. Checked both ways. */
     public static boolean areAllied(@Nullable UUID a, @Nullable UUID b) {
         if (a == null || b == null) return false;
         if (a.equals(b)) return true;
-        Faction fa = factionOrNull(a);
-        Faction fb = factionOrNull(b);
+        Faction fa = faction(a);
+        Faction fb = faction(b);
         return (fa != null && fa.isAllyOf(b)) || (fb != null && fb.isAllyOf(a));
     }
 
-    /** Allied, or holding a truce. The looser test, for things a ceasefire should cover. */
     public static boolean areAlliedOrTruced(@Nullable UUID a, @Nullable UUID b) {
         if (areAllied(a, b)) return true;
-        Faction fa = factionOrNull(a);
-        Faction fb = factionOrNull(b);
+        Faction fa = faction(a);
+        Faction fb = faction(b);
         return (fa != null && fa.isInTruceWith(b)) || (fb != null && fb.isInTruceWith(a));
     }
 
-    /**
-     * Whether a player may be shown something belonging to a faction.
-     *
-     * <p>The question an addon actually has when it is deciding what to send to a client. Unowned
-     * content is nobody's to share, so it is not covered here: the caller decides what to do about
-     * that, usually by showing it only to whoever made it.</p>
-     */
+    /** Unowned content is nobody's to share: false for null owner. */
     public static boolean maySeeFactionContent(@Nullable UUID viewerPlayerId, @Nullable UUID ownerFactionId) {
-        if (ownerFactionId == null) return false;
-        return areAllied(factionOfPlayer(viewerPlayerId), ownerFactionId);
+        return ownerFactionId != null && areAllied(factionOf(viewerPlayerId), ownerFactionId);
     }
 
+    public static boolean mayPlace(UUID playerId, ResourceKey<Level> dim, ChunkPos chunk, Block block) {
+        server();
+        return !ProtectionsModule.placeDenied(ProtectionsModule.getProtections(playerId, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk))), block);
+    }
+
+    public static boolean mayBreak(UUID playerId, ResourceKey<Level> dim, ChunkPos chunk, Block block) {
+        server();
+        return !ProtectionsModule.breakDenied(ProtectionsModule.getProtections(playerId, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk))), block);
+    }
+
+    /** Explosion protection at {@code pos} as if lit by {@code igniterPlayer} (null: no player). */
+    public static boolean isExplosionProtected(Level level, BlockPos pos, @Nullable UUID igniterPlayer) {
+        server();
+        return ExplosionProtection.isProtected(level, igniterPlayer, pos);
+    }
+
+    /** Removes protected positions; the igniter is a faction, no player is impersonated. null: no igniter. */
+    public static void filterExplosionProtected(Level level, @Nullable UUID igniterFaction, Collection<BlockPos> positions) {
+        server();
+        ExplosionProtection.filterByFaction(level, igniterFaction, positions);
+    }
+
+    /** Toast to every online member. Equal {@code dedupeToken}s replace each other on the client; null: no dedupe. */
+    public static void notifyFaction(UUID factionId, @Nullable String dedupeToken, Component message, NotificationStyle style, long durationMs) {
+        Faction faction = faction(factionId);
+        if (faction == null) return;
+        int colour = switch (style) {
+            case INFO -> PacketClientNotification.COLOR_INFO;
+            case SUCCESS -> PacketClientNotification.COLOR_SUCCESS;
+            case WARNING -> PacketClientNotification.COLOR_WARNING;
+            case DANGER -> PacketClientNotification.COLOR_DANGER;
+        };
+        Notifications.notifyFaction(faction, dedupeToken == null ? "" : dedupeToken, message, Component.empty(), colour, (int) durationMs);
+    }
+
+    /** Difficulty to siege the chunk now; null when it is not owned by a player faction. */
     @Nullable
-    private static Faction factionOrNull(@Nullable UUID factionId) {
-        if (factionId == null || factionId.equals(Faction.nullUuid)) return null;
-        return WarForgeMod.FACTIONS.getFaction(factionId);
+    public static SiegeDefence siegeDefenceAt(ResourceKey<Level> dim, ChunkPos chunk) {
+        UUID owner = ownerOf(dim, chunk);
+        Faction faction = faction(owner);
+        return faction == null ? null : SiegeDifficulty.breakdown(server(), faction, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)));
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Permission
-    //
-    // Thin wrappers over ProtectionsModule on purpose. It is what cancels BlockEvent.EntityPlaceEvent
-    // and its sibling, so a tool that predicts permission any other way will eventually tell a player
-    // they may build where they may not, and will drift the first time the protection config changes.
-    // ---------------------------------------------------------------------------------------------
-
-    /** Whether this player may place this block in this chunk, by the rule that governs the event. */
-    public static boolean mayPlace(UUID playerId, DimChunkPos pos, Block block) {
-        return !ProtectionsModule.placeDenied(ProtectionsModule.GetProtections(playerId, pos), block);
-    }
-
-    /** Whether this player may break this block in this chunk, by the rule that governs the event. */
-    public static boolean mayBreak(UUID playerId, DimChunkPos pos, Block block) {
-        return !ProtectionsModule.breakDenied(ProtectionsModule.GetProtections(playerId, pos), block);
-    }
-
-    // ---------------------------------------------------------------------------------------------
-    // Territory
-    // ---------------------------------------------------------------------------------------------
-
-    /** Claimed chunks of a faction that are currently loaded on the server. */
-    public static Set<DimChunkPos> getLoadedClaimedChunks(UUID factionId) {
-        Set<DimChunkPos> out = new LinkedHashSet<>();
-        Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
-        MinecraftServer server = WarForgeMod.MC_SERVER;
-        if (faction == null || server == null) return out;
-        for (DimBlockPos claim : faction.claims.keySet()) {
-            DimChunkPos cpos = claim.toChunkPos();
-            if (out.contains(cpos)) continue;
-            ServerLevel level = server.getLevel(cpos.dim);
-            if (level != null && level.getChunkSource().getChunkNow(cpos.x, cpos.z) != null) {
-                out.add(cpos);
+    /** Claimed chunks of a faction currently loaded, per dimension. */
+    public static Map<ResourceKey<Level>, LongSet> loadedClaimedChunks(UUID factionId) {
+        MinecraftServer server = server();
+        HashMap<ResourceKey<Level>, LongSet> out = new HashMap<>();
+        for (var entry : claimedChunks(factionId).entrySet()) {
+            ServerLevel level = server.getLevel(entry.getKey());
+            if (level == null) continue;
+            for (long packed : entry.getValue()) {
+                if (level.getChunkSource().getChunkNow(unpackX(packed), unpackZ(packed)) != null) {
+                    out.computeIfAbsent(entry.getKey(), k -> new LongOpenHashSet()).add(packed);
+                }
             }
         }
-        return out;
+        return Collections.unmodifiableMap(out);
     }
 
-    /**
-     * Tests {@code predicate} against every {@link BlockEntity} in the faction's loaded, claimed chunks,
-     * short-circuiting on the first match. Useful for "does this faction have X somewhere in its territory".
-     */
+    /** First match in the faction's loaded claimed chunks short-circuits. */
     public static boolean anyLoadedClaimedTile(UUID factionId, Predicate<BlockEntity> predicate) {
-        Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
-        MinecraftServer server = WarForgeMod.MC_SERVER;
-        if (faction == null || server == null) return false;
-        Set<DimChunkPos> seen = new HashSet<>();
-        for (DimBlockPos claim : faction.claims.keySet()) {
-            DimChunkPos cpos = claim.toChunkPos();
-            if (!seen.add(cpos)) continue;
-            ServerLevel level = server.getLevel(cpos.dim);
+        MinecraftServer server = server();
+        for (var entry : claimedChunks(factionId).entrySet()) {
+            ServerLevel level = server.getLevel(entry.getKey());
             if (level == null) continue;
-            LevelChunk chunk = level.getChunkSource().getChunkNow(cpos.x, cpos.z);
-            if (chunk == null) continue;
-            for (BlockEntity be : chunk.getBlockEntities().values()) {
-                if (be != null && !be.isRemoved() && predicate.test(be)) return true;
+            for (long packed : entry.getValue()) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(unpackX(packed), unpackZ(packed));
+                if (chunk == null) continue;
+                for (BlockEntity be : chunk.getBlockEntities().values()) {
+                    if (be != null && !be.isRemoved() && predicate.test(be)) return true;
+                }
             }
         }
         return false;
     }
 
     /**
-     * Total extra siege difficulty reinforcing {@code besieged} from active reinforcers placed in the
-     * faction's loaded claimed chunks. Non-stacking reinforcers (the default) contribute only their single
-     * strongest bonus; stacking ones add on top. Honours both the {@link IChunkReinforcer} capability and the
-     * legacy {@link IClaimStrengthModifier} interface.
+     * Extra siege difficulty from active reinforcers in the faction's loaded claimed chunks of the dimension.
+     * Non-stacking reinforcers contribute only the strongest; stacking ones add. Honours {@link IChunkReinforcer}
+     * and the legacy {@link IClaimStrengthModifier}.
      */
-    public static int getReinforcementBonus(UUID factionId, DimChunkPos besieged) {
-        Faction faction = WarForgeMod.FACTIONS.getFaction(factionId);
-        MinecraftServer server = WarForgeMod.MC_SERVER;
-        if (faction == null || server == null || besieged == null) return 0;
+    public static int getReinforcementBonus(UUID factionId, ResourceKey<Level> dim, ChunkPos besieged) {
+        MinecraftServer server = server();
+        LongSet chunks = claimedChunks(factionId).get(dim);
+        ServerLevel level = server.getLevel(dim);
+        if (chunks == null || level == null) return 0;
 
         int stackingSum = 0;
         int bestNonStacking = 0;
-        Set<DimChunkPos> seen = new HashSet<>();
-        for (DimBlockPos claim : faction.claims.keySet()) {
-            DimChunkPos cpos = claim.toChunkPos();
-            if (!cpos.dim.equals(besieged.dim) || !seen.add(cpos)) continue;
-            ServerLevel level = server.getLevel(cpos.dim);
-            if (level == null) continue;
-            LevelChunk chunk = level.getChunkSource().getChunkNow(cpos.x, cpos.z);
+        for (long packed : chunks) {
+            LevelChunk chunk = level.getChunkSource().getChunkNow(unpackX(packed), unpackZ(packed));
             if (chunk == null) continue;
 
             for (BlockEntity be : chunk.getBlockEntities().values()) {
                 if (be == null || be.isRemoved()) continue;
-                int bonus = 0;
-                boolean stacks = false;
+                int bonus;
+                boolean stacks;
 
                 IChunkReinforcer reinforcer = WarForgeCapabilities.chunkReinforcer(level, be);
                 if (reinforcer != null) {
                     if (!reinforcer.isReinforcementActive()) continue;
                     ChunkPos rc = Chunks.of(be.getBlockPos());
-                    int dist = Math.max(Math.abs(Chunks.x(rc) - besieged.x), Math.abs(Chunks.z(rc) - besieged.z));
+                    int dist = Math.max(Math.abs(Chunks.x(rc) - Chunks.x(besieged)), Math.abs(Chunks.z(rc) - Chunks.z(besieged)));
                     if (dist > reinforcer.getReinforcementRadius()) continue;
                     bonus = reinforcer.getReinforcementBonus();
                     stacks = reinforcer.stacksWithOthers();
@@ -280,7 +298,7 @@ public final class WarforgeAPI {
                     ChunkPos rc = Chunks.of(be.getBlockPos());
                     boolean covers = false;
                     for (Vec3i vec : legacy.getEffectArea()) {
-                        if (Chunks.x(rc) + vec.getX() == besieged.x && Chunks.z(rc) + vec.getZ() == besieged.z) {
+                        if (Chunks.x(rc) + vec.getX() == Chunks.x(besieged) && Chunks.z(rc) + vec.getZ() == Chunks.z(besieged)) {
                             covers = true;
                             break;
                         }
@@ -300,14 +318,10 @@ public final class WarforgeAPI {
         return stackingSum + bestNonStacking;
     }
 
-    // ---------------------------------------------------------------------------------------------
-    // Veins
-    // ---------------------------------------------------------------------------------------------
-
     @Nullable
     private static volatile VeinWeightProvider veinWeightProvider;
 
-    /** Survives {@code /f vein reload}. Install before players join: JourneyMap AUTO rolls veins around them. */
+    /** Survives {@code /f vein reload}. Install before players join: JourneyMap AUTO rolls veins around them. Any thread. */
     public static void setVeinWeightProvider(@Nullable VeinWeightProvider provider) {
         veinWeightProvider = provider;
     }
@@ -315,5 +329,55 @@ public final class WarforgeAPI {
     @Nullable
     public static VeinWeightProvider veinWeightProvider() {
         return veinWeightProvider;
+    }
+
+    /** All configured veins; empty before veins load. */
+    public static List<VeinView> veins() {
+        VeinUtils handler = WarForgeMod.VEIN_HANDLER;
+        server();
+        if (handler == null) return List.of();
+        ArrayList<VeinView> out = new ArrayList<>(handler.ID_TO_VEINS.size());
+        for (Vein vein : handler.ID_TO_VEINS.values()) {
+            out.add(vein.view());
+        }
+        return List.copyOf(out);
+    }
+
+    /** By translation key or numeric id; null when unknown. */
+    @Nullable
+    public static VeinView findVein(String key) {
+        server();
+        VeinUtils handler = WarForgeMod.VEIN_HANDLER;
+        Vein vein = handler == null ? null : handler.findVein(key);
+        return vein == null ? null : vein.view();
+    }
+
+    /** The chunk's vein (rolled and stored on first query); null for no vein or veins not loaded. */
+    @Nullable
+    public static VeinSample veinAt(ServerLevel level, int chunkX, int chunkZ) {
+        server();
+        VeinUtils handler = WarForgeMod.VEIN_HANDLER;
+        if (handler == null || !handler.hasFinishedInit) return null;
+        var info = handler.getVein(level.dimension(), chunkX, chunkZ, level.getSeed());
+        if (info == null || info.getLeft() == null) return null;
+        Quality quality = info.getRight();
+        return new VeinSample(info.getLeft().view(), quality);
+    }
+
+    private static final List<FobWarpVeto> FOB_WARP_VETOES = new CopyOnWriteArrayList<>();
+
+    /** Any thread. */
+    public static void addFobWarpVeto(FobWarpVeto veto) {
+        FOB_WARP_VETOES.add(veto);
+    }
+
+    /** First veto reason, or null. For the FOB manager. */
+    @Nullable
+    public static Component fobWarpVeto(ServerPlayer player, FobWarpVeto.Target fob) {
+        for (FobWarpVeto veto : FOB_WARP_VETOES) {
+            Component reason = veto.check(player, fob);
+            if (reason != null) return reason;
+        }
+        return null;
     }
 }

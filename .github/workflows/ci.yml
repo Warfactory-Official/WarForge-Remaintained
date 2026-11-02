@@ -15,14 +15,36 @@ permissions:
   contents: read
 
 jobs:
+  nodes:
+    name: List nodes
+    runs-on: ubuntu-latest
+    outputs:
+      nodes: ${{ steps.list.outputs.nodes }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+
+      - name: List nodes
+        id: list
+        run: |
+          chmod +x ./gradlew
+          echo "nodes=$(./gradlew -q printNodes)" >> "$GITHUB_OUTPUT"
+
   build:
     name: Build ${{ matrix.node }}
+    needs: nodes
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Keep in step with settings.gradle.kts and build-logic/src/main/kotlin/Variants.kt.
-        node: [1.20.1-forge, 1.21.1-neoforge, 26.1.2-neoforge, 26.2-neoforge]
+        node: ${{ fromJSON(needs.nodes.outputs.nodes) }}
 
     steps:
       - name: Checkout code
@@ -49,7 +71,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build with Gradle
-        run: ./gradlew :${{ matrix.node }}:build :${{ matrix.node }}:checkNoVersionGuards --stacktrace
+        run: ./gradlew :${{ matrix.node }}:build :${{ matrix.node }}:test --stacktrace
 
       - name: Publish snapshot
         if: github.event_name == 'push' && github.ref_name == 'multi-version' && endsWith(matrix.node, '-neoforge')

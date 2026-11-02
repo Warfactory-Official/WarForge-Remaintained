@@ -7,10 +7,6 @@ import xaero.map.highlight.ChunkHighlighter;
 
 import java.util.List;
 
-/**
- * Colours claimed chunks on Xaero's World Map. Added to its highlighter registry by XaeroWorldMapHighlighterMixin;
- * only loaded when Xaero's World Map is installed.
- */
 public class WorldMapClaimHighlighter extends ChunkHighlighter {
     public WorldMapClaimHighlighter() {
         super(true); // also over unexplored map areas, like the JourneyMap overlay

@@ -10,20 +10,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-// Gates the soft-dependency mixins in mixins.warforge.compat.json. Each maps to the modid that must be
-// present for it to apply; getMixins() only registers the ones whose mod is installed, so absent mods cost
-// nothing and produce no missing-target warnings. Add a new soft-dependency mixin by writing it and adding
-// one entry here. LoadingModList is already populated when Mixin prepares configs.
+// getMixins() registers only mixins whose modid is loaded: no missing-target warnings. LoadingModList is populated before Mixin prepares configs.
 public class CompatMixinPlugin implements IMixinConfigPlugin {
-
-    // mixin class (simple name, relative to the config package) -> required modid
     private static final Map<String, String> GATED_MIXINS = Map.of(
             "SbwExplosionClaimMixin", "superbwarfare",
             "AshVehicleExplosionClaimMixin", "ashvehicle",
-            // Claim overlays on Xaero's maps (client-side mods).
             "XaeroWorldMapHighlighterMixin", "xaeroworldmap",
             "XaeroMinimapHighlighterMixin", "xaerominimap"
     );
+
+    private static final String PACKAGE = "com.flansmod.warforge.common.mixins.";
 
     private static boolean modPresent(String modId) {
         return LoadingModList.get() != null && LoadingModList.get().getModFileById(modId) != null;
@@ -42,8 +38,7 @@ public class CompatMixinPlugin implements IMixinConfigPlugin {
 
     @Override
     public boolean shouldApplyMixin(String targetClassName, String mixinClassName) {
-        String simpleName = mixinClassName.substring(mixinClassName.lastIndexOf('.') + 1);
-        String modId = GATED_MIXINS.get(simpleName);
+        String modId = GATED_MIXINS.get(mixinClassName.substring(PACKAGE.length()));
         return modId == null || modPresent(modId);
     }
 

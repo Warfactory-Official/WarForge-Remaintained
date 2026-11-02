@@ -9,7 +9,6 @@ import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.util.RandomSource;
 
 public class ParticleStarCircle extends SingleQuadParticle {
-
     private ParticleStarCircle(ClientLevel level, double x, double y, double z, float r, float g, float b, TextureAtlasSprite sprite) {
         super(level, x, y, z, 0.0, 0.0, 0.0, sprite);
         this.rCol = r;

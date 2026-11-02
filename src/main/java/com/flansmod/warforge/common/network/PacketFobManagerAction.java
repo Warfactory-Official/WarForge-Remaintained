@@ -1,26 +1,24 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.Role;
+
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.blocks.TileEntityFob;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
+import com.flansmod.warforge.common.blocks.FobBlockEntity;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.fob.Fob;
 
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import com.flansmod.warforge.compat.Keys;
 
-public class PacketFobManagerAction extends PacketBase {
+public class PacketFobManagerAction extends ServerboundPacket {
     public Action action = Action.WARP;
     public DimBlockPos target = DimBlockPos.ZERO;
     public String name = "";
-    public FactionMemberManagerGuiData.Page page = FactionMemberManagerGuiData.Page.ALLIANCES;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
@@ -30,7 +28,6 @@ public class PacketFobManagerAction extends PacketBase {
         data.writeInt(target.getY());
         data.writeInt(target.getZ());
         writeUTF(data, name);
-        data.writeByte(page.ordinal());
     }
 
     @Override
@@ -41,9 +38,7 @@ public class PacketFobManagerAction extends PacketBase {
         int y = data.readInt();
         int z = data.readInt();
         target = new DimBlockPos(dim, x, y, z);
-        name = readUTF(data, 32);
-        page = PacketSecurity.readEnum(data, FactionMemberManagerGuiData.Page.values(),
-                FactionMemberManagerGuiData.Page.ALLIANCES);
+        name = readUTF(data, PacketSecurity.MAX_FOB_NAME);
     }
 
     @Override
@@ -55,8 +50,6 @@ public class PacketFobManagerAction extends PacketBase {
     }
 
     private boolean handleEstablish(ServerPlayer playerEntity) {
-        // Same rule as PacketEstablishFob: this comes from the FOB block's GUI, and the lookup below
-        // used the player's own level while ignoring target.dim.
         if (!PacketSecurity.requireReach(playerEntity, target, "establish FOB")) {
             return false;
         }
@@ -65,20 +58,20 @@ public class PacketFobManagerAction extends PacketBase {
             return false;
         }
 
-        if (name.trim().length() > 32) {
+        if (name.trim().length() > PacketSecurity.MAX_FOB_NAME) {
             return false;
         }
 
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(playerEntity.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(playerEntity.getUUID());
         if (faction == null) {
             return false;
         }
 
-        if (!faction.isPlayerRoleInFaction(playerEntity.getUUID(), Faction.Role.OFFICER)) {
+        if (!faction.isPlayerRoleInFaction(playerEntity.getUUID(), Role.OFFICER)) {
             return false;
         }
 
-        TileEntityFob te = PacketSecurity.blockEntityAt(playerEntity, target, TileEntityFob.class, "establish FOB");
+        FobBlockEntity te = PacketSecurity.blockEntityAt(playerEntity, target, FobBlockEntity.class, "establish FOB");
         if (te != null) {
             WarForgeMod.FOBS.requestCreateFob(te, playerEntity, name);
             return true;
@@ -87,6 +80,9 @@ public class PacketFobManagerAction extends PacketBase {
     }
 
     private boolean handleWarp(ServerPlayer playerEntity) {
+        if (!PacketSecurity.requireSameDim(playerEntity, target.dim, "FOB warp")) {
+            return false;
+        }
         Fob fob = WarForgeMod.FOBS.getFobAt(target.toChunkPos());
         if (fob == null) {
             return false;

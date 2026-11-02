@@ -1,20 +1,19 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ui.model.DataRevision;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
 import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.client.util.PlayerFaceElement;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.FactionFlagSelectGuiFactory;
-import com.flansmod.warforge.common.factories.FactionInsuranceGuiFactory;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiFactory;
-import com.flansmod.warforge.common.factories.FactionUpgradeGuiFactory;
-import com.flansmod.warforge.common.factories.OperationsGuiFactory;
+import com.flansmod.warforge.common.network.FactionMemberManagerGuiData;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.PacketFactionInfo;
 import com.flansmod.warforge.common.network.PacketRequestFactionInfo;
 import com.flansmod.warforge.common.network.PlayerDisplayInfo;
-import com.flansmod.warforge.server.Faction;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
@@ -34,9 +33,9 @@ import java.util.UUID;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** Faction stats, laid out like GuiFactionStats of the 1.20.1 build. */
 @OnlyIn(Dist.CLIENT)
 public final class FactionStatsScreen {
+    private static final DataRevision REVISION = new DataRevision();
     private static final int WIDTH = 320;
     private static final int BASE_HEIGHT = 228;
     private static final int ACTIONS_Y = 182;
@@ -52,11 +51,14 @@ public final class FactionStatsScreen {
         }
 
         FactionDisplayInfo info = PacketFactionInfo.latestInfo;
-        boolean hasFaction = info != null && !info.factionId.equals(Faction.nullUuid);
+        if (info != null && REVISION.unchanged(ClientCompat.screen(), info)) {
+            return;
+        }
+
+        boolean hasFaction = info != null && !info.factionId.equals(FactionIds.NONE);
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
         int rowWidth = sectionWidth - 10;
 
-        // The action buttons (this build has more than the 1.20.1 one): wrap onto extra rows when needed.
         List<Action> buttons = new ArrayList<>();
         if (hasFaction) {
             buttons = actionButtons(mc, info);
@@ -74,51 +76,49 @@ public final class FactionStatsScreen {
         colorStripe(panel, hasFaction ? info.colour : NO_FACTION_STRIPE, height);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Faction Stats", TEXT_PRIMARY);
+        title(panel, tr("warforge.ui.faction_stats"), TEXT_PRIMARY);
 
         if (!hasFaction) {
-            subtitle(panel, text("No faction information is available.", TEXT_SECONDARY));
+            subtitle(panel, text(tr("warforge.ui.no_faction_information_is_available"), TEXT_SECONDARY));
             show(root, mc);
             return;
         }
 
         subtitle(panel, text(info.factionName, info.colour));
 
-        // Leader, top right of the header: right(35), top(10)
-        PlayerDisplayInfo leader = info.getPlayerInfo(info.mLeaderID);
+        PlayerDisplayInfo leader = info.getPlayerInfo(info.leaderId);
         UIElement leaderRow = flow(FlexDirection.ROW);
         leaderRow.layout(l -> l.positionType(TaffyPosition.ABSOLUTE).right(35).top(10).height(20).paddingHorizontal(2));
-        PlayerFaceElement leaderFace = new PlayerFaceElement(info.mLeaderID);
+        PlayerFaceElement leaderFace = new PlayerFaceElement(info.leaderId);
         leaderFace.layout(l -> l.width(20).height(20).marginHorizontal(2).flexShrink(0));
         leaderRow.addChild(leaderFace);
-        leaderRow.addChild(fit(text("Leader: " + (leader == null ? "Unknown" : leader.username), TEXT_SECONDARY)));
+        leaderRow.addChild(fit(text(tr("warforge.ui.leader_s", leader == null ? tr("warforge.ui.unknown") : leader.username), TEXT_SECONDARY)));
         panel.addChild(leaderRow);
 
-        Label overview = fit(text("Faction Overview", TEXT_PRIMARY));
+        Label overview = fit(text(tr("warforge.ui.faction_overview"), TEXT_PRIMARY));
         overview.layout(l -> l.marginBottom(4));
         body.addChild(overview);
-        Label blurb = wrap(text("Standing, territory, membership, and citadel progression.", TEXT_MUTED), sectionWidth);
+        Label blurb = wrap(text(tr("warforge.ui.standing_territory_membership_and_citadel_progre"), TEXT_MUTED), sectionWidth);
         blurb.layout(l -> l.marginBottom(6));
         body.addChild(blurb);
 
         int total = info.notoriety + info.wealth + info.legacy;
-        int claimLimit = WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(info.lvl);
-        int stashSlots = WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(info.lvl);
+        int claimLimit = com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(info.lvl);
+        int stashSlots = com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(info.lvl);
 
         UIElement grid = box(rowWidth, 70);
-        statRow(grid, 0, 0, "Notoriety", String.valueOf(info.notoriety), "#" + info.notorietyRank);
-        statRow(grid, 0, 18, "Wealth", String.valueOf(info.wealth), "#" + info.wealthRank);
-        statRow(grid, 0, 36, "Legacy", String.valueOf(info.legacy), "#" + info.legacyRank);
-        statRow(grid, 0, 54, "Total", String.valueOf(total), "#" + info.totalRank);
-        statRow(grid, 148, 0, "Claims", String.valueOf(info.mNumClaims), claimLimit < 0 ? "INF" : String.valueOf(claimLimit));
-        statRow(grid, 148, 18, "Members", String.valueOf(info.members.size()), "");
+        statRow(grid, 0, 0, tr("warforge.ui.notoriety"), String.valueOf(info.notoriety), "#" + info.notorietyRank);
+        statRow(grid, 0, 18, tr("warforge.ui.wealth"), String.valueOf(info.wealth), "#" + info.wealthRank);
+        statRow(grid, 0, 36, tr("warforge.ui.legacy"), String.valueOf(info.legacy), "#" + info.legacyRank);
+        statRow(grid, 0, 54, tr("warforge.ui.total"), String.valueOf(total), "#" + info.totalRank);
+        statRow(grid, 148, 0, tr("warforge.ui.claims"), String.valueOf(info.numClaims), claimLimit < 0 ? tr("warforge.ui.inf") : String.valueOf(claimLimit));
+        statRow(grid, 148, 18, tr("warforge.ui.members"), String.valueOf(info.members.size()), "");
         if (WarForgeConfig.ENABLE_CITADEL_UPGRADES) {
-            statRow(grid, 148, 36, "Citadel", "Lvl " + info.lvl, claimLimit < 0 ? "INF claims" : claimLimit + " claims");
+            statRow(grid, 148, 36, tr("warforge.ui.citadel"), tr("warforge.ui.lvl_d", info.lvl), claimLimit < 0 ? tr("warforge.ui.inf_claims") : tr("warforge.ui.d_claims", claimLimit));
         }
-        statRow(grid, 148, 54, "Stash", String.valueOf(stashSlots), "slots");
+        statRow(grid, 148, 54, tr("warforge.ui.stash"), String.valueOf(stashSlots), tr("warforge.ui.slots"));
         body.addChild(grid);
 
-        // First row 26 high (buttons centred: y 4); wrapped rows ACTION_ROW_HEIGHT. Buttons after the first: margin 4 each side.
         for (int r = 0; r < rows.size(); r++) {
             UIElement actionRow = flow(FlexDirection.ROW);
             boolean first = r == 0;
@@ -148,27 +148,26 @@ public final class FactionStatsScreen {
         List<Action> buttons = new ArrayList<>();
         PlayerDisplayInfo self = info.getPlayerInfo(mc.player.getUUID());
         boolean isOwnFaction = self != null;
-        boolean isOfficer = self != null && self.role.ordinal() >= Faction.Role.OFFICER.ordinal();
+        boolean isOfficer = self != null && self.role.ordinal() >= Role.OFFICER.ordinal();
         UUID displayedFaction = info.factionId;
 
         if (isOwnFaction) {
-            buttons.add(action("Stash", 66, () -> FactionInsuranceGuiFactory.INSTANCE.openClientSibling(displayedFaction)));
-            buttons.add(action("Members", 62, () -> FactionMemberManagerGuiFactory.INSTANCE.openClientSibling(FactionMemberManagerGuiData.Page.MEMBERS)));
+            buttons.add(action(tr("warforge.ui.stash"), 66, () -> UiNavigation.requestInsurance(displayedFaction)));
+            buttons.add(action(tr("warforge.ui.members"), 62, () -> UiNavigation.requestMembers(FactionMemberManagerGuiData.Page.MEMBERS)));
             if (WarForgeConfig.ENABLE_CITADEL_UPGRADES && isOfficer) {
-                buttons.add(action("Upgrade", 70, () -> FactionUpgradeGuiFactory.INSTANCE.openClientSibling(displayedFaction)));
+                buttons.add(action(tr("warforge.ui.upgrade"), 70, () -> UiNavigation.requestUpgrade(displayedFaction)));
             }
-            buttons.add(action("Operations", 84, () -> OperationsGuiFactory.INSTANCE.openClient()));
-            buttons.add(action("Flag", 66, () -> FactionFlagSelectGuiFactory.INSTANCE.openClient(displayedFaction)));
+            buttons.add(action(tr("warforge.ui.operations"), 84, () -> UiNavigation.requestOperations()));
+            buttons.add(action(tr("warforge.ui.flag"), 66, () -> UiNavigation.openFlagSelect(displayedFaction, info.factionName, info.colour, info.flagId)));
         }
-        buttons.add(action("Refresh", 66, () -> {
+        buttons.add(action(tr("warforge.ui.refresh"), 66, () -> {
             PacketRequestFactionInfo packet = new PacketRequestFactionInfo();
-            packet.mFactionIDRequest = displayedFaction;
+            packet.factionIdRequest = displayedFaction;
             WarForgeMod.NETWORK.sendToServer(packet);
         }));
         return buttons;
     }
 
-    /** Rows of buttons that fit rowWidth; a button after the first of its row takes 4 + width + 4. */
     private static List<List<Action>> splitRows(List<Action> buttons, int rowWidth) {
         List<List<Action>> rows = new ArrayList<>();
         List<Action> row = new ArrayList<>();
@@ -192,10 +191,12 @@ public final class FactionStatsScreen {
         UIElement row = place(grid, row(136, 16), x, y, 136, 16);
         row.addChild(width(text(label, TEXT_PRIMARY), 52));
         row.addChild(width(text(value, TEXT_PRIMARY), 42));
-        row.addChild(width(text(extra, 0xBBBBBB), 42));
+        row.addChild(width(text(extra, TEXT_DIM), 42));
     }
 
     private static void show(UIElement root, Minecraft mc) {
-        ClientCompat.setScreen(new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal("Faction Stats")));
+        ModularUIScreen built = new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal(tr("warforge.ui.faction_stats")));
+        REVISION.shown(built);
+        ClientCompat.setScreen(built);
     }
 }

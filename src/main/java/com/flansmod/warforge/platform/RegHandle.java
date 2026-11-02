@@ -9,6 +9,6 @@ public interface RegHandle<T> extends Supplier<T> {
     @Override
     T get();
 
-    /** The registry holder of the object (a Holder of the registry's type). */
-    Holder<?> holder();
+    /** The registry holder of the object. */
+    Holder<T> holder();
 }

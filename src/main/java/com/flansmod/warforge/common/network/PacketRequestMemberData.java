@@ -1,22 +1,23 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
 import com.flansmod.warforge.compat.Profiles;
 
 import com.flansmod.warforge.compat.PlayerRef;
 
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.FactionMemberManagerGuiData;
+import com.flansmod.warforge.common.network.FactionMemberManagerGuiData;
 import com.flansmod.warforge.server.Faction;
-import com.mojang.authlib.GameProfile;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.Comparator;
-import java.util.Map;
 import java.util.UUID;
 
-public class PacketRequestMemberData extends PacketBase {
+public class PacketRequestMemberData extends ServerboundPacket {
     public FactionMemberManagerGuiData.Page page = FactionMemberManagerGuiData.Page.MEMBERS;
 
     @Override
@@ -26,7 +27,7 @@ public class PacketRequestMemberData extends PacketBase {
 
     @Override
     public void decodeInto(FriendlyByteBuf data) {
-        page = FactionMemberManagerGuiData.Page.values()[data.readByte()];
+        page = PacketSecurity.readEnum(data, FactionMemberManagerGuiData.Page.values(), FactionMemberManagerGuiData.Page.MEMBERS);
     }
 
     @Override
@@ -44,18 +45,18 @@ public class PacketRequestMemberData extends PacketBase {
         PacketMemberData data = new PacketMemberData();
         data.page = page;
 
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
         if (faction == null) {
             if (page == FactionMemberManagerGuiData.Page.INVITES) {
-                for (Faction inviteFaction : WarForgeMod.FACTIONS.getFactionsWithOpenInvitesTo(player.getUUID())) {
+                for (Faction inviteFaction : WarForgeMod.FACTIONS.membership.getFactionsWithOpenInvitesTo(player.getUUID())) {
                     FactionMemberManagerGuiData.InviteEntry invite = new FactionMemberManagerGuiData.InviteEntry();
                     invite.incoming = true;
-                    invite.factionId = inviteFaction.uuid;
-                    invite.factionColor = inviteFaction.colour;
-                    invite.username = inviteFaction.name;
+                    invite.factionId = inviteFaction.getUuid();
+                    invite.factionColor = inviteFaction.getColour();
+                    invite.username = inviteFaction.getName();
                     invite.playerId = inviteFaction.getLeaderId();
                     invite.inviterId = invite.playerId;
-                    invite.inviterName = invite.playerId.equals(Faction.nullUuid) ? "" : resolveName(invite.playerId);
+                    invite.inviterName = invite.playerId.equals(FactionIds.NONE) ? "" : resolveName(invite.playerId);
                     invite.invited = true;
                     invite.canAccept = true;
                     data.inviteCandidates.add(invite);
@@ -66,27 +67,26 @@ public class PacketRequestMemberData extends PacketBase {
         }
 
         data.hasFaction = true;
-        data.factionId = faction.uuid;
-        data.factionName = faction.name;
-        data.factionColor = faction.colour;
+        data.factionId = faction.getUuid();
+        data.factionName = faction.getName();
+        data.factionColor = faction.getColour();
         data.viewerRole = determineViewerRole(faction, player.getUUID());
-        data.canManageMembers = WarForgeMod.isOp(player) || data.viewerRole.ordinal() >= Faction.Role.OFFICER.ordinal();
+        data.canManageMembers = WarForgeMod.isOp(player) || data.viewerRole.ordinal() >= Role.OFFICER.ordinal();
         data.canInvitePlayers = data.canManageMembers;
         data.canManageAlliances = data.canManageMembers;
-        data.allowAllyInteraction = faction.allowAllyInteraction;
+        data.allowAllyInteraction = faction.isAllowAllyInteraction();
 
-        for (Map.Entry<UUID, Faction.PlayerData> entry : faction.members.entrySet()) {
-            UUID memberId = entry.getKey();
+        for (UUID memberId : faction.getMemberIds()) {
             FactionMemberManagerGuiData.MemberEntry member = new FactionMemberManagerGuiData.MemberEntry();
             member.playerId = memberId;
             member.username = resolveName(memberId);
-            member.role = entry.getValue().role;
+            member.role = faction.getRole(memberId);
             member.online = WarForgeMod.MC_SERVER.getPlayerList().getPlayer(memberId) != null;
             member.self = player.getUUID().equals(memberId);
             member.canKickOrLeave = member.self || WarForgeMod.isOp(player) || faction.isPlayerOutrankingOfficer(player.getUUID(), memberId);
-            member.canPromote = data.viewerRole == Faction.Role.LEADER && member.role == Faction.Role.MEMBER && member.online;
-            member.canDemote = data.viewerRole == Faction.Role.LEADER && member.role == Faction.Role.OFFICER && member.online;
-            member.canTransferLeadership = (WarForgeMod.isOp(player) || data.viewerRole == Faction.Role.LEADER) && !member.self;
+            member.canPromote = data.viewerRole == Role.LEADER && member.role == Role.MEMBER && member.online;
+            member.canDemote = data.viewerRole == Role.LEADER && member.role == Role.OFFICER && member.online;
+            member.canTransferLeadership = (WarForgeMod.isOp(player) || data.viewerRole == Role.LEADER) && !member.self;
             data.members.add(member);
         }
 
@@ -98,7 +98,7 @@ public class PacketRequestMemberData extends PacketBase {
             if (onlinePlayer.getUUID().equals(player.getUUID())) {
                 continue;
             }
-            if (WarForgeMod.FACTIONS.getFactionOfPlayer(onlinePlayer.getUUID()) != null) {
+            if (WarForgeMod.FACTIONS.registry.getFactionOfPlayer(onlinePlayer.getUUID()) != null) {
                 continue;
             }
             FactionMemberManagerGuiData.InviteEntry invite = new FactionMemberManagerGuiData.InviteEntry();
@@ -112,14 +112,14 @@ public class PacketRequestMemberData extends PacketBase {
         data.inviteCandidates.sort(Comparator.comparing(invite -> invite.username, String.CASE_INSENSITIVE_ORDER));
 
         if (page == FactionMemberManagerGuiData.Page.ALLIANCES) {
-            for (UUID allyId : faction.allies) {
-                addAllianceEntry(data, WarForgeMod.FACTIONS.getFaction(allyId), FactionMemberManagerGuiData.AllianceEntry.KIND_ALLY);
+            for (UUID allyId : faction.getAllies()) {
+                addAllianceEntry(data, WarForgeMod.FACTIONS.registry.getFaction(allyId), FactionMemberManagerGuiData.AllianceEntry.KIND_ALLY);
             }
-            for (UUID requesterId : faction.pendingAllianceRequests) {
-                addAllianceEntry(data, WarForgeMod.FACTIONS.getFaction(requesterId), FactionMemberManagerGuiData.AllianceEntry.KIND_PENDING);
+            for (UUID requesterId : faction.getPendingAllianceRequests()) {
+                addAllianceEntry(data, WarForgeMod.FACTIONS.registry.getFaction(requesterId), FactionMemberManagerGuiData.AllianceEntry.KIND_PENDING);
             }
-            for (Faction invitable : WarForgeMod.FACTIONS.getAlliableFactions(faction)) {
-                if (faction.pendingAllianceRequests.contains(invitable.uuid)) {
+            for (Faction invitable : WarForgeMod.FACTIONS.alliances.getAlliableFactions(faction)) {
+                if (faction.getPendingAllianceRequests().contains(invitable.getUuid())) {
                     continue;
                 }
                 addAllianceEntry(data, invitable, FactionMemberManagerGuiData.AllianceEntry.KIND_INVITABLE);
@@ -134,22 +134,22 @@ public class PacketRequestMemberData extends PacketBase {
             return;
         }
         FactionMemberManagerGuiData.AllianceEntry entry = new FactionMemberManagerGuiData.AllianceEntry();
-        entry.factionId = faction.uuid;
-        entry.factionName = faction.name;
-        entry.factionColor = faction.colour;
-        entry.onlineCount = faction.onlinePlayerCount;
+        entry.factionId = faction.getUuid();
+        entry.factionName = faction.getName();
+        entry.factionColor = faction.getColour();
+        entry.onlineCount = faction.countOnlineMembers(null);
         entry.kind = kind;
         data.alliances.add(entry);
     }
 
-    private static Faction.Role determineViewerRole(Faction faction, UUID playerId) {
-        if (faction.isPlayerRoleInFaction(playerId, Faction.Role.LEADER)) {
-            return Faction.Role.LEADER;
+    private static Role determineViewerRole(Faction faction, UUID playerId) {
+        if (faction.isPlayerRoleInFaction(playerId, Role.LEADER)) {
+            return Role.LEADER;
         }
-        if (faction.isPlayerRoleInFaction(playerId, Faction.Role.OFFICER)) {
-            return Faction.Role.OFFICER;
+        if (faction.isPlayerRoleInFaction(playerId, Role.OFFICER)) {
+            return Role.OFFICER;
         }
-        return Faction.Role.MEMBER;
+        return Role.MEMBER;
     }
 
     private static String resolveName(UUID playerId) {

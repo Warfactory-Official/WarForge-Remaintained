@@ -20,73 +20,28 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import com.flansmod.warforge.compat.Ids;
 import com.flansmod.warforge.compat.Keys;
 
-/**
- * Server-side gatekeeping for everything that arrives on the WarForge channel.
- *
- * <p>Nothing a client sends is trusted: positions, dimensions, faction UUIDs, enum ordinals and
- * collection lengths are all attacker-controlled. The GUIs enforce plenty of rules (you can only
- * click chunks near you, only the citadel placer gets the "create faction" button, ...), but a
- * crafted packet skips the GUI entirely, so every one of those rules has to exist here too.
- *
- * <p>Three layers live in this class:
- * <ul>
- *   <li><b>Decode bounds</b> - {@code readDim}/{@code readEnum}/{@code readCount} never allocate or
- *       throw on hostile input, so a malformed packet can't OOM or kill the netty pipeline.</li>
- *   <li><b>Authority</b> - {@code requireReach}/{@code requireSameDim}/{@code requireChunkInRange}
- *       bind an action to where the player actually is.</li>
- *   <li><b>Rate limiting</b> - a per-player token bucket per {@link Bucket}, applied centrally in
- *       {@link PacketHandler} so no packet can be added without a cost.</li>
- * </ul>
- */
 public final class PacketSecurity {
     private PacketSecurity() {
     }
 
-    // ---------------------------------------------------------------- string caps
-
-    /** Namespaced ids are 256 chars at the very most; anything longer is junk. */
     public static final int MAX_RESOURCE_LOCATION = 256;
-    /**
-     * Faction / player / FOB names. Matches the ceiling of WarForgeConfig "Max Faction Name Length"
-     * so a server that raises that setting still round-trips; the real length rule is enforced
-     * server-side by validateFactionName.
-     */
-    public static final int MAX_NAME = 128;
-    /** Flag ids are resource-path shaped. */
-    public static final int MAX_FLAG_ID = 128;
 
-    /**
-     * Blocks a player may act on through a packet. Vanilla reach is ~4.5 (6 in creative); we allow a
-     * bit more so latency or a slightly stale GUI never rejects a legitimate click.
-     */
+    // >= WarForgeConfig max faction name length ceiling
+    public static final int MAX_NAME = 128;
+    public static final int MAX_FLAG_ID = 128;
+    public static final int MAX_FOB_NAME = 32;
+
+    // vanilla reach 4.5 (6 creative) + latency slack
     public static final double MAX_BLOCK_INTERACT_DIST = 12.0D;
     private static final double MAX_BLOCK_INTERACT_DIST_SQ = MAX_BLOCK_INTERACT_DIST * MAX_BLOCK_INTERACT_DIST;
 
-    // ---------------------------------------------------------------- rate limiting
-
-    /**
-     * Cost classes. Capacity is the burst a client may spend at once; refill is sustained rate per
-     * second. Sized so the real GUIs (which fire a request per keystroke / per map pan) never hit the
-     * limit, while a scripted flood is throttled to something the server can absorb.
-     */
+    /** Burst capacity / sustained refill per second. */
     public enum Bucket {
-        /**
-         * Cheap lookups against in-memory state: faction info, leaderboard, nameplates, veins.
-         * The burst is large because joining a busy server fires one nameplate request per visible
-         * player in a single frame.
-         */
         QUERY(150, 50),
-        /**
-         * Claim-map windows. Each request walks a (2r+1)^2 chunk square - up to 9409 lookups at the
-         * border-sync radius - so this is the one read path worth keeping tight. The client resyncs
-         * on chunk change plus a slow safety interval, nowhere near this rate.
-         */
+        // (2r+1)^2 chunk lookups per request, up to 9409 at border-sync radius
         MAP(12, 4),
-        /** Terrain colour sampling: reads 256 heightmap+blockstate samples per chunk in the window. */
         TERRAIN(8, 3),
-        /** State mutations: claiming, sieging, alliances, faction lifecycle. */
         ACTION(20, 8),
-        /** Packets that carry no server-side work at all. */
         NONE(0, 0);
 
         final int capacity;
@@ -114,13 +69,8 @@ public final class PacketSecurity {
 
     private static final Map<UUID, Buckets> BUCKETS = new ConcurrentHashMap<>();
 
-    /** One violation log per player per this many ms, so hostile traffic can't also flood the log. */
     private static final long VIOLATION_LOG_INTERVAL_MS = 5_000L;
 
-    /**
-     * Spends one token from {@code bucket} for {@code player}. Returns false when the player is over
-     * budget, in which case the caller must drop the packet.
-     */
     public static boolean allow(ServerPlayer player, Bucket bucket, String packetName) {
         if (bucket == Bucket.NONE || player == null) {
             return true;
@@ -145,10 +95,6 @@ public final class PacketSecurity {
         return true;
     }
 
-    /**
-     * Records something a well-behaved client cannot do. The packet is always dropped by the caller;
-     * this only decides whether it gets written to the log.
-     */
     public static void violation(ServerPlayer player, String detail) {
         if (player == null) {
             WarForgeMod.LOGGER.warn("[WarForge security] rejected packet from unknown sender: {}", detail);
@@ -174,16 +120,12 @@ public final class PacketSecurity {
                 suppressed > 0 ? " (+" + suppressed + " similar suppressed)" : "");
     }
 
-    /** Drops a disconnecting player's buckets so the map doesn't grow without bound. */
     public static void forget(UUID playerId) {
         if (playerId != null) {
             BUCKETS.remove(playerId);
         }
     }
 
-    // ---------------------------------------------------------------- authority checks
-
-    /** True when {@code pos} is in the player's dimension and close enough to touch. */
     public static boolean requireReach(ServerPlayer player, DimBlockPos pos, String action) {
         if (pos == null) {
             violation(player, action + " with no position");
@@ -215,11 +157,7 @@ public final class PacketSecurity {
         return true;
     }
 
-    /**
-     * True when {@code chunk} lies inside the square window the claim-manager UI can actually show
-     * around the player. This is what stops a crafted packet from claiming, unclaiming or force
-     * loading chunks on the far side of the world.
-     */
+    // Stops crafted claim/unclaim/forceload far from the player.
     public static boolean requireChunkInRange(ServerPlayer player, DimChunkPos chunk, int radius, String action) {
         if (chunk == null) {
             violation(player, action + " with no chunk");
@@ -237,16 +175,18 @@ public final class PacketSecurity {
         return true;
     }
 
-    /** Claim-manager window plus a chunk of slack for players walking while the GUI is open. */
+    public static int claimRange() {
+        return WarForgeConfig.CLAIM_MANAGER_RADIUS + 1;
+    }
+
+    public static int claimMapRadius() {
+        return WarForgeConfig.CLAIM_MANAGER_RADIUS + WarForgeConfig.SIEGE_DECLARE_MAX_RANGE + 1;
+    }
+
     public static boolean requireChunkInClaimRange(ServerPlayer player, DimChunkPos chunk, String action) {
         return requireChunkInRange(player, chunk, WarForgeConfig.CLAIM_MANAGER_RADIUS + 1, action);
     }
 
-    /**
-     * Resolves a client-supplied dimension to a real level. Positions decoded from packets are
-     * routinely fed to {@code MC_SERVER.getLevel(...)}; without this a bogus dimension id is a null
-     * dereference.
-     */
     public static ServerLevel resolveLevel(ServerPlayer player, ResourceKey<Level> dim, String action) {
         if (dim == null) {
             violation(player, action + " with an unknown dimension");
@@ -259,10 +199,6 @@ public final class PacketSecurity {
         return level;
     }
 
-    /**
-     * Fetches a block entity of the expected type at a client-supplied position, without loading
-     * chunks and without a ClassCastException when the client points at something else.
-     */
     public static <T extends BlockEntity> T blockEntityAt(ServerPlayer player, DimBlockPos pos, Class<T> type, String action) {
         ServerLevel level = resolveLevel(player, pos == null ? null : pos.dim, action);
         if (level == null) {
@@ -280,39 +216,28 @@ public final class PacketSecurity {
         return type.cast(be);
     }
 
-    // ---------------------------------------------------------------- bounded decoding
-
-    /**
-     * Reads a dimension key. Returns null (rather than throwing out of the netty pipeline) when the
-     * client sends an over-long or syntactically invalid id; handlers treat null as "drop".
-     */
+    /** null => drop; never throws on hostile input. */
     public static ResourceKey<Level> readDim(FriendlyByteBuf data) {
         ResourceLocation id = Ids.tryParse(data.readUtf(MAX_RESOURCE_LOCATION));
         return id == null ? null : ResourceKey.create(Registries.DIMENSION, id);
     }
 
-    /** Reads a dimension key, falling back to the overworld so downstream code sees a non-null key. */
     public static ResourceKey<Level> readDimOrOverworld(FriendlyByteBuf data) {
         ResourceKey<Level> dim = readDim(data);
         return dim == null ? Level.OVERWORLD : dim;
     }
 
-    /** Reads an enum by unsigned-byte ordinal, substituting {@code fallback} for out-of-range values. */
     public static <E extends Enum<E>> E readEnum(FriendlyByteBuf data, E[] values, E fallback) {
         int ordinal = data.readUnsignedByte();
         return ordinal < values.length ? values[ordinal] : fallback;
     }
 
-    /** Reads an int-encoded enum ordinal, substituting {@code fallback} for out-of-range values. */
     public static <E extends Enum<E>> E readEnumInt(FriendlyByteBuf data, E[] values, E fallback) {
         int ordinal = data.readInt();
         return ordinal >= 0 && ordinal < values.length ? values[ordinal] : fallback;
     }
 
-    /**
-     * Reads a collection length and clamps it to {@code max}. Callers must still tolerate a short
-     * buffer; this only stops a small packet from asking for a huge allocation up front.
-     */
+    /** Clamped to max; callers still tolerate a short buffer. */
     public static int readCount(FriendlyByteBuf data, int max) {
         int count = data.readInt();
         if (count < 0) {

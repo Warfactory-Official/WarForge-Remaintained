@@ -1,24 +1,27 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.compat.Profiles;
-
-import com.flansmod.warforge.compat.PlayerRef;
-
-import com.flansmod.warforge.compat.Chunks;
-
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.ProtectionsModule;
+import com.flansmod.warforge.common.WarClock;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.network.*;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.network.FactionDisplayInfo;
+import com.flansmod.warforge.common.network.LeaderboardInfo;
+import com.flansmod.warforge.common.network.PacketFactionInfo;
+import com.flansmod.warforge.common.network.PacketLeaderboardInfo;
+import com.flansmod.warforge.common.network.PacketToggleBorders;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.common.util.TimeHelper;
-import org.apache.commons.lang3.tuple.Pair;
-import com.flansmod.warforge.server.Faction.PlayerData;
+import com.flansmod.warforge.compat.Chunks;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Perms;
+import com.flansmod.warforge.compat.PlayerRef;
+import com.flansmod.warforge.compat.Profiles;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
-import com.mojang.authlib.GameProfile;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -40,15 +43,14 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
+import org.apache.commons.lang3.tuple.Pair;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import com.flansmod.warforge.compat.Ids;
-import com.flansmod.warforge.compat.Keys;
-import com.flansmod.warforge.compat.Perms;
+
+import static com.flansmod.warforge.server.ServerText.t;
 
 public class CommandFactions {
     private static boolean isOp(CommandSourceStack src) {
@@ -57,18 +59,26 @@ public class CommandFactions {
 
     private static final SuggestionProvider<CommandSourceStack> FACTION_NAME_SUGGESTIONS = (ctx, builder) -> {
         List<String> names = new ArrayList<>();
-        for (Faction faction : WarForgeMod.FACTIONS.getAllFactions()) {
-            if (faction != null && faction.name != null && !faction.uuid.equals(Faction.nullUuid)) {
-                names.add(faction.name);
+        for (Faction faction : WarForgeMod.FACTIONS.registry.getAllFactions()) {
+            if (!FactionIds.isNeutralZone(faction.getUuid())) {
+                names.add(faction.getName());
             }
         }
         return SharedSuggestionProvider.suggest(names, builder);
     };
 
+    private static final List<String> HELP_LINES = List.of(
+            "/f invite <playerName>", "/f accept [factionName]", "/f disband", "/f expel <playerName>", "/f leave",
+            "/f time", "/f info <factionName>", "/f list", "/f top", "/f wealth", "/f legacy", "/f notoriety", "/f borders",
+            "/f tpa <playerName>", "/f tpaccept | tpdeny [playerName]", "/f ally chat <message>", "/f vault redeem");
+    private static final List<String> OP_HELP_LINES = List.of(
+            "/f offlineprotection <faction> <enable|disable|status>", "/f zone <safe|war|remove>",
+            "/f rename <oldFactionName> <newFactionName>", "/f flag <factionName> <set <flagId> | reset>",
+            "/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]", "/f reloadConfig");
+
     private static final SuggestionProvider<CommandSourceStack> FLAG_ID_SUGGESTIONS = (ctx, builder) ->
             SharedSuggestionProvider.suggest(WarForgeMod.FLAG_REGISTRY.getAvailableFlagIds(), builder);
 
-    // Registration entrypoint, called from RegisterCommandsEvent.
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         LiteralCommandNode<CommandSourceStack> root = dispatcher.register(buildTree("faction"));
         dispatcher.register(Commands.literal("f").redirect(root));
@@ -80,14 +90,13 @@ public class CommandFactions {
     private static LiteralArgumentBuilder<CommandSourceStack> buildTree(String name) {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal(name);
         root.executes(ctx -> {
-            ctx.getSource().sendSuccess(() -> Component.literal("Try /f help"), false);
+            ctx.getSource().sendSuccess(() -> t("cmd.try_help"), false);
             return Command.SINGLE_SUCCESS;
         });
 
         root.then(Commands.literal("help").executes(CommandFactions::doHelp));
         root.then(Commands.literal("create").executes(CommandFactions::doCreate));
 
-        // invite <playerName> [factionName(op)]
         root.then(Commands.literal("invite")
                 .then(Commands.argument("player", EntityArgument.player())
                         .executes(ctx -> doInvite(ctx, false))
@@ -96,14 +105,12 @@ public class CommandFactions {
                                 .requires(CommandFactions::isOp)
                                 .executes(ctx -> doInvite(ctx, true)))));
 
-        // accept [factionName]
         root.then(Commands.literal("accept")
                 .executes(ctx -> doAccept(ctx, false))
                 .then(Commands.argument("faction", StringArgumentType.string())
                         .suggests(FACTION_NAME_SUGGESTIONS)
                         .executes(ctx -> doAccept(ctx, true))));
 
-        // disband [factionName(op)]
         root.then(Commands.literal("disband")
                 .executes(CommandFactions::doDisbandSelf)
                 .then(Commands.argument("faction", StringArgumentType.string())
@@ -111,25 +118,22 @@ public class CommandFactions {
                         .requires(CommandFactions::isOp)
                         .executes(CommandFactions::doDisbandNamed)));
 
-        // expel / remove <playerName>
         root.then(Commands.literal("expel")
                 .then(Commands.argument("player", EntityArgument.player())
-                        .executes(ctx -> doRemove(ctx, "expel"))));
+                        .executes(ctx -> doRemove(ctx))));
         root.then(Commands.literal("remove")
                 .then(Commands.argument("player", EntityArgument.player())
-                        .executes(ctx -> doRemove(ctx, "remove"))));
+                        .executes(ctx -> doRemove(ctx))));
 
         root.then(Commands.literal("leave").executes(CommandFactions::doLeave));
         root.then(Commands.literal("exit").executes(CommandFactions::doLeave));
 
-        // setleader <name>
         root.then(Commands.literal("setleader")
                 .then(Commands.argument("name", StringArgumentType.string())
                         .executes(CommandFactions::doSetLeader)));
 
         root.then(Commands.literal("time").executes(CommandFactions::doTime));
 
-        // conquered clear | set <time> — admin control over conquered no-man's-land on the current chunk
         root.then(Commands.literal("conquered")
                 .requires(CommandFactions::isOp)
                 .then(Commands.literal("clear").executes(CommandFactions::doConqueredClear))
@@ -137,17 +141,14 @@ public class CommandFactions {
                         .then(Commands.argument("time", StringArgumentType.word())
                                 .executes(CommandFactions::doConqueredSet))));
 
-        // info [factionName]
         root.then(Commands.literal("info")
                 .executes(ctx -> doInfo(ctx, false))
                 .then(Commands.argument("faction", StringArgumentType.string())
                         .suggests(FACTION_NAME_SUGGESTIONS)
                         .executes(ctx -> doInfo(ctx, true))));
 
-        // list — all factions
         root.then(Commands.literal("list").executes(CommandFactions::doList));
 
-        // Leaderboards
         for (String alias : new String[]{"top"}) {
             root.then(Commands.literal(alias).executes(ctx -> doLeaderboard(ctx, FactionStat.TOTAL, "**Top Leaderboard**")));
         }
@@ -161,24 +162,19 @@ public class CommandFactions {
             root.then(Commands.literal(alias).executes(ctx -> doLeaderboard(ctx, FactionStat.LEGACY, "**Legacy Leaderboard**")));
         }
 
-        // Op-gated special zone claims (citadel-less SafeZone / WarZone). One command:
-        //   /f zone safe | war   -> claim the chunk you stand in for that zone
-        //   /f zone remove        -> remove the zone claim in the chunk you stand in
         for (String alias : new String[]{"zone", "zones"}) {
             root.then(Commands.literal(alias).requires(CommandFactions::isOp)
                     .executes(CommandFactions::doZoneUsage)
-                    .then(Commands.literal("safe").executes(ctx -> doZoneClaim(ctx, FactionStorage.SAFE_ZONE_ID)))
-                    .then(Commands.literal("war").executes(ctx -> doZoneClaim(ctx, FactionStorage.WAR_ZONE_ID)))
+                    .then(Commands.literal("safe").executes(ctx -> doZoneClaim(ctx, FactionIds.SAFE_ZONE)))
+                    .then(Commands.literal("war").executes(ctx -> doZoneClaim(ctx, FactionIds.WAR_ZONE)))
                     .then(Commands.literal("remove").executes(CommandFactions::doZoneUnclaim)));
         }
 
-        // Op protection override toggle
         for (String alias : new String[]{"opProtection", "protection", "protectionOverride"}) {
             root.then(Commands.literal(alias).requires(CommandFactions::isOp)
                     .executes(CommandFactions::doProtectionToggle));
         }
 
-        // Sieges (op)
         for (String alias : new String[]{"siege", "sieges"}) {
             root.then(Commands.literal(alias).requires(CommandFactions::isOp)
                     .executes(CommandFactions::doSiegeUsage)
@@ -191,7 +187,6 @@ public class CommandFactions {
         root.then(Commands.literal("home").executes(CommandFactions::doHome));
         root.then(Commands.literal("spawn").executes(CommandFactions::doSpawn));
 
-        // promote / demote <player>
         root.then(Commands.literal("promote")
                 .then(Commands.argument("player", EntityArgument.player())
                         .executes(ctx -> doPromoteDemote(ctx, true))));
@@ -199,12 +194,10 @@ public class CommandFactions {
                 .then(Commands.argument("player", EntityArgument.player())
                         .executes(ctx -> doPromoteDemote(ctx, false))));
 
-        // vault redeem
         root.then(Commands.literal("vault")
                 .executes(CommandFactions::doVaultUsage)
                 .then(Commands.literal("redeem").executes(CommandFactions::doVaultRedeem)));
 
-        // offlineprotection <faction> <enable|disable|status> (op)
         root.then(Commands.literal("offlineprotection").requires(CommandFactions::isOp)
                 .executes(CommandFactions::doOfflineProtectionUsage)
                 .then(Commands.argument("faction", StringArgumentType.string())
@@ -214,7 +207,6 @@ public class CommandFactions {
                         .then(Commands.literal("disable").executes(ctx -> doOfflineProtection(ctx, "disable")))
                         .then(Commands.literal("status").executes(ctx -> doOfflineProtection(ctx, "status")))));
 
-        // flag <faction> <set <flagId> | reset> (op)
         root.then(Commands.literal("flag").requires(CommandFactions::isOp)
                 .executes(CommandFactions::doFlagUsage)
                 .then(Commands.argument("faction", StringArgumentType.string())
@@ -226,7 +218,6 @@ public class CommandFactions {
                                         .suggests(FLAG_ID_SUGGESTIONS)
                                         .executes(CommandFactions::doFlagSet)))));
 
-        // rename <old> <new> (op)
         root.then(Commands.literal("rename").requires(CommandFactions::isOp)
                 .executes(CommandFactions::doRenameUsage)
                 .then(Commands.argument("oldFactionName", StringArgumentType.string())
@@ -241,11 +232,10 @@ public class CommandFactions {
         }
 
         root.then(Commands.literal("clearnotoriety").requires(CommandFactions::isOp)
-                .executes(ctx -> { WarForgeMod.FACTIONS.clearNotoriety(); return Command.SINGLE_SUCCESS; }));
+                .executes(ctx -> { WarForgeMod.FACTIONS.registry.clearNotoriety(); return Command.SINGLE_SUCCESS; }));
         root.then(Commands.literal("clearlegacy").requires(CommandFactions::isOp)
-                .executes(ctx -> { WarForgeMod.FACTIONS.clearLegacy(); return Command.SINGLE_SUCCESS; }));
+                .executes(ctx -> { WarForgeMod.FACTIONS.registry.clearLegacy(); return Command.SINGLE_SUCCESS; }));
 
-        // chat / msg <message...>
         root.then(Commands.literal("chat")
                 .then(Commands.argument("message", StringArgumentType.greedyString()).executes(CommandFactions::doMsg)));
         root.then(Commands.literal("msg")
@@ -261,13 +251,11 @@ public class CommandFactions {
         root.then(Commands.literal("ac")
                 .then(Commands.argument("message", StringArgumentType.greedyString()).executes(CommandFactions::doAllyMsg)));
 
-        // tpa / tprequest / tp <player> - request to teleport to another player
         for (String alias : new String[]{"tpa", "tprequest", "tp"}) {
             root.then(Commands.literal(alias)
                     .then(Commands.argument("player", EntityArgument.player())
                             .executes(CommandFactions::doTpaRequest)));
         }
-        // tpaccept / tpdeny [player]-- resolve a pending request (newest, or from a specific player)
         root.then(Commands.literal("tpaccept")
                 .executes(ctx -> doTpaResolve(ctx, true, false))
                 .then(Commands.argument("player", EntityArgument.player())
@@ -279,182 +267,156 @@ public class CommandFactions {
 
         root.then(Commands.literal("borders").executes(CommandFactions::doBorders));
 
-        // debugmsg <title> <subtitle> <colorHex> (op, player)
         root.then(Commands.literal("debugmsg").requires(CommandFactions::isOp)
                 .then(Commands.argument("title", StringArgumentType.string())
                         .then(Commands.argument("subtitle", StringArgumentType.string())
                                 .then(Commands.argument("color", StringArgumentType.string())
                                         .executes(CommandFactions::doDebugMsg)))));
 
-        // vein (op)
         root.then(buildVeinTree());
 
         return root;
     }
 
-    private static int doHelp(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        src.sendSuccess(() -> Component.literal("/f invite <playerName>"), false);
-        src.sendSuccess(() -> Component.literal("/f accept [factionName]"), false);
-        src.sendSuccess(() -> Component.literal("/f disband"), false);
-        src.sendSuccess(() -> Component.literal("/f expel <playerName>"), false);
-        src.sendSuccess(() -> Component.literal("/f leave"), false);
-        src.sendSuccess(() -> Component.literal("/f time"), false);
-        src.sendSuccess(() -> Component.literal("/f info <factionName>"), false);
-        src.sendSuccess(() -> Component.literal("/f list"), false);
-        src.sendSuccess(() -> Component.literal("/f top"), false);
-        src.sendSuccess(() -> Component.literal("/f wealth"), false);
-        src.sendSuccess(() -> Component.literal("/f legacy"), false);
-        src.sendSuccess(() -> Component.literal("/f notoriety"), false);
-        src.sendSuccess(() -> Component.literal("/f borders"), false);
-        src.sendSuccess(() -> Component.literal("/f tpa <playerName>"), false);
-        src.sendSuccess(() -> Component.literal("/f tpaccept | tpdeny [playerName]"), false);
-        src.sendSuccess(() -> Component.literal("/f ally chat <message>"), false);
-        src.sendSuccess(() -> Component.literal("/f vault redeem"), false);
-        if (isOp(src)) {
-            src.sendSuccess(() -> Component.literal("/f offlineprotection <faction> <enable|disable|status>"), false);
-            src.sendSuccess(() -> Component.literal("/f zone <safe|war|remove>"), false);
-            src.sendSuccess(() -> Component.literal("/f rename <oldFactionName> <newFactionName>"), false);
-            src.sendSuccess(() -> Component.literal("/f flag <factionName> <set <flagId> | reset>"), false);
-            src.sendSuccess(() -> Component.literal("/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]"), false);
-            src.sendSuccess(() -> Component.literal("/f reloadConfig"), false);
-        }
+    private static FactionStorage factions() {
+        return WarForgeMod.FACTIONS;
+    }
+
+    private static int ok() {
         return Command.SINGLE_SUCCESS;
     }
 
+    private static Faction factionArg(CommandContext<CommandSourceStack> ctx, String arg) {
+        Faction faction = factions().registry.findByName(StringArgumentType.getString(ctx, arg));
+        if (faction == null) {
+            ctx.getSource().sendFailure(t("cmd.faction_not_found"));
+        }
+        return faction;
+    }
+
+    private static int doHelp(CommandContext<CommandSourceStack> ctx) {
+        CommandSourceStack src = ctx.getSource();
+        for (String line : HELP_LINES) {
+            src.sendSuccess(() -> Component.literal(line), false);
+        }
+        if (isOp(src)) {
+            for (String line : OP_HELP_LINES) {
+                src.sendSuccess(() -> Component.literal(line), false);
+            }
+        }
+        return ok();
+    }
+
     private static int doCreate(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendSuccess(() -> Component.literal("Craft a Citadel to create a faction"), false);
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendSuccess(() -> t("cmd.create_hint"), false);
+        return ok();
     }
 
     private static int doInvite(CommandContext<CommandSourceStack> ctx, boolean withFaction) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
         ServerPlayer invitee = EntityArgument.getPlayer(ctx, "player");
-
-        // First, resolve the op version where we can specify the faction
         if (withFaction) {
-            String factionName = StringArgumentType.getString(ctx, "faction");
-            Faction faction = WarForgeMod.FACTIONS.getFaction(factionName);
-            if (faction != null)
-                WarForgeMod.FACTIONS.RequestInvitePlayerToFaction(src, faction.uuid, invitee.getUUID());
-            else
-                src.sendFailure(Component.literal("Could not find faction " + factionName));
-            return Command.SINGLE_SUCCESS;
+            Faction faction = factionArg(ctx, "faction");
+            if (faction != null) {
+                factions().membership.requestInvite(src, faction.getUuid(), invitee.getUUID());
+            }
+        } else if (src.getEntity() instanceof ServerPlayer player) {
+            factions().membership.requestInvitePlayerToMyFaction(player, invitee.getUUID());
         }
-
-        // Any other case, we assume players can only invite to their own faction
-        if (src.getEntity() instanceof Player player) {
-            WarForgeMod.FACTIONS.requestInvitePlayerToMyFaction(player, invitee.getUUID());
-        }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doAccept(CommandContext<CommandSourceStack> ctx, boolean withFaction) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player player) {
-            if (withFaction) {
-                WarForgeMod.FACTIONS.RequestAcceptInvite(player, StringArgumentType.getString(ctx, "faction"));
-            } else {
-                WarForgeMod.FACTIONS.RequestAcceptInvite(player);
-            }
+        if (!(src.getEntity() instanceof Player player)) {
+            src.sendFailure(t("cmd.console_cannot_accept"));
+        } else if (withFaction) {
+            factions().membership.acceptInvite(player, StringArgumentType.getString(ctx, "faction"));
         } else {
-            src.sendFailure(Component.literal("The server can't accept a faction invite"));
+            factions().membership.acceptInvite(player);
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doDisbandSelf(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player player) {
-            Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-            if (faction != null) {
-                WarForgeMod.FACTIONS.requestDisbandFaction(player, faction.uuid);
-            } else {
-                src.sendFailure(Component.literal("You aren't in a faction"));
-            }
+        Faction faction = src.getEntity() instanceof Player player ? factions().registry.getFactionOfPlayer(player.getUUID()) : null;
+        if (faction == null) {
+            src.sendFailure(t("not_in_faction"));
         } else {
-            src.sendFailure(Component.literal("You aren't in a faction"));
+            factions().lifecycle.requestDisband((Player) src.getEntity(), faction.getUuid());
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doDisbandNamed(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        Faction toDisband = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction"));
-        if (toDisband != null) {
-            WarForgeMod.FACTIONS.FactionDefeated(toDisband);
-        } else {
-            src.sendFailure(Component.literal("Could not find that faction"));
+        Faction faction = factionArg(ctx, "faction");
+        if (faction != null) {
+            factions().lifecycle.defeat(faction);
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
-    private static int doRemove(CommandContext<CommandSourceStack> ctx, String verb) throws CommandSyntaxException {
+    private static int doRemove(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
-        ServerPlayer toRemove = EntityArgument.getPlayer(ctx, "player");
-        UUID toRemoveID = toRemove.getUUID();
-
-        Faction faction = null;
-        if (src.getEntity() instanceof Player player) {
-            faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        UUID toRemoveId = EntityArgument.getPlayer(ctx, "player").getUUID();
+        Faction faction = src.getEntity() instanceof Player player ? factions().registry.getFactionOfPlayer(player.getUUID()) : null;
+        if (faction == null) {
+            faction = factions().registry.getFactionOfPlayer(toRemoveId);
         }
         if (faction == null) {
-            faction = WarForgeMod.FACTIONS.getFactionOfPlayer(toRemoveID);
+            src.sendFailure(t("cmd.player_no_faction"));
+        } else {
+            factions().membership.requestRemovePlayer(src, faction.getUuid(), toRemoveId);
         }
-        if (faction == null) {
-            src.sendFailure(Component.literal("Could not find a faction for that player"));
-            return Command.SINGLE_SUCCESS;
-        }
-
-        WarForgeMod.FACTIONS.requestRemovePlayerFromFaction(src, faction.uuid, toRemoveID);
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doLeave(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player player) {
-            Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-            if (faction == null) {
-                src.sendFailure(Component.literal("You aren't in a faction"));
-                return Command.SINGLE_SUCCESS;
-            }
-            WarForgeMod.FACTIONS.requestRemovePlayerFromFaction(src, faction.uuid, player.getUUID());
-        } else {
-            src.sendFailure(Component.literal("This command is only for players"));
+        if (!(src.getEntity() instanceof Player player)) {
+            src.sendFailure(t("cmd.players_only"));
+            return ok();
         }
-        return Command.SINGLE_SUCCESS;
+        Faction faction = factions().registry.getFactionOfPlayer(player.getUUID());
+        if (faction == null) {
+            src.sendFailure(t("not_in_faction"));
+        } else {
+            factions().membership.requestRemovePlayer(src, faction.getUuid(), player.getUUID());
+        }
+        return ok();
     }
 
     private static int doSetLeader(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         if (!(src.getEntity() instanceof Player player)) {
-            src.sendFailure(Component.literal("This command is only for players"));
-            return Command.SINGLE_SUCCESS;
+            src.sendFailure(t("cmd.players_only"));
+            return ok();
         }
         String name = StringArgumentType.getString(ctx, "name");
         PlayerRef profile = Profiles.get(src.getServer(), name).orElse(null);
         if (profile == null) {
-            src.sendFailure(Component.literal("Could not find player " + name));
-            return Command.SINGLE_SUCCESS;
+            src.sendFailure(t("cmd.player_not_found", name));
+            return ok();
         }
-        Faction targetFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(profile.getId());
-        if (targetFaction == null) {
-            src.sendFailure(Component.literal("That player is not in a faction"));
+        Faction target = factions().registry.getFactionOfPlayer(profile.getId());
+        if (target == null) {
+            src.sendFailure(t("cmd.target_no_faction"));
         } else {
-            WarForgeMod.FACTIONS.RequestTransferLeadership(player, targetFaction.uuid, profile.getId());
+            factions().membership.requestTransferLeadership(player, target.getUuid(), profile.getId());
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doConqueredClear(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         ServerPlayer player = ctx.getSource().getPlayerOrException();
         DimChunkPos chunk = new DimChunkPos(player.level().dimension(), player.blockPosition());
-        if (WarForgeMod.FACTIONS.clearConquered(chunk)) {
-            ctx.getSource().sendSuccess(() -> Component.literal("Cleared conquered status of chunk [" + chunk.x + ", " + chunk.z + "]"), true);
+        if (factions().conquered.clear(chunk)) {
+            ctx.getSource().sendSuccess(() -> t("cmd.conquered_cleared", chunk.x, chunk.z), true);
         } else {
-            ctx.getSource().sendFailure(Component.literal("This chunk is not conquered"));
+            ctx.getSource().sendFailure(t("cmd.not_conquered"));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doConqueredSet(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -462,211 +424,163 @@ public class CommandFactions {
         String timeArg = StringArgumentType.getString(ctx, "time");
         long ms = TimeHelper.parseDurationMs(timeArg);
         if (ms <= 0 || ms > Integer.MAX_VALUE) {
-            ctx.getSource().sendFailure(Component.literal("Invalid time '" + timeArg + "'. Use e.g. 30s, 15m, 2h, 1d (bare numbers are seconds)."));
+            ctx.getSource().sendFailure(t("cmd.bad_time", timeArg));
             return 0;
         }
         DimChunkPos chunk = new DimChunkPos(player.level().dimension(), player.blockPosition());
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-        WarForgeMod.FACTIONS.setConquered(chunk, faction == null ? Faction.nullUuid : faction.uuid, (int) ms);
-        final long shownMs = ms;
-        ctx.getSource().sendSuccess(() -> Component.literal("Chunk [" + chunk.x + ", " + chunk.z
-                + "] is now conquered wilderness, reverting in " + TimeHelper.formatTime(shownMs)), true);
-        return Command.SINGLE_SUCCESS;
+        Faction faction = factions().registry.getFactionOfPlayer(player.getUUID());
+        factions().conquered.set(chunk, faction == null ? FactionIds.NONE : faction.getUuid(), (int) ms);
+        ctx.getSource().sendSuccess(() -> t("cmd.conquered_set", chunk.x, chunk.z, TimeHelper.formatTime(ms)), true);
+        return ok();
     }
 
     private static int doTime(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-
-        long ms = WarForgeMod.INSTANCE.getTimeToNextYieldMs();
-        long s = ms / 1000;
-        long m = s / 60;
-        long h = m / 60;
-        long d = h / 24;
-
-        final long yd = d, yh = h, ym = m, ys = s;
-        src.sendSuccess(() -> Component.literal("Yields will next be awarded in "
-                + (yd) + " days, "
-                + String.format("%02d", (yh % 24)) + ":"
-                + String.format("%02d", (ym % 60)) + ":"
-                + String.format("%02d", (ys % 60))), false);
-
-        ms = WarForgeMod.INSTANCE.getTimeToNextSiegeAdvanceMs();
-        s = ms / 1000;
-        m = s / 60;
-        h = m / 60;
-        d = h / 24;
-
-        final long sd = d, sh = h, sm = m, ss = s;
-        src.sendSuccess(() -> Component.literal("Sieges will progress in "
-                + (sd) + " days, "
-                + String.format("%02d", (sh % 24)) + ":"
-                + String.format("%02d", (sm % 60)) + ":"
-                + String.format("%02d", (ss % 60))), false);
-
-        return Command.SINGLE_SUCCESS;
+        String yields = TimeHelper.formatTime(WarClock.TIME.getTimeToNextYieldMs());
+        String sieges = TimeHelper.formatTime(WarClock.TIME.getTimeToNextSiegeAdvanceMs());
+        src.sendSuccess(() -> t("cmd.time_yields", yields), false);
+        src.sendSuccess(() -> t("cmd.time_sieges", sieges), false);
+        return ok();
     }
 
     private static int doInfo(CommandContext<CommandSourceStack> ctx, boolean withFaction) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof ServerPlayer sender) {
-            Faction factionToSend = null;
-            if (withFaction) {
-                factionToSend = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction"));
+        Faction own = src.getEntity() instanceof Player player ? factions().registry.getFactionOfPlayer(player.getUUID()) : null;
+        Faction target = withFaction ? factionArg(ctx, "faction") : own;
+        if (target == null) {
+            if (!withFaction) {
+                src.sendFailure(t("cmd.faction_not_found"));
             }
-            if (factionToSend == null) {
-                factionToSend = WarForgeMod.FACTIONS.getFactionOfPlayer(sender.getUUID());
-            }
-
-            if (factionToSend == null) {
-                src.sendFailure(Component.literal("Could not find that faction"));
-            } else {
-                Faction senderFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(sender.getUUID());
-                if (senderFaction == null || senderFaction.uuid.equals(Faction.nullUuid) || !senderFaction.equals(factionToSend)) {
-                    src.sendFailure(Component.literal("Information cannot be provided to non-faction members"));
-                } else {
-                    PacketFactionInfo packet = new PacketFactionInfo();
-                    packet.info = factionToSend.createInfo(sender.getUUID());
-                    WarForgeMod.NETWORK.sendTo(packet, sender);
-                }
-            }
-        } else {
-            // Console must specify a faction name.
-            Faction factionToSend = withFaction ? WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction")) : null;
-            if (factionToSend != null) {
-                StringBuilder memberList = new StringBuilder("Members: ");
-                for (HashMap.Entry<UUID, PlayerData> kvp : factionToSend.members.entrySet()) {
-                    PlayerRef profile = Profiles.get(src.getServer(), kvp.getKey()).orElse(null);
-                    if (profile != null) {
-                        memberList.append(profile.getName()).append(", ");
-                    }
-                }
-
-                final Faction f = factionToSend;
-                final String members = memberList.toString();
-                src.sendSuccess(() -> Component.literal("**" + f.name + "**\n"
-                        + members + "\n"
-                        + "Notoriety: " + f.notoriety + "\n"
-                        + "Wealth: " + f.wealth + "\n"
-                        + "Legacy: " + f.legacy + "\n"), false);
-            }
+            return ok();
         }
-        return Command.SINGLE_SUCCESS;
+        if (src.getEntity() instanceof ServerPlayer sender && target == own) {
+            PacketFactionInfo packet = new PacketFactionInfo();
+            packet.info = target.createInfo(sender.getUUID());
+            WarForgeMod.NETWORK.sendTo(packet, sender);
+            return ok();
+        }
+        PlayerRef leader = Profiles.get(src.getServer(), target.getLeaderId()).orElse(null);
+        Component publicInfo = t("cmd.info_public", target.getName(), leader == null ? "?" : leader.getName(),
+                target.getMemberCount(), target.getCitadelLevel(), target.getClaimCount());
+        src.sendSuccess(() -> publicInfo, false);
+        if (isOp(src)) {
+            src.sendSuccess(() -> t("cmd.info_stats", target.getNotoriety(), target.getWealth(), target.getLegacy()), false);
+        }
+        return ok();
     }
 
     private static int doList(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        List<Faction> factions = new ArrayList<>();
-        for (Faction faction : WarForgeMod.FACTIONS.getAllFactions()) {
-            if (faction != null && faction.name != null && !faction.uuid.equals(Faction.nullUuid)) {
-                factions.add(faction);
+        List<Faction> list = new ArrayList<>();
+        for (Faction faction : factions().registry.getAllFactions()) {
+            if (!FactionIds.isNeutralZone(faction.getUuid())) {
+                list.add(faction);
             }
         }
-        if (factions.isEmpty()) {
-            src.sendSuccess(() -> Component.literal("There are no factions yet"), false);
-            return Command.SINGLE_SUCCESS;
+        if (list.isEmpty()) {
+            src.sendSuccess(() -> t("cmd.list_empty"), false);
+            return ok();
         }
-        factions.sort((a, b) -> a.name.compareToIgnoreCase(b.name));
-        src.sendSuccess(() -> Component.literal("Factions (" + factions.size() + "):"), false);
-        for (Faction faction : factions) {
-            final Faction f = faction;
-            src.sendSuccess(() -> Component.literal("§7- §f" + f.name + " §7(" + f.members.size() + ")"), false);
+        list.sort((a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+        src.sendSuccess(() -> t("cmd.list_header", list.size()), false);
+        for (Faction faction : list) {
+            src.sendSuccess(() -> t("cmd.list_entry", faction.getName(), faction.getMemberCount()), false);
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doLeaderboard(CommandContext<CommandSourceStack> ctx, FactionStat stat, String consoleHeader) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof ServerPlayer sender) {
-            UUID uuid = sender.getUUID();
             PacketLeaderboardInfo packet = new PacketLeaderboardInfo();
-            packet.info = WarForgeMod.LEADERBOARD.CreateInfo(0, stat, uuid);
+            packet.info = WarForgeMod.LEADERBOARD.createInfo(0, stat, sender.getUUID());
             WarForgeMod.NETWORK.sendTo(packet, sender);
-        } else {
-            LeaderboardInfo info = WarForgeMod.LEADERBOARD.CreateInfo(0, stat, Faction.nullUuid);
-            StringBuilder result = new StringBuilder(consoleHeader);
-            for (int i = 0; i < LeaderboardInfo.NUM_LEADERBOARD_ENTRIES_PER_PAGE; i++) {
-                FactionDisplayInfo facInfo = info.factionInfos[i];
-                switch (stat) {
-                    case TOTAL -> result.append("\n#").append(facInfo.totalRank).append(" | ").append(facInfo.legacy + facInfo.notoriety + facInfo.wealth);
-                    case WEALTH -> result.append("\n#").append(facInfo.wealthRank).append(" | ").append(facInfo.wealth);
-                    case NOTORIETY -> result.append("\n#").append(facInfo.notorietyRank).append(" | ").append(facInfo.notoriety);
-                    case LEGACY -> result.append("\n#").append(facInfo.legacyRank).append(" | ").append(facInfo.legacy);
-                }
-            }
-            final String out = result.toString();
-            src.sendSuccess(() -> Component.literal(out), false);
+            return ok();
         }
-        return Command.SINGLE_SUCCESS;
+        LeaderboardInfo info = WarForgeMod.LEADERBOARD.createInfo(0, stat, FactionIds.NONE);
+        StringBuilder result = new StringBuilder(consoleHeader);
+        for (FactionDisplayInfo facInfo : info.factionInfos) {
+            if (facInfo == null) {
+                continue;
+            }
+            switch (stat) {
+                case TOTAL -> result.append("\n#").append(facInfo.totalRank).append(" | ").append(facInfo.legacy + facInfo.notoriety + facInfo.wealth);
+                case WEALTH -> result.append("\n#").append(facInfo.wealthRank).append(" | ").append(facInfo.wealth);
+                case NOTORIETY -> result.append("\n#").append(facInfo.notorietyRank).append(" | ").append(facInfo.notoriety);
+                case LEGACY -> result.append("\n#").append(facInfo.legacyRank).append(" | ").append(facInfo.legacy);
+            }
+        }
+        String out = result.toString();
+        src.sendSuccess(() -> Component.literal(out), false);
+        return ok();
     }
 
     private static int doZoneUsage(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendFailure(Component.literal("Usage: /f zone <safe|war|remove>"));
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendFailure(t("cmd.zone_usage"));
+        return ok();
     }
 
-    private static int doZoneClaim(CommandContext<CommandSourceStack> ctx, UUID zoneID) {
+    private static int doZoneClaim(CommandContext<CommandSourceStack> ctx, UUID zoneId) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof Player player) {
-            DimChunkPos pos = new DimBlockPos(player).toChunkPos();
-            WarForgeMod.FACTIONS.requestZoneClaim(player, pos, zoneID);
+            factions().claimService.requestZoneClaim(player, new DimBlockPos(player).toChunkPos(), zoneId);
             refreshClaimViews(src);
         } else {
-            src.sendFailure(Component.literal("Use an in-game operator account."));
+            src.sendFailure(t("cmd.op_player_only"));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doZoneUnclaim(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof Player player) {
-            DimChunkPos pos = new DimBlockPos(player).toChunkPos();
-            WarForgeMod.FACTIONS.requestZoneUnclaim(player, pos);
+            factions().claimService.requestZoneUnclaim(player, new DimBlockPos(player).toChunkPos());
             refreshClaimViews(src);
         } else {
-            src.sendFailure(Component.literal("Use an in-game operator account."));
+            src.sendFailure(t("cmd.op_player_only"));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doProtectionToggle(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        ProtectionsModule.OP_OVERRIDE = !ProtectionsModule.OP_OVERRIDE;
-        if (ProtectionsModule.OP_OVERRIDE)
-            src.sendSuccess(() -> Component.literal("Admins can now build in protected areas."), false);
-        else
-            src.sendSuccess(() -> Component.literal("Admins can no longer build in protected areas."), false);
-        return Command.SINGLE_SUCCESS;
+        if (!(src.getEntity() instanceof Player player)) {
+            src.sendFailure(t("cmd.players_only"));
+            return ok();
+        }
+        boolean enabled = ProtectionsModule.toggleOpOverride(player.getUUID());
+        src.sendSuccess(() -> t(enabled ? "cmd.protection_on" : "cmd.protection_off"), false);
+        return ok();
     }
 
     private static int doReloadConfig(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         try {
             String status = WarForgeMod.reloadServerConfig();
-            src.sendSuccess(() -> Component.literal("WarForge config reloaded (" + status + ")"), true);
-            return Command.SINGLE_SUCCESS;
-        } catch (Exception e) {
+            src.sendSuccess(() -> t("cmd.reloaded", status), true);
+            return ok();
+        } catch (RuntimeException e) {
             WarForgeMod.LOGGER.error("Failed to reload WarForge config", e);
-            src.sendFailure(Component.literal("Failed to reload WarForge config: " + e.getMessage() + " (see server log)"));
+            src.sendFailure(t("cmd.reload_failed", String.valueOf(e.getMessage())));
             return 0;
         }
     }
 
     private static int doSiegeUsage(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendFailure(Component.literal("More arguments required. Possible arguments: list, terminate"));
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendFailure(t("cmd.siege_usage"));
+        return ok();
     }
 
     private static int doSiegeList(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        FactionStorage STORAGE = WarForgeMod.FACTIONS;
-        var sieges = STORAGE.getSieges();
-        src.sendSuccess(() -> Component.literal("List of current sieges.\nFormat: <ChunkX>, <ChunkY>, <DimID>; <Attacker>-<Defender>"), false);
-
-        sieges.forEach((dpos, siege) -> {
-            src.sendSuccess(() -> Component.literal("§7" + dpos.x + ", " + dpos.z + ", " + dpos.dim + "§r;  "
-                    + STORAGE.getFaction(siege.attackingFaction).name + "-" + STORAGE.getFaction(siege.defendingFaction).name), false);
+        src.sendSuccess(() -> t("cmd.siege_list_header"), false);
+        factions().sieges.entries().forEach((chunk, siege) -> {
+            Faction attacker = factions().registry.getFaction(siege.attackingFaction);
+            Faction defender = factions().registry.getFaction(siege.defendingFaction);
+            src.sendSuccess(() -> t("cmd.siege_list_entry", chunk.x, chunk.z, Keys.id(chunk.dim).toString(),
+                    attacker == null ? "?" : attacker.getName(), defender == null ? "?" : defender.getName()), false);
         });
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static RequiredArgumentBuilder<CommandSourceStack, Integer> siegeTerminateArgs() {
@@ -680,68 +594,64 @@ public class CommandFactions {
 
     private static int doSiegeTerminate(CommandContext<CommandSourceStack> ctx, boolean withConclusion) {
         CommandSourceStack src = ctx.getSource();
-        int cX = IntegerArgumentType.getInteger(ctx, "chunkX");
-        int cZ = IntegerArgumentType.getInteger(ctx, "chunkZ");
         ResourceKey<Level> dim = ResourceKey.create(Registries.DIMENSION, Ids.parse(StringArgumentType.getString(ctx, "dim")));
-        DimChunkPos dimPos = new DimChunkPos(dim, cX, cZ);
+        DimChunkPos chunk = new DimChunkPos(dim, IntegerArgumentType.getInteger(ctx, "chunkX"), IntegerArgumentType.getInteger(ctx, "chunkZ"));
 
-        FactionStorage.siegeTermination termType;
+        SiegeService.SiegeTermination termination = SiegeService.SiegeTermination.NEUTRAL;
         if (withConclusion) {
+            String arg = StringArgumentType.getString(ctx, "conclusion");
             try {
-                termType = FactionStorage.siegeTermination.valueOf(StringArgumentType.getString(ctx, "conclusion"));
-            } catch (Exception e) {
-                termType = FactionStorage.siegeTermination.NEUTRAL;
+                termination = SiegeService.SiegeTermination.valueOf(arg.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                src.sendFailure(t("cmd.siege_bad_conclusion", arg));
+                return 0;
             }
-        } else {
-            termType = FactionStorage.siegeTermination.NEUTRAL;
         }
-
-        FactionStorage STORAGE = WarForgeMod.FACTIONS;
-        var sieges = STORAGE.getSieges();
-        if (!sieges.containsKey(dimPos)) {
-            src.sendFailure(Component.literal("Provided siege does not exist."));
+        if (factions().sieges.get(chunk) == null) {
+            src.sendFailure(t("cmd.siege_missing"));
+            return 0;
         }
-        STORAGE.handleCompletedSiege(dimPos, termType);
-        final FactionStorage.siegeTermination tt = termType;
-        final DimChunkPos fp = dimPos;
-        src.sendSuccess(() -> Component.literal("Terminated siege at: " + fp.x + ", " + fp.z + ", " + fp.dim + " with termination type: " + tt.name()), false);
-        return Command.SINGLE_SUCCESS;
+        factions().siegeService.conclude(chunk, termination, true);
+        SiegeService.SiegeTermination applied = termination;
+        src.sendSuccess(() -> t("cmd.siege_terminated", chunk.x, chunk.z, Keys.id(chunk.dim).toString(), applied.name()), false);
+        return ok();
     }
 
     private static int doHome(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player player)
-            WarForgeMod.TELEPORTS.RequestFHome(player);
-        else
-            src.sendFailure(Component.literal("Only valid for players"));
-        return Command.SINGLE_SUCCESS;
+        if (src.getEntity() instanceof Player player) {
+            WarForgeMod.TELEPORTS.requestFHome(player);
+        } else {
+            src.sendFailure(t("cmd.players_only"));
+        }
+        return ok();
     }
 
     private static int doSpawn(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player player)
+        if (src.getEntity() instanceof Player player) {
             WarForgeMod.TELEPORTS.requestSpawn(player);
-        else
-            src.sendFailure(Component.literal("Only valid for players"));
-        return Command.SINGLE_SUCCESS;
+        } else {
+            src.sendFailure(t("cmd.players_only"));
+        }
+        return ok();
     }
 
     private static int doTpaRequest(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
-        if (!(src.getEntity() instanceof Player player)) {
-            src.sendFailure(Component.literal("Only valid for players"));
-            return Command.SINGLE_SUCCESS;
+        if (src.getEntity() instanceof Player player) {
+            WarForgeMod.TELEPORTS.requestTpa(player, EntityArgument.getPlayer(ctx, "player"));
+        } else {
+            src.sendFailure(t("cmd.players_only"));
         }
-        ServerPlayer target = EntityArgument.getPlayer(ctx, "player");
-        WarForgeMod.TELEPORTS.requestTpa(player, target);
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doTpaResolve(CommandContext<CommandSourceStack> ctx, boolean accept, boolean withPlayer) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
         if (!(src.getEntity() instanceof ServerPlayer player)) {
-            src.sendFailure(Component.literal("Only valid for players"));
-            return Command.SINGLE_SUCCESS;
+            src.sendFailure(t("cmd.players_only"));
+            return ok();
         }
         UUID filter = withPlayer ? EntityArgument.getPlayer(ctx, "player").getUUID() : null;
         if (accept) {
@@ -749,169 +659,145 @@ public class CommandFactions {
         } else {
             WarForgeMod.TELEPORTS.denyTpa(player, filter);
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doPromoteDemote(CommandContext<CommandSourceStack> ctx, boolean promote) throws CommandSyntaxException {
         CommandSourceStack src = ctx.getSource();
         if (!(src.getEntity() instanceof Player player)) {
-            src.sendFailure(Component.literal("Only valid for players"));
-            return Command.SINGLE_SUCCESS;
+            src.sendFailure(t("cmd.players_only"));
+            return ok();
         }
         ServerPlayer target = EntityArgument.getPlayer(ctx, "player");
         if (promote) {
-            WarForgeMod.FACTIONS.requestPromote(player, target);
+            factions().membership.requestPromote(player, target);
         } else {
-            WarForgeMod.FACTIONS.requestDemote(player, target);
+            factions().membership.requestDemote(player, target);
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doVaultUsage(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (!(src.getEntity() instanceof ServerPlayer)) {
-            src.sendFailure(Component.literal("Only valid for players"));
-        } else {
-            src.sendFailure(Component.literal("Usage: /f vault redeem"));
-        }
-        return Command.SINGLE_SUCCESS;
+        src.sendFailure(t(src.getEntity() instanceof ServerPlayer ? "cmd.vault_usage" : "cmd.players_only"));
+        return ok();
     }
 
     private static int doVaultRedeem(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (!(src.getEntity() instanceof ServerPlayer player)) {
-            src.sendFailure(Component.literal("Only valid for players"));
+        if (src.getEntity() instanceof ServerPlayer player) {
+            factions().insurance.redeem(player);
         } else {
-            WarForgeMod.FACTIONS.requestRedeemInsuranceVault(player);
+            src.sendFailure(t("cmd.players_only"));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doOfflineProtectionUsage(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendFailure(Component.literal("Usage: /f offlineprotection <faction> <enable|disable|status>"));
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendFailure(t("cmd.offline_usage"));
+        return ok();
     }
 
     private static int doOfflineProtection(CommandContext<CommandSourceStack> ctx, String action) {
         CommandSourceStack src = ctx.getSource();
-        Faction targetFaction = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction"));
-        if (targetFaction == null) {
-            src.sendFailure(Component.literal("Could not find that faction"));
-            return Command.SINGLE_SUCCESS;
+        Faction target = factionArg(ctx, "faction");
+        if (target == null) {
+            return ok();
         }
         switch (action) {
             case "enable" -> {
-                targetFaction.offlineRaidProtectionDisabled = false;
-                src.sendSuccess(() -> Component.literal("Enabled offline raid protection for " + targetFaction.name), false);
+                target.setOfflineRaidProtectionDisabled(false);
+                src.sendSuccess(() -> t("cmd.offline_enabled", target.getName()), false);
             }
             case "disable" -> {
-                targetFaction.offlineRaidProtectionDisabled = true;
-                src.sendSuccess(() -> Component.literal("Disabled offline raid protection for " + targetFaction.name), false);
+                target.setOfflineRaidProtectionDisabled(true);
+                src.sendSuccess(() -> t("cmd.offline_disabled", target.getName()), false);
             }
-            case "status" -> src.sendSuccess(() -> Component.literal(
-                    "Offline protection for " + targetFaction.name + ": "
-                            + (targetFaction.offlineRaidProtectionDisabled ? "DISABLED" : "ENABLED")
-                            + ", online=" + targetFaction.onlinePlayerCount
-                            + ", protectedNow=" + WarForgeMod.FACTIONS.isOfflineRaidProtected(targetFaction)
-            ), false);
-            default -> src.sendFailure(Component.literal("Usage: /f offlineprotection <faction> <enable|disable|status>"));
+            case "status" -> src.sendSuccess(() -> t("cmd.offline_status", target.getName(),
+                    target.isOfflineRaidProtectionDisabled() ? "DISABLED" : "ENABLED",
+                    target.countOnlineMembers(null), target.isOfflineRaidProtected()), false);
+            default -> src.sendFailure(t("cmd.offline_usage"));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doFlagUsage(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendFailure(Component.literal("Usage: /f flag <factionName> <set <flagId> | reset>"));
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendFailure(t("cmd.flag_usage"));
+        return ok();
     }
 
     private static int doFlagReset(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        Faction faction = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction"));
-        if (faction == null) {
-            src.sendFailure(Component.literal("Could not find that faction"));
-            return Command.SINGLE_SUCCESS;
+        Faction faction = factionArg(ctx, "faction");
+        if (faction != null) {
+            factions().lifecycle.adminSetFlag(ctx.getSource(), faction.getUuid(), "");
         }
-        WarForgeMod.FACTIONS.adminSetFactionFlag(src, faction.uuid, "");
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doFlagSet(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        Faction faction = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "faction"));
-        if (faction == null) {
-            src.sendFailure(Component.literal("Could not find that faction"));
-            return Command.SINGLE_SUCCESS;
+        Faction faction = factionArg(ctx, "faction");
+        if (faction != null) {
+            factions().lifecycle.adminSetFlag(ctx.getSource(), faction.getUuid(), StringArgumentType.getString(ctx, "flagId").trim());
         }
-        WarForgeMod.FACTIONS.adminSetFactionFlag(src, faction.uuid, StringArgumentType.getString(ctx, "flagId").trim());
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doRenameUsage(CommandContext<CommandSourceStack> ctx) {
-        ctx.getSource().sendFailure(Component.literal("Usage: /f rename <oldFactionName> <newFactionName>"));
-        return Command.SINGLE_SUCCESS;
+        ctx.getSource().sendFailure(t("cmd.rename_usage"));
+        return ok();
     }
 
     private static int doRename(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        Faction targetFaction = WarForgeMod.FACTIONS.getFaction(StringArgumentType.getString(ctx, "oldFactionName"));
-        if (targetFaction == null) {
-            src.sendFailure(Component.literal("Could not find that faction"));
-            return Command.SINGLE_SUCCESS;
+        Faction faction = factionArg(ctx, "oldFactionName");
+        if (faction != null) {
+            factions().lifecycle.requestRename(ctx.getSource(), faction.getUuid(), StringArgumentType.getString(ctx, "newFactionName"));
         }
-        WarForgeMod.FACTIONS.requestRenameFaction(src, targetFaction.uuid, StringArgumentType.getString(ctx, "newFactionName"));
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doMsg(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof Player player) {
-            Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+            Faction faction = factions().registry.getFactionOfPlayer(player.getUUID());
             if (faction != null) {
-                String msg = "§a[" + src.getTextName() + " > Faction]§f " + StringArgumentType.getString(ctx, "message");
-                faction.messageAll(Component.literal(msg));
+                faction.messageAll(Component.literal("§a[" + src.getTextName() + " > Faction]§f " + StringArgumentType.getString(ctx, "message")));
             }
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doAllyMsg(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
         if (src.getEntity() instanceof Player player) {
-            Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+            Faction faction = factions().registry.getFactionOfPlayer(player.getUUID());
             if (faction == null) {
-                src.sendFailure(Component.literal("You are not in a faction"));
-                return Command.SINGLE_SUCCESS;
+                src.sendFailure(t("not_in_faction"));
+                return ok();
             }
-            String msg = "§b[" + src.getTextName() + " (" + faction.name + ") > Ally]§f " + StringArgumentType.getString(ctx, "message");
-            WarForgeMod.FACTIONS.messageAlliance(faction, Component.literal(msg));
+            factions().alliances.messageAlliance(faction, Component.literal("§b[" + src.getTextName() + " (" + faction.getName()
+                    + ") > Ally]§f " + StringArgumentType.getString(ctx, "message")));
         }
-        return Command.SINGLE_SUCCESS;
+        return ok();
     }
 
     private static int doBorders(CommandContext<CommandSourceStack> ctx) {
         CommandSourceStack src = ctx.getSource();
-        if (src.getEntity() instanceof Player) {
-            WarForgeMod.showBorders = !WarForgeMod.showBorders;
-            src.sendSuccess(() -> Component.literal("Borders Toggled"), false);
-        } else
-            src.sendFailure(Component.literal("Only valid for players"));
-        return Command.SINGLE_SUCCESS;
+        if (src.getEntity() instanceof ServerPlayer player) {
+            WarForgeMod.NETWORK.sendTo(new PacketToggleBorders(), player);
+        } else {
+            src.sendFailure(t("cmd.players_only"));
+        }
+        return ok();
     }
 
     private static int doDebugMsg(CommandContext<CommandSourceStack> ctx) {
-        CommandSourceStack src = ctx.getSource();
-        if (!(src.getEntity() instanceof ServerPlayer player))
-            return Command.SINGLE_SUCCESS;
-
-        WarForgeMod.FACTIONS.sendNotificationToPlayer(player, "warforge_notification_debug",
-                StringArgumentType.getString(ctx, "title"), StringArgumentType.getString(ctx, "subtitle"),
-                hexToArgb(StringArgumentType.getString(ctx, "color")), 5000, player.getUUID());
-        return Command.SINGLE_SUCCESS;
+        if (ctx.getSource().getEntity() instanceof ServerPlayer player) {
+            factions().notifier.toPlayer(player, "warforge_notification_debug",
+                    Component.literal(StringArgumentType.getString(ctx, "title")), Component.literal(StringArgumentType.getString(ctx, "subtitle")),
+                    hexToArgb(StringArgumentType.getString(ctx, "color")), FactionNotifier.DURATION_DEFAULT_MS, player.getUUID());
+        }
+        return ok();
     }
-
-    // ------------------------------------------------------------------------------------------
-    // Vein subcommand
-    // ------------------------------------------------------------------------------------------
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildVeinTree() {
         LiteralArgumentBuilder<CommandSourceStack> vein = Commands.literal("vein").requires(CommandFactions::isOp);
@@ -922,7 +808,6 @@ public class CommandFactions {
         vein.then(veinAtCapable(Commands.literal("reroll"), (ctx, dim, baseX, baseZ, radius) -> doVeinReroll(ctx.getSource(), dim, baseX, baseZ, radius)));
         vein.then(veinAtCapable(Commands.literal("seed"), (ctx, dim, baseX, baseZ, radius) -> doVeinReroll(ctx.getSource(), dim, baseX, baseZ, radius)));
 
-        // set <vein> [quality] [at ...]
         vein.then(Commands.literal("set")
                 .then(veinAtCapable(Commands.argument("vein", StringArgumentType.string()),
                         (ctx, dim, baseX, baseZ, radius) -> doVeinSet(ctx, dim, baseX, baseZ, radius, false))
@@ -937,8 +822,6 @@ public class CommandFactions {
         int run(CommandContext<CommandSourceStack> ctx, ResourceKey<Level> dim, int baseX, int baseZ, int radius);
     }
 
-    // Attaches the optional "at <chunkX> <chunkZ> [dim] [radius]" tail (plus a no-tail executor that
-    // derives the location from the sending player) to a vein subcommand node.
     private static <T extends ArgumentBuilder<CommandSourceStack, T>> T veinAtCapable(T node, VeinAction action) {
         node.executes(ctx -> runVeinFromPlayer(ctx, action));
         node.then(Commands.literal("at")
@@ -954,7 +837,7 @@ public class CommandFactions {
 
     private static boolean veinReady(CommandSourceStack src) {
         if (WarForgeMod.VEIN_HANDLER == null || !WarForgeMod.VEIN_HANDLER.hasFinishedInit) {
-            src.sendFailure(Component.literal("The vein system is not initialized yet"));
+            src.sendFailure(t("cmd.vein_not_ready"));
             return false;
         }
         return true;
@@ -964,7 +847,7 @@ public class CommandFactions {
         CommandSourceStack src = ctx.getSource();
         if (!veinReady(src)) return Command.SINGLE_SUCCESS;
         if (!(src.getEntity() instanceof Player player)) {
-            src.sendFailure(Component.literal("From the console you must specify 'at <chunkX> <chunkZ> [dim] [radius]'"));
+            src.sendFailure(t("cmd.vein_console_at"));
             return Command.SINGLE_SUCCESS;
         }
         int baseX = Chunks.x(player.chunkPosition());
@@ -987,18 +870,18 @@ public class CommandFactions {
     }
 
     private static void veinUsage(CommandSourceStack src) {
-        src.sendFailure(Component.literal("/f vein <info|set <vein> [quality]|clear|reroll> [at <chunkX> <chunkZ> [dim] [radius]]"));
+        src.sendFailure(t("cmd.vein_usage", OP_HELP_LINES.get(4)));
     }
 
     private static int doVeinInfo(CommandSourceStack src, ResourceKey<Level> dim, int baseX, int baseZ) {
         Pair<Vein, Quality> info = WarForgeMod.VEIN_HANDLER.peekStoredVein(dim, baseX, baseZ);
         String location = "chunk (" + baseX + ", " + baseZ + ") in dim " + Keys.id(dim);
         if (info == null) {
-            src.sendSuccess(() -> Component.literal(location + ": no stored vein (rolls from the seed on first access)"), false);
+            src.sendSuccess(() -> t("cmd.vein_info_none", location), false);
         } else if (info.getLeft() == null) {
-            src.sendSuccess(() -> Component.literal(location + ": cleared (no vein)"), false);
+            src.sendSuccess(() -> t("cmd.vein_info_cleared", location), false);
         } else {
-            src.sendSuccess(() -> Component.literal(location + ": " + info.getLeft().translationKey + " [" + info.getRight() + "]"), false);
+            src.sendSuccess(() -> t("cmd.vein_info", location, info.getLeft().translationKey, String.valueOf(info.getRight())), false);
         }
         return Command.SINGLE_SUCCESS;
     }
@@ -1007,7 +890,7 @@ public class CommandFactions {
         CommandSourceStack src = ctx.getSource();
         Vein vein = WarForgeMod.VEIN_HANDLER.findVein(StringArgumentType.getString(ctx, "vein"));
         if (vein == null) {
-            src.sendFailure(Component.literal("Unknown vein '" + StringArgumentType.getString(ctx, "vein") + "'"));
+            src.sendFailure(t("cmd.vein_unknown", StringArgumentType.getString(ctx, "vein")));
             return Command.SINGLE_SUCCESS;
         }
         int quality = Quality.FAIR.ordinal();
@@ -1016,7 +899,7 @@ public class CommandFactions {
             try {
                 quality = Quality.valueOf(qualityArg.toUpperCase(Locale.ROOT)).ordinal();
             } catch (IllegalArgumentException e) {
-                src.sendFailure(Component.literal("Unknown quality '" + qualityArg + "' (POOR, FAIR, RICH)"));
+                src.sendFailure(t("cmd.vein_unknown_quality", qualityArg));
                 return Command.SINGLE_SUCCESS;
             }
         }
@@ -1030,7 +913,7 @@ public class CommandFactions {
         }
         final int c = count;
         final int q = quality;
-        src.sendSuccess(() -> Component.literal("Set " + c + " chunk(s) to vein " + vein.translationKey + " [" + Quality.getQuality(q) + "]"), false);
+        src.sendSuccess(() -> t("cmd.vein_set", c, vein.translationKey, String.valueOf(Quality.getQuality(q))), false);
         refreshClaimViews(src);
         return Command.SINGLE_SUCCESS;
     }
@@ -1045,7 +928,7 @@ public class CommandFactions {
             }
         }
         final int c = count;
-        src.sendSuccess(() -> Component.literal("Cleared the vein in " + c + " chunk(s)"), false);
+        src.sendSuccess(() -> t("cmd.vein_cleared", c), false);
         refreshClaimViews(src);
         return Command.SINGLE_SUCCESS;
     }
@@ -1061,7 +944,7 @@ public class CommandFactions {
             }
         }
         final int c = count;
-        src.sendSuccess(() -> Component.literal("Rerolled the vein in " + c + " chunk(s) from the world seed"), false);
+        src.sendSuccess(() -> t("cmd.vein_rerolled", c), false);
         refreshClaimViews(src);
         return Command.SINGLE_SUCCESS;
     }
@@ -1072,7 +955,7 @@ public class CommandFactions {
 
     private static void refreshClaimViews(CommandSourceStack src) {
         for (ServerPlayer player : src.getServer().getPlayerList().getPlayers()) {
-            WarForgeMod.FACTIONS.sendClaimChunks(player, new DimChunkPos(player.level().dimension(), player.blockPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
+            ClaimMapView.send(player, new DimChunkPos(player.level().dimension(), player.blockPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
         }
     }
 

@@ -14,19 +14,13 @@ import org.joml.Matrix4f;
 
 import java.util.function.Consumer;
 
-/**
- * GPU side of the claim border renderer: the position_tex_color shader, default translucent blending, no face
- * culling, depth test and depth write as the stage leaves them. Meshes are cached in static vertex buffers.
- */
 public final class BorderGpu {
     private BorderGpu() {}
 
-    /** A cached border mesh on the GPU. */
     public static final class Mesh {
         private final VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
     }
 
-    /** Sets the render state for the border and overlay draws. Call once per frame before drawing. */
     public static void beginFrame() {
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
@@ -35,22 +29,16 @@ public final class BorderGpu {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
     }
 
-    /** Restores the render state. */
     public static void endFrame() {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
     }
 
-    /** 1.20.1 writes vertex elements in format order (position, texture, colour), so uv comes before colour. */
     private static BorderVertexSink sink(BufferBuilder builder) {
         return (matrix, x, y, z, argb, u, v) -> builder.vertex(matrix, x, y, z).uv(u, v).color(argb).endVertex();
     }
 
-    /**
-     * Builds a mesh from the geometry and uploads it into reuse (or a new mesh). Returns null, and leaves reuse
-     * unchanged, if the geometry has no vertices.
-     */
     public static @Nullable Mesh build(@Nullable Mesh reuse, Consumer<BorderVertexSink> geometry) {
         BufferBuilder builder = Tesselator.getInstance().getBuilder();
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
@@ -67,7 +55,6 @@ public final class BorderGpu {
         return mesh;
     }
 
-    /** Draws a cached mesh with the texture. modelView places the mesh relative to the camera. */
     public static void draw(Mesh mesh, ResourceLocation texture, Matrix4f modelView) {
         RenderSystem.setShaderTexture(0, texture);
         mesh.buffer.bind();
@@ -75,7 +62,6 @@ public final class BorderGpu {
         VertexBuffer.unbind();
     }
 
-    /** Builds and draws geometry at once (not cached). Vertices must already be camera-relative. */
     public static void drawImmediate(ResourceLocation texture, Consumer<BorderVertexSink> geometry) {
         RenderSystem.setShaderTexture(0, texture);
         BufferBuilder builder = Tesselator.getInstance().getBuilder();

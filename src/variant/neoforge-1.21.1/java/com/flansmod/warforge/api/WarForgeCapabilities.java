@@ -12,10 +12,6 @@ import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 import org.jetbrains.annotations.Nullable;
 
-/**
- * WarForge-provided capabilities. Addons (e.g. WFCore) expose these from their tiles so WarForge can
- * query them generically without a compile-time dependency on the addon.
- */
 public final class WarForgeCapabilities {
 
     public static final BlockCapability<IChunkReinforcer, Void> CHUNK_REINFORCER =
@@ -36,12 +32,10 @@ public final class WarForgeCapabilities {
                 (be, side) -> be.getPullOnlyView());
     }
 
-    /** The chunk reinforcer a block entity exposes, or null. */
     public static @Nullable IChunkReinforcer chunkReinforcer(Level level, BlockEntity be) {
         return level.getCapability(CHUNK_REINFORCER, be.getBlockPos(), null);
     }
 
-    /** Tells the capability system that the capabilities of a block entity changed. */
     public static void invalidate(BlockEntity be) {
         be.invalidateCapabilities();
     }

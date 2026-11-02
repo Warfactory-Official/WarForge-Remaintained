@@ -8,7 +8,8 @@ import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
 /**
- * Fails when a Stonecutter version comment appears in shared code (src/main).
+ * Fails when a Stonecutter version comment appears in shared code (src/main) or a variant folder.
+ * Variant folders are not processed by Stonecutter, so a guard there is silently inert.
  * Version-specific code goes in a src/variant folder instead (see Variants.kt).
  */
 abstract class CheckNoVersionGuards : DefaultTask() {
@@ -27,7 +28,7 @@ abstract class CheckNoVersionGuards : DefaultTask() {
         }
         if (hits.isNotEmpty()) {
             throw GradleException(
-                "Stonecutter version comments are not allowed in src/main. " +
+                "Stonecutter version comments are not allowed in src/main or src/variant. " +
                     "Move the version-specific code to a src/variant folder (see build-logic Variants.kt):\n" +
                     hits.joinToString("\n")
             )

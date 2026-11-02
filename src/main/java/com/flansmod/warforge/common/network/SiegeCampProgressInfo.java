@@ -1,72 +1,45 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.server.Faction;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.Level;
 
-import java.util.ArrayList;
 import java.util.UUID;
 
-@NoArgsConstructor
-@AllArgsConstructor
 public class SiegeCampProgressInfo {
+    public static final int STALE_TICKS = 400;
+    public static final int FINISHED_LINGER_TICKS = 100;
+
     public DimBlockPos defendingPos;
     public DimBlockPos attackingPos;
-    public ArrayList<ChunkPos> warzoneChunks = new ArrayList<>();
     public int attackingColour;
     public int defendingColour;
     public String attackingName;
     public String defendingName;
     public int battleRadius = 1;
     public int siegedRadius = 0;
-    public UUID defendingFactionId = Faction.nullUuid;
-    public UUID attackingFactionId = Faction.nullUuid;
-    public int attackerAbandonSeconds = 0; // seconds until the attacking siege is abandoned; 0 = not at risk
+    public UUID defendingFactionId = FactionIds.NONE;
+    public UUID attackingFactionId = FactionIds.NONE;
+    /** Seconds until the attacking siege is abandoned; 0 = not at risk. */
+    public int attackerAbandonSeconds = 0;
 
     public int completionPoint = 5;
-    public int mPreviousProgress = 0;
+    public int previousProgress = 0;
     public int progress = 0;
-    public long maxTime = 0;
     public long timeProgress = 0;
     public long endTimestamp = Long.MAX_VALUE;
 
     public int expiredTicks = 0;
     public boolean finished = false;
-
-    public static final int STALE_TICKS = 400;
     public int staleTicks = 0;
 
-    public static SiegeCampProgressInfo getDebugInfo() {
-        SiegeCampProgressInfo info = new SiegeCampProgressInfo();
-        info.defendingPos = new DimBlockPos(Level.OVERWORLD, 100, 64, 100);
-        info.attackingPos = new DimBlockPos(Level.OVERWORLD, 120, 64, 100);
-        info.attackingColour = 0xFF0000;
-        info.defendingColour = 0x0000FF;
-        info.attackingName = "Red Team";
-        info.defendingName = "Blue Team";
-        info.battleRadius = 2;
-        info.completionPoint = 10;
-        info.progress = 6;
-        info.mPreviousProgress = 4;
-        info.expiredTicks = 20;
-        info.maxTime = 1800;
-        info.timeProgress = info.maxTime/2;
-
-        return info;
-    }
-
-
-    public void ClientTick() {
+    public void clientTick() {
         staleTicks++;
-        if (finished)  {
+        if (finished) {
             expiredTicks++;
         }
     }
 
-    public boolean Completed() {
-        return expiredTicks >= 100 || staleTicks >= STALE_TICKS;
+    public boolean isExpired() {
+        return expiredTicks >= FINISHED_LINGER_TICKS || staleTicks >= STALE_TICKS;
     }
 }

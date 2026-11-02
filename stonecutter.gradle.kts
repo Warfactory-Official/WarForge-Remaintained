@@ -1,4 +1,5 @@
 plugins {
+    id("mod-common") apply false
     id("dev.kikugie.stonecutter")
     id("net.neoforged.moddev") version "2.0.148" apply false
     id("net.neoforged.moddev.legacyforge") version "2.0.148" apply false
@@ -11,29 +12,31 @@ stonecutter active file(".sc_active_version")
 // else is a shim class in a src/variant folder (see build-logic Variants.kt).
 stonecutter parameters {
     val loader = current.project.substringAfterLast('-')
-    constants.match(loader, "forge", "neoforge")
 
     // Shared code imports NeoForge packages. Forge 1.20.1 has the same classes under these names.
     val forge = loader == "forge"
-    replacements.string(forge) { replace("net.neoforged.neoforge.", "net.minecraftforge.") }
-    replacements.string(forge) { replace("net.neoforged.fml.", "net.minecraftforge.fml.") }
-    replacements.string(forge) { replace("net.neoforged.api.distmarker.", "net.minecraftforge.api.distmarker.") }
-    replacements.string(forge) { replace("net.neoforged.bus.api.", "net.minecraftforge.eventbus.api.") }
-    replacements.string(forge) { replace("ModConfigSpec", "ForgeConfigSpec") }
+    FORGE_RENAMES.forEach { (from, to) -> replacements.string(forge) { replace(from, to) } }
 
     // Renamed in 1.21.11.
     replacements.string(current.parsed >= "1.21.11") { replace("ResourceLocation", "Identifier") }
 }
 
-// Builds every node. CI and release builds use this.
+tasks.register<CheckNoVersionGuards>("checkNoVersionGuards") {
+    group = "verification"
+    description = "Fails if a Stonecutter version comment is in src/main or src/variant."
+    sources.from(fileTree("src/main"), fileTree("src/variant"))
+}
+
+// Builds every node.
 tasks.register("buildAll") {
     group = "build"
     description = "Builds the jar for every Minecraft version and loader."
     dependsOn(stonecutter.versions.map { ":${it.project}:build" })
 }
 
-tasks.register("releaseBuild") {
-    group = "build"
-    description = "Builds the release jars for CurseForge/Modrinth publishing."
-    dependsOn("buildAll")
+tasks.register("printNodes") {
+    group = "help"
+    description = "Prints the node names as a JSON array (CI matrix)."
+    val nodes = stonecutter.versions.map { it.project }
+    doLast { println(nodes.joinToString(",", "[", "]") { "\"$it\"" }) }
 }

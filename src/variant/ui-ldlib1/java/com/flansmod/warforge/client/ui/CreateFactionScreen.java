@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
 import com.flansmod.warforge.client.util.ColorPickerElement;
@@ -16,7 +17,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.CONTENT_LEFT;
 
-/** Create faction and recolour screens (layout of the 1.20.1 GuiCreateFactionModular). */
 @OnlyIn(Dist.CLIENT)
 public final class CreateFactionScreen {
     private static final int WIDTH = 264;
@@ -37,9 +37,9 @@ public final class CreateFactionScreen {
         }
 
         int height = 190;
-        WidgetGroup panel = frame("Create Faction", height);
+        WidgetGroup panel = frame(tr("warforge.ui.create_faction"), height);
 
-        panel.addWidget(Label.text("Faction Name", WarForgeUiTheme.TEXT_SECONDARY).at(INNER_LEFT, BODY_Y + 8));
+        panel.addWidget(Label.text(tr("warforge.ui.faction_name"), WarForgeUiTheme.TEXT_SECONDARY).at(INNER_LEFT, BODY_Y + 8));
         TextFieldWidget nameField = new TextFieldWidget(INNER_LEFT, BODY_Y + 18, INNER_WIDTH, 16, null, null);
         nameField.setMaxStringLength(64);
         nameField.setBordered(false);
@@ -50,19 +50,19 @@ public final class CreateFactionScreen {
         ColorPickerElement picker = picker(panel, 0xFFFFFF, BODY_Y + 42);
 
         int buttonY = height - 36;
-        panel.addWidget(button("Create", INNER_LEFT, buttonY, () -> {
+        panel.addWidget(button(tr("warforge.ui.create"), INNER_LEFT, buttonY, () -> {
             String name = nameField.getRawCurrentString().trim();
             if (name.isEmpty()) {
                 return;
             }
             PacketCreateFaction packet = new PacketCreateFaction();
-            packet.mCitadelPos = PacketOpenCreateFaction.pendingCitadelPos;
-            packet.mFactionName = name;
-            packet.mColour = picker.getRGB();
+            packet.citadelPos = PacketOpenCreateFaction.pendingCitadelPos;
+            packet.factionName = name;
+            packet.colour = picker.getRGB();
             WarForgeMod.NETWORK.sendToServer(packet);
             ClientScreens.close();
         }));
-        panel.addWidget(button("Cancel", INNER_LEFT + 82, buttonY, ClientScreens::close));
+        panel.addWidget(button(tr("warforge.ui.cancel"), INNER_LEFT + 82, buttonY, ClientScreens::close));
 
         ClientScreens.open(panel);
     }
@@ -74,18 +74,18 @@ public final class CreateFactionScreen {
         }
 
         int height = 150;
-        WidgetGroup panel = frame("Set Faction Colour", height);
+        WidgetGroup panel = frame(tr("warforge.ui.set_faction_colour"), height);
 
         ColorPickerElement picker = picker(panel, colour, BODY_Y + 8);
 
         int buttonY = height - 36;
-        panel.addWidget(button("Set Colour", INNER_LEFT, buttonY, () -> {
+        panel.addWidget(button(tr("warforge.ui.set_colour"), INNER_LEFT, buttonY, () -> {
             PacketSetFactionColour packet = new PacketSetFactionColour();
-            packet.mColour = picker.getRGB();
+            packet.colour = picker.getRGB();
             WarForgeMod.NETWORK.sendToServer(packet);
             ClientScreens.close();
         }));
-        panel.addWidget(button("Cancel", INNER_LEFT + 82, buttonY, ClientScreens::close));
+        panel.addWidget(button(tr("warforge.ui.cancel"), INNER_LEFT + 82, buttonY, ClientScreens::close));
 
         ClientScreens.open(panel);
     }
@@ -99,9 +99,8 @@ public final class CreateFactionScreen {
         return panel;
     }
 
-    /** The "Colour" label and the picker below it. */
     private static ColorPickerElement picker(WidgetGroup panel, int colour, int labelY) {
-        panel.addWidget(Label.text("Colour", WarForgeUiTheme.TEXT_SECONDARY).at(INNER_LEFT, labelY));
+        panel.addWidget(Label.text(tr("warforge.ui.colour"), WarForgeUiTheme.TEXT_SECONDARY).at(INNER_LEFT, labelY));
         int swatchX = INNER_LEFT + BAR_WIDTH + SWATCH_GAP;
         int swatchWidth = WIDTH - swatchX - CONTENT_LEFT - INNER_PAD;
         ColorPickerElement picker = new ColorPickerElement(colour, INNER_LEFT, labelY + 12, BAR_WIDTH, SWATCH_GAP, swatchWidth);

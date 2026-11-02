@@ -1,210 +1,207 @@
 package com.flansmod.warforge.server;
 
-import com.flansmod.warforge.compat.Profiles;
-
-import com.flansmod.warforge.compat.PlayerRef;
-
-import com.flansmod.warforge.api.Time;
-import com.flansmod.warforge.api.vein.Quality;
-import com.flansmod.warforge.api.vein.Vein;
-import com.flansmod.warforge.common.Content;
+import com.flansmod.warforge.common.SiegeMomentum;
+import com.flansmod.warforge.common.WarClock;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.blocks.IClaim;
-import com.flansmod.warforge.common.blocks.TileEntityBasicClaim;
-import com.flansmod.warforge.common.blocks.TileEntityCitadel;
-import com.flansmod.warforge.common.blocks.TileEntityIslandCollector;
-import com.flansmod.warforge.common.blocks.TileEntityReinforcedClaim;
-import com.flansmod.warforge.common.blocks.TileEntitySiegeCamp;
-import com.flansmod.warforge.common.blocks.TileEntityYieldCollector;
-import com.flansmod.warforge.common.util.FactionDisplay;
+import com.flansmod.warforge.common.faction.ClaimType;
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.PlayerDisplayInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Leaderboard.FactionStat;
-import com.flansmod.warforge.server.fob.Fob;
-import com.mojang.authlib.GameProfile;
-import lombok.Getter;
-import org.apache.commons.lang3.tuple.Pair;
-import net.minecraft.ChatFormatting;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.IntArrayTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
-import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.Style;
-import net.minecraft.network.protocol.game.ClientboundSoundPacket;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceKey;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvent;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.item.ItemEntity;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraft.world.level.block.state.BlockState;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Predicate;
-
-import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 import com.flansmod.warforge.compat.Ids;
 import com.flansmod.warforge.compat.Keys;
 import com.flansmod.warforge.compat.Nbt;
+import com.flansmod.warforge.compat.PlayerRef;
+import com.flansmod.warforge.compat.Profiles;
 import com.flansmod.warforge.compat.Stacks;
+import com.flansmod.warforge.server.Leaderboard.FactionStat;
+import lombok.Getter;
+import net.minecraft.core.Holder;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.Tag;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.Level;
 
-/**
- * Data class for faction, responsible for storing faction info
- */
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Predicate;
+
+/** Faction state. Claim collections are mutated only by {@link ClaimRegistry}; the player index by {@link MembershipService}. */
 public class Faction {
-    public static final UUID nullUuid = new UUID(0, 0);
-    public UUID uuid;
-    public int onlinePlayerCount = 0; // the number of current online players
-    public long lastSiegeTimestamp = 0;
-    public String name;
-    public String flagId = "";
-    public DimBlockPos citadelPos;
-    public HashMap<DimBlockPos, Integer> claims;
-    public HashMap<DimBlockPos, ClaimType> claimTypes;
-    public HashSet<DimChunkPos> forcedChunks;
-    public HashSet<DimBlockPos> islandCollectors;
-    public ArrayList<Fob> fobs = new ArrayList<>();
-    public HashMap<UUID, PlayerData> members;
-    public HashSet<UUID> pendingInvites;
-    public HashMap<UUID, Integer> killCounter;
-    public ArrayList<ItemStack> insuranceStacks;
-    public HashSet<UUID> allies;                 // mutually-allied faction UUIDs
-    public HashSet<UUID> pendingAllianceRequests; // incoming alliance requests from other factions
-    public boolean allowAllyInteraction = false;  // whether allies may interact in this faction's claims (CLAIM_ALLY)
-    public HashMap<UUID, Long> truces;            // factionId -> truce expiry (epoch ms) after a broken alliance
-    public boolean loggedInToday;
-    public int colour = 0xFF_FF_FF;
-    public int notoriety = 0;
-    public int wealth = 0;
-    public int legacy = 0;
-    public short citadelLevel = 0;
-    public long offlineRaidProtectionUntil = 0L;
-    public boolean offlineRaidProtectionDisabled = false;
-    // New-faction siege grace: unsiegeable while now < this. 0 = none (never granted, expired, or
-    // forfeited by the faction starting a siege of its own).
-    public long siegeGraceUntil = 0L;
-    public boolean isCurrentlyDefending = false;
-    public long citadelMoveTimeStamp = 0;
+    @Getter
+    private UUID uuid;
+    @Getter
+    private String name;
+    @Getter
+    private String flagId = "";
+    @Getter
+    private DimBlockPos citadelPos;
+    @Getter
+    private int colour = 0xFF_FF_FF;
+    @Getter
+    private int notoriety = 0;
+    @Getter
+    private int wealth = 0;
+    @Getter
+    private int legacy = 0;
+    @Getter
+    private short citadelLevel = 0;
+    @Getter
+    private long lastSiegeTimestamp = 0;
+    @Getter
+    private long offlineRaidProtectionUntil = 0L;
+    @Getter
+    private boolean offlineRaidProtectionDisabled = false;
+    // 0 = none (never granted, expired, or forfeited by starting a siege)
+    @Getter
+    private long siegeGraceUntil = 0L;
+    @Getter
+    private long citadelMoveTimeStamp = 0;
+    @Getter
+    private boolean allowAllyInteraction = false;
+    private boolean loggedInToday;
     private byte siegeMomentum = 0;
     @Getter
-    private long momentumExpireryTimestamp = 0L;
+    private long momentumExpiryTimestamp = 0L;
 
-    public Faction() {
-        members = new HashMap<UUID, PlayerData>();
-        pendingInvites = new HashSet<UUID>();
-        claims = new HashMap<DimBlockPos, Integer>();
-        claimTypes = new HashMap<DimBlockPos, ClaimType>();
-        forcedChunks = new HashSet<DimChunkPos>();
-        islandCollectors = new HashSet<DimBlockPos>();
-        killCounter = new HashMap<UUID, Integer>();
-        insuranceStacks = new ArrayList<ItemStack>();
-        allies = new HashSet<UUID>();
-        pendingAllianceRequests = new HashSet<UUID>();
-        truces = new HashMap<UUID, Long>();
+    private final HashMap<DimBlockPos, Integer> claims = new HashMap<>();
+    private final HashMap<DimBlockPos, ClaimType> claimTypes = new HashMap<>();
+    private final HashMap<DimChunkPos, DimBlockPos> claimByChunk = new HashMap<>();
+    private final HashSet<DimChunkPos> forcedChunks = new HashSet<>();
+    private final HashSet<DimBlockPos> islandCollectors = new HashSet<>();
+    private final HashMap<UUID, PlayerData> members = new HashMap<>();
+    private final HashSet<UUID> pendingInvites = new HashSet<>();
+    private final HashMap<UUID, Integer> killCounter = new HashMap<>();
+    private final ArrayList<ItemStack> insuranceStacks = new ArrayList<>();
+    private final HashSet<UUID> allies = new HashSet<>();
+    private final HashSet<UUID> pendingAllianceRequests = new HashSet<>();
+    private final HashMap<UUID, Long> truces = new HashMap<>();
+
+    Faction() {
     }
 
-    public static UUID createUUID(String factionName) {
-        return new UUID(0xfedcba0987654321L, ((long) factionName.hashCode()) * 0xa0a0b1b1c2c2d3d3L);
+    Faction(UUID uuid, String name, int colour, DimBlockPos citadelPos) {
+        this.uuid = uuid;
+        this.name = name;
+        this.colour = colour;
+        this.citadelPos = citadelPos;
     }
 
-    private static String getPlayerName(UUID playerID) {
-        PlayerRef p = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
-        return p != null ? p.getName() : playerID.toString();
+    public void setName(String name) {
+        this.name = name;
     }
 
-    // the map used in getPlayerByUUID removes players on logout
-    private static Player getPlayer(UUID playerID) {
-        return WarForgeMod.MC_SERVER.getPlayerList().getPlayer(playerID);
+    public void setFlagId(String flagId) {
+        this.flagId = flagId;
     }
 
-    public boolean increaseSiegeMomentum(boolean message) {
+    public void setColour(int colour) {
+        this.colour = colour;
+    }
+
+    void setCitadelPos(DimBlockPos citadelPos) {
+        this.citadelPos = citadelPos;
+    }
+
+    public void addNotoriety(int amount) {
+        notoriety += amount;
+    }
+
+    public void clearNotoriety() {
+        notoriety = 0;
+    }
+
+    public void clearLegacy() {
+        legacy = 0;
+    }
+
+    void addWealth(int delta) {
+        wealth += delta;
+    }
+
+    void setWealth(int wealth) {
+        this.wealth = wealth;
+    }
+
+    public void incrementCitadelLevel() {
+        citadelLevel++;
+    }
+
+    public void setLastSiegeTimestamp(long timestamp) {
+        lastSiegeTimestamp = timestamp;
+    }
+
+    public void setOfflineRaidProtectionUntil(long until) {
+        offlineRaidProtectionUntil = until;
+    }
+
+    public void setOfflineRaidProtectionDisabled(boolean disabled) {
+        offlineRaidProtectionDisabled = disabled;
+    }
+
+    public void grantSiegeGrace(long until) {
+        siegeGraceUntil = until;
+    }
+
+    public void forfeitSiegeGrace() {
+        siegeGraceUntil = 0L;
+    }
+
+    public void setCitadelMoveTimeStamp(long timestamp) {
+        citadelMoveTimeStamp = timestamp;
+    }
+
+    public void setAllowAllyInteraction(boolean allow) {
+        allowAllyInteraction = allow;
+    }
+
+    /** @return true if the level rose; false if capped (expiry still extended) */
+    public boolean increaseSiegeMomentum() {
         boolean increased = false;
-        if (siegeMomentum < WarForgeConfig.SIEGE_MOMENTUM_MAX) {
+        if (siegeMomentum < SiegeMomentum.max()) {
             siegeMomentum++;
             increased = true;
         }
-        momentumExpireryTimestamp = WarForgeMod.momentumClock() + (long) WarForgeConfig.SIEGE_MOMENTUM_DURATION * 60 * 1000;
-        if (increased) {
-            long nextSiegeMillis = WarForgeConfig.SIEGE_MOMENTUM_TIME.getOrDefault(siegeMomentum, 0) * 1000;
-            String formattedTime = new Time(nextSiegeMillis)
-                    .getFormattedTime(Time.TimeFormat.MINUTES_SECONDS, Time.Verbality.FULL);
-
-            if (message) {
-                MutableComponent msg = Component.literal("")
-                        .append(Component.literal("Your power grows. Siege momentum increased to "))
-                        .append(Component.literal(String.valueOf(siegeMomentum)).setStyle(Style.EMPTY.withBold(true).withColor(ChatFormatting.GOLD)))
-                        .append(Component.literal(". Next siege will take: "))
-                        .append(Component.literal(formattedTime).setStyle(Style.EMPTY.withColor(ChatFormatting.GREEN)));
-
-                messageAll(msg);
-            }
-        } else if (message) {
-            MutableComponent msg = Component.literal("")
-                    .append(Component.literal("You haven't gained any more momentum, however it's time was extended by another " + WarForgeConfig.SIEGE_MOMENTUM_DURATION + "minutes"));
-
-            messageAll(msg);
-        }
+        momentumExpiryTimestamp = WarClock.momentumClock() + (long) WarForgeConfig.SIEGE_MOMENTUM_DURATION * 60 * 1000;
         return increased;
     }
 
-    public void stopMomentum(boolean message) {
+    public void stopMomentum() {
         siegeMomentum = 0;
-        momentumExpireryTimestamp = 0L;
-        if(message){
-            messageAll(Component.literal("Your extra momentum was lost"));
-        }
+        momentumExpiryTimestamp = 0L;
     }
 
     public byte getSiegeMomentum() {
-        if (WarForgeMod.momentumClock() > momentumExpireryTimestamp)
-            return 0;
-        else
-            return siegeMomentum;
-    }
-
-    public int getMemberCount() {
-        return members.size();
+        return WarClock.momentumClock() > momentumExpiryTimestamp ? 0 : siegeMomentum;
     }
 
     public void update() {
-        if (!loggedInToday) {
-            for (UUID id : members.keySet()) {
-                if (getPlayer(id) != null) {
-                    loggedInToday = true;
-                    break;
-                }
-            }
+        if (!loggedInToday && hasOnlineMember()) {
+            loggedInToday = true;
         }
     }
 
-    // array list needed to be able to pre-allocate size, but not know if all players will pass check
-    public ArrayList<Player> getOnlinePlayers(Predicate<Player> playerCondition) {
-        ArrayList<Player> players = new ArrayList<>(members.size());
-        //mMembers.keySet() seems to have a null default
-        for (UUID playerID : members.keySet()) {
-            Player player = getPlayer(playerID);
-            if (player != null && playerCondition.test(player)) players.add(player);
-        }
-
-        return players;
+    public boolean hasLoggedInToday() {
+        return loggedInToday;
     }
-
 
     public void increaseLegacy() {
         if (loggedInToday) {
@@ -213,173 +210,199 @@ public class Faction {
         loggedInToday = false;
     }
 
-    /**
-     * Builds display info with the citadel position redacted, for callers that have no viewer to
-     * check against. Anything shipped to a player should use {@link #createInfo(UUID)}.
-     */
-    public FactionDisplayInfo createInfo() {
-        return createInfo(null);
-    }
-
-    /**
-     * Builds display info for a specific viewer ({@code viewerId} may be null, meaning no viewer).
-     *
-     * <p>The citadel position is only filled in for members of this faction. It is exact block
-     * coordinates, and the info panel, the leaderboard and every foreign claim block used to hand it
-     * to anyone who asked - which is precisely what made the citadel a findable, aimable target.
-     * Outsiders get {@link DimBlockPos#ZERO}; nothing on the client renders the field, so there is no
-     * visible difference for them.
-     */
-    public FactionDisplayInfo createInfo(UUID viewerId) {
-        FactionDisplayInfo info = new FactionDisplayInfo();
-        info.factionId = uuid;
-        info.factionName = name;
-        info.colour = colour;
-        info.notoriety = notoriety;
-        info.wealth = wealth;
-        info.legacy = legacy;
-        info.lvl = citadelLevel;
-
-        info.legacyRank = WarForgeMod.LEADERBOARD.GetOneIndexedRankOf(this, FactionStat.LEGACY);
-        info.notorietyRank = WarForgeMod.LEADERBOARD.GetOneIndexedRankOf(this, FactionStat.NOTORIETY);
-        info.wealthRank = WarForgeMod.LEADERBOARD.GetOneIndexedRankOf(this, FactionStat.WEALTH);
-        info.totalRank = WarForgeMod.LEADERBOARD.GetOneIndexedRankOf(this, FactionStat.TOTAL);
-
-        info.mNumClaims = claims.size();
-        info.mCitadelPos = (viewerId != null && isPlayerInFaction(viewerId)) ? citadelPos : DimBlockPos.ZERO;
-
-        for (HashMap.Entry<UUID, PlayerData> entry : members.entrySet()) {
-            if (entry.getValue().role == Role.LEADER)
-                info.mLeaderID = entry.getKey();
-
-            PlayerDisplayInfo playerInfo = new PlayerDisplayInfo();
-            PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, entry.getKey()).orElse(null);
-            playerInfo.username = profile == null ? "Unknown Player" : profile.getName();
-            playerInfo.playerUuid = entry.getKey();
-            playerInfo.role = entry.getValue().role;
-            info.members.add(playerInfo);
-
-        }
-        return info;
-    }
-
-    public void invitePlayer(UUID playerID) {
-        // Don't invite offline players
-        Player p = getPlayer(playerID);
-        if (p == null) return;
-        pendingInvites.add(playerID);
-    }
-
-    public boolean isInvitingPlayer(UUID playerID) {
-        return pendingInvites.contains(playerID);
-    }
-
-    public void addPlayer(UUID playerID) {
-        members.put(playerID, new PlayerData());
-        WarForgeMod.FACTIONS.clearInvitesToPlayer(playerID);
-
-        // Let everyone know
-        messageAll(Component.literal(getPlayerName(playerID) + " joined " + name));
-
-
-        // re-check number of online players
-        onlinePlayerCount = getOnlinePlayers(entityPlayer -> entityPlayer != null).size();
-
-        FactionDisplay.refreshTabName(playerID);
-        VanillaTeamSync.syncPlayer(playerID);
-    }
-
-    // TODO:
-    // Rank up
-    // Rank down
-
-    public boolean setLeader(UUID playerID) {
-        if (!members.containsKey(playerID))
-            return false;
-
-        for (HashMap.Entry<UUID, PlayerData> entry : members.entrySet()) {
-            // Set the target player as leader
-            if (entry.getKey().equals(playerID))
-                entry.getValue().role = Role.LEADER;
-                // And set any existing leaders to officers
-            else if (entry.getValue().role == Role.LEADER)
-                entry.getValue().role = Role.OFFICER;
-        }
-
-
-        messageAll(Component.literal(getPlayerName(playerID) + " was made leader of " + name));
-        return true;
-    }
-
-    public UUID getLeaderId() {
-        for (HashMap.Entry<UUID, PlayerData> entry : members.entrySet()) {
-            if (entry.getValue().role == Role.LEADER) {
-                return entry.getKey();
+    /** @param excluded member not counted (a player mid-logout is still in the player list); may be null */
+    public int countOnlineMembers(UUID excluded) {
+        int count = 0;
+        for (UUID id : members.keySet()) {
+            if (!id.equals(excluded) && getPlayer(id) != null) {
+                count++;
             }
         }
-        return Faction.nullUuid;
+        return count;
     }
 
-    public void removePlayer(UUID playerID) {
-        members.remove(playerID);
-        FactionDisplay.refreshTabName(playerID);
-        VanillaTeamSync.removePlayer(playerID);
+    public boolean hasOnlineMember() {
+        for (UUID id : members.keySet()) {
+            if (getPlayer(id) != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    public void disband() {
-        // Clean up remaining claims
-        for (Map.Entry<DimBlockPos, Integer> kvp : claims.entrySet()) {
-            ServerLevel world = WarForgeMod.MC_SERVER.getLevel(kvp.getKey().dim);
-            if (world != null) {
-                world.removeBlock(kvp.getKey().toRegularPos(), false);
-            }
+    public ArrayList<Player> getOnlinePlayers(Predicate<Player> playerCondition) {
+        ArrayList<Player> players = new ArrayList<>(members.size());
+        for (UUID playerID : members.keySet()) {
+            Player player = getPlayer(playerID);
+            if (player != null && playerCondition.test(player)) players.add(player);
         }
+        return players;
+    }
 
-        ServerLevel world = WarForgeMod.MC_SERVER.getLevel(citadelPos.dim);
-        this.citadelLevel = 0;
-        if (world != null) {
-            world.removeBlock(citadelPos.toRegularPos(), false);
-        }
-        for (DimBlockPos collectorPos : islandCollectors) {
-            ServerLevel collectorWorld = WarForgeMod.MC_SERVER.getLevel(collectorPos.dim);
-            if (collectorWorld != null) {
-                collectorWorld.removeBlock(collectorPos.toRegularPos(), false);
-            }
-        }
+    private static Player getPlayer(UUID playerID) {
+        return WarForgeMod.MC_SERVER.getPlayerList().getPlayer(playerID);
+    }
 
+    /** Protected from sieges while every member is offline (until the window set at the last logout ends). */
+    public boolean isOfflineRaidProtected() {
+        return WarForgeConfig.ENABLE_OFFLINE_RAID_PROTECTION && !offlineRaidProtectionDisabled
+                && !hasOnlineMember() && WarClock.offlineProtectionClock() < offlineRaidProtectionUntil;
+    }
 
-        String message = getMemberCount() > 0 ? name + " was disbanded." : name + " was abandoned and disbanded";
-        WarForgeMod.FACTIONS.sendDisbandNotification(this);
-        messageAll(Component.literal(message));
-        java.util.List<UUID> formerMembers = new java.util.ArrayList<>(members.keySet());
-        members.clear();
-        for (UUID formerMember : formerMembers) {
-            FactionDisplay.refreshTabName(formerMember);
-        }
-        claims.clear();
-        claimTypes.clear();
-        forcedChunks.clear();
-        islandCollectors.clear();
-        for (Fob fob : new ArrayList<>(fobs)) {
-            WarForgeMod.FOBS.destroyFob(fob);
-        }
-        fobs.clear();
-        pendingInvites.clear();
-        insuranceStacks.clear();
-        allies.clear();
-        pendingAllianceRequests.clear();
-        truces.clear();
+    /** New-faction grace: unsiegeable until it expires or the faction starts a siege itself. */
+    public boolean isSiegeGraceProtected() {
+        return WarForgeConfig.ENABLE_SIEGE_GRACE_PERIOD && WarClock.graceClock() < siegeGraceUntil;
+    }
+
+    public int getMemberCount() {
+        return members.size();
+    }
+
+    public Set<UUID> getMemberIds() {
+        return Collections.unmodifiableSet(members.keySet());
     }
 
     public boolean isPlayerInFaction(UUID playerID) {
         return members.containsKey(playerID);
     }
 
+    /** @return null if not a member */
+    public Role getRole(UUID playerID) {
+        PlayerData data = members.get(playerID);
+        return data == null ? null : data.role;
+    }
+
+    public boolean isPlayerRoleInFaction(UUID playerID, Role role) {
+        Role actual = getRole(playerID);
+        return actual != null && actual.atLeast(role);
+    }
+
+    public boolean isPlayerOutrankingOfficer(UUID playerID, UUID targetID) {
+        Role playerRole = getRole(playerID);
+        Role targetRole = getRole(targetID);
+        return playerRole != null && targetRole != null
+                && playerRole.atLeast(Role.OFFICER)
+                && playerRole.ordinal() > targetRole.ordinal();
+    }
+
+    public UUID getLeaderId() {
+        for (Map.Entry<UUID, PlayerData> entry : members.entrySet()) {
+            if (entry.getValue().role == Role.LEADER) {
+                return entry.getKey();
+            }
+        }
+        return FactionIds.NONE;
+    }
+
+    void addMember(UUID playerID) {
+        members.put(playerID, new PlayerData());
+    }
+
+    void removeMember(UUID playerID) {
+        members.remove(playerID);
+    }
+
+    void clearMembers() {
+        members.clear();
+    }
+
+    /** @return false if not a member */
+    boolean setLeader(UUID playerID) {
+        if (!members.containsKey(playerID)) {
+            return false;
+        }
+        for (Map.Entry<UUID, PlayerData> entry : members.entrySet()) {
+            if (entry.getKey().equals(playerID)) {
+                entry.getValue().role = Role.LEADER;
+            } else if (entry.getValue().role == Role.LEADER) {
+                entry.getValue().role = Role.OFFICER;
+            }
+        }
+        return true;
+    }
+
+    /** @return true if MEMBER -> OFFICER happened */
+    boolean promote(UUID playerID) {
+        PlayerData data = members.get(playerID);
+        if (data == null || data.role != Role.MEMBER) {
+            return false;
+        }
+        data.role = Role.OFFICER;
+        return true;
+    }
+
+    /** @return true if OFFICER -> MEMBER happened */
+    boolean demote(UUID playerID) {
+        PlayerData data = members.get(playerID);
+        if (data == null || data.role != Role.OFFICER) {
+            return false;
+        }
+        data.role = Role.MEMBER;
+        return true;
+    }
+
+    public boolean isInvitingPlayer(UUID playerID) {
+        return pendingInvites.contains(playerID);
+    }
+
+    void addInvite(UUID playerID) {
+        pendingInvites.add(playerID);
+    }
+
+    void removeInvite(UUID playerID) {
+        pendingInvites.remove(playerID);
+    }
+
+    /** @return kills of {@code victim} by this faction after counting this one */
+    int recordKill(UUID victim) {
+        return killCounter.merge(victim, 1, Integer::sum);
+    }
+
+    void forgetKillsOf(UUID victim) {
+        killCounter.remove(victim);
+    }
+
+    public Set<UUID> getAllies() {
+        return Collections.unmodifiableSet(allies);
+    }
+
+    public Set<UUID> getPendingAllianceRequests() {
+        return Collections.unmodifiableSet(pendingAllianceRequests);
+    }
+
     public boolean isAllyOf(UUID factionID) {
         return factionID != null && allies.contains(factionID);
     }
 
-    // True while a post-break truce with the given faction is still active. Expired truces are pruned lazily.
+    public boolean hasPendingAllianceRequestFrom(UUID factionID) {
+        return pendingAllianceRequests.contains(factionID);
+    }
+
+    void addAlly(UUID factionID) {
+        allies.add(factionID);
+    }
+
+    void removeAlly(UUID factionID) {
+        allies.remove(factionID);
+    }
+
+    void addAllianceRequest(UUID factionID) {
+        pendingAllianceRequests.add(factionID);
+    }
+
+    boolean removeAllianceRequest(UUID factionID) {
+        return pendingAllianceRequests.remove(factionID);
+    }
+
+    void setTruce(UUID factionID, long expiryMs) {
+        truces.put(factionID, expiryMs);
+    }
+
+    void removeTruce(UUID factionID) {
+        truces.remove(factionID);
+    }
+
+    /** Expired truces are pruned lazily. */
     public boolean isInTruceWith(UUID factionID) {
         if (factionID == null) {
             return false;
@@ -388,7 +411,7 @@ public class Faction {
         if (expiry == null) {
             return false;
         }
-        if (expiry <= WarForgeMod.truceClock()) {
+        if (expiry <= WarClock.truceClock()) {
             truces.remove(factionID);
             return false;
         }
@@ -397,7 +420,61 @@ public class Faction {
 
     public long getTruceRemainingMs(UUID factionID) {
         Long expiry = truces.get(factionID);
-        return expiry == null ? 0L : Math.max(0L, expiry - WarForgeMod.truceClock());
+        return expiry == null ? 0L : Math.max(0L, expiry - WarClock.truceClock());
+    }
+
+    public int getClaimCount() {
+        return claims.size();
+    }
+
+    public Set<DimBlockPos> getClaimPositions() {
+        return Collections.unmodifiableSet(claims.keySet());
+    }
+
+    /** @return null if the faction holds no claim in the chunk */
+    public DimBlockPos getSpecificPosForClaim(DimChunkPos pos) {
+        return claimByChunk.get(pos);
+    }
+
+    public boolean ownsClaimAt(DimBlockPos pos) {
+        return claims.containsKey(pos);
+    }
+
+    public ClaimType getClaimType(DimChunkPos pos) {
+        DimBlockPos claimPos = claimByChunk.get(pos);
+        if (claimPos == null) {
+            return ClaimType.NONE;
+        }
+        return claimTypes.getOrDefault(claimPos, claimPos.equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC);
+    }
+
+    public int getPendingYields(DimBlockPos pos) {
+        return claims.getOrDefault(pos, 0);
+    }
+
+    public int takePendingYields(DimBlockPos pos) {
+        Integer pending = claims.replace(pos, 0);
+        return pending == null ? 0 : pending;
+    }
+
+    void putClaim(DimBlockPos pos, ClaimType type, int pendingYields) {
+        claims.put(pos, pendingYields);
+        claimTypes.put(pos, type);
+        claimByChunk.put(pos.toChunkPos(), pos);
+    }
+
+    /** @return pending yields of the removed claim, 0 if absent */
+    int removeClaim(DimBlockPos pos) {
+        Integer pending = claims.remove(pos);
+        claimTypes.remove(pos);
+        claimByChunk.remove(pos.toChunkPos());
+        return pending == null ? 0 : pending;
+    }
+
+    void clearClaims() {
+        claims.clear();
+        claimTypes.clear();
+        claimByChunk.clear();
     }
 
     public boolean canPlaceClaim() {
@@ -407,10 +484,60 @@ public class Faction {
                 return false;
             }
         }
-        if (WarForgeConfig.MAX_CLAIMS_PER_FACTION >= 0 && claims.size() >= WarForgeConfig.MAX_CLAIMS_PER_FACTION) {
-            return false;
+        return WarForgeConfig.MAX_CLAIMS_PER_FACTION < 0 || claims.size() < WarForgeConfig.MAX_CLAIMS_PER_FACTION;
+    }
+
+    /** Pending yields +1 per claim in a loaded dimension. */
+    void incrementPendingYields() {
+        for (Map.Entry<DimBlockPos, Integer> kvp : claims.entrySet()) {
+            if (WarForgeMod.MC_SERVER.getLevel(kvp.getKey().dim) != null) {
+                kvp.setValue(kvp.getValue() + 1);
+            }
         }
-        return true;
+    }
+
+    public Set<DimChunkPos> getForcedChunks() {
+        return Collections.unmodifiableSet(forcedChunks);
+    }
+
+    public boolean isForceLoaded(DimChunkPos chunk) {
+        return forcedChunks.contains(chunk);
+    }
+
+    boolean forceLoad(DimChunkPos chunk) {
+        return forcedChunks.add(chunk);
+    }
+
+    boolean unforceLoad(DimChunkPos chunk) {
+        return forcedChunks.remove(chunk);
+    }
+
+    public Set<DimBlockPos> getIslandCollectors() {
+        return Collections.unmodifiableSet(islandCollectors);
+    }
+
+    boolean addIslandCollector(DimBlockPos pos) {
+        return islandCollectors.add(pos);
+    }
+
+    boolean removeIslandCollector(DimBlockPos pos) {
+        return islandCollectors.remove(pos);
+    }
+
+    boolean removeIslandCollectors(Collection<DimBlockPos> positions) {
+        return islandCollectors.removeAll(positions);
+    }
+
+    void clearIslandCollectors() {
+        islandCollectors.clear();
+    }
+
+    void clearForcedChunks() {
+        forcedChunks.clear();
+    }
+
+    public boolean canForceLoadMore() {
+        return forcedChunks.size() < getMaxForceLoadedChunks();
     }
 
     public int getMaxForceLoadedChunks() {
@@ -465,7 +592,7 @@ public class Faction {
     }
 
     public ArrayList<ItemStack> drainInsuranceContents() {
-        ArrayList<ItemStack> contents = new ArrayList<ItemStack>();
+        ArrayList<ItemStack> contents = new ArrayList<>();
         for (int i = 0; i < insuranceStacks.size(); i++) {
             ItemStack stack = insuranceStacks.get(i);
             if (stack != null && !stack.isEmpty()) {
@@ -476,152 +603,28 @@ public class Faction {
         return contents;
     }
 
+    void clearInsurance() {
+        insuranceStacks.clear();
+    }
+
     private void ensureInsuranceSize(int targetSize) {
         while (insuranceStacks.size() < targetSize) {
             insuranceStacks.add(ItemStack.EMPTY);
         }
     }
 
-    public boolean canForceLoadMore() {
-        return forcedChunks.size() < getMaxForceLoadedChunks();
-    }
-
-    public boolean isPlayerRoleInFaction(UUID playerID, Role role) {
-        if (members.containsKey(playerID)) {
-            Role thierRole = members.get(playerID).role;
-            return thierRole.ordinal() >= role.ordinal();
-        }
-        return false;
-    }
-
-    public boolean isPlayerOutrankingOfficer(UUID playerID, UUID targetID) {
-        if (members.containsKey(playerID) && members.containsKey(targetID)) {
-            Role playerRole = members.get(playerID).role;
-            Role targetRole = members.get(targetID).role;
-            return playerRole.ordinal() >= Role.OFFICER.ordinal()
-                    && playerRole.ordinal() > targetRole.ordinal();
-        }
-        return false;
-    }
-
-    public void onClaimPlaced(IClaim claim) {
-        claims.put(claim.getClaimPos(), 0);
-        claimTypes.put(claim.getClaimPos(), ClaimType.fromClaim(claim));
-        wealth += chunkWealth(claim.getClaimPos().toChunkPos());
-    }
-
-    // for methods where claim block is actually being removed
-    public void onClaimLost(DimBlockPos claimBlockPos) {
-        onClaimLost(claimBlockPos, false, true);
-    }
-
-    // avoids duplication of claim block on siege capture, as the way capture is done is
-    // by losing the claim (this method) and then creating another in its place
-    public void onClaimLost(DimBlockPos claimBlockPos, boolean captureAttempted) {
-        onClaimLost(claimBlockPos, captureAttempted, true);
-    }
-
-    public void onClaimLost(DimBlockPos claimBlockPos, boolean captureAttempted, boolean notifyLoss) {
-        boolean removedForceLoad = forcedChunks.remove(claimBlockPos.toChunkPos());
-        // Destroy our claim block if this claim has a physical block.
-        ServerLevel world = WarForgeMod.MC_SERVER.getLevel(claimBlockPos.dim);
-        if (world != null) {
-            BlockState claimBlock = world.getBlockState(claimBlockPos.toRegularPos());
-            if (WarForgeMod.isClaim(claimBlock.getBlock(), Content.statue, Content.dummyTranslusent)) {
-                ItemStack drop = new ItemStack(claimBlock.getBlock().asItem());
-                world.removeBlock(claimBlockPos.toRegularPos(), false);
-                if (!captureAttempted || !WarForgeConfig.SIEGE_CAPTURE) {
-                    world.addFreshEntity(new ItemEntity(
-                            world,
-                            claimBlockPos.getX() + 0.5d,
-                            claimBlockPos.getY() + 0.5d,
-                            claimBlockPos.getZ() + 0.5d,
-                            drop
-                    ));
-                }
-            }
-        }
-
-        // Uh oh
-        if (claimBlockPos.equals(citadelPos)) {
-            for (Fob fob : new ArrayList<>(fobs)) {
-                WarForgeMod.FOBS.destroyFob(fob);
-            }
-            fobs.clear();
-            WarForgeMod.FACTIONS.FactionDefeated(this);
-            WarForgeMod.INSTANCE.messageAll(Component.literal(name + "'s citadel was destroyed. " + name + " is no more."), true);
-        } else {
-            if (notifyLoss) {
-                messageAll(Component.literal("Our faction lost a claim at " + claimBlockPos.toFancyString()));
-                WarForgeMod.FACTIONS.sendClaimChangedNotification(
-                        this,
-                        "claim_lost_" + claimBlockPos,
-                        "Claim Lost",
-                        "Your faction lost the claim at " + claimBlockPos.toFancyString(),
-                        0xB34747
-                );
-            }
-
-            claims.remove(claimBlockPos);
-            claimTypes.remove(claimBlockPos);
-            wealth -= chunkWealth(claimBlockPos.toChunkPos());
-            ArrayList<DimBlockPos> removedCollectors = new ArrayList<DimBlockPos>();
-            for (DimBlockPos collectorPos : islandCollectors) {
-                if (collectorPos.toChunkPos().equals(claimBlockPos.toChunkPos())) {
-                    removedCollectors.add(collectorPos);
-                    ServerLevel collectorWorld = WarForgeMod.MC_SERVER.getLevel(collectorPos.dim);
-                    if (collectorWorld != null) {
-                        collectorWorld.removeBlock(collectorPos.toRegularPos(), false);
-                    }
-                }
-            }
-            if (!removedCollectors.isEmpty()) {
-                islandCollectors.removeAll(removedCollectors);
-                WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
-            } else if (removedForceLoad) {
-                WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
-            }
-        }
-
-    }
-
-    public void claimNoTileEntity(DimChunkPos pos) {//Intetesting
-        claimNoTileEntity(pos, 0, ClaimType.BASIC);
-    }
-
-    public void claimNoTileEntity(DimChunkPos pos, int y) {
-        claimNoTileEntity(pos, y, ClaimType.BASIC);
-    }
-
-    public void claimNoTileEntity(DimChunkPos pos, int y, ClaimType claimType) {
-        DimBlockPos blockPos = new DimBlockPos(pos.dim, pos.getMinBlockX(), y, pos.getMinBlockZ());
-        claims.put(blockPos, 0);
-        claimTypes.put(blockPos, claimType);
-        wealth += chunkWealth(pos);
-    }
-
-    public ClaimType getClaimType(DimChunkPos pos) {
-        DimBlockPos claimPos = getSpecificPosForClaim(pos);
-        if (claimPos == null) {
-            return ClaimType.NONE;
-        }
-        return claimTypes.getOrDefault(claimPos, claimPos.equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC);
-    }
-
-
-    // Messaging
     public void messageAll(Component chat) {
         for (UUID playerID : members.keySet()) {
-            final Player player = getPlayer(playerID);
-            if (player != null)
+            Player player = getPlayer(playerID);
+            if (player != null) {
                 player.sendSystemMessage(chat);
+            }
         }
     }
 
-    // Plays sound to everyone within faction
     public void soundEffectAll(SoundEvent soundEvent, float volume, float pitch) {
         for (UUID playerID : members.keySet()) {
-            final ServerPlayer player = (ServerPlayer) getPlayer(playerID);
+            ServerPlayer player = (ServerPlayer) getPlayer(playerID);
             if (player != null && !player.hasDisconnected()) {
                 player.connection.send(new ClientboundSoundPacket(
                         Holder.direct(soundEvent),
@@ -638,249 +641,139 @@ public class Faction {
         soundEffectAll(soundEvent, 1f, 1f);
     }
 
-    public DimBlockPos getSpecificPosForClaim(DimChunkPos pos) {
-        for (DimBlockPos claimPos : claims.keySet()) {
-            if (claimPos.toChunkPos().equals(pos))
-                return claimPos;
-        }
-        return null;
-    }
+    /** Citadel position is filled in only for members; outsiders get {@link DimBlockPos#ZERO}. */
+    public FactionDisplayInfo createInfo(UUID viewerId) {
+        FactionDisplayInfo info = new FactionDisplayInfo();
+        info.factionId = uuid;
+        info.factionName = name;
+        info.colour = colour;
+        info.flagId = flagId;
+        info.notoriety = notoriety;
+        info.wealth = wealth;
+        info.legacy = legacy;
+        info.lvl = citadelLevel;
 
-    // Wealth contributed by a single claimed chunk: the wealth of the yield-providing vein it holds, or
-    // 0 if the chunk has no vein. Returns 0 until the vein handler is ready (startup recompute covers it).
-    public static int chunkWealth(DimChunkPos chunk) {
-        if (VEIN_HANDLER == null || !VEIN_HANDLER.hasFinishedInit || WarForgeMod.MC_SERVER == null) {
-            return 0;
-        }
-        ServerLevel level = WarForgeMod.MC_SERVER.getLevel(chunk.dim);
-        if (level == null) {
-            level = WarForgeMod.MC_SERVER.overworld();
-        }
-        if (level == null) {
-            return 0;
-        }
-        Pair<Vein, Quality> veinInfo = VEIN_HANDLER.getVein(chunk.dim, chunk.x, chunk.z, level.getSeed());
-        return veinInfo == null || veinInfo.getLeft() == null ? 0 : veinInfo.getLeft().wealth;
-    }
+        Leaderboard leaderboard = WarForgeMod.LEADERBOARD;
+        info.legacyRank = leaderboard.getOneIndexedRankOf(this, FactionStat.LEGACY);
+        info.notorietyRank = leaderboard.getOneIndexedRankOf(this, FactionStat.NOTORIETY);
+        info.wealthRank = leaderboard.getOneIndexedRankOf(this, FactionStat.WEALTH);
+        info.totalRank = leaderboard.getOneIndexedRankOf(this, FactionStat.TOTAL);
 
-    // Full recompute of wealth from current claims. Used on server start (migration / vein-config
-    // changes); runtime claim gain/loss adjusts wealth incrementally instead to avoid redundant scans.
-    public void recalculateWealth() {
-        int total = 0;
-        for (DimBlockPos claimPos : claims.keySet()) {
-            total += chunkWealth(claimPos.toChunkPos());
-        }
-        wealth = total;
-    }
+        info.numClaims = claims.size();
+        info.citadelPos = (viewerId != null && isPlayerInFaction(viewerId)) ? citadelPos : DimBlockPos.ZERO;
 
-    public void awardYields() {
-        for (HashMap.Entry<DimBlockPos, Integer> kvp : claims.entrySet()) {
-            DimBlockPos pos = kvp.getKey();
-            if (WarForgeMod.MC_SERVER.getLevel(pos.dim) == null) {
+        boolean viewerIsMember = viewerId != null && isPlayerInFaction(viewerId);
+        for (Map.Entry<UUID, PlayerData> entry : members.entrySet()) {
+            if (entry.getValue().role == Role.LEADER) {
+                info.leaderId = entry.getKey();
+            } else if (!viewerIsMember) {
                 continue;
             }
-            kvp.setValue(kvp.getValue() + 1);  // increment number of yields
+            PlayerDisplayInfo playerInfo = new PlayerDisplayInfo();
+            PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, entry.getKey()).orElse(null);
+            playerInfo.username = profile == null ? "Unknown Player" : profile.getName();
+            playerInfo.playerUuid = entry.getKey();
+            playerInfo.role = entry.getValue().role;
+            info.members.add(playerInfo);
         }
-
-        ArrayList<DimBlockPos> staleCollectors = null;
-        for (DimBlockPos collectorPos : islandCollectors) {
-            ServerLevel world = WarForgeMod.MC_SERVER.getLevel(collectorPos.dim);
-            if (world == null || !world.isLoaded(collectorPos.toRegularPos())) {
-                continue;
-            }
-
-            BlockEntity te = world.getBlockEntity(collectorPos.toRegularPos());
-            if (te instanceof TileEntityIslandCollector collector) {
-                collector.processIslandYields(this);
-            } else {
-                if (staleCollectors == null) {
-                    staleCollectors = new ArrayList<DimBlockPos>();
-                }
-                staleCollectors.add(collectorPos);
-            }
-        }
-
-        if (staleCollectors != null) {
-            islandCollectors.removeAll(staleCollectors);
-            WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(this);
-        }
-
-        ServerLevel citadelWorld = WarForgeMod.MC_SERVER.getLevel(citadelPos.dim);
-        if (citadelWorld != null && citadelWorld.isLoaded(citadelPos.toRegularPos())) {
-            BlockEntity citadelTe = citadelWorld.getBlockEntity(citadelPos.toRegularPos());
-            if (citadelTe instanceof TileEntityCitadel citadel) {
-                citadel.processFactionYields(this);
-            }
-        }
+        return info;
     }
 
-    public void promote(UUID playerID) {
-        PlayerData data = members.get(playerID);
-        if (data != null) {
-            if (data.role == Role.MEMBER) {
-                data.role = Role.OFFICER;
-                PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
-                if (profile != null)
-                    messageAll(Component.literal(profile.getName() + " was promoted to officer"));
-            }
-        }
-    }
-
-    public void demote(UUID playerID) {
-        PlayerData data = members.get(playerID);
-        if (data != null) {
-            if (data.role == Role.OFFICER) {
-                data.role = Role.MEMBER;
-                PlayerRef profile = Profiles.get(WarForgeMod.MC_SERVER, playerID).orElse(null);
-                if (profile != null)
-                    messageAll(Component.literal(profile.getName() + " was demoted to member"));
-            }
-        }
-    }
-
-
-    public void setColour(int colour) {
-        this.colour = colour;
-    }
-
-
+    /** Fobs persist under the same compound ("fobs"), written by FobManager. */
     public void readFromNBT(CompoundTag tags) {
-        claims.clear();
-        claimTypes.clear();
+        clearClaims();
         forcedChunks.clear();
         islandCollectors.clear();
-        fobs.clear();
         members.clear();
         pendingInvites.clear();
         allies.clear();
         pendingAllianceRequests.clear();
         truces.clear();
+        killCounter.clear();
 
-        // Get citadel pos and defining params
         uuid = Nbt.getUUID(tags, "uuid");
         name = Nbt.getString(tags, "name");
         colour = Nbt.getInt(tags, "colour");
         citadelLevel = Nbt.getShort(tags, "citadel_lvl");
-
-        // Get our claims and citadel
         citadelPos = DimBlockPos.readFromNBT(tags, "citadelPos");
 
-
-        ListTag claimList = Nbt.getList(tags, "claims", Tag.TAG_COMPOUND);
-        for (Tag base : claimList) {
+        for (Tag base : Nbt.getList(tags, "claims", Tag.TAG_COMPOUND)) {
             CompoundTag claimInfo = (CompoundTag) base;
             DimBlockPos pos = DimBlockPos.readFromNBT(Nbt.getCompound(claimInfo, "pos"));
             int pendingYields = Nbt.getInt(claimInfo, "pendingYields");
-            claims.put(pos, pendingYields);
             ClaimType claimType = ClaimType.fromSerialized(Nbt.getString(claimInfo, "type"));
             if (claimType == ClaimType.NONE && pos.equals(citadelPos)) {
                 claimType = ClaimType.CITADEL;
             }
-            claimTypes.put(pos, claimType);
+            putClaim(pos, claimType, pendingYields);
         }
-        // Neutral zones (SafeZone / WarZone) are citadel-less: they have no real citadel, so skip the
-        // force-claim that would otherwise pin a phantom claim onto their (0,0,0) sentinel citadelPos.
-        if (FactionStorage.IsNeutralZone(uuid)) {
-            // Drop any legacy phantom claim a pre-rework save force-pinned at the sentinel citadelPos
-            // (always serialized as a CITADEL claim; real zone claims are ADMIN / WARZONE).
+        if (FactionIds.isNeutralZone(uuid)) {
+            // Zones have no citadel; the sentinel citadelPos must not hold a claim
             if (claimTypes.get(citadelPos) == ClaimType.CITADEL) {
-                claims.remove(citadelPos);
-                claimTypes.remove(citadelPos);
+                removeClaim(citadelPos);
             }
         } else if (!claims.containsKey(citadelPos)) {
-            WarForgeMod.LOGGER.error("Citadel was not claimed by the faction. Forcing claim");
-            claims.put(citadelPos, 0);
-            claimTypes.put(citadelPos, ClaimType.CITADEL);
+            WarForgeMod.LOGGER.error("Citadel of faction {} was not claimed; forcing claim", name);
+            putClaim(citadelPos, ClaimType.CITADEL, 0);
         }
 
-        ListTag killList = Nbt.getList(tags, "kills", Tag.TAG_COMPOUND);
-        for (Tag base : killList) {
+        for (Tag base : Nbt.getList(tags, "kills", Tag.TAG_COMPOUND)) {
             CompoundTag killInfo = (CompoundTag) base;
-            UUID uuid = Nbt.getUUID(killInfo, "id");
-            int kills = Nbt.getInt(killInfo, "count");
-
-            killCounter.put(uuid, kills);
+            killCounter.put(Nbt.getUUID(killInfo, "id"), Nbt.getInt(killInfo, "count"));
         }
 
-        ListTag forceLoadList = Nbt.getList(tags, "forcedChunks", Tag.TAG_COMPOUND);
-        for (Tag base : forceLoadList) {
+        for (Tag base : Nbt.getList(tags, "forcedChunks", Tag.TAG_COMPOUND)) {
             DimChunkPos chunkPos = readChunkPosFromNBT((CompoundTag) base);
             if (chunkPos != null) {
                 forcedChunks.add(chunkPos);
             }
         }
 
-        ListTag collectorList = Nbt.getList(tags, "collectors", Tag.TAG_COMPOUND);
-        for (Tag base : collectorList) {
+        for (Tag base : Nbt.getList(tags, "collectors", Tag.TAG_COMPOUND)) {
             DimBlockPos collectorPos = DimBlockPos.readFromNBT((CompoundTag) base);
             if (!collectorPos.equals(DimBlockPos.ZERO)) {
                 islandCollectors.add(collectorPos);
             }
         }
 
-        ListTag fobList = Nbt.getList(tags, "fobs", Tag.TAG_COMPOUND);
-        for (Tag base : fobList) {
-            Fob fob = new Fob();
-            fob.readFromNBT((CompoundTag) base);
-            fob.ownerFaction = uuid;
-            if (!fob.pos.equals(DimBlockPos.ZERO)) {
-                fobs.add(fob);
-            }
-        }
-
-
         flagId = Nbt.getString(tags, "flagId");
-
-        // Get gameplay params
         notoriety = Nbt.getInt(tags, "notoriety");
         wealth = Nbt.getInt(tags, "wealth");
         legacy = Nbt.getInt(tags, "legacy");
-
         offlineRaidProtectionUntil = Nbt.getLong(tags, "offlineRaidProtectionUntil");
         offlineRaidProtectionDisabled = Nbt.getBoolean(tags, "offlineRaidProtectionDisabled");
         siegeGraceUntil = Nbt.getLong(tags, "siegeGraceUntil");
         citadelMoveTimeStamp = Nbt.getLong(tags, "citadelMoveTimestamp");
         lastSiegeTimestamp = Nbt.getLong(tags, "lastSiegeTimestamp");
         siegeMomentum = Nbt.getByte(tags, "siegeMomentum");
-        momentumExpireryTimestamp = Nbt.getLong(tags, "momentumExpireryTimestamp");
-        isCurrentlyDefending = Nbt.getBoolean(tags, "isDefending");
+        momentumExpiryTimestamp = Nbt.getLong(tags, "momentumExpireryTimestamp");
         loggedInToday = Nbt.getBoolean(tags, "loggedInToday");
 
-
-        // Get member data
-        ListTag memberList = Nbt.getList(tags, "members", Tag.TAG_COMPOUND);
-        for (Tag base : memberList) {
+        for (Tag base : Nbt.getList(tags, "members", Tag.TAG_COMPOUND)) {
             CompoundTag memberTags = (CompoundTag) base;
-            UUID uuid = Nbt.getUUID(memberTags, "uuid");
             PlayerData data = new PlayerData();
             data.readFromNBT(memberTags);
-            members.put(uuid, data);
+            members.put(Nbt.getUUID(memberTags, "uuid"), data);
         }
 
-        ListTag inviteList = Nbt.getList(tags, "pendingInvites", Tag.TAG_COMPOUND);
-        for (Tag base : inviteList) {
-            CompoundTag inviteTags = (CompoundTag) base;
-            pendingInvites.add(Nbt.getUUID(inviteTags, "uuid"));
+        for (Tag base : Nbt.getList(tags, "pendingInvites", Tag.TAG_COMPOUND)) {
+            pendingInvites.add(Nbt.getUUID((CompoundTag) base, "uuid"));
         }
 
         allowAllyInteraction = Nbt.getBoolean(tags, "allowAllyInteraction");
-        ListTag allyList = Nbt.getList(tags, "allies", Tag.TAG_COMPOUND);
-        for (Tag base : allyList) {
-            allies.add(Nbt.getUUID(((CompoundTag) base), "uuid"));
+        for (Tag base : Nbt.getList(tags, "allies", Tag.TAG_COMPOUND)) {
+            allies.add(Nbt.getUUID((CompoundTag) base, "uuid"));
         }
-        ListTag allyRequestList = Nbt.getList(tags, "pendingAllianceRequests", Tag.TAG_COMPOUND);
-        for (Tag base : allyRequestList) {
-            pendingAllianceRequests.add(Nbt.getUUID(((CompoundTag) base), "uuid"));
+        for (Tag base : Nbt.getList(tags, "pendingAllianceRequests", Tag.TAG_COMPOUND)) {
+            pendingAllianceRequests.add(Nbt.getUUID((CompoundTag) base, "uuid"));
         }
-        ListTag truceList = Nbt.getList(tags, "truces", Tag.TAG_COMPOUND);
-        for (Tag base : truceList) {
+        for (Tag base : Nbt.getList(tags, "truces", Tag.TAG_COMPOUND)) {
             CompoundTag truceTag = (CompoundTag) base;
             truces.put(Nbt.getUUID(truceTag, "uuid"), Nbt.getLong(truceTag, "expiry"));
         }
 
         insuranceStacks.clear();
-        ListTag insuranceList = Nbt.getList(tags, "insurance", Tag.TAG_COMPOUND);
-        for (Tag base : insuranceList) {
+        for (Tag base : Nbt.getList(tags, "insurance", Tag.TAG_COMPOUND)) {
             CompoundTag insuranceTag = (CompoundTag) base;
             int slot = Nbt.getInt(insuranceTag, "slot");
             ItemStack stack = Stacks.parse(WarForgeMod.MC_SERVER.registryAccess(), Nbt.getCompound(insuranceTag, "stack"));
@@ -890,32 +783,29 @@ public class Faction {
     }
 
     public void writeToNBT(CompoundTag tags) {
-        // Set citadel pos and core params
         Nbt.putUUID(tags, "uuid", uuid);
         tags.putString("name", name);
         tags.putString("flagId", flagId);
         tags.putInt("colour", colour);
         tags.putShort("citadel_lvl", citadelLevel);
 
-        // Set claims
         ListTag claimsList = new ListTag();
-        for (HashMap.Entry<DimBlockPos, Integer> kvp : claims.entrySet()) {
+        for (Map.Entry<DimBlockPos, Integer> kvp : claims.entrySet()) {
             CompoundTag claimTags = new CompoundTag();
             claimTags.put("pos", kvp.getKey().writeToNBT());
             claimTags.putInt("pendingYields", kvp.getValue());
-            claimTags.putString("type", claimTypes.getOrDefault(kvp.getKey(), kvp.getKey().equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC).serializedName);
-
+            claimTags.putString("type", claimTypes.getOrDefault(kvp.getKey(),
+                    kvp.getKey().equals(citadelPos) ? ClaimType.CITADEL : ClaimType.BASIC).serializedName);
             claimsList.add(claimTags);
         }
         tags.put("claims", claimsList);
         citadelPos.writeToNBT(tags, "citadelPos");
 
         ListTag killsList = new ListTag();
-        for (HashMap.Entry<UUID, Integer> kvp : killCounter.entrySet()) {
+        for (Map.Entry<UUID, Integer> kvp : killCounter.entrySet()) {
             CompoundTag killTags = new CompoundTag();
             Nbt.putUUID(killTags, "id", kvp.getKey());
             killTags.putInt("count", kvp.getValue());
-
             killsList.add(killTags);
         }
         tags.put("kills", killsList);
@@ -932,18 +822,6 @@ public class Faction {
         }
         tags.put("collectors", collectorsList);
 
-        ListTag fobsList = new ListTag();
-        for (Fob fob : fobs) {
-            if (fob.pos.equals(DimBlockPos.ZERO)) {
-                continue;
-            }
-            CompoundTag fobTags = new CompoundTag();
-            fob.writeToNBT(fobTags);
-            fobsList.add(fobTags);
-        }
-        tags.put("fobs", fobsList);
-
-        // Set gameplay params
         tags.putInt("notoriety", notoriety);
         tags.putInt("wealth", wealth);
         tags.putInt("legacy", legacy);
@@ -953,13 +831,11 @@ public class Faction {
         tags.putLong("siegeGraceUntil", siegeGraceUntil);
         tags.putLong("citadelMoveTimestamp", citadelMoveTimeStamp);
         tags.putLong("lastSiegeTimestamp", lastSiegeTimestamp);
-
         tags.putByte("siegeMomentum", siegeMomentum);
-        tags.putLong("momentumExpireryTimestamp", momentumExpireryTimestamp);
+        tags.putLong("momentumExpireryTimestamp", momentumExpiryTimestamp);
 
-        // Add member data
         ListTag memberList = new ListTag();
-        for (HashMap.Entry<UUID, PlayerData> kvp : members.entrySet()) {
+        for (Map.Entry<UUID, PlayerData> kvp : members.entrySet()) {
             CompoundTag memberTags = new CompoundTag();
             Nbt.putUUID(memberTags, "uuid", kvp.getKey());
             kvp.getValue().writeToNBT(memberTags);
@@ -1007,16 +883,14 @@ public class Faction {
             }
             CompoundTag insuranceTag = new CompoundTag();
             insuranceTag.putInt("slot", i);
-            CompoundTag stackTag = Stacks.save(stack, WarForgeMod.MC_SERVER.registryAccess());
-            insuranceTag.put("stack", stackTag);
+            insuranceTag.put("stack", Stacks.save(stack, WarForgeMod.MC_SERVER.registryAccess()));
             insuranceList.add(insuranceTag);
         }
         tags.put("insurance", insuranceList);
-        tags.putBoolean("isDefending", isCurrentlyDefending);
         tags.putBoolean("loggedInToday", loggedInToday);
     }
 
-    // forced-chunk persistence: dimension is a ResourceKey<Level> stored as its location string
+    // dimension persisted as its location string
     private static CompoundTag writeChunkPosToNBT(DimChunkPos chunkPos) {
         CompoundTag tag = new CompoundTag();
         tag.putString("dim", Keys.id(chunkPos.dim).toString());
@@ -1035,82 +909,21 @@ public class Faction {
         return null;
     }
 
-    public int calcNumSieges() {
-        int result = 0;
-        for (Siege siege : WarForgeMod.FACTIONS.getSieges().values())
-            if (uuid.equals(siege.attackingFaction)) ++result;
-        return result;
-    }
+    private static final class PlayerData {
+        private Role role = Role.MEMBER;
 
-    public int calcNumDefendingSieges() {
-        int result = 0;
-        for (Siege siege : WarForgeMod.FACTIONS.getSieges().values())
-            if (uuid.equals(siege.defendingFaction)) ++result;
-        return result;
-    }
-
-    public enum Role {
-        GUEST, // ?
-        MEMBER,
-        OFFICER,
-        LEADER,
-    }
-
-    public enum ClaimType {
-        NONE("none", "", 0, 0),
-        BASIC("basic", "B", WarForgeConfig.CLAIM_STRENGTH_BASIC, WarForgeConfig.SUPPORT_STRENGTH_BASIC),
-        REINFORCED("reinforced", "R", WarForgeConfig.CLAIM_STRENGTH_REINFORCED, WarForgeConfig.SUPPORT_STRENGTH_REINFORCED),
-        CITADEL("citadel", "C", WarForgeConfig.CLAIM_STRENGTH_CITADEL, WarForgeConfig.SUPPORT_STRENGTH_CITADEL),
-        // ADMIN backs the SafeZone special claim; WARZONE backs the WarZone special claim. Both are
-        // citadel-less, blockless, unsiegeable zone claims whose protection is driven by their owning
-        // pseudo-faction UUID (see WarForgeConfig.SAFE_ZONE / WAR_ZONE), not by these strengths.
-        ADMIN("admin", "A", 0, 0),
-        WARZONE("warzone", "W", 0, 0),
-        SIEGE("siege", "S", 0, 0);
-
-        public final String serializedName;
-        public final String shortLabel;
-        public final int defenceStrength;
-        public final int supportStrength;
-
-        private static final Map<String, ClaimType> BY_NAME;
-        static {
-            BY_NAME = new HashMap<>();
-            for (ClaimType type : values()) {
-                BY_NAME.put(type.serializedName, type);
+        private void readFromNBT(CompoundTag tags) {
+            // Role persisted by name; unknown (e.g. removed GUEST) => MEMBER
+            String stored = Nbt.getString(tags, "role");
+            try {
+                role = Role.valueOf(stored);
+            } catch (IllegalArgumentException e) {
+                role = Role.MEMBER;
+                WarForgeMod.LOGGER.warn("Unknown role '{}', defaulting to MEMBER", stored);
             }
         }
 
-        ClaimType(String serializedName, String shortLabel, int defenceStrength, int supportStrength) {
-            this.serializedName = serializedName;
-            this.shortLabel = shortLabel;
-            this.defenceStrength = defenceStrength;
-            this.supportStrength = supportStrength;
-        }
-
-        public static ClaimType fromClaim(IClaim claim) {
-            if (claim instanceof TileEntityCitadel) return CITADEL;
-            if (claim instanceof TileEntityReinforcedClaim) return REINFORCED;
-            if (claim instanceof TileEntityBasicClaim) return BASIC;
-            if (claim instanceof TileEntitySiegeCamp) return SIEGE;
-            return NONE;
-        }
-
-        public static ClaimType fromSerialized(String value) {
-            return BY_NAME.getOrDefault(value, NONE);
-        }
-    }
-
-    public static class PlayerData {
-        public Faction.Role role = Faction.Role.MEMBER;
-
-        public void readFromNBT(CompoundTag tags) {
-            // Read and write role by string so enum order can change
-            try { role = Faction.Role.valueOf(Nbt.getString(tags, "role")); }
-            catch (IllegalArgumentException e) { role = Faction.Role.MEMBER; WarForgeMod.LOGGER.warn("Unknown role '{}', defaulting to MEMBER", Nbt.getString(tags, "role")); }
-        }
-
-        public void writeToNBT(CompoundTag tags) {
+        private void writeToNBT(CompoundTag tags) {
             tags.putString("role", role.name());
         }
     }

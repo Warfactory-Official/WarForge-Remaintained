@@ -9,24 +9,14 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.living.LivingAttackEvent;
 import net.minecraftforge.event.level.BlockEvent;
-import net.minecraftforge.eventbus.api.EventPriority;
 
 import java.util.function.Consumer;
 
-/** Game events whose loader event classes differ between versions. Handlers get neutral types. */
 public final class GameEvents {
     private GameEvents() {}
 
-    /** At the end of every server tick. */
     public static void onServerTickEnd(Runnable handler) {
         Platform.gameBus().addListener((TickEvent.ServerTickEvent event) -> {
-            if (event.phase == TickEvent.Phase.END) handler.run();
-        });
-    }
-
-    /** At the end of every client tick (client only). */
-    public static void onClientTickEnd(EventPriority priority, Runnable handler) {
-        Platform.gameBus().addListener(priority, (TickEvent.ClientTickEvent event) -> {
             if (event.phase == TickEvent.Phase.END) handler.run();
         });
     }

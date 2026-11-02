@@ -1,35 +1,26 @@
 package com.flansmod.warforge.client.xaero;
 
-import com.flansmod.warforge.client.MinimapClaimCache;
+import com.flansmod.warforge.client.ClaimMapStyle;
+import com.flansmod.warforge.client.ClientBorderCache;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
-/**
- * Claim colours and texts for the Xaero's World Map and Minimap highlighters (both use the same colour layout).
- * Only reads {@link MinimapClaimCache}, so it is safe on the map threads.
- */
+/** Map threads: reads only ClientBorderCache snapshots. */
 public final class XaeroClaimStyle {
-    /** Chunks per Xaero map region side (a region is 32 x 32 chunks). */
-    static final int REGION_CHUNKS = 32;
+    private static final int NO_CLAIM = ClientBorderCache.NO_CLAIM;
 
     private XaeroClaimStyle() {
     }
 
-    /**
-     * The highlight of a chunk in Xaero's layout, or null if it is not claimed: [0] fill, [1] north (-Z) border,
-     * [2] east (+X), [3] south (+Z), [4] west (-X). Each value is 0xBBGGRRAA; a border is drawn only on a side that
-     * faces a different claim or unclaimed land. The opacities are the ones of the JourneyMap overlay (fill at most
-     * 40%, border at least 70% of the claim colour's alpha).
-     */
+    /** null => unclaimed. [0] fill, [1] N(-Z), [2] E(+X), [3] S(+Z), [4] W(-X) border; each 0xBBGGRRAA. */
     static int[] colors(ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        Integer colour = MinimapClaimCache.colourAt(dim, chunkX, chunkZ);
-        if (colour == null) {
+        int colour = ClientBorderCache.claimColour(dim, chunkX, chunkZ);
+        if (colour == NO_CLAIM) {
             return null;
         }
-        int alpha = colour >>> 24;
-        int fill = xaeroColour(colour, Math.min(alpha, 102));
-        int border = xaeroColour(colour, Math.max(alpha, 179));
+        int fill = xaeroColour(colour, ClaimMapStyle.fillAlpha(colour));
+        int border = xaeroColour(colour, ClaimMapStyle.borderAlpha(colour));
         return new int[]{
                 fill,
                 sameClaim(colour, dim, chunkX, chunkZ - 1) ? 0 : border,
@@ -40,55 +31,31 @@ public final class XaeroClaimStyle {
     }
 
     static boolean isClaimed(ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        return MinimapClaimCache.colourAt(dim, chunkX, chunkZ) != null;
+        return ClientBorderCache.claimColour(dim, chunkX, chunkZ) != NO_CLAIM;
     }
 
     static boolean regionHasClaims(ResourceKey<Level> dim, int regionX, int regionZ) {
-        int x0 = regionX * REGION_CHUNKS;
-        int z0 = regionZ * REGION_CHUNKS;
-        for (int x = x0; x < x0 + REGION_CHUNKS; x++) {
-            for (int z = z0; z < z0 + REGION_CHUNKS; z++) {
-                if (isClaimed(dim, x, z)) {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return ClientBorderCache.regionHasClaims(dim, regionX, regionZ);
     }
 
-    /**
-     * A hash of everything that changes how a region looks: the claims in it and in the chunk ring around it (the
-     * neighbours decide where its borders are).
-     */
     static int regionHash(ResourceKey<Level> dim, int regionX, int regionZ) {
-        int x0 = regionX * REGION_CHUNKS;
-        int z0 = regionZ * REGION_CHUNKS;
-        int hash = 1;
-        for (int x = x0 - 1; x <= x0 + REGION_CHUNKS; x++) {
-            for (int z = z0 - 1; z <= z0 + REGION_CHUNKS; z++) {
-                Integer colour = MinimapClaimCache.colourAt(dim, x, z);
-                hash = 31 * hash + (colour == null ? 0 : colour | 1);
-            }
-        }
-        return hash;
+        return ClientBorderCache.regionRevision(dim, regionX, regionZ);
     }
 
-    /** The hover text of a claimed chunk (only the position: the payload carries no faction names). */
     static Component tooltip(ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        Integer colour = MinimapClaimCache.colourAt(dim, chunkX, chunkZ);
-        if (colour == null) {
+        int colour = ClientBorderCache.claimColour(dim, chunkX, chunkZ);
+        if (colour == NO_CLAIM) {
             return null;
         }
-        return Component.literal(String.format("Claim [%s, %s]", chunkX, chunkZ)).withStyle(style -> style.withColor(colour & 0xFFFFFF));
+        return ClaimMapStyle.label(chunkX, chunkZ).copy().withStyle(style -> style.withColor(colour & 0xFFFFFF));
     }
 
     private static boolean sameClaim(int colour, ResourceKey<Level> dim, int chunkX, int chunkZ) {
-        Integer other = MinimapClaimCache.colourAt(dim, chunkX, chunkZ);
-        return other != null && other == colour;
+        int other = ClientBorderCache.claimColour(dim, chunkX, chunkZ);
+        return other != NO_CLAIM && ClaimMapStyle.sharesBorder(colour, other);
     }
 
-    /** ARGB colour with the given alpha, as Xaero's 0xBBGGRRAA. */
-    private static int xaeroColour(int argb, int alpha) {
+    static int xaeroColour(int argb, int alpha) {
         int r = (argb >> 16) & 0xFF;
         int g = (argb >> 8) & 0xFF;
         int b = argb & 0xFF;

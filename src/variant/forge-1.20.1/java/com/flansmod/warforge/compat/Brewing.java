@@ -11,24 +11,20 @@ import net.minecraft.world.item.alchemy.PotionUtils;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraftforge.common.brewing.BrewingRecipeRegistry;
 import net.minecraftforge.common.crafting.StrictNBTIngredient;
-import net.minecraftforge.event.server.ServerAboutToStartEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 
 import java.util.function.Consumer;
 
-/** Brewing-stand recipes. NeoForge collects them in an event; Forge 1.20.1 has a static registry. */
 public final class Brewing {
     private Brewing() {}
 
     public interface Mixer {
-        /** A bottle (potion, splash or lingering) of base + ingredient gives the same bottle of result. */
         void addMix(ResourceKey<Potion> base, Item ingredient, RegHandle<Potion> result);
     }
 
     private static final Item[] BOTTLES = {Items.POTION, Items.SPLASH_POTION, Items.LINGERING_POTION};
 
-    /** Runs the callback once, after registration, and adds its mixes to Forge's brewing registry. */
     public static void register(Consumer<Mixer> recipes) {
         FMLJavaModLoadingContext.get().getModEventBus().addListener((FMLCommonSetupEvent event) -> event.enqueueWork(() ->
                 recipes.accept((base, ingredient, result) -> {

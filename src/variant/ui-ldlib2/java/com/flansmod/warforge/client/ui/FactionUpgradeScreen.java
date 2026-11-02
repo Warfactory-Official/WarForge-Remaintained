@@ -1,11 +1,14 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ui.model.DataRevision;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketRequestUpgrade;
 import com.flansmod.warforge.common.network.PacketUpgradeUI;
-import com.flansmod.warforge.server.Faction;
-import com.flansmod.warforge.server.ItemMatcher;
+import com.flansmod.warforge.common.item.ItemMatcher;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
@@ -27,16 +30,15 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import com.flansmod.warforge.compat.Inventories;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** Citadel upgrade, laid out like GUIUpgradePanel of the 1.20.1 build. */
 @OnlyIn(Dist.CLIENT)
 public final class FactionUpgradeScreen {
+    private static final DataRevision REVISION = new DataRevision();
     private static final int WIDTH = 398;
     private static final int HEIGHT = 350;
     private static final int ACTIONS_Y = HEIGHT - 40;
@@ -49,14 +51,16 @@ public final class FactionUpgradeScreen {
     public static void open() {
         Minecraft mc = Minecraft.getInstance();
         PacketUpgradeUI data = PacketUpgradeUI.latest;
-        if (mc.player == null || data == null || data.mFactionID.equals(Faction.nullUuid)) {
+        if (data != null && REVISION.unchanged(ClientCompat.screen(), data)) {
+            return;
+        }
+
+        if (mc.player == null || data == null || data.factionId.equals(FactionIds.NONE)) {
             return;
         }
 
         int color = data.color & 0xFFFFFF;
-        // Requirements to reach the next level (the server checks getRequirementsFor(citadelLevel + 1));
-        // none means the citadel is at its max level (as on 1.20.1).
-        HashMap<ItemMatcher, Integer> requirements = WarForgeMod.UPGRADE_HANDLER.getRequirementsFor(data.level + 1);
+        java.util.Map<ItemMatcher, Integer> requirements = com.flansmod.warforge.client.ClientUpgradeTable.getRequirementsFor(data.level + 1);
         if (requirements == null) {
             openMaxLevel(mc, data, color);
             return;
@@ -75,14 +79,13 @@ public final class FactionUpgradeScreen {
         colorStripe(panel, color, HEIGHT);
         closeButton(panel, WIDTH).setOnClick(event -> ClientCompat.setScreen(null));
 
-        title(panel, "Citadel Upgrade", TEXT_PRIMARY);
-        subtitle(panel, shadowText(data.mFactionName, color, false));
+        title(panel, tr("warforge.ui.citadel_upgrade"), TEXT_PRIMARY);
+        subtitle(panel, shadowText(data.factionName, color, false));
 
-        Label prompt = fit(text("Requirements to advance from level " + data.level + " to level " + (data.level + 1), TEXT_MUTED));
+        Label prompt = fit(text(tr("warforge.ui.requirements_to_advance_from_level_d_to_level_d", data.level, data.level + 1), TEXT_MUTED));
         prompt.layout(l -> l.marginBottom(6));
         body.addChild(prompt);
 
-        // Requirements, fewest first (as on 1.20.1)
         List<Map.Entry<ItemMatcher, Integer>> sorted = new ArrayList<>(requirements.entrySet());
         sorted.sort(Comparator.comparingInt(Map.Entry::getValue));
 
@@ -113,22 +116,22 @@ public final class FactionUpgradeScreen {
         int closeWidth = 94;
         int upgradeWidth = 104;
         UIElement actionRow = row(contentWidth, BUTTON_HEIGHT);
-        actionRow.addChild(actionButton("Close", closeWidth, () -> ClientCompat.setScreen(null)));
+        actionRow.addChild(actionButton(tr("warforge.ui.close"), closeWidth, () -> ClientCompat.setScreen(null)));
         actionRow.addChild(box(contentWidth - closeWidth - upgradeWidth, BUTTON_HEIGHT));
-        Button upgradeButton = actionButton("Upgrade", upgradeWidth, data.outrankingOfficer && allMet, () -> {
+        Button upgradeButton = actionButton(tr("warforge.ui.upgrade"), upgradeWidth, data.outrankingOfficer && allMet, () -> {
             PacketRequestUpgrade packet = new PacketRequestUpgrade();
-            packet.factionID = data.mFactionID;
+            packet.factionID = data.factionId;
             WarForgeMod.NETWORK.sendToServer(packet);
         });
         if (!data.outrankingOfficer || !allMet) {
             List<Component> lines = new ArrayList<>();
-            lines.add(Component.literal("You don't meet following requirements:")
-                    .withStyle(Style.EMPTY.withBold(true).withColor(TextColor.fromRgb(0xFF5555))));
+            lines.add(Component.literal(tr("warforge.ui.you_don_t_meet_following_requirements"))
+                    .withStyle(Style.EMPTY.withBold(true).withColor(TextColor.fromRgb(TEXT_BAD))));
             if (!data.outrankingOfficer) {
-                lines.add(Component.literal("- You need to be officer of or higher!"));
+                lines.add(Component.literal(tr("warforge.ui.you_need_to_be_officer_of_or_higher")));
             }
             if (!allMet) {
-                lines.add(Component.literal("- You don't have the materials required!"));
+                lines.add(Component.literal(tr("warforge.ui.you_don_t_have_the_materials_required")));
             }
             tooltip(upgradeButton, lines.toArray(new Component[0]));
         }
@@ -151,7 +154,7 @@ public final class FactionUpgradeScreen {
         Label name = shadowText(displayName, 0xFFFFFF, false);
         name.layout(l -> l.width(nameWidth).marginLeft(nameLeft - 5 - 20).flexShrink(0));
         row.addChild(name);
-        Label amount = shadowText(has + "/" + count, has >= count ? 0x55FF55 : 0xFF5555, false);
+        Label amount = shadowText(has + "/" + count, has >= count ? 0x55FF55 : TEXT_BAD, false);
         amount.textStyle(t -> t.fontSize(9f * 1.5f));
         amount.layout(l -> l.positionType(TaffyPosition.ABSOLUTE).left(countLeft).top(8).width(50).height(14));
         row.addChild(amount);
@@ -163,30 +166,29 @@ public final class FactionUpgradeScreen {
         return row;
     }
 
-    /** "Upgrade Outcome": claims and insurance slots before and after the upgrade (createUpgradeOutcomePanel of 1.20.1). */
     private static UIElement outcomePanel(int level) {
         UIElement panel = new UIElement();
         panel.layout(l -> l.flexDirection(FlexDirection.COLUMN).alignItems(AlignItems.CENTER)
                 .height(OUTCOME_HEIGHT).flexShrink(0));
 
-        Label heading = fit(text("Upgrade Outcome", TEXT_PRIMARY));
+        Label heading = fit(text(tr("warforge.ui.upgrade_outcome"), TEXT_PRIMARY));
         heading.layout(l -> l.marginBottom(1));
         panel.addChild(heading);
-        Label levels = fit(shadowText("Level " + level + " -> " + (level + 1), TEXT_WARNING, false));
+        Label levels = fit(shadowText(tr("warforge.ui.level_d_d", level, level + 1), TEXT_WARNING, false));
         levels.layout(l -> l.marginBottom(2));
         panel.addChild(levels);
 
         UIElement deltaRow = new UIElement();
         deltaRow.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).height(20).marginTop(2));
-        UIElement claims = deltaCard("Claims",
-                String.valueOf(WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(level)),
-                String.valueOf(WarForgeMod.UPGRADE_HANDLER.getClaimLimitForLevel(level + 1)),
-                0xFF5555, 0x55FF55);
+        UIElement claims = deltaCard(tr("warforge.ui.claims"),
+                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level)),
+                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level + 1)),
+                TEXT_BAD, 0x55FF55);
         claims.layout(l -> l.marginRight(1));
-        UIElement insurance = deltaCard("Insurance",
-                String.valueOf(WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(level)),
-                String.valueOf(WarForgeMod.UPGRADE_HANDLER.getInsuranceSlotsForLevel(level + 1)),
-                0x6CB6FF, 0x8BFFB0);
+        UIElement insurance = deltaCard(tr("warforge.ui.insurance"),
+                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level)),
+                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level + 1)),
+                UPGRADE_BEFORE, UPGRADE_AFTER);
         insurance.layout(l -> l.marginLeft(1));
         deltaRow.addChild(claims);
         deltaRow.addChild(insurance);
@@ -217,22 +219,23 @@ public final class FactionUpgradeScreen {
         return card;
     }
 
-    /** The small "max level" panel of 1.20.1. */
-    private static void openMaxLevel(Minecraft mc, PacketUpgradeUI data, int color) {
+        private static void openMaxLevel(Minecraft mc, PacketUpgradeUI data, int color) {
         int width = 220;
         int height = 86;
         UIElement root = screenRoot();
         UIElement panel = panel(width, height);
         root.addChild(panel);
         place(panel, box(width, height, headerBackdrop()), 0, 0, width, height);
-        place(panel, box(6, height, fill(0xFF9F7A34)), 0, 0, 6, height);
-        place(panel, shadowText("Your citadel is at it's max level!", 0xFFFFFF, false), 16, 16, width - 24, 16);
-        place(panel, text(data.mFactionName + " | Level " + data.level, color), 16, 30, width - 24, 9);
-        place(panel, actionButton("Close", 96, () -> ClientCompat.setScreen(null)), 16, 52, 96, BUTTON_HEIGHT);
+        place(panel, box(6, height, fill((0xFF000000 | UPGRADE_STRIPE))), 0, 0, 6, height);
+        place(panel, shadowText(tr("warforge.ui.your_citadel_is_at_its_max_level"), 0xFFFFFF, false), 16, 16, width - 24, 16);
+        place(panel, text(tr("warforge.ui.s_level_d", data.factionName, data.level), color), 16, 30, width - 24, 9);
+        place(panel, actionButton(tr("warforge.ui.close"), 96, () -> ClientCompat.setScreen(null)), 16, 52, 96, BUTTON_HEIGHT);
         show(root, mc);
     }
 
     private static void show(UIElement root, Minecraft mc) {
-        ClientCompat.setScreen(new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal("Citadel Upgrade")));
+        ModularUIScreen built = new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal(tr("warforge.ui.citadel_upgrade")));
+        REVISION.shown(built);
+        ClientCompat.setScreen(built);
     }
 }

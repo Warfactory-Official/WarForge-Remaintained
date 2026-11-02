@@ -4,7 +4,8 @@ import com.flansmod.warforge.compat.Chunks;
 
 import com.flansmod.warforge.api.vein.Quality;
 import com.flansmod.warforge.api.vein.Vein;
-import com.flansmod.warforge.api.vein.init.VeinUtils;
+import com.flansmod.warforge.api.vein.VeinCodec;
+import com.flansmod.warforge.server.vein.VeinUtils;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketJourneyMapVeins;
@@ -20,28 +21,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Server-side driver for the optional JourneyMap vein-icon overlay.
- * <p>
- * Server-authoritative: every vein shown is computed by the real {@link VeinUtils} handler, so it always
- * matches yields and administrator overrides. Modes (from {@link WarForgeConfig#JOURNEYMAP_VEIN_MODE}):
- * <ul>
- *   <li><b>DISABLED</b>: nothing is sent.</li>
- *   <li><b>PLAYER</b>: a chunk's vein is sent only once the player walks into and loads it.</li>
- *   <li><b>AUTO</b>: veins for a wide radius around each player are streamed automatically as they move.</li>
- * </ul>
- * In every mode the server only ever sends chunks the player is entitled to under that mode, so a client
- * cannot pull veins it has not legitimately reached.
- */
+// Server-authoritative: only chunks the player is entitled to under the mode are sent (no client-side vein pull).
 public class JourneyMapVeinSync {
     private static final int TICK_INTERVAL = 10;          // run AUTO scans ~twice a second
     private static final int MAX_CHUNKS_PER_SCAN = 256;   // throttle vein generation per player per scan
     private static final int MAX_ENTRIES_PER_PACKET = 1000;
 
     private int tickCounter = 0;
-    // What vein short we have actually sent each player, per chunk (markers only; null veins are not stored).
     private final Map<UUID, Map<DimChunkPos, Short>> playerViews = new HashMap<>();
-    // AUTO per-player rolling scan state.
     private final Map<UUID, AutoState> autoStates = new HashMap<>();
 
     private static final class AutoState {
@@ -68,7 +55,6 @@ public class JourneyMapVeinSync {
         return level == null ? 0L : level.getSeed();
     }
 
-    /** The compressed vein short at a chunk, or {@code null} if there is no vein (so no marker). */
     private Short veinInfoAt(ResourceKey<Level> dim, int x, int z) {
         VeinUtils handler = WarForgeMod.VEIN_HANDLER;
         if (handler == null || !handler.hasFinishedInit || !handler.dimHasVeins(dim)) {
@@ -78,8 +64,8 @@ public class JourneyMapVeinSync {
         if (info == null) {
             return null;
         }
-        short compressed = handler.compressVeinInfo(info);
-        return compressed == VeinUtils.NULL_VEIN_ID ? null : compressed;
+        short compressed = VeinCodec.compressVeinInfo(info);
+        return compressed == VeinCodec.NULL_VEIN_ID ? null : compressed;
     }
 
     public void tick() {
@@ -142,7 +128,6 @@ public class JourneyMapVeinSync {
         }
     }
 
-    /** PLAYER mode: the player just loaded this chunk, so reveal its vein to them. */
     public void onChunkObserved(ServerPlayer player, ResourceKey<Level> dim, int x, int z) {
         if (mode() != WarForgeConfig.JM_MODE_PLAYER) {
             return;
@@ -150,7 +135,6 @@ public class JourneyMapVeinSync {
         sendSingle(player, new DimChunkPos(dim, x, z), veinInfoAt(dim, x, z));
     }
 
-    /** Called when an administrator changes a chunk's vein so observers see it update. */
     public void onVeinChanged(ResourceKey<Level> dim, int x, int z) {
         int mode = mode();
         if (mode == WarForgeConfig.JM_MODE_DISABLED) {

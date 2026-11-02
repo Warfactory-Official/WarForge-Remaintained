@@ -1,7 +1,7 @@
 package com.flansmod.warforge.common.ui;
 
+import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.Tags;
-import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketInsuranceData;
 import com.flansmod.warforge.common.util.FactionInsuranceItemHandler;
@@ -23,9 +23,12 @@ import net.neoforged.neoforge.items.ItemStackHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** Insurance stash menu (GuiFactionInsurance of 1.20.1): deposit-only slots, leader voids per slot. */
 public final class InsuranceUi {
     private static final String PATH = "insurance";
     private static final int WIDTH = 356;
@@ -33,26 +36,24 @@ public final class InsuranceUi {
     private static final int CELL_SIZE = 18;
     private static final int LIST_HEIGHT = 56;
 
-    /** Server: holder for the {@link PlayerUIMenuType#openUI} call in progress (it resolves synchronously). */
-    @Nullable
-    private static PlayerUIMenuType.PlayerUIHolder opening;
+    private static final Map<UUID, PlayerUIMenuType.PlayerUIHolder> OPENING = new HashMap<>();
 
     private InsuranceUi() {
     }
 
     public static void register() {
-        PlayerUIMenuType.register(Ids.of(Tags.MODID, PATH), player -> player.level().isClientSide() ? clientHolder() : opening);
+        PlayerUIMenuType.register(Ids.of(Tags.MODID, PATH), player -> player.level().isClientSide() ? clientHolder() : OPENING.get(player.getUUID()));
     }
 
     /** Server: view packet first => client {@link PacketInsuranceData#latest} set before the menu opens. */
     public static void open(ServerPlayer player, PacketInsuranceData view, @Nullable Faction faction) {
         WarForgeMod.NETWORK.sendTo(view, player);
         IItemHandlerModifiable stash = faction == null ? new ItemStackHandler(0) : new FactionInsuranceItemHandler(faction);
-        opening = holder(view, stash, faction);
+        OPENING.put(player.getUUID(), holder(view, stash, faction));
         try {
             PlayerUIMenuType.openUI(player, Ids.of(Tags.MODID, PATH));
         } finally {
-            opening = null;
+            OPENING.remove(player.getUUID());
         }
     }
 
@@ -61,7 +62,7 @@ public final class InsuranceUi {
         return holder(view, new ItemStackHandler(view.slotCount) {
             @Override
             public boolean isItemValid(int slot, ItemStack stack) {
-                return !WarForgeConfig.isInsuranceBlacklisted(stack);
+                return !FactionInsuranceItemHandler.isBlacklisted(stack);
             }
         }, null);
     }
@@ -75,12 +76,11 @@ public final class InsuranceUi {
 
             @Override
             public boolean isStillValid(Player player) {
-                return faction == null || WarForgeMod.FACTIONS.getFaction(faction.uuid) == faction;
+                return faction == null || WarForgeMod.FACTIONS.registry.getFaction(faction.getUuid()) == faction;
             }
         };
     }
 
-    /** {@code faction} only on the server (void target). */
     private static ModularUI build(Player player, PacketInsuranceData view, IItemHandlerModifiable stash, @Nullable Faction faction) {
         boolean client = player.level().isClientSide();
         int sectionWidth = WIDTH - CONTENT_LEFT * 2;
@@ -96,29 +96,29 @@ public final class InsuranceUi {
             if (player instanceof ServerPlayer sp) BlockUiActions.close(sp);
         });
 
-        title(panel, "Insurance Stash", TEXT_PRIMARY);
-        subtitle(panel, text(view.hasFaction ? view.factionName : "No faction selected",
+        title(panel, tr("warforge.ui.insurance_stash"), TEXT_PRIMARY);
+        subtitle(panel, text(view.hasFaction ? view.factionName : tr("warforge.ui.no_faction_selected"),
                 view.hasFaction ? view.factionColor : TEXT_SECONDARY));
 
         if (!view.hasFaction) {
-            Label empty = fit(text("No insurance stash is available.", TEXT_INFO));
+            Label empty = fit(text(tr("warforge.ui.no_insurance_stash_is_available"), TEXT_INFO));
             empty.layout(l -> l.marginVertical(6));
             body.addChild(empty);
             return ModularUI.of(UI.of(root), player);
         }
 
-        Label heading = fit(text("Protected Reserve", TEXT_PRIMARY));
+        Label heading = fit(text(tr("warforge.ui.protected_reserve"), TEXT_PRIMARY));
         heading.layout(l -> l.marginBottom(4));
         body.addChild(heading);
         Label depositInfo = wrap(text(view.canDeposit
-                ? "Officers and leaders may deposit. Stored items cannot be withdrawn."
-                : "Only officers and leaders may deposit into the stash.", TEXT_MUTED), sectionWidth, client);
+                ? tr("warforge.ui.officers_and_leaders_may_deposit_stored_items_ca")
+                : tr("warforge.ui.only_officers_and_leaders_may_deposit_into_the_s"), TEXT_MUTED), sectionWidth, client);
         depositInfo.layout(l -> l.marginBottom(2));
         body.addChild(depositInfo);
         Label voidInfo = wrap(text(view.canVoid
-                        ? "Leader actions: use the red X to permanently void a slot."
-                        : "Only the leader can void stored items to free space.",
-                view.canVoid ? 0xFFCC88 : TEXT_MUTED), sectionWidth, client);
+                        ? tr("warforge.ui.leader_actions_use_the_red_x_to_permanently_void")
+                        : tr("warforge.ui.only_the_leader_can_void_stored_items_to_free_sp"),
+                view.canVoid ? TEXT_LEADER_ACTION : TEXT_MUTED), sectionWidth, client);
         voidInfo.layout(l -> l.marginBottom(4));
         body.addChild(voidInfo);
 
@@ -157,7 +157,7 @@ public final class InsuranceUi {
             voidButton.setOnServerClick(event -> {
                 if (faction != null) faction.setInsuranceStack(slot, ItemStack.EMPTY);
             });
-            tooltip(voidButton, "Click to void the slot", "Warning, this cannot be undone");
+            tooltip(voidButton, tr("warforge.ui.click_to_void_the_slot"), tr("warforge.ui.warning_this_cannot_be_undone"));
             place(cell, voidButton, 10, 0, 8, 8);
         }
         return cell;

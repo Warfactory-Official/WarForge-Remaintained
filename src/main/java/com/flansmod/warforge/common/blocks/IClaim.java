@@ -9,26 +9,21 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 
 public interface IClaim
 {
-	public DimBlockPos getClaimPos();
-	public BlockEntity getAsTileEntity();
+    public DimBlockPos getClaimPos();
+    public BlockEntity getAsBlockEntity();
 
-	public boolean canBeSieged();
-	public int getAttackStrength();
-	public int getDefenceStrength();
-	public int getSupportStrength();
-	//public List<String> getPlayerFlags();
+    public boolean canBeSieged();
+    public int getAttackStrength();
+    public int getDefenceStrength();
+    public int getSupportStrength();
 
-	public void onServerSetFaction(Faction faction);
-//	public void onServerSetPlayerFlag(String playerName);
-//	public void onServerRemovePlayerFlag(String playerName);
+    public void onServerSetFaction(Faction faction);
 
-	// Server side uuid - means nothing to a client
-	public UUID getFaction();
-	public void updateColour(int colour);
+    // Server side uuid - means nothing to a client
+    public UUID getFaction();
+    public void updateColour(int colour);
 
-	// Client side data - can't use UUID to identify anything on client
-	public int getColour();
-	public String getClaimDisplayName();
-
-
+    // Client side data - can't use UUID to identify anything on client
+    public int getColour();
+    public String getClaimDisplayName();
 }

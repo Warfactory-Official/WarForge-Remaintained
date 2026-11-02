@@ -1,15 +1,12 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.factories.OperationsGuiData;
-import com.flansmod.warforge.common.factories.OperationsGuiFactory;
+import com.flansmod.warforge.common.faction.FactionIds;
+
+import com.flansmod.warforge.common.network.OperationsGuiData;
 import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.server.Faction;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
@@ -21,7 +18,7 @@ public class PacketOperationsData extends PacketBase {
     public static PacketOperationsData latest = null;
 
     public boolean hasFaction = false;
-    public UUID factionId = Faction.nullUuid;
+    public UUID factionId = FactionIds.NONE;
     public String factionName = "";
     public int factionColor = 0x4E8E87;
     public int warpTicketCost = 1;
@@ -103,12 +100,6 @@ public class PacketOperationsData extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.LOGGER.error("Received a PacketOperationsData on server side");
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        latest = this;
-        OperationsGuiFactory.INSTANCE.openOperationsScreen();
+        PacketSecurity.violation(player, "Received a PacketOperationsData on server side");
     }
 }

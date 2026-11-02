@@ -1,11 +1,8 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.client.ServerTerrainCache;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 
 import java.util.ArrayList;
@@ -76,13 +73,5 @@ public class PacketTerrainColors extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        for (int i = 0; i < chunkCoords.size(); i++) {
-            int[] coord = chunkCoords.get(i);
-            ServerTerrainCache.put(dim, coord[0], coord[1], colors.get(i), heights.get(i));
-        }
     }
 }

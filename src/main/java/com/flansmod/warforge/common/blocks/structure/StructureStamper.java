@@ -1,6 +1,6 @@
 package com.flansmod.warforge.common.blocks.structure;
 
-import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.Content;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
@@ -22,7 +22,7 @@ public class StructureStamper {
             return;
         }
 
-        if (WarForgeMod.isClaim(existing.getBlock())) {
+        if (Content.isClaimBlock(existing.getBlock())) {
             return;
         }
 
@@ -42,7 +42,7 @@ public class StructureStamper {
                 continue;
             }
 
-            if (WarForgeMod.isClaim(existing.getBlock())) {
+            if (Content.isClaimBlock(existing.getBlock())) {
                 continue;
             }
 

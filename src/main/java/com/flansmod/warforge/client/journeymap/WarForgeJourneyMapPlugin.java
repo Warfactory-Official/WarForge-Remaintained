@@ -7,15 +7,7 @@ import journeymap.api.v2.common.JourneyMapPlugin;
 
 import javax.annotation.ParametersAreNonnullByDefault;
 
-/**
- * WarForge's single JourneyMap plugin, which then attaches every map layer the mod draws.
- *
- * <p>There can only be one per mod, and that is not a style preference. {@code PluginHelper} keeps its
- * client plugins in a map keyed by {@code getModId()}, so a second class annotated with
- * {@link JourneyMapPlugin} and returning the same id displaces the first. It is discovered, logged as
- * found, and then never initialised: the claim and vein layers used to be two plugins, and only the
- * claim layer was ever alive. Nothing said so.</p>
- */
+/** The mod's single JourneyMap plugin: PluginHelper keys plugins by mod id, so a second one is never initialised. */
 @ParametersAreNonnullByDefault
 @JourneyMapPlugin(apiVersion = IClientAPI.API_VERSION)
 public class WarForgeJourneyMapPlugin implements IClientPlugin {

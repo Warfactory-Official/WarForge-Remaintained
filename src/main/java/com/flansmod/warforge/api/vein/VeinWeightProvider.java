@@ -20,7 +20,7 @@ public interface VeinWeightProvider {
      * {@code null} => stock roll, megachunk quotas included. Non-null => weighted roll, quotas bypassed.
      */
     @Nullable
-    ToDoubleFunction<Vein> multipliers(ResourceKey<Level> dim, int chunkX, int chunkZ);
+    ToDoubleFunction<VeinView> multipliers(ResourceKey<Level> dim, int chunkX, int chunkZ);
 
     /** Vein decided for this chunk ahead of any roll or gradient gate; {@code null} => roll as usual. */
     @Nullable
@@ -29,12 +29,12 @@ public interface VeinWeightProvider {
     }
 
     /** Quality shifts by {@code round(log2(richness))} levels, clamped. Applies to weighted rolls only. */
-    default double richness(ResourceKey<Level> dim, int chunkX, int chunkZ, Vein vein) {
+    default double richness(ResourceKey<Level> dim, int chunkX, int chunkZ, VeinView vein) {
         return 1.0;
     }
 
     /** {@code vein} null => chunk forced empty; quality shifted by richness as in {@link #richness}. */
-    record Assignment(@Nullable Vein vein, double richness) {}
+    record Assignment(@Nullable VeinView vein, double richness) {}
 
     static Quality shift(int qualityIndex, double richness) {
         int steps = richness <= 0.0 ? -Quality.values().length : (int) Math.round(Math.log(richness) / Math.log(2.0));

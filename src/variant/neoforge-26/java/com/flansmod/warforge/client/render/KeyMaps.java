@@ -11,17 +11,13 @@ import net.neoforged.neoforge.client.settings.KeyModifier;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Key mappings. The category type changed in 1.21.9 (a string before, a registered record after). */
+/** Category type: string before 1.21.9, registered record after. */
 public final class KeyMaps {
     private static final Map<String, KeyMapping.Category> CATEGORIES = new LinkedHashMap<>();
 
     private KeyMaps() {}
 
-    /**
-     * An in-game key mapping with a keyboard default. category is the category translation key of older versions
-     * ("key.NAMESPACE.PATH"). Here it becomes the category NAMESPACE:PATH, whose label key is
-     * "key.category.NAMESPACE.PATH".
-     */
+    /** category "key.NAMESPACE.PATH" becomes category NAMESPACE:PATH, label key "key.category.NAMESPACE.PATH". */
     public static KeyMapping create(String name, int glfwKey, String category) {
         return new KeyMapping(name, KeyConflictContext.IN_GAME, KeyModifier.NONE, InputConstants.Type.KEYSYM, glfwKey,
                 CATEGORIES.computeIfAbsent(category, KeyMaps::toCategory));

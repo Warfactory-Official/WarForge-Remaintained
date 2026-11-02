@@ -36,11 +36,10 @@ config="mixins.${mod_id}.compat.json"
     ordering="NONE"
     side="BOTH"
 
-# LDLib2 — UI framework (replaces ModularUI). TODO(UI phase): confirm exact modId and make type="required".
 [[dependencies.${mod_id}]]
     modId="ldlib2"
-    type="optional"
-    versionRange="*"
+    type="required"
+    versionRange="${ldlib_dependency_range}"
     ordering="AFTER"
     side="BOTH"
 

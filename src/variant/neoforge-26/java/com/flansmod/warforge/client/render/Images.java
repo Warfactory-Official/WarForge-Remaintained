@@ -5,16 +5,14 @@ import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.Identifier;
 
-/** NativeImage pixel access and texture creation. The pixel format of the accessors changed in 1.21.2. */
+/** Accessor pixel format changed in 1.21.2. */
 public final class Images {
     private Images() {}
 
-    /** The pixel as ABGR (alpha, blue, green, red from high to low byte). */
     public static int getPixelABGR(NativeImage image, int x, int y) {
         return swapRedBlue(image.getPixel(x, y));
     }
 
-    /** Sets the pixel from ABGR (alpha, blue, green, red from high to low byte). */
     public static void setPixelABGR(NativeImage image, int x, int y, int abgr) {
         image.setPixel(x, y, swapRedBlue(abgr));
     }

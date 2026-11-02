@@ -9,7 +9,6 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.material.PushReaction;
@@ -47,20 +46,20 @@ public abstract class MultiBlockColumn extends WFUiBlock implements IMultiBlockI
     }
 
     public void setUpMultiblock(Level world, BlockPos pos, BlockState state) {
-        world.setBlock(pos.above(), Content.statue.defaultBlockState().setValue(MODEL, BlockDummy.modelEnum.KNIGHT), 3);
+        world.setBlock(pos.above(), Content.statue.defaultBlockState().setValue(MODEL, BlockDummy.DummyModel.KNIGHT), 3);
         world.sendBlockUpdated(pos.above(), state, state, 3);
 
         BlockEntity teMiddle = world.getBlockEntity(pos.above());
-        if (teMiddle instanceof TileEntityDummy) {
-            ((TileEntityDummy) teMiddle).setMaster(pos);
+        if (teMiddle instanceof DummyBlockEntity) {
+            ((DummyBlockEntity) teMiddle).setMaster(pos);
         }
 
-        world.setBlock(pos.above(2), Content.dummyTranslusent.defaultBlockState().setValue(MODEL, BlockDummy.modelEnum.TRANSLUCENT), 3);
+        world.setBlock(pos.above(2), Content.dummyTranslusent.defaultBlockState().setValue(MODEL, BlockDummy.DummyModel.TRANSLUCENT), 3);
         world.sendBlockUpdated(pos.above(2), state, state, 3);
 
         BlockEntity teTop = world.getBlockEntity(pos.above(2));
-        if (teTop instanceof TileEntityDummy) {
-            ((TileEntityDummy) teTop).setMaster(pos);
+        if (teTop instanceof DummyBlockEntity) {
+            ((DummyBlockEntity) teTop).setMaster(pos);
         }
     }
 

@@ -29,11 +29,10 @@ logoFile=""
     ordering="NONE"
     side="BOTH"
 
-# LDLib (v1): UI framework on Forge 1.20.1.
 [[dependencies.${mod_id}]]
     modId="ldlib"
-    mandatory=false
-    versionRange="*"
+    mandatory=true
+    versionRange="${ldlib_dependency_range}"
     ordering="AFTER"
     side="BOTH"
 

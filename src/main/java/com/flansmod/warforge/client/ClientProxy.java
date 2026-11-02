@@ -1,134 +1,39 @@
 package com.flansmod.warforge.client;
 
-import com.flansmod.warforge.compat.ClientCompat;
-
+import com.flansmod.warforge.client.render.ClientRenderEvents;
 import com.flansmod.warforge.client.render.KeyMaps;
-
-import com.flansmod.warforge.api.vein.Vein;
 import com.flansmod.warforge.common.CommonProxy;
-import com.flansmod.warforge.common.Content;
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.common.effect.AnimatedEffectHandler;
-import com.flansmod.warforge.common.factories.FactionStatsGuiFactory;
-import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
-import com.flansmod.warforge.common.util.DimBlockPos;
-import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Faction;
-import it.unimi.dsi.fastutil.shorts.Short2ObjectOpenHashMap;
+import com.flansmod.warforge.client.fx.AnimatedEffectHandler;
+import com.flansmod.warforge.compat.ClientCompat;
+import com.flansmod.warforge.platform.Platform;
 import net.minecraft.client.KeyMapping;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.block.entity.BlockEntity;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import org.lwjgl.glfw.GLFW;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.UUID;
+public class ClientProxy extends CommonProxy {
+    public static final ChunkVeinCache CHUNK_VEIN_CACHE = new ChunkVeinCache();
 
-import static com.flansmod.warforge.common.WarForgeMod.FACTIONS;
-import com.flansmod.warforge.client.render.ClientRenderEvents;
-import com.flansmod.warforge.platform.GameEvents;
-import com.flansmod.warforge.platform.Platform;
-import net.neoforged.bus.api.EventPriority;
+    public static final KeyMapping FACTION_CHAT_KEY = KeyMaps.create("key.factionchat.desc", GLFW.GLFW_KEY_Y, "key.warforge.factionchat");
 
-public class ClientProxy extends CommonProxy
-{
-	public static HashMap<DimBlockPos, SiegeCampProgressInfo> sSiegeInfo = new HashMap<>();
+    public void clientSetup(FMLClientSetupEvent event) {
+        ClientTickHandler clientTickHandler = new ClientTickHandler();
+        Platform.gameBus().register(clientTickHandler);
+        ClientGameEvents.onTickEnd(EventPriority.NORMAL, clientTickHandler::onTick);
+        ClientRenderEvents.onAfterTranslucentBlocks(clientTickHandler::onRenderLast);
+        ClientRenderEvents.onHud(clientTickHandler::onRenderHUD);
+        if (Platform.isDevelopment()) {
+            Platform.gameBus().register(new SiegeUiDebugCommand());
+        }
+        ClientGameEvents.onTickEnd(EventPriority.LOWEST, new AnimatedEffectHandler()::onClientTick);
+        Platform.gameBus().register(new ClientMineTimePredictor());
+        Platform.gameBus().register(new ClientPlacementPredictor());
+    }
 
-	public static Short2ObjectOpenHashMap<Vein> VEIN_ENTRIES = new Short2ObjectOpenHashMap<>();
-
-	public static ChunkVeinCache CHUNK_VEIN_CACHE = new ChunkVeinCache();
-
-	public static short megachunkLength = -1;
-
-	public static KeyMapping factionChatKey = KeyMaps.create("key.factionchat.desc", GLFW.GLFW_KEY_Y, "key.warforge.factionchat");
-
-	// Invoked from the WarForgeMod constructor with the client mod event bus.
-	public void clientSetup(FMLClientSetupEvent event)
-	{
-		ClientTickHandler clientTickHandler = new ClientTickHandler();
-		Platform.gameBus().register(clientTickHandler);
-		GameEvents.onClientTickEnd(EventPriority.NORMAL, clientTickHandler::onTick);
-		ClientRenderEvents.onAfterTranslucentBlocks(clientTickHandler::onRenderLast);
-		ClientRenderEvents.onHud(clientTickHandler::onRenderHUD);
-		Platform.gameBus().register(new SiegeUiDebugCommand());
-		GameEvents.onClientTickEnd(EventPriority.LOWEST, new AnimatedEffectHandler()::onClientTick);
-		ClientRenderEvents.onAfterTranslucentBlocks(new ClaimFlagRenderer()::onRenderWorldLast);
-		Platform.gameBus().register(new ClientMineTimePredictor());
-		Platform.gameBus().register(new ClientPlacementPredictor());
-	}
-
-
-
-	@Override
-	public void TickClient()
-	{
-		if (factionChatKey.consumeClick()) {
-			ClientCompat.setScreen(ClientCompat.chatScreen("/f chat "));
-		}
-	}
-
-	@Override
-	public BlockEntity GetTile(DimBlockPos pos)
-	{
-		Minecraft mc = Minecraft.getInstance();
-		if (mc.level != null && mc.level.dimension().equals(pos.dim))
-			return mc.level.getBlockEntity(pos.toRegularPos());
-
-		WarForgeMod.LOGGER.error("Can't get info about a tile entity in a different dimension on client");
-		return null;
-	}
-
-	@Override
-	public void UpdateSiegeInfo(SiegeCampProgressInfo info)
-	{
-		// sent to client on server stop to avoid de-sync
-		if (info.attackingName.equals("c") && info.defendingName.equals("c")) {
-			sSiegeInfo.clear();
-			return;
-		}
-
-		// add warzone chunks manually only when the siege is first recognized
-		if (!sSiegeInfo.containsKey(info.attackingPos)) {
-			// initialize data about this client
-			Faction playerFaction = FACTIONS.getFactionOfPlayer(Minecraft.getInstance().player.getUUID());
-			String facName = null;
-			if (playerFaction != null && !playerFaction.uuid.equals(Faction.nullUuid)) { facName = playerFaction.name; }
-
-			// assign the synced battle radius when the player is directly involved in the siege
-			int sqrRad = -1;
-			if (facName != null && (facName.equals(info.defendingName) || facName.equals(info.attackingName))) {
-				sqrRad = info.battleRadius;
-			}
-
-			// if the player is on either side of the siege, fill the warzone for them
-			if (sqrRad != -1) {
-				// setup the warzone data
-				DimChunkPos siegeChunk = info.attackingPos.toChunkPos();
-				int warzoneLength = 2 * sqrRad + 1;
-				int zEnd = siegeChunk.z + sqrRad;
-				int xEnd = siegeChunk.x + sqrRad;
-				info.warzoneChunks = new ArrayList<>(warzoneLength * warzoneLength);
-
-				// add the warzone chunks
-				for (int z = siegeChunk.z - sqrRad; z <= zEnd; ++z) {
-					for (int x = siegeChunk.x - sqrRad; x <= xEnd; ++x) {
-						info.warzoneChunks.add(new ChunkPos(x, z));  // don't use dim chunk as dim is redundant info
-					}
-				}
-			}
-		} else {
-			// copy the warzone chunks
-			info.warzoneChunks = sSiegeInfo.get(info.attackingPos).warzoneChunks;
-		}
-
-		sSiegeInfo.remove(info.attackingPos);
-
-		sSiegeInfo.put(info.attackingPos, info);
-	}
-
-	public static void requestFactionInfo(UUID factionID) {
-		FactionStatsGuiFactory.INSTANCE.openClient(factionID);
-	}
+    @Override
+    public void tickClient() {
+        if (FACTION_CHAT_KEY.consumeClick()) {
+            ClientCompat.setScreen(ClientCompat.chatScreen("/f chat "));
+        }
+    }
 }

@@ -96,7 +96,7 @@ jobs:
           fi
 
       - name: Build with Gradle
-        run: ./gradlew releaseBuild --no-daemon --stacktrace
+        run: ./gradlew buildAll --no-daemon --stacktrace
 
       - name: Prepare artifact bundle
         shell: bash

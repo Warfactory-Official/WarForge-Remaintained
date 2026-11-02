@@ -21,10 +21,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** Draws the claim pole model and its waving flag (geometry in FlagGeometry). */
 public final class PoleFlagRenderer {
 
-    /** The standalone pole model (registered in ModelEventHandler). */
     public static final ModelResourceLocation POLE_MODEL = ModelResourceLocation.standalone(Ids.of(Tags.MODID, "block/pole"));
 
     private PoleFlagRenderer() {

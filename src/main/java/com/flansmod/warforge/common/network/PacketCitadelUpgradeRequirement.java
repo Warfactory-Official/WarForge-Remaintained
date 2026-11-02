@@ -1,10 +1,8 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.server.ItemMatcher;
+import com.flansmod.warforge.common.item.ItemMatcher;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -60,12 +58,7 @@ public class PacketCitadelUpgradeRequirement extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.LOGGER.error("Received level requirement info on server");
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        WarForgeMod.UPGRADE_HANDLER.setLevelAndLimits(level, requirements, limit, insuranceSlots, loadedChunks);
+        PacketSecurity.violation(player, "Received level requirement info on server");
     }
 
 }

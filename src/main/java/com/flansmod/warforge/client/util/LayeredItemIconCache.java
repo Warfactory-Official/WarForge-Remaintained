@@ -1,13 +1,12 @@
 package com.flansmod.warforge.client.util;
 
-import com.flansmod.warforge.client.render.ModelSprites;
-
-import com.flansmod.warforge.client.render.Images;
-
-import com.flansmod.warforge.client.render.DynamicTextures;
-
 import com.flansmod.warforge.Tags;
-import net.minecraft.client.Minecraft;
+import com.flansmod.warforge.client.render.DynamicTextures;
+import com.flansmod.warforge.client.render.Images;
+import com.flansmod.warforge.client.render.ModelSprites;
+import com.flansmod.warforge.compat.Ids;
+import com.flansmod.warforge.compat.Keys;
+import com.flansmod.warforge.compat.Stacks;
 import com.mojang.blaze3d.platform.NativeImage;
 import net.minecraft.client.renderer.texture.SpriteContents;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -20,12 +19,8 @@ import javax.annotation.Nullable;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
-import com.flansmod.warforge.compat.Ids;
-import com.flansmod.warforge.compat.Keys;
-import com.flansmod.warforge.compat.Stacks;
 
 @OnlyIn(Dist.CLIENT)
 public final class LayeredItemIconCache {
@@ -51,16 +46,15 @@ public final class LayeredItemIconCache {
             return null;
         }
 
-        NativeImage native_ = toNativeImage(baked);
-        Minecraft mc = Minecraft.getInstance();
+        NativeImage nativeImage = toNativeImage(baked);
         ResourceLocation location = Ids.of(Tags.MODID, "generated/vein/" + Integer.toUnsignedString(key.hashCode()));
-        DynamicTextures.register(location, native_);
+        DynamicTextures.register(location, nativeImage);
         CACHE.put(key, location);
         return location;
     }
 
+    /** Render thread. */
     public static void clear() {
-        Minecraft mc = Minecraft.getInstance();
         for (ResourceLocation location : CACHE.values()) {
             DynamicTextures.release(location);
         }
@@ -69,7 +63,6 @@ public final class LayeredItemIconCache {
 
     @Nullable
     private static BufferedImage bakeIcon(ItemStack stack) {
-        Minecraft mc = Minecraft.getInstance();
         List<ModelSprites.TintedSprite> layers = ModelSprites.itemLayers(stack);
         if (layers.isEmpty()) {
             return null;
@@ -91,7 +84,6 @@ public final class LayeredItemIconCache {
         return combined;
     }
 
-
     @Nullable
     private static BufferedImage spriteToImage(TextureAtlasSprite sprite) {
         SpriteContents contents = sprite.contents();
@@ -109,13 +101,7 @@ public final class LayeredItemIconCache {
         BufferedImage buffered = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                // NativeImage stores pixels as ABGR; convert to ARGB for BufferedImage
-                int abgr = Images.getPixelABGR(image, x, y);
-                int a = (abgr >>> 24) & 0xFF;
-                int b = (abgr >>> 16) & 0xFF;
-                int g = (abgr >>> 8) & 0xFF;
-                int r = abgr & 0xFF;
-                buffered.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+                buffered.setRGB(x, y, ColorUtil.swapRedBlue(Images.getPixelABGR(image, x, y)));
             }
         }
         return buffered;
@@ -137,19 +123,13 @@ public final class LayeredItemIconCache {
     private static NativeImage toNativeImage(BufferedImage image) {
         int width = image.getWidth();
         int height = image.getHeight();
-        NativeImage native_ = new NativeImage(NativeImage.Format.RGBA, width, height, false);
+        NativeImage nativeImage = new NativeImage(NativeImage.Format.RGBA, width, height, false);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                // BufferedImage is ARGB; NativeImage.setPixelRGBA expects ABGR
-                int argb = image.getRGB(x, y);
-                int a = (argb >>> 24) & 0xFF;
-                int r = (argb >>> 16) & 0xFF;
-                int g = (argb >>> 8) & 0xFF;
-                int b = argb & 0xFF;
-                Images.setPixelABGR(native_, x, y, (a << 24) | (b << 16) | (g << 8) | r);
+                Images.setPixelABGR(nativeImage, x, y, ColorUtil.swapRedBlue(image.getRGB(x, y)));
             }
         }
-        return native_;
+        return nativeImage;
     }
 
     private static void composite(BufferedImage target, BufferedImage layer, int tint) {
@@ -199,5 +179,4 @@ public final class LayeredItemIconCache {
         builder.append('#').append(Stacks.dataKey(stack));
         return builder.toString();
     }
-
 }

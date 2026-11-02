@@ -1,7 +1,7 @@
 package com.flansmod.warforge.client;
 
 import com.flansmod.warforge.client.render.FlagGeometry;
-import com.flansmod.warforge.compat.ClientCompat;
+import com.flansmod.warforge.compat.ClientCompat26;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.QuadInstance;
 import com.mojang.math.Axis;
@@ -18,16 +18,12 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.client.model.standalone.StandaloneModelKey;
 import org.jetbrains.annotations.Nullable;
 
-/** Draws the claim pole model and its waving flag (geometry in FlagGeometry). */
 public final class PoleFlagRenderer {
-
-    /** The standalone pole model (registered in ModelEventHandler). */
     public static final StandaloneModelKey<QuadCollection> POLE_MODEL = new StandaloneModelKey<>(() -> "warforge:block/pole");
 
     private PoleFlagRenderer() {
     }
 
-    /** What the pole renderer needs from the block entity, captured during extraction. */
     public static class State extends BlockEntityRenderState {
         public boolean visible;
         public int rotation;
@@ -35,9 +31,9 @@ public final class PoleFlagRenderer {
         public float poleLength;
         public int poleLight;
         public float waveTime;
+        public final QuadInstance quad = new QuadInstance();
     }
 
-    /** Fills the state. rotation is in steps of 45 degrees. */
     public static void extract(State state, boolean visible, Level level, BlockPos pos, int rotation, String flagId,
                                float poleLength, float partialTicks) {
         state.visible = visible;
@@ -47,7 +43,7 @@ public final class PoleFlagRenderer {
         state.rotation = rotation;
         state.flagId = flagId;
         state.poleLength = poleLength;
-        state.poleLight = ClientCompat.lightCoords(level, pos.above());
+        state.poleLight = ClientCompat26.lightCoords(level, pos.above());
         state.waveTime = FlagGeometry.waveTime(level.getGameTime(), partialTicks);
     }
 
@@ -73,7 +69,7 @@ public final class PoleFlagRenderer {
         pose.popPose();
 
         if (model != null) {
-            QuadInstance instance = new QuadInstance();
+            QuadInstance instance = state.quad;
             instance.setColor(-1);
             instance.setLightCoords(state.poleLight);
             instance.setOverlayCoords(packedOverlay);

@@ -1,7 +1,5 @@
 package com.flansmod.warforge.api.vein;
 
-import com.flansmod.warforge.api.vein.init.VeinUtils;
-
 // used to more efficiently handle lots of veins
 // random number generated from 1-10000 will turn into a key with that # as both bounds
 public class VeinKey implements Comparable<VeinKey> {
@@ -13,7 +11,7 @@ public class VeinKey implements Comparable<VeinKey> {
 
     private static short lowerBoundStart = 0;
 
-    public static final VeinKey NULL_KEY = new VeinKey(VeinUtils.NULL_VEIN_ID);
+    public static final VeinKey NULL_KEY = new VeinKey(VeinCodec.NULL_VEIN_ID);
 
     // will always produce bounds on the range [0, 9999]
     public VeinKey(short weight, boolean unusedStoredKeyIndicator) {

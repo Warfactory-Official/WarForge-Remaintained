@@ -1,8 +1,9 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.client.render.RenderDistances;
 import com.flansmod.warforge.client.render.BeamGeometry;
 import com.flansmod.warforge.client.render.RenderBounds;
-import com.flansmod.warforge.common.blocks.TileEntityDummy;
+import com.flansmod.warforge.common.blocks.DummyBlockEntity;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BeaconRenderer;
@@ -10,13 +11,13 @@ import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.world.phys.AABB;
 
-public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDummy> {
+public class RenderTileEntityDummy implements BlockEntityRenderer<DummyBlockEntity> {
 
     public RenderTileEntityDummy(BlockEntityRendererProvider.Context context) {
     }
 
     @Override
-    public void render(TileEntityDummy te, float partialTicks, PoseStack pose, MultiBufferSource buffers,
+    public void render(DummyBlockEntity te, float partialTicks, PoseStack pose, MultiBufferSource buffers,
                        int packedLight, int packedOverlay) {
         BeamGeometry.Beam beam = BeamGeometry.of(te);
         if (beam == null) return;
@@ -30,17 +31,17 @@ public class RenderTileEntityDummy implements BlockEntityRenderer<TileEntityDumm
     }
 
     @Override
-    public AABB getRenderBoundingBox(TileEntityDummy be) {
+    public AABB getRenderBoundingBox(DummyBlockEntity be) {
         return RenderBounds.of(be);
     }
 
     @Override
-    public boolean shouldRenderOffScreen(TileEntityDummy te) {
+    public boolean shouldRenderOffScreen(DummyBlockEntity te) {
         return true;
     }
 
     @Override
     public int getViewDistance() {
-        return 256;
+        return RenderDistances.STATUE;
     }
 }

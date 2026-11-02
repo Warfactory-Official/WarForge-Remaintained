@@ -1,16 +1,17 @@
 package com.flansmod.warforge.client.ui;
 
-import com.flansmod.warforge.api.modularui.ChunkMapViewport;
+import com.flansmod.warforge.client.ui.model.ClaimManagerView;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
+import com.flansmod.warforge.common.faction.FactionIds;
+
+import com.flansmod.warforge.client.map.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.MapCellElement;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
 import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.ui.model.ClaimMapModel;
-import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Faction;
-import com.lowdragmc.lowdraglib.gui.modular.ModularUIGuiContainer;
 import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
 import com.lowdragmc.lowdraglib.gui.widget.WidgetGroup;
 import net.minecraft.client.Minecraft;
@@ -20,7 +21,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.CONTENT_LEFT;
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.HEADER_HEIGHT;
 
-/** The territory map (layout of the 1.20.1 GuiClaimManager). */
 @OnlyIn(Dist.CLIENT)
 public final class ClaimManagerScreen {
     private static final int CELL_SIZE = 64;
@@ -31,25 +31,15 @@ public final class ClaimManagerScreen {
     private static final int SECTION_SPACING = 4;
     private static final int NAV_BUTTON_SIZE = 16;
 
-    private static ModularUIGuiContainer activeScreen = null;
-    private static DimChunkPos lastCenter = null;
-    private static int lastRadius = 4;
-    private static int lastPageX = -1;
-    private static int lastPageZ = -1;
-
     private ClaimManagerScreen() {
     }
 
     public static boolean isCurrentlyOpen() {
-        Minecraft mc = Minecraft.getInstance();
-        return activeScreen != null && mc.screen == activeScreen;
+        return ClaimManagerView.isOpen(Minecraft.getInstance().screen);
     }
 
     public static void refreshIfOpen() {
-        if (!isCurrentlyOpen() || lastCenter == null) {
-            return;
-        }
-        open(lastCenter, lastRadius, lastPageX, lastPageZ);
+        ClaimManagerView.refreshIfOpen(Minecraft.getInstance().screen, ClaimManagerScreen::open);
     }
 
     public static void open(DimChunkPos center, int radius, int pageX, int pageZ) {
@@ -57,11 +47,6 @@ public final class ClaimManagerScreen {
         if (mc.player == null) {
             return;
         }
-        lastCenter = center;
-        lastRadius = radius;
-        lastPageX = pageX;
-        lastPageZ = pageZ;
-
         int size = radius * 2 + 1;
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 size,
@@ -78,6 +63,18 @@ public final class ClaimManagerScreen {
 
         ClaimMapModel.requestTextures(center, radius);
         final ClaimMapModel.Modes modes = ClaimMapModel.resolveModes(center);
+
+        int visible = viewport.visibleSize;
+        ClaimMapModel.Cell[] cells = new ClaimMapModel.Cell[visible * visible];
+        for (int j = 0; j < visible; j++) {
+            for (int i = 0; i < visible; i++) {
+                cells[j * visible + i] = ClaimMapModel.cell(center, radius, viewport.startX + i, viewport.startZ + j, modes);
+            }
+        }
+        int signature = 31 * ClaimManagerView.signature(center, radius, pageX, pageZ, modes, cells) + ClaimMapModel.claimsLine().hashCode();
+        if (ClaimManagerView.unchanged(mc.screen, signature)) {
+            return;
+        }
 
         int mapSize = viewport.visibleSize * CELL_SIZE;
         int mapSectionWidth = mapSize + MAP_GUTTER * 2;
@@ -107,9 +104,7 @@ public final class ClaimManagerScreen {
         int infoTextY = infoY + WarForgeUiTheme.SECTION_PADDING;
         panel.addWidget(Label.text(ClaimMapModel.claimsLine(), WarForgeUiTheme.TEXT_PRIMARY)
                 .clip(textWidth).at(CONTENT_LEFT + 5, infoTextY));
-        panel.addWidget(Label.text(viewport.visibleSize < size
-                        ? "Paged view " + viewport.visibleSize + "x" + viewport.visibleSize + " across the selected radius."
-                        : "Showing the full selected radius.", WarForgeUiTheme.TEXT_MUTED)
+        panel.addWidget(Label.text(ClaimManagerView.pagingLine(viewport.visibleSize, size), WarForgeUiTheme.TEXT_MUTED)
                 .clip(textWidth).at(CONTENT_LEFT + 5, infoTextY + 9 + 4));
         panel.addWidget(Label.text(legend(modes), WarForgeUiTheme.TEXT_MUTED)
                 .clip(textWidth).at(CONTENT_LEFT + 5, legendY + WarForgeUiTheme.SECTION_PADDING));
@@ -117,36 +112,36 @@ public final class ClaimManagerScreen {
         addPanButtons(panel, center, radius, viewport, CONTENT_LEFT, mapY, mapSectionWidth, mapSectionHeight);
 
         if (modes.canDeclareSiege && !modes.target && !modes.startPick) {
-            panel.addWidget(headerButton("Declare Siege", 84, width - 112,
+            panel.addWidget(headerButton(tr("warforge.ui.declare_siege"), 84, width - 112,
                     () -> ClaimMapModel.declareSiege(center, radius, pageX, pageZ)));
         } else if (modes.target) {
-            panel.addWidget(headerButton("Cancel", 60, width - 86,
+            panel.addWidget(headerButton(tr("warforge.ui.cancel"), 60, width - 86,
                     () -> ClaimMapModel.cancelTarget(center, radius, pageX, pageZ)));
         } else if (modes.startPick) {
-            panel.addWidget(headerButton("Cancel", 60, width - 86, ClaimMapModel::cancelStartPick));
+            panel.addWidget(headerButton(tr("warforge.ui.cancel"), 60, width - 86, ClaimMapModel::cancelStartPick));
         }
 
         for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
             for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
-                ClaimMapModel.Cell cellData = ClaimMapModel.cell(center, radius, i, j, modes);
+                ClaimMapModel.Cell cellData = cells[(j - viewport.startZ) * visible + (i - viewport.startX)];
 
                 MapCellElement cell = new MapCellElement(cellData.textureName, cellData.renderInfo, cellData.adjacency, CELL_SIZE);
                 cell.setSelfPosition(mapLeft + (i - viewport.startX) * CELL_SIZE, mapTop + (j - viewport.startZ) * CELL_SIZE);
                 cell.onClick = button -> ClaimMapModel.click(center, radius, cellData, modes, button);
-                cell.setHoverTooltips(ClaimMapModel.tooltip(center, cellData, modes));
+                cell.tooltipOnHover(() -> ClaimMapModel.tooltip(center, cellData, modes));
                 panel.addWidget(cell);
             }
         }
 
-        activeScreen = ClientScreens.open(panel);
+        ClaimManagerView.shown(ClientScreens.open(panel), signature, center, radius, pageX, pageZ);
     }
 
     private static String legend(ClaimMapModel.Modes modes) {
         return modes.startPick
-                ? "Click a highlighted chunk to launch the siege from. This consumes one siege camp block."
+                ? tr("warforge.ui.click_a_highlighted_chunk_to_launch_the_siege_fr")
                 : modes.target
-                ? "Click an enemy claim to target it, then pick where to attack from."
-                : "Left click claim or unclaim. Right click toggles force-loading. Use arrows to page the map.";
+                ? tr("warforge.ui.click_an_enemy_claim_to_target_it_then_pick_wher")
+                : tr("warforge.ui.left_click_claim_or_unclaim_right_click_toggles");
     }
 
     private static ButtonWidget headerButton(String label, int width, int x, Runnable action) {
@@ -178,16 +173,15 @@ public final class ClaimManagerScreen {
 
     private static ButtonWidget panButton(String text, int x, int y, DimChunkPos center, int radius, int pageX, int pageZ) {
         ButtonWidget button = WarForgeUiTheme.actionButton(text, NAV_BUTTON_SIZE,
-                click -> ClaimManagerGuiFactory.INSTANCE.openClient(center, radius, pageX, pageZ));
+                click -> UiNavigation.openClaimManager(center, radius, pageX, pageZ));
         button.setSelfPosition(x, y);
         button.setSize(NAV_BUTTON_SIZE, NAV_BUTTON_SIZE);
         return button;
     }
 
-    /** The stripe colour: the faction owning the centre chunk, or grey for wilderness. */
     private static int accentColor(DimChunkPos center) {
         ClaimChunkInfo info = ClientClaimChunkCache.get(center);
-        if (info != null && !info.factionId.equals(Faction.nullUuid)) {
+        if (info != null && !info.factionId.equals(FactionIds.NONE)) {
             return info.colour;
         }
         return WarForgeUiTheme.STRIPE_DEFAULT;

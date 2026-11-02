@@ -8,7 +8,7 @@ import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
-public class PacketChooseFactionFlag extends PacketBase {
+public class PacketChooseFactionFlag extends ServerboundPacket {
     public UUID factionId;
     public String flagId = "";
 
@@ -26,15 +26,14 @@ public class PacketChooseFactionFlag extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        // requestChooseFactionFlag checks leadership, but the faction id is still the client's -
-        // pin it to the faction the player is actually in.
-        Faction faction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-        if (!WarForgeMod.isOp(player) && (faction == null || !faction.uuid.equals(factionId))) {
+        // faction id is the client's: pin to the player's own faction
+        Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+        if (!WarForgeMod.isOp(player) && (faction == null || !faction.getUuid().equals(factionId))) {
             PacketSecurity.violation(player, "flag selection for a faction they are not in (" + factionId + ")");
             return;
         }
 
-        WarForgeMod.FACTIONS.requestChooseFactionFlag(player, factionId, flagId);
+        WarForgeMod.FACTIONS.lifecycle.requestChooseFlag(player, factionId, flagId);
     }
 
     @Override

@@ -17,9 +17,7 @@ public enum Quality {
         return "warforge.info.vein." + this.toString().toLowerCase();
     }
 
-    // returns either the integer representation, or a four decimal place floating point representation
     public String getMultString(Vein currVein) {
-        // get the quality scaling information and display it alongside the actual quality localized name
         float qualMult = getLocalMultiplier(currVein);
         int qualMultInt = (int) qualMult;
         return (qualMultInt == qualMult ? String.format("%d", qualMultInt) : String.format("%.4f", qualMult)) + "x";

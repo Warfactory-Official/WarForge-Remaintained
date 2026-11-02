@@ -1,6 +1,6 @@
 package com.flansmod.warforge.client.xaero;
 
-import com.flansmod.warforge.client.MinimapClaimCache;
+import com.flansmod.warforge.client.ClientBorderCache;
 import com.mojang.logging.LogUtils;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
@@ -15,10 +15,6 @@ import xaero.map.world.MapDimension;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Tells Xaero's maps to redraw the regions whose claims changed. There is one listener per map mod; each is added the
- * first time that mod builds its highlighter registry, so neither loads when its mod is absent.
- */
 public final class XaeroRefresh {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final AtomicBoolean WORLD_MAP_LISTENING = new AtomicBoolean();
@@ -27,10 +23,9 @@ public final class XaeroRefresh {
     private XaeroRefresh() {
     }
 
-    /** Called when Xaero's World Map builds its highlighter registry. */
     public static void listenForWorldMap() {
         if (WORLD_MAP_LISTENING.compareAndSet(false, true)) {
-            MinimapClaimCache.addListener(new RegionListener() {
+            ClientBorderCache.addListener(new RegionListener() {
                 @Override
                 void refresh(ResourceKey<Level> dim, int regionX, int regionZ, boolean all) {
                     WorldMapSession session = WorldMapSession.getCurrentSession();
@@ -51,10 +46,9 @@ public final class XaeroRefresh {
         }
     }
 
-    /** Called when Xaero's Minimap builds its highlighter registry. */
     public static void listenForMinimap() {
         if (MINIMAP_LISTENING.compareAndSet(false, true)) {
-            MinimapClaimCache.addListener(new RegionListener() {
+            ClientBorderCache.addListener(new RegionListener() {
                 @Override
                 void refresh(ResourceKey<Level> dim, int regionX, int regionZ, boolean all) {
                     XaeroMinimapSession session = XaeroMinimapSession.getCurrentSession();
@@ -74,11 +68,8 @@ public final class XaeroRefresh {
         }
     }
 
-    /**
-     * Turns claim changes into region refreshes: the chunk's region and the regions of its four neighbours (a
-     * neighbour's border depends on this chunk). Errors are logged and never reach the packet handler.
-     */
-    private abstract static class RegionListener implements MinimapClaimCache.Listener {
+    /** Errors logged, never reach the packet handler. */
+    private abstract static class RegionListener implements ClientBorderCache.Listener {
         abstract void refresh(ResourceKey<Level> dim, int regionX, int regionZ, boolean all);
 
         @Override
@@ -101,14 +92,19 @@ public final class XaeroRefresh {
                 int regionX = x >> 5;
                 int regionZ = z >> 5;
                 refresh(dim, regionX, regionZ, false);
-                for (int[] d : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
-                    int nx = (x + d[0]) >> 5;
-                    int nz = (z + d[1]) >> 5;
-                    if (nx != regionX || nz != regionZ) {
-                        refresh(dim, nx, nz, false);
-                    }
-                }
+                refreshNeighbour(dim, regionX, regionZ, x + 1, z);
+                refreshNeighbour(dim, regionX, regionZ, x - 1, z);
+                refreshNeighbour(dim, regionX, regionZ, x, z + 1);
+                refreshNeighbour(dim, regionX, regionZ, x, z - 1);
             });
+        }
+
+        private void refreshNeighbour(ResourceKey<Level> dim, int regionX, int regionZ, int neighbourX, int neighbourZ) {
+            int nx = neighbourX >> 5;
+            int nz = neighbourZ >> 5;
+            if (nx != regionX || nz != regionZ) {
+                refresh(dim, nx, nz, false);
+            }
         }
 
         private static void safely(Runnable action) {

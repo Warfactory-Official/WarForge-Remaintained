@@ -3,6 +3,7 @@ package com.flansmod.warforge.platform;
 import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
@@ -11,16 +12,8 @@ import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
-/**
- * Base class of every WarForge block entity. The vanilla save/load and client-sync methods differ between
- * versions; this class maps them to the four hooks below, which always work on a CompoundTag with the same keys.
- *
- * <p>From 1.21.6 vanilla saves through ValueInput/ValueOutput. The hooks still get a CompoundTag: its top-level
- * entries are stored into (and read back from) the ValueOutput/ValueInput unchanged, so the saved keys are the
- * same as on older versions.
- */
+/** From 1.21.6 vanilla saves via ValueInput/ValueOutput; hooks keep a CompoundTag whose top-level entries are copied through unchanged. */
 public abstract class WFBlockEntity extends BlockEntity {
     @SuppressWarnings("deprecation")
     private static final MapCodec<CompoundTag> WHOLE_TAG = MapCodec.assumeMapUnsafe(CompoundTag.CODEC);
@@ -38,15 +31,12 @@ public abstract class WFBlockEntity extends BlockEntity {
     /** Writes the data sent to clients (chunk load and block updates). Call super first. */
     protected void writeSyncData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Reads the data sent to clients. */
     protected void readSyncData(CompoundTag tag, HolderLookup.Provider registries) {}
 
-    /** Server side: the block of this block entity is being replaced by a different block (before removal). */
     public void onBlockRemoved() {}
 
     private HolderLookup.Provider registries() {
-        if (level != null) return level.registryAccess();
-        return ServerLifecycleHooks.getCurrentServer().registryAccess();
+        return level != null ? level.registryAccess() : RegistryAccess.EMPTY;
     }
 
     private static CompoundTag readAll(ValueInput input) {

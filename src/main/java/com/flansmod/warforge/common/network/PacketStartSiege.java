@@ -3,7 +3,6 @@ package com.flansmod.warforge.common.network;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.WarForgeMod;
 import net.minecraft.core.Vec3i;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -11,19 +10,19 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import com.flansmod.warforge.compat.Keys;
 
-public class PacketStartSiege extends PacketBase {
-    public DimBlockPos mSiegeCampPos;
-    public Vec3i mOffset;
+public class PacketStartSiege extends ServerboundPacket {
+    public DimBlockPos siegeCampPos;
+    public Vec3i offset;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
-        data.writeUtf(Keys.id(mSiegeCampPos.dim).toString());
-        data.writeInt(mSiegeCampPos.getX());
-        data.writeInt(mSiegeCampPos.getY());
-        data.writeInt(mSiegeCampPos.getZ());
+        data.writeUtf(Keys.id(siegeCampPos.dim).toString());
+        data.writeInt(siegeCampPos.getX());
+        data.writeInt(siegeCampPos.getY());
+        data.writeInt(siegeCampPos.getZ());
 
-        data.writeByte(mOffset.getX());
-        data.writeByte(mOffset.getZ());
+        data.writeByte(offset.getX());
+        data.writeByte(offset.getZ());
     }
 
     @Override
@@ -32,25 +31,22 @@ public class PacketStartSiege extends PacketBase {
         int x = data.readInt();
         int y = data.readInt();
         int z = data.readInt();
-        mSiegeCampPos = new DimBlockPos(dim, x, y, z);
+        siegeCampPos = new DimBlockPos(dim, x, y, z);
         byte dx = data.readByte();
         byte dz = data.readByte();
-        mOffset = new Vec3i(dx, 0, dz);
+        offset = new Vec3i(dx, 0, dz);
     }
 
     @Override
     public void handleServerSide(ServerPlayer playerEntity) {
-        // The siege camp GUI is opened by clicking the camp, so the officer is standing at it.
-        // requestStartSiege validates the direction, rank, cooldown and camp ownership from there.
-        if (!PacketSecurity.requireReach(playerEntity, mSiegeCampPos, "start siege"))
+        if (!PacketSecurity.requireReach(playerEntity, siegeCampPos, "start siege"))
             return;
 
-        WarForgeMod.FACTIONS.requestStartSiege(playerEntity, mSiegeCampPos, mOffset);
+        WarForgeMod.FACTIONS.siegeService.requestStartSiege(playerEntity, siegeCampPos, offset);
     }
 
     @Override
     public void handleClientSide(Player clientPlayer) {
         WarForgeMod.LOGGER.error("Received start siege packet client side");
     }
-
 }

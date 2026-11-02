@@ -1,14 +1,15 @@
 package com.flansmod.warforge.common.blocks;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
 import com.flansmod.warforge.platform.WFUiBlock;
 
-import com.flansmod.warforge.platform.WFBlock;
 
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.structure.StructureStamper;
-import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import net.minecraft.network.chat.Component;
 import com.flansmod.warforge.server.Faction;
@@ -17,7 +18,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -25,7 +25,6 @@ import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelReader;
-import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntityTicker;
@@ -50,7 +49,7 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
     @Override
     @Nullable
     public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
-        return new TileEntityFob(pos, state);
+        return new FobBlockEntity(pos, state);
     }
 
     @Override
@@ -61,14 +60,14 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
 
         if (!world.isClientSide()) {
             DimChunkPos chunk = new DimChunkPos(world.dimension(), pos);
-            if (!com.flansmod.warforge.server.fob.FobManager.isClaimDimWhitelisted(chunk.dim)) {
+            if (!com.flansmod.warforge.server.ClaimPolicy.isDimWhitelisted(chunk.dim)) {
                 return null;
             }
-            if (WarForgeMod.FACTIONS.isChunkContested(chunk)) {
+            if (WarForgeMod.FACTIONS.sieges.isChunkContested(chunk)) {
                 return null;
             }
-            UUID existingClaim = WarForgeMod.FACTIONS.getClaim(chunk);
-            if (!existingClaim.equals(Faction.nullUuid)) {
+            UUID existingClaim = WarForgeMod.FACTIONS.claims.getClaim(chunk);
+            if (!existingClaim.equals(FactionIds.NONE)) {
                 return null;
             }
             if (WarForgeMod.FOBS.getFobAt(chunk) != null) {
@@ -89,27 +88,26 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
             return InteractionResult.CONSUME;
         }
 
-        if (!(world.getBlockEntity(pos) instanceof TileEntityFob fob)) {
+        if (!(world.getBlockEntity(pos) instanceof FobBlockEntity fob)) {
             return InteractionResult.SUCCESS;
         }
 
-        // Sneak-interact takes the FOB back instead of opening its UI.
         if (player.isSecondaryUseActive()) {
             tryPickUp(world, pos, player, fob);
             return InteractionResult.SUCCESS;
         }
 
-        Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-        boolean established = !fob.ownerFaction.equals(Faction.nullUuid);
+        Faction playerFaction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+        boolean established = !fob.ownerFaction.equals(FactionIds.NONE);
         boolean isOfficer = playerFaction != null
-                && (WarForgeMod.isOp(player) || playerFaction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER));
+                && (WarForgeMod.isOp(player) || playerFaction.isPlayerRoleInFaction(player.getUUID(), Role.OFFICER));
 
         if (established) {
-            if (playerFaction == null || !playerFaction.uuid.equals(fob.ownerFaction)) {
+            if (playerFaction == null || !playerFaction.getUuid().equals(fob.ownerFaction)) {
                 return InteractionResult.SUCCESS;
             }
         } else if (!isOfficer) {
-            player.sendSystemMessage(net.minecraft.network.chat.Component.literal("You are not an officer of your faction"));
+            player.sendSystemMessage(Component.translatable("warforge.common.place.not_officer"));
             return InteractionResult.SUCCESS;
         }
 
@@ -123,39 +121,36 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
         return InteractionResult.SUCCESS;
     }
 
-    // Shift + right-click recovers a FOB as an item. The block is unbreakable by default, so without
-    // this a FOB can only ever be destroyed, never relocated. Refused while the owning faction is in a
-    // siege (or the chunk is contested): a FOB is a siege asset and must not be pulled out mid-fight.
-    public static void tryPickUp(Level world, BlockPos pos, Player player, TileEntityFob fobTe) {
+    // Shift+use recovers a FOB (block is unbreakable). Refused during a siege or contested chunk.
+    public static void tryPickUp(Level world, BlockPos pos, Player player, FobBlockEntity fobTe) {
         DimChunkPos chunk = new DimChunkPos(world.dimension(), pos);
         Fob fob = WarForgeMod.FOBS.getFobAt(chunk);
-        boolean established = !fobTe.ownerFaction.equals(Faction.nullUuid);
+        boolean established = !fobTe.ownerFaction.equals(FactionIds.NONE);
         boolean isOp = WarForgeMod.isOp(player);
-        Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
+        Faction playerFaction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
         boolean isOfficer = playerFaction != null
-                && playerFaction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER);
+                && playerFaction.isPlayerRoleInFaction(player.getUUID(), Role.OFFICER);
 
         if (established) {
-            if (!isOp && (playerFaction == null || !playerFaction.uuid.equals(fobTe.ownerFaction) || !isOfficer)) {
-                player.sendSystemMessage(Component.literal("Only an officer of the owning faction can pick up this FOB"));
+            if (!isOp && (playerFaction == null || !playerFaction.getUuid().equals(fobTe.ownerFaction) || !isOfficer)) {
+                player.sendSystemMessage(Component.translatable("warforge.common.fob_pickup_officer_only"));
                 return;
             }
-            if (WarForgeMod.FACTIONS.isFactionInActiveSiege(fobTe.ownerFaction)) {
-                player.sendSystemMessage(Component.literal("You cannot pick up a FOB while your faction is in a siege"));
+            if (WarForgeMod.FACTIONS.sieges.isFactionInActiveSiege(fobTe.ownerFaction)) {
+                player.sendSystemMessage(Component.translatable("warforge.common.fob_pickup_in_siege"));
                 return;
             }
         } else if (!isOp && !player.getUUID().equals(fobTe.placer) && !isOfficer) {
-            player.sendSystemMessage(Component.literal("You are not allowed to pick up this FOB"));
+            player.sendSystemMessage(Component.translatable("warforge.common.fob_pickup_denied"));
             return;
         }
 
-        if (WarForgeMod.FACTIONS.isChunkContested(chunk)) {
-            player.sendSystemMessage(Component.literal("You cannot pick up a FOB inside a siege zone"));
+        if (WarForgeMod.FACTIONS.sieges.isChunkContested(chunk)) {
+            player.sendSystemMessage(Component.translatable("warforge.common.fob_pickup_siege_zone"));
             return;
         }
 
         if (fob != null) {
-            // Unregisters the FOB, clears its stamped structure and removes the block.
             WarForgeMod.FOBS.destroyFob(fob);
         } else {
             world.removeBlock(pos, false);
@@ -165,7 +160,7 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
         if (!player.getInventory().add(drop)) {
             player.drop(drop, false);
         }
-        player.sendSystemMessage(Component.literal("Picked up the FOB"));
+        player.sendSystemMessage(Component.translatable("warforge.common.fob_picked_up"));
     }
 
     
@@ -197,7 +192,7 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
             return null;
         }
         return (lvl, pos, blockState, be) -> {
-            if (be instanceof TileEntityFob fob) {
+            if (be instanceof FobBlockEntity fob) {
                 fob.tick();
             }
         };

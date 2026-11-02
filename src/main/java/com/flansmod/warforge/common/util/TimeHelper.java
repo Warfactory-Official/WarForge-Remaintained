@@ -1,7 +1,7 @@
 package com.flansmod.warforge.common.util;
 
 import com.flansmod.warforge.common.WarForgeConfig;
-import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.WarClock;
 
 public class TimeHelper {
     public TimeHelper() {
@@ -36,14 +36,12 @@ public class TimeHelper {
         );
     }
 
-    // Parses a duration like "30s", "15m", "2h", "1d", or a bare number (treated as seconds) into
-    // milliseconds.
     public static long parseDurationMs(String input) {
         if (input == null || input.isEmpty()) {
             return -1;
         }
         String value = input.trim().toLowerCase();
-        long unitMs = 1000L; // default: seconds
+        long unitMs = 1000L;
         char last = value.charAt(value.length() - 1);
         if (!Character.isDigit(last)) {
             switch (last) {
@@ -89,10 +87,10 @@ public class TimeHelper {
     }
 
     public long getCooldownRemainingSeconds(float cooldown, long startOfCooldown) {
-        long ticks = (long) cooldown; // why did you convert it into ticks if its already in ticks
+        long ticks = (long) cooldown;
         long elapsed = startOfCooldown - ticks;
 
-        return (WarForgeMod.serverTick - elapsed) * 20;
+        return (WarClock.serverTick - elapsed) * 20;
     }
 
     public int getCooldownRemainingMinutes(float cooldown, long startOfCooldown) {
@@ -100,7 +98,7 @@ public class TimeHelper {
         long elapsed = startOfCooldown - ticks;
 
         return (int) (
-                (WarForgeMod.serverTick - elapsed) * 20 / 60
+                (WarClock.serverTick - elapsed) * 20 / 60
         );
     }
 
@@ -109,19 +107,19 @@ public class TimeHelper {
         long elapsed = startOfCooldown - ticks;
 
         return (int) (
-                (WarForgeMod.serverTick - elapsed) * 20 / 60 / 60
+                (WarClock.serverTick - elapsed) * 20 / 60 / 60
         );
     }
 
     public long getTimeToNextSiegeAdvanceMs() {
-        long elapsedMS = WarForgeMod.siegeClock() - WarForgeMod.timestampOfFirstDay;
+        long elapsedMS = WarClock.siegeClock() - WarClock.timestampOfFirstDay;
         long todayElapsedMS = elapsedMS % getSiegeDayLengthMS();
 
         return getSiegeDayLengthMS() - todayElapsedMS;
     }
 
     public long getTimeToNextYieldMs() {
-        long elapsedMS = WarForgeMod.yieldClock() - WarForgeMod.timestampOfFirstDay;
+        long elapsedMS = WarClock.yieldClock() - WarClock.timestampOfFirstDay;
         long todayElapsedMS = elapsedMS % getYieldDayLengthMs();
 
         return getYieldDayLengthMs() - todayElapsedMS;

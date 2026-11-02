@@ -1,10 +1,9 @@
 package com.flansmod.warforge.common.network;
 
-import com.flansmod.warforge.common.WarForgeMod;
-import com.flansmod.warforge.server.Faction;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
@@ -14,7 +13,7 @@ public class PacketInsuranceData extends PacketBase {
     public static PacketInsuranceData latest = null;
 
     public boolean hasFaction = false;
-    public UUID factionId = Faction.nullUuid;
+    public UUID factionId = FactionIds.NONE;
     public String factionName = "";
     public int factionColor = 0xFFFFFF;
     public boolean canDeposit = false;
@@ -45,11 +44,6 @@ public class PacketInsuranceData extends PacketBase {
 
     @Override
     public void handleServerSide(ServerPlayer player) {
-        WarForgeMod.LOGGER.error("Received PacketInsuranceData on server side");
-    }
-
-    @Override
-    public void handleClientSide(Player clientPlayer) {
-        latest = this;
+        PacketSecurity.violation(player, "Received PacketInsuranceData on server side");
     }
 }

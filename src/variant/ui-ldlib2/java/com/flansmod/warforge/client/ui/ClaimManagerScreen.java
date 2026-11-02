@@ -1,12 +1,14 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ui.model.ClaimManagerView;
+import static com.flansmod.warforge.common.ui.UiLang.tr;
+import com.flansmod.warforge.common.faction.FactionIds;
+
 import com.flansmod.warforge.compat.ClientCompat;
-import com.flansmod.warforge.api.modularui.ChunkMapViewport;
+import com.flansmod.warforge.client.map.ChunkMapViewport;
 import com.flansmod.warforge.api.modularui.MapCellElement;
 import com.flansmod.warforge.client.ui.model.ClaimMapModel;
-import com.flansmod.warforge.common.factories.ClaimManagerGuiFactory;
 import com.flansmod.warforge.common.util.DimChunkPos;
-import com.flansmod.warforge.server.Faction;
 import com.lowdragmc.lowdraglib2.gui.holder.ModularUIScreen;
 import com.lowdragmc.lowdraglib2.gui.ui.ModularUI;
 import com.lowdragmc.lowdraglib2.gui.ui.UI;
@@ -20,7 +22,6 @@ import net.neoforged.api.distmarker.OnlyIn;
 
 import static com.flansmod.warforge.api.modularui.WarForgeUiTheme.*;
 
-/** The territory map, laid out like GuiClaimManager of the 1.20.1 build. */
 @OnlyIn(Dist.CLIENT)
 public final class ClaimManagerScreen {
     private static final int CELL_SIZE = 64;
@@ -31,24 +32,15 @@ public final class ClaimManagerScreen {
     private static final int SECTION_SPACING = 4;
     private static final int NAV_BUTTON_SIZE = 16;
 
-    private static ModularUIScreen activeScreen = null;
-    private static DimChunkPos lastCenter = null;
-    private static int lastRadius = 4;
-    private static int lastPageX = -1;
-    private static int lastPageZ = -1;
-
     private ClaimManagerScreen() {
     }
 
     public static boolean isCurrentlyOpen() {
-        return activeScreen != null && ClientCompat.screen() == activeScreen;
+        return ClaimManagerView.isOpen(ClientCompat.screen());
     }
 
     public static void refreshIfOpen() {
-        if (!isCurrentlyOpen() || lastCenter == null) {
-            return;
-        }
-        open(lastCenter, lastRadius, lastPageX, lastPageZ);
+        ClaimManagerView.refreshIfOpen(ClientCompat.screen(), ClaimManagerScreen::open);
     }
 
     public static void open(DimChunkPos center, int radius, int pageX, int pageZ) {
@@ -56,11 +48,6 @@ public final class ClaimManagerScreen {
         if (mc.player == null) {
             return;
         }
-        lastCenter = center;
-        lastRadius = radius;
-        lastPageX = pageX;
-        lastPageZ = pageZ;
-
         int size = radius * 2 + 1;
         ChunkMapViewport viewport = ChunkMapViewport.create(
                 size,
@@ -78,6 +65,18 @@ public final class ClaimManagerScreen {
         ClaimMapModel.requestTextures(center, radius);
         final ClaimMapModel.Modes modes = ClaimMapModel.resolveModes(center);
 
+        int visible = viewport.visibleSize;
+        ClaimMapModel.Cell[] cells = new ClaimMapModel.Cell[visible * visible];
+        for (int j = 0; j < visible; j++) {
+            for (int i = 0; i < visible; i++) {
+                cells[j * visible + i] = ClaimMapModel.cell(center, radius, viewport.startX + i, viewport.startZ + j, modes);
+            }
+        }
+        int signature = 31 * ClaimManagerView.signature(center, radius, pageX, pageZ, modes, cells) + ClaimMapModel.claimsLine().hashCode();
+        if (ClaimManagerView.unchanged(ClientCompat.screen(), signature)) {
+            return;
+        }
+
         int mapSize = viewport.visibleSize * CELL_SIZE;
         int mapSectionWidth = mapSize + MAP_GUTTER * 2;
         int mapSectionHeight = mapSize + MAP_GUTTER * 2;
@@ -90,7 +89,7 @@ public final class ClaimManagerScreen {
         int mapTop = mapY + MAP_GUTTER;
 
         ClaimMapModel.Cell centerCell = ClaimMapModel.cell(center, radius, radius, radius, modes);
-        int accentColor = centerCell.info.factionId.equals(Faction.nullUuid) ? NO_FACTION_STRIPE : centerCell.info.colour;
+        int accentColor = centerCell.info.factionId.equals(FactionIds.NONE) ? NO_FACTION_STRIPE : centerCell.info.colour;
 
         UIElement root = screenRoot();
         UIElement panel = panel(width, height);
@@ -111,26 +110,24 @@ public final class ClaimManagerScreen {
         Label status = scrollingText(literal(ClaimMapModel.claimsLine(), TEXT_PRIMARY, false), mapSectionWidth - 10);
         status.layout(l -> l.marginBottom(4));
         infoSection.addChild(status);
-        infoSection.addChild(scrollingText(literal(viewport.visibleSize < size
-                ? "Paged view " + viewport.visibleSize + "x" + viewport.visibleSize + " across the selected radius."
-                : "Showing the full selected radius.", TEXT_MUTED, false), mapSectionWidth - 10));
+        infoSection.addChild(scrollingText(literal(ClaimManagerView.pagingLine(viewport.visibleSize, size), TEXT_MUTED, false), mapSectionWidth - 10));
         legendSection.addChild(scrollingText(literal(ClaimMapModel.legend(modes), TEXT_MUTED, false), mapSectionWidth - 10));
 
         addPanButtons(panel, center, radius, viewport, CONTENT_LEFT, mapY, mapSectionWidth, mapSectionHeight);
 
         if (modes.canDeclareSiege && !modes.target && !modes.startPick) {
-            place(panel, actionButton("Declare Siege", 84, () -> ClaimMapModel.declareSiege(center, radius, pageX, pageZ)),
+            place(panel, actionButton(tr("warforge.ui.declare_siege"), 84, () -> ClaimMapModel.declareSiege(center, radius, pageX, pageZ)),
                     width - 112, 9, 84, 16);
         } else if (modes.target) {
-            place(panel, actionButton("Cancel", 60, () -> ClaimMapModel.cancelTarget(center, radius, pageX, pageZ)),
+            place(panel, actionButton(tr("warforge.ui.cancel"), 60, () -> ClaimMapModel.cancelTarget(center, radius, pageX, pageZ)),
                     width - 86, 9, 60, 16);
         } else if (modes.startPick) {
-            place(panel, actionButton("Cancel", 60, ClaimMapModel::cancelStartPick), width - 86, 9, 60, 16);
+            place(panel, actionButton(tr("warforge.ui.cancel"), 60, ClaimMapModel::cancelStartPick), width - 86, 9, 60, 16);
         }
 
         for (int j = viewport.startZ; j < viewport.startZ + viewport.visibleSize; j++) {
             for (int i = viewport.startX; i < viewport.startX + viewport.visibleSize; i++) {
-                ClaimMapModel.Cell cellData = ClaimMapModel.cell(center, radius, i, j, modes);
+                ClaimMapModel.Cell cellData = cells[(j - viewport.startZ) * visible + (i - viewport.startX)];
                 int localX = i - viewport.startX;
                 int localZ = j - viewport.startZ;
 
@@ -141,8 +138,9 @@ public final class ClaimManagerScreen {
             }
         }
 
-        activeScreen = new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal("Claim Manager"));
-        ClientCompat.setScreen(activeScreen);
+        ModularUIScreen screen = new ModularUIScreen(ModularUI.of(UI.of(root), mc.player), Component.literal(tr("warforge.ui.claim_manager")));
+        ClaimManagerView.shown(screen, signature, center, radius, pageX, pageZ);
+        ClientCompat.setScreen(screen);
     }
 
     private static void addPanButtons(UIElement panel, DimChunkPos center, int radius, ChunkMapViewport viewport,
@@ -166,7 +164,7 @@ public final class ClaimManagerScreen {
     }
 
     private static void panButton(UIElement panel, String text, int x, int y, DimChunkPos center, int radius, int pageX, int pageZ) {
-        Button button = actionButton(text, NAV_BUTTON_SIZE, () -> ClaimManagerGuiFactory.INSTANCE.openClient(center, radius, pageX, pageZ));
+        Button button = actionButton(text, NAV_BUTTON_SIZE, () -> UiNavigation.openClaimManager(center, radius, pageX, pageZ));
         button.layout(l -> l.paddingAll(0));
         button.text.layout(l -> l.marginHorizontal(0));
         place(panel, button, x, y, NAV_BUTTON_SIZE, NAV_BUTTON_SIZE);

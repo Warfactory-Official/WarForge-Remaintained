@@ -11,7 +11,7 @@ import net.minecraft.world.phys.Vec3;
 public class TeleportUtil {
 
     public static void teleportPlayer(ServerPlayer player, ResourceKey<Level> targetDimension, BlockPos targetPosition) {
-        if (player.level().dimension() != targetDimension) {
+        if (!player.level().dimension().equals(targetDimension)) {
             ServerLevel targetWorld = player.level().getServer().getLevel(targetDimension);
             if (targetWorld != null) {
                 Teleports.changeDimension(player, targetWorld, new Vec3(targetPosition.getX() + 0.5D, targetPosition.getY() + 1.5D, targetPosition.getZ() + 0.5D));

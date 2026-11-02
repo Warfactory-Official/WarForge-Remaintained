@@ -1,5 +1,8 @@
 package com.flansmod.warforge.common.network;
 
+import com.flansmod.warforge.common.faction.FactionIds;
+import com.flansmod.warforge.common.faction.Role;
+
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.ui.InsuranceUi;
 import com.flansmod.warforge.server.Faction;
@@ -9,8 +12,8 @@ import net.minecraft.world.entity.player.Player;
 
 import java.util.UUID;
 
-public class PacketRequestInsurance extends PacketBase {
-    public UUID factionId = Faction.nullUuid;
+public class PacketRequestInsurance extends ServerboundPacket {
+    public UUID factionId = FactionIds.NONE;
 
     @Override
     public void encodeInto(FriendlyByteBuf data) {
@@ -25,20 +28,19 @@ public class PacketRequestInsurance extends PacketBase {
     @Override
     public void handleServerSide(ServerPlayer player) {
         UUID effectiveId = factionId;
-        if (effectiveId.equals(Faction.nullUuid)) {
-            Faction playerFaction = WarForgeMod.FACTIONS.getFactionOfPlayer(player.getUUID());
-            effectiveId = playerFaction == null ? Faction.nullUuid : playerFaction.uuid;
+        if (effectiveId.equals(FactionIds.NONE)) {
+            Faction playerFaction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+            effectiveId = playerFaction == null ? FactionIds.NONE : playerFaction.getUuid();
         }
 
-        Faction faction = WarForgeMod.FACTIONS.getFaction(effectiveId);
+        Faction faction = WarForgeMod.FACTIONS.registry.getFaction(effectiveId);
         PacketInsuranceData view = new PacketInsuranceData();
         if (faction == null) {
             InsuranceUi.open(player, view, null);
             return;
         }
 
-        // factionId is the client's, so this must not become "read any faction's stash": the vault
-        // contents only go to members of that faction (ops included for moderation).
+        // factionId is the client's: vault contents go only to members (ops too)
         if (!WarForgeMod.isOp(player) && !faction.isPlayerInFaction(player.getUUID())) {
             PacketSecurity.violation(player, "insurance request for a faction they are not in (" + effectiveId + ")");
             InsuranceUi.open(player, view, null);
@@ -46,11 +48,11 @@ public class PacketRequestInsurance extends PacketBase {
         }
 
         view.hasFaction = true;
-        view.factionId = faction.uuid;
-        view.factionName = faction.name;
-        view.factionColor = faction.colour;
-        view.canDeposit = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.OFFICER);
-        view.canVoid = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Faction.Role.LEADER);
+        view.factionId = faction.getUuid();
+        view.factionName = faction.getName();
+        view.factionColor = faction.getColour();
+        view.canDeposit = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Role.OFFICER);
+        view.canVoid = WarForgeMod.isOp(player) || faction.isPlayerRoleInFaction(player.getUUID(), Role.LEADER);
         view.slotCount = faction.getInsuranceSlotCount();
         InsuranceUi.open(player, view, faction);
     }
