@@ -69,8 +69,7 @@
 | `Enable Citadel Upgrade System` | true | |
 | `Enabled Isolated Claims` | true | true: claims need no adjacency; false: new claim must touch an own claim |
 | `Insurance Blacklist` | `["minecraft:*shulker_box", "appliedenergistics2:*cell*"]` | `*` wildcards on item ids |
-| `Available Default Flags` | 16 dye names | Dye name or `rrggbb` hex |
-| `Available Custom Flags` | `["*"]` | Globs on file name without extension |
+| `Available Custom Flags` | `["*"]` | Globs on flag name (bundled + server files) |
 | `Flag Whitelist` | `[]` | `"flagId=uuid1,uuid2"`; listed flag exclusive to those players |
 | `Unique Flags` | true | Admin `/f flag set` bypasses |
 

@@ -8,7 +8,6 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.compat.Ids;
 import com.mojang.blaze3d.platform.NativeImage;
-import it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap;
 import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import net.minecraft.resources.ResourceLocation;
@@ -22,9 +21,6 @@ import java.util.List;
 import java.util.Locale;
 
 public final class ClientFlagRegistry {
-    private static final String DEFAULT_PREFIX = "default:";
-    private static final int DEFAULT_FLAG_SIZE = 64;
-    private static final int UNKNOWN_COLOR = 0x999999;
     /** Upper bound on the parts of one flag image; the server splits at 30 kB. */
     private static final int MAX_FLAG_PARTS = 256;
     private static final int MAX_FLAG_SIDE = 4096;
@@ -35,27 +31,6 @@ public final class ClientFlagRegistry {
     private static final Object2ObjectOpenHashMap<String, FlagAssembly> ASSEMBLIES = new Object2ObjectOpenHashMap<>();
     private static final ObjectArrayList<String> AVAILABLE_FLAGS = new ObjectArrayList<>();
     private static final List<String> AVAILABLE_FLAGS_VIEW = Collections.unmodifiableList(AVAILABLE_FLAGS);
-    private static final Object2IntOpenHashMap<String> DEFAULT_COLORS = new Object2IntOpenHashMap<>();
-
-    static {
-        DEFAULT_COLORS.put("white", 0xF9FFFE);
-        DEFAULT_COLORS.put("orange", 0xF9801D);
-        DEFAULT_COLORS.put("magenta", 0xC74EBD);
-        DEFAULT_COLORS.put("light_blue", 0x3AB3DA);
-        DEFAULT_COLORS.put("yellow", 0xFED83D);
-        DEFAULT_COLORS.put("lime", 0x80C71F);
-        DEFAULT_COLORS.put("pink", 0xF38BAA);
-        DEFAULT_COLORS.put("gray", 0x474F52);
-        DEFAULT_COLORS.put("light_gray", 0x9D9D97);
-        DEFAULT_COLORS.put("cyan", 0x169C9C);
-        DEFAULT_COLORS.put("purple", 0x8932B8);
-        DEFAULT_COLORS.put("blue", 0x3C44AA);
-        DEFAULT_COLORS.put("brown", 0x835432);
-        DEFAULT_COLORS.put("green", 0x5E7C16);
-        DEFAULT_COLORS.put("red", 0xB02E26);
-        DEFAULT_COLORS.put("black", 0x1D1D21);
-        DEFAULT_COLORS.defaultReturnValue(-1);
-    }
 
     private ClientFlagRegistry() {
     }
@@ -105,19 +80,12 @@ public final class ClientFlagRegistry {
         if (flagId == null || flagId.isEmpty()) {
             return null;
         }
-        ResourceLocation cached = TEXTURES.get(flagId);
-        if (cached == null && flagId.startsWith(DEFAULT_PREFIX)) {
-            return generateDefaultFlag(flagId);
-        }
-        return cached;
+        return TEXTURES.get(flagId);
     }
 
     public static int[] getFlagDimensions(String flagId) {
         if (flagId == null || flagId.isEmpty()) {
             return null;
-        }
-        if (!DIMENSIONS.containsKey(flagId) && flagId.startsWith(DEFAULT_PREFIX)) {
-            generateDefaultFlag(flagId);
         }
         return DIMENSIONS.get(flagId);
     }
@@ -133,18 +101,6 @@ public final class ClientFlagRegistry {
         } catch (IOException e) {
             WarForgeMod.LOGGER.warn("Could not read the image of flag {}", flagId, e);
         }
-    }
-
-    private static ResourceLocation generateDefaultFlag(String flagId) {
-        int rgb = parseColor(flagId.substring(DEFAULT_PREFIX.length()));
-        NativeImage image = new NativeImage(DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE, false);
-        int abgr = ColorUtil.swapRedBlue(ColorUtil.opaque(rgb));
-        for (int y = 0; y < DEFAULT_FLAG_SIZE; y++) {
-            for (int x = 0; x < DEFAULT_FLAG_SIZE; x++) {
-                Images.setPixelABGR(image, x, y, abgr);
-            }
-        }
-        return register(flagId, image, DEFAULT_FLAG_SIZE, DEFAULT_FLAG_SIZE);
     }
 
     private static ResourceLocation register(String flagId, NativeImage image, int width, int height) {
@@ -180,19 +136,6 @@ public final class ClientFlagRegistry {
             }
         }
         return nativeImage;
-    }
-
-    private static int parseColor(String name) {
-        String key = name.trim().toLowerCase(Locale.ROOT);
-        int named = DEFAULT_COLORS.getInt(key);
-        if (named >= 0) {
-            return named;
-        }
-        try {
-            return Integer.parseInt(key, 16) & 0xFFFFFF;
-        } catch (NumberFormatException ignored) {
-            return UNKNOWN_COLOR;
-        }
     }
 
     private static final class FlagAssembly {

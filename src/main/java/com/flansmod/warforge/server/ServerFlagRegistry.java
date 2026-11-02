@@ -16,7 +16,10 @@ import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +41,7 @@ public class ServerFlagRegistry {
     public static final int MIN_DIMENSION = 8;
     public static final double MAX_ASPECT_RATIO = 2.0;
     private static final int CHUNK_SIZE = 30_000;
+    private static final String BUNDLED_DIR = "/warforge_flags/";
 
     private final ExecutorService syncExecutor = Executors.newFixedThreadPool(2, runnable -> {
         Thread thread = new Thread(runnable, "WarForge-FlagSync");
@@ -49,6 +53,7 @@ public class ServerFlagRegistry {
     public void reload() {
         flagWhitelist = parseFlagWhitelist(WarForgeConfig.FLAG_WHITELIST);
         customFlags.clear();
+        loadBundledFlags();
         Path dir = getCustomFlagsDir();
         try {
             Files.createDirectories(dir);
@@ -64,13 +69,25 @@ public class ServerFlagRegistry {
 
     private static volatile Map<String, Set<UUID>> flagWhitelist = Map.of();
 
-    private static boolean isDefaultFlagAvailable(String id) {
-        for (String allowed : WarForgeConfig.DEFAULT_FLAG_IDS) {
-            if (allowed != null && allowed.trim().equalsIgnoreCase(id)) {
-                return true;
+    private void loadBundledFlags() {
+        try (InputStream index = ServerFlagRegistry.class.getResourceAsStream(BUNDLED_DIR + "index.txt")) {
+            if (index == null) {
+                throw new IOException("missing " + BUNDLED_DIR + "index.txt");
             }
+            for (String name : new String(index.readAllBytes(), StandardCharsets.UTF_8).split("\\R")) {
+                if (name.isBlank()) {
+                    continue;
+                }
+                try (InputStream in = ServerFlagRegistry.class.getResourceAsStream(BUNDLED_DIR + name + ".png")) {
+                    if (in == null) {
+                        throw new IOException("missing " + name + ".png");
+                    }
+                    tryLoadCustomFlag(name, in.readAllBytes());
+                }
+            }
+        } catch (IOException e) {
+            WarForgeMod.LOGGER.error("Failed to load bundled flags", e);
         }
-        return false;
     }
 
     private static boolean isCustomFlagAvailable(String id) {
@@ -120,9 +137,6 @@ public class ServerFlagRegistry {
         if (flagId == null || flagId.isEmpty()) {
             return false;
         }
-        if (flagId.startsWith("default:")) {
-            return isDefaultFlagAvailable(flagId.substring("default:".length()));
-        }
         if (flagId.startsWith("custom:")) {
             return customFlags.containsKey(flagId.substring("custom:".length()));
         }
@@ -135,11 +149,6 @@ public class ServerFlagRegistry {
 
     public List<String> getAvailableFlagIds() {
         ArrayList<String> result = new ArrayList<String>();
-        for (String id : WarForgeConfig.DEFAULT_FLAG_IDS) {
-            if (id != null && !id.trim().isEmpty()) {
-                result.add("default:" + id.trim());
-            }
-        }
         ArrayList<String> customIds = new ArrayList<String>(customFlags.keySet());
         Collections.sort(customIds);
         for (String id : customIds) {
@@ -197,44 +206,55 @@ public class ServerFlagRegistry {
         if (dot <= 0) {
             return;
         }
-        String id = fileName.substring(0, dot);
-        if (!isCustomFlagAvailable(id)) {
-            return;
-        }
         try {
             long size = Files.size(file);
             if (size <= 0 || size > MAX_FILE_SIZE_BYTES) {
                 WarForgeMod.LOGGER.warn("Skipping custom flag {} due to file size {}", fileName, size);
                 return;
             }
+            tryLoadCustomFlag(fileName.substring(0, dot), Files.readAllBytes(file));
+        } catch (IOException e) {
+            WarForgeMod.LOGGER.error("Failed to load custom flag {}", fileName, e);
+        }
+    }
 
-            int[] dimensions = readImageDimensions(file);
+    private void tryLoadCustomFlag(String id, byte[] raw) {
+        if (!isCustomFlagAvailable(id)) {
+            return;
+        }
+        try {
+            if (raw.length == 0 || raw.length > MAX_FILE_SIZE_BYTES) {
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} due to file size {}", id, raw.length);
+                return;
+            }
+
+            int[] dimensions = readImageDimensions(raw);
             if (dimensions == null) {
-                WarForgeMod.LOGGER.warn("Skipping custom flag {} because it is not a readable image", fileName);
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} because it is not a readable image", id);
                 return;
             }
-            if (!validateDimensions(fileName, dimensions[0], dimensions[1])) {
+            if (!validateDimensions(id, dimensions[0], dimensions[1])) {
                 return;
             }
 
-            BufferedImage source = ImageIO.read(file.toFile());
+            BufferedImage source = ImageIO.read(new ByteArrayInputStream(raw));
             if (source == null) {
-                WarForgeMod.LOGGER.warn("Skipping custom flag {} because it could not be decoded", fileName);
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} because it could not be decoded", id);
                 return;
             }
-            if (!validateDimensions(fileName, source.getWidth(), source.getHeight())) {
+            if (!validateDimensions(id, source.getWidth(), source.getHeight())) {
                 return;
             }
 
             byte[] sanitized = sanitize(source);
             if (sanitized.length > MAX_FILE_SIZE_BYTES) {
-                WarForgeMod.LOGGER.warn("Skipping custom flag {} because the sanitized image is too large ({} bytes)", fileName, sanitized.length);
+                WarForgeMod.LOGGER.warn("Skipping custom flag {} because the sanitized image is too large ({} bytes)", id, sanitized.length);
                 return;
             }
 
             customFlags.put(id, new CustomFlagData(id, source.getWidth(), source.getHeight(), sanitized));
         } catch (IOException e) {
-            WarForgeMod.LOGGER.error("Failed to load custom flag {}", fileName, e);
+            WarForgeMod.LOGGER.error("Failed to load custom flag {}", id, e);
         }
     }
 
@@ -255,8 +275,8 @@ public class ServerFlagRegistry {
         return true;
     }
 
-    private static int[] readImageDimensions(Path file) throws IOException {
-        try (ImageInputStream stream = ImageIO.createImageInputStream(file.toFile())) {
+    private static int[] readImageDimensions(byte[] raw) throws IOException {
+        try (ImageInputStream stream = ImageIO.createImageInputStream(new ByteArrayInputStream(raw))) {
             if (stream == null) {
                 return null;
             }

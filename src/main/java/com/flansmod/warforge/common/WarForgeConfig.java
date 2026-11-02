@@ -99,10 +99,6 @@ public class WarForgeConfig {
     public static int ATTACK_STRENGTH_SIEGE_CAMP = 1;
     public static boolean ENABLE_ISOLATED_CLAIMS = true;
     public static String[] INSURANCE_BLACKLIST_IDS = new String[]{"minecraft:*shulker_box", "appliedenergistics2:*cell*"};
-    public static String[] DEFAULT_FLAG_IDS = new String[]{
-            "white", "light_gray", "gray", "black", "red", "orange", "yellow", "lime",
-            "green", "cyan", "light_blue", "blue", "purple", "magenta", "pink", "brown"
-    };
     public static String[] CUSTOM_FLAG_ALLOWLIST = new String[]{"*"};
     public static String[] FLAG_WHITELIST = new String[]{};
     public static boolean UNIQUE_FLAGS = true;
@@ -340,7 +336,6 @@ public class WarForgeConfig {
     private static ModConfigSpec.BooleanValue ENABLE_CITADEL_UPGRADES_V;
     private static ModConfigSpec.BooleanValue ENABLE_ISOLATED_CLAIMS_V;
     private static ModConfigSpec.ConfigValue<List<? extends String>> INSURANCE_BLACKLIST_IDS_V;
-    private static ModConfigSpec.ConfigValue<List<? extends String>> DEFAULT_FLAG_IDS_V;
     private static ModConfigSpec.ConfigValue<List<? extends String>> CUSTOM_FLAG_ALLOWLIST_V;
     private static ModConfigSpec.ConfigValue<List<? extends String>> FLAG_WHITELIST_V;
     private static ModConfigSpec.BooleanValue UNIQUE_FLAGS_V;
@@ -475,9 +470,8 @@ public class WarForgeConfig {
         ENABLE_CITADEL_UPGRADES_V = cfg.comment("Applies claim limits that require upgrading to extend your faction's claim limit").define("Enable Citadel Upgrade System", ENABLE_CITADEL_UPGRADES);
         ENABLE_ISOLATED_CLAIMS_V = cfg.comment("If true, forces all newly placed claim blocks, excluding siege blocks and citadels, to be directly adjacent to a pre-existing claim.").define("Enabled Isolated Claims", ENABLE_ISOLATED_CLAIMS);
         INSURANCE_BLACKLIST_IDS_V = cfg.comment("Registry-id patterns blocked from the faction insurance stash. Supports '*' wildcards, for example 'minecraft:*shulker_box' or 'appliedenergistics2:*cell*'.").defineList("Insurance Blacklist", asList(INSURANCE_BLACKLIST_IDS), o -> o instanceof String);
-        DEFAULT_FLAG_IDS_V = cfg.comment("Default built-in flags that can be chosen by factions. Each id is rendered client-side as a solid colour square/rectangle. Use a vanilla dye colour name (e.g. red, light_blue) or a 6-digit hex colour (e.g. ff8800).").defineList("Available Default Flags", asList(DEFAULT_FLAG_IDS), o -> o instanceof String);
-        CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Custom server-side flags allowed from resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
-        FLAG_WHITELIST_V = cfg.comment("Restrict specific flags to specific players so factions can have exclusive flags. Each entry is 'flagId=uuid1,uuid2' where flagId matches the ids used elsewhere (e.g. 'default:red' or 'custom:myflag') and each uuid is a player's UUID. A flag listed here can only be selected by the listed players; flags not listed stay available to everyone. Multiple UUIDs per flag are supported and duplicates are ignored.").defineList("Flag Whitelist", asList(FLAG_WHITELIST), o -> o instanceof String);
+        CUSTOM_FLAG_ALLOWLIST_V = cfg.comment("Flags allowed, bundled country flags and resources/warforge/flags. Use '*' to allow all validated custom flags or list exact ids without extension.").defineList("Available Custom Flags", asList(CUSTOM_FLAG_ALLOWLIST), o -> o instanceof String);
+        FLAG_WHITELIST_V = cfg.comment("Restrict specific flags to specific players so factions can have exclusive flags. Each entry is 'flagId=uuid1,uuid2' where flagId matches the ids used elsewhere (e.g. 'custom:france') and each uuid is a player's UUID. A flag listed here can only be selected by the listed players; flags not listed stay available to everyone. Multiple UUIDs per flag are supported and duplicates are ignored.").defineList("Flag Whitelist", asList(FLAG_WHITELIST), o -> o instanceof String);
         UNIQUE_FLAGS_V = cfg.comment("If true, each flag can only be used by one faction at a time: a faction cannot select a flag another faction has already taken. Admin flag overrides ('/f flag <faction> set <flagId>') bypass this check.").define("Unique Flags", UNIQUE_FLAGS);
         cfg.pop();
 
@@ -827,7 +821,6 @@ public class WarForgeConfig {
         ENABLE_CITADEL_UPGRADES = src.bool(ENABLE_CITADEL_UPGRADES_V);
         ENABLE_ISOLATED_CLAIMS = src.bool(ENABLE_ISOLATED_CLAIMS_V);
         INSURANCE_BLACKLIST_IDS = toStringArray(src.strings(INSURANCE_BLACKLIST_IDS_V));
-        DEFAULT_FLAG_IDS = toStringArray(src.strings(DEFAULT_FLAG_IDS_V));
         CUSTOM_FLAG_ALLOWLIST = toStringArray(src.strings(CUSTOM_FLAG_ALLOWLIST_V));
         FLAG_WHITELIST = toStringArray(src.strings(FLAG_WHITELIST_V));
         UNIQUE_FLAGS = src.bool(UNIQUE_FLAGS_V);

@@ -2,10 +2,12 @@
 
 Flag = banner on every claim, citadel and FOB pole of the faction.
 
-| Kind | Id | Source |
-|---|---|---|
-| Default | `default:<name>` | Solid colour: dye name (`red`, `light_blue`) or 6-digit hex (`ff8800`) from `Available Default Flags` |
-| Custom | `custom:<name>` | Image file on the server; sent to clients automatically, no client install |
+| Id | Source |
+|---|---|
+| `custom:<name>` | Image sent to clients automatically, no client install |
+
+- Bundled: 252 country/territory flags (`resources/warforge_flags/` in the jar), ids = snake_case names (`united_kingdom`).
+- Server file of the same name in `resources/warforge/flags/` overrides the bundled one.
 
 ## Choosing
 

@@ -76,7 +76,7 @@ Stand-still countdown `Num Ticks for Warps`; moving or logging out cancels. Gate
 | `/f disband <faction>` | Defeat any faction; unlocks insurance for its leader |
 | `/f invite <player> <faction>` | Invite into a specific faction |
 | `/f rename <old> <new>` | Rename |
-| `/f flag <faction> set <flagId>` | Set flag, bypasses unique-flag rule (`default:<id>` / `custom:<name>`) |
+| `/f flag <faction> set <flagId>` | Set flag, bypasses unique-flag rule (`custom:<name>`) |
 | `/f flag <faction> reset` | Clear flag so the leader can choose again |
 | `/f offlineprotection <faction> <enable\|disable\|status>` | Per-faction offline raid protection override |
 | `/f clearnotoriety` / `/f clearlegacy` | Zero all factions' stat |

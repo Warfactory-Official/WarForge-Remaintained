@@ -14,6 +14,6 @@ class ClientFlagRegistryTest {
     @Test
     void escapeSeparatesLookalikeIds() {
         assertNotEquals(ClientFlagRegistry.escape("a_b"), ClientFlagRegistry.escape("a:b"));
-        assertEquals("default_003ared", ClientFlagRegistry.escape("default:red"));
+        assertEquals("custom_003afrance", ClientFlagRegistry.escape("custom:france"));
     }
 }
