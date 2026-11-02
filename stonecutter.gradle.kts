@@ -34,9 +34,15 @@ tasks.register("buildAll") {
     dependsOn(stonecutter.versions.map { ":${it.project}:build" })
 }
 
-tasks.register("printNodes") {
-    group = "help"
-    description = "Prints the node names as a JSON array (CI matrix)."
-    val nodes = stonecutter.versions.map { it.project }
-    doLast { println(nodes.joinToString(",", "[", "]") { "\"$it\"" }) }
+// Snapshot maven (repo.warfactory.co) exists for NeoForge nodes only.
+tasks.register("publishAll") {
+    group = "publishing"
+    description = "Publishes every node's snapshot maven artifact."
+    dependsOn(stonecutter.versions.map { ":${it.project}:publish" })
+}
+
+tasks.register("publishAllMods") {
+    group = "publishing"
+    description = "Uploads every node's jar to Modrinth and CurseForge."
+    dependsOn(stonecutter.versions.map { ":${it.project}:publishMods" })
 }

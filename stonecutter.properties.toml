@@ -9,8 +9,12 @@ version = "2.4.3"
 archives_base_name = "warforge-remaintained"
 authors = "Flan, MrNorwood, EightXOR8, Movblock"
 description = "Unofficial continuation of the WarForge factions mod, with new features and systems."
+publish_modrinth_project = "oKqJzTkl"
+publish_curseforge_project = "1340172"
+publish_optional = "journeymap,xaeros-world-map,xaeros-minimap"
 
 [forge]
+publish_requires = "ldlib"
 loader_version_range = "[47,)"
 obj_loader = "forge:obj"
 mixin_java = "JAVA_17"
@@ -39,6 +43,7 @@ deps.carryon = "maven.modrinth:carry-on:edGQD16r"
 deps.journeymap_api_jarjar = "META-INF/jarjar/journeymap-api-forge-1.20.1-2.0.0.jar"
 
 [neoforge]
+publish_requires = "ldlib2"
 # MDG run type of the "data" run. NeoForge 1.21.4 split it into clientData (all providers) and serverData.
 data_run_type = "data"
 loader_version_range = "[1,)"

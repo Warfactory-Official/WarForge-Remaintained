@@ -1,110 +1,55 @@
-name: Nightly Gradle Build
+name: Nightly Build
 
 on:
-#  schedule:
-#    - cron: '0 0 * * *' #Runs daily at midnight
+  push:
+    branches: [ multi-version ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: ${{ github.workflow }}
+  group: nightly-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Read the mod version from stonecutter.properties.toml
-        id: ver
-        run: |
-          set -euo pipefail
-          MOD_VERSION=$(awk -F'"' '/^\[mod\]/{m=1;next} /^\[/{m=0} m && /^version *=/{print $2; exit}' stonecutter.properties.toml)
-          if [[ -z "${MOD_VERSION}" ]]; then
-            echo "::error::[mod] version is empty in stonecutter.properties.toml"; exit 1
-          fi
-          echo "MOD_VERSION=${MOD_VERSION}" >> "$GITHUB_ENV"
-          echo "TAG=v${MOD_VERSION}" >> "$GITHUB_ENV"
-          echo "tag=v${MOD_VERSION}" >> "$GITHUB_OUTPUT"
-
-      # Gradle runs on 21; the nodes compile with the 17 and 25 toolchains.
-      - name: Set up JDKs
-        uses: actions/setup-java@v5
+      - name: Set up Java toolchains
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: |
             17
-            25
             21
-          cache: gradle
-          cache-dependency-path: |
-            **/*.gradle*
-            **/*.gradle.kts
-            **/gradle-wrapper.properties
-            stonecutter.properties.toml
+            25
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
 
-      - name: Build with Gradle
-        run: ./gradlew buildAll --no-daemon
+      - name: Build
+        run: |
+          chmod +x ./gradlew
+          ./gradlew buildAll --no-daemon --no-parallel --stacktrace
 
-      - name: Prepare artifact bundle
-        shell: bash
+      - name: Publish snapshot
+        env:
+          WARFACTORY_MAVEN_USER: ${{ secrets.WARFACTORY_MAVEN_USER }}
+          WARFACTORY_MAVEN_TOKEN: ${{ secrets.WARFACTORY_MAVEN_TOKEN }}
+        run: ./gradlew publishAll --no-daemon --no-parallel --stacktrace
+
+      - name: Rebuild dependents
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ secrets.WF_DISPATCH_TOKEN }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-
-          OUT_DIR="build/artifact-upload"
-          rm -rf "$OUT_DIR"
-          mkdir -p "$OUT_DIR"
-
-          # One jar (plus sources) per node: versions/<node>/build/libs/warforge-remaintained-<mc>-<loader>-<version>.jar
-          for file in versions/*/build/libs/*.jar; do
-            cp "$file" "$OUT_DIR/$(basename "$file")"
+          [ -n "$GH_TOKEN" ] || { echo "::warning::WF_DISPATCH_TOKEN unset: dependents not rebuilt"; exit 0; }
+          for down in WfLib:nightly.yml:main; do
+            IFS=: read -r repo wf branch <<<"$down"
+            gh workflow run "$wf" -R "Warfactory-Official/$repo" --ref "$branch"
           done
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v7
-        continue-on-error: true  # org artifact quota full => still publish
-        with:
-          name: nightly-artifacts
-          path: build/artifact-upload/**
-          if-no-files-found: error
-
-      - name: Create nightly tag
-        id: tag
-        run: |
-          DATE=$(date +'%Y-%m-%d')
-          TAG=nightly-$DATE
-          echo "TAG=$TAG" >> "$GITHUB_ENV"
-          git config user.name github-actions
-          git config user.email github-actions@github.com
-          git tag -f $TAG
-          git push --force origin $TAG
-
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.TAG }}
-          name: "Nightly Build v${{ env.MOD_VERSION }}"
-          prerelease: true
-          body: |
-            ## This release is for **development purposes only**
-            - For normal end-user downloads, use CurseForge or Modrinth (see project README).
-            - For bleeding-edge builds, use GitHub Actions artifacts. They could be unstable, use at your own risk.
-            Commit: `${{ github.sha }}`
-          files: build/artifact-upload/*.jar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Delete old nightly releases
-        uses: dev-drprasad/delete-older-releases@v0.3.3
-        with:
-          keep_latest: 10
-          delete_tags: true
-          delete_tag_pattern: '^nightly-'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,132 @@
+# Tag v<[mod] version of stonecutter.properties.toml>[-suffix] -> Modrinth + CurseForge (build-logic Publishing.kt)
+# + GitHub release. Changelog: "## <version>" section of CHANGELOG.md, else tag message.
+# Secrets: MODRINTH_API_KEY, CURSEFORGE_API_KEY.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      type:
+        description: Release type
+        type: choice
+        options: [beta, alpha, release]
+        default: beta
+      changelog:
+        description: Changelog (blank uses this version's section of CHANGELOG.md)
+        default: ''
+      dry_run:
+        description: Dry run (build and log the uploads, upload nothing)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      MODRINTH_TOKEN: ${{ secrets.MODRINTH_API_KEY }}
+      CURSEFORGE_TOKEN: ${{ secrets.CURSEFORGE_API_KEY }}
+      # ModDevGradle uses its binary Minecraft pipeline when CI=true: Forge signature digests over remapped classes, no parameter names.
+      CI: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            17
+            21
+            25
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Release settings
+        id: cfg
+        env:
+          INPUT_TYPE: ${{ inputs.type }}
+          INPUT_CHANGELOG: ${{ inputs.changelog }}
+          INPUT_DRY: ${{ inputs.dry_run }}
+        run: |
+          version=$(awk -F'"' '/^\[mod\]/{m=1;next} /^\[/{m=0} m && /^version *=/{print $2; exit}' stonecutter.properties.toml)
+          if [ -z "$version" ]; then echo "::error::No [mod] version in stonecutter.properties.toml"; exit 1; fi
+          changelog="$RUNNER_TEMP/changelog.md"
+          : > "$changelog"
+
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            tag="$GITHUB_REF_NAME"
+            case "$tag" in
+              "v$version"|"v$version"-*) ;;
+              *) echo "::error::Tag $tag does not match mod version $version"; exit 1 ;;
+            esac
+            case "$tag" in *alpha*) type=alpha ;; *beta*|*pre*|*rc*) type=beta ;; *) type=release ;; esac
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            git tag -l --format='%(contents)' "$tag" | sed '/-----BEGIN PGP SIGNATURE-----/,$d' > "$changelog"
+            dry=false
+          else
+            tag="v$version"
+            type="$INPUT_TYPE"
+            printf '%s\n' "$INPUT_CHANGELOG" > "$changelog"
+            dry="$INPUT_DRY"
+          fi
+          # CHANGELOG.md section > tag message; typed text > both.
+          if [ -f CHANGELOG.md ] && { [ "$GITHUB_EVENT_NAME" = push ] || [ -z "$INPUT_CHANGELOG" ]; }; then
+            awk -v v="$version" '
+              /^## / { h=$2; gsub(/[][]/, "", h); sub(/^v/, "", h); if (on) exit; on = (h == v); next }
+              on' CHANGELOG.md > "$RUNNER_TEMP/section.md"
+            if [ -n "$(tr -d '[:space:]' < "$RUNNER_TEMP/section.md")" ]; then mv "$RUNNER_TEMP/section.md" "$changelog"; fi
+          fi
+          if [ -z "$(tr -d '[:space:]' < "$changelog")" ]; then changelog=""; fi
+
+          {
+            echo "version=$version"; echo "tag=$tag"; echo "type=$type"
+            echo "changelog=$changelog"; echo "dry=$dry"
+          } >> "$GITHUB_OUTPUT"
+          echo "WarForge $version ($type), tag $tag, dry run=$dry"
+
+      - name: Build every version
+        run: bash ./gradlew buildAll --no-daemon --no-parallel --stacktrace
+
+      - name: Publish
+        env:
+          CHANGELOG_FILE: ${{ steps.cfg.outputs.changelog }}
+        run: |
+          bash ./gradlew publishAllMods --no-daemon --no-parallel --stacktrace \
+            -Ppublish.type=${{ steps.cfg.outputs.type }} \
+            -Ppublish.dryRun=${{ steps.cfg.outputs.dry }} \
+            ${CHANGELOG_FILE:+-Ppublish.changelogFile=$CHANGELOG_FILE}
+
+      - name: Collect release jars
+        if: steps.cfg.outputs.dry != 'true'
+        env:
+          RELEASE_VERSION: ${{ steps.cfg.outputs.version }}
+        run: |
+          mkdir dist
+          for node in versions/*/; do
+            node=$(basename "$node")
+            source="versions/$node/build/libs/warforge-remaintained-$node-$RELEASE_VERSION.jar"
+            [ -f "$source" ] || { echo "::error::Missing release jar: $source"; exit 1; }
+            cp "$source" "dist/warforge-$RELEASE_VERSION+$node.jar"
+          done
+          ls dist
+
+      - name: GitHub release
+        if: steps.cfg.outputs.dry != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.cfg.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: WarForge ${{ steps.cfg.outputs.version }}
+          prerelease: ${{ steps.cfg.outputs.type != 'release' }}
+          body_path: ${{ steps.cfg.outputs.changelog || '' }}
+          generate_release_notes: ${{ steps.cfg.outputs.changelog == '' }}
+          files: dist/*.jar

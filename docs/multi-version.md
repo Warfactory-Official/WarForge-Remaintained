@@ -13,7 +13,6 @@ WarForge builds four jars from one source tree with [Stonecutter](https://stonec
 
 - All nodes: `./gradlew buildAll`
 - One node: `./gradlew :26.1.2-neoforge:build` (also `test`, `runClient`, `runServer`, `runClient2`, `runData`)
-- Node list as JSON (CI matrix): `./gradlew -q printNodes`
 - Tests: JUnit 5 in `src/test/java`, run on every node (`:<node>:test`).
   Test classpath = main plus Minecraft (`addModdingDependenciesTo`). Tests tagged `needs-registries` run on 1.21.1 only (vanilla registry bootstrap needs a launcher elsewhere).
 - Dev-only map mods (JourneyMap, Xaero) are on the client runs only; `runServer` never sees them.
@@ -23,16 +22,16 @@ The jars are in `versions/<node>/build/libs/` and are named `warforge-remaintain
 
 ## CI and publishing
 
-- `ci.yml` takes the node list from `printNodes`, builds and tests each node in its own job (`build` runs `check`, which depends on
-  `checkNoVersionGuards`), uploads the jar, and starts the dedicated server once (smoke test).
-- `platform-release.yml` runs `buildAll` and then the `curseforge` and `modrinth` tasks of every node. Each node
-  uploads its own jar with its own game version, loader and Java version. The Modrinth version number is
-  `<version>+<mc>-<loader>`, for example `2.4.3+26.1.2-neoforge`.
-- Dependency relations come from `CURSEFORGE_RELATIONS` and `MODRINTH_RELATIONS`. Set
-  `CURSEFORGE_RELATIONS_FORGE` / `_NEOFORGE` and `MODRINTH_RELATIONS_FORGE` / `_NEOFORGE` to give a loader its own
-  list (LDLib 1 on Forge, LDLib2 on NeoForge).
-- The mod version is `version` in the `[mod]` section of `stonecutter.properties.toml`.
-- `mavenJava` snapshot publishing (`repo.warfactory.co/snapshots`) is configured for NeoForge nodes only.
+- `nightly.yml`: push to `multi-version` -> `buildAll` (`build` = `check` + tests per node) -> `publishAll` (snapshot maven
+  `com.flansmod.warforge:warforge-remaintained-<mc>-<loader>:<version>-SNAPSHOT` at `repo.warfactory.co/snapshots`, every node; Forge = reobf jar)
+  -> dispatches `WfLib` `nightly.yml` (`WF_DISPATCH_TOKEN`).
+- `release.yml`: tag `v<version>[-alpha|-beta|-rc*]` (must match `[mod] version` in `stonecutter.properties.toml`) or manual dispatch (type, changelog, dry_run)
+  -> `buildAll` -> `publishAllMods` -> `dist/warforge-<version>+<node>.jar` -> GitHub release.
+  Changelog: typed > `## <version>` of `CHANGELOG.md` > tag message.
+- `publishAllMods`: build-logic `Publishing.kt` (mod-publish-plugin) per node. Version `<version>+<mc>-<loader>`; jar = `reobfJar` on Forge, `jar` on NeoForge;
+  CurseForge client + server. Project ids, `publish_requires` (`ldlib` Forge, `ldlib2` NeoForge), `publish_optional`, `publish_skip` live in `stonecutter.properties.toml`.
+- Local: `./gradlew publishAllMods -Ppublish.dryRun=true` logs every upload. Switches: `-Ppublish.type=`, `-Ppublish.changelog=`, `-Ppublish.changelogFile=`.
+- Secrets: `MODRINTH_API_KEY`, `CURSEFORGE_API_KEY`, `WARFACTORY_MAVEN_USER`, `WARFACTORY_MAVEN_TOKEN`, `WF_DISPATCH_TOKEN`.
 
 ## Source layout
 

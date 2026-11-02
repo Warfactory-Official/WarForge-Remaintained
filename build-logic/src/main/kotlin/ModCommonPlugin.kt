@@ -80,7 +80,7 @@ class ModCommonPlugin : Plugin<Project> {
             }
             repositories.maven(rootProject.uri("repo"))
         }
-        if (loader == "neoforge") configureSnapshotPublishing()
+        configureSnapshotPublishing()
 
         configurePlatformPublishing()
     }
