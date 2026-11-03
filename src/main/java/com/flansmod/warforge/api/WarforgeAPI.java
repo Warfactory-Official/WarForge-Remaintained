@@ -32,6 +32,7 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.Level;
@@ -53,7 +54,7 @@ import java.util.function.Predicate;
 
 /**
  * Addon entry point. Server-thread only: every method except {@link #setVeinWeightProvider},
- * {@link #addFobWarpVeto} and {@link #MOD_ID} throws {@link IllegalStateException} elsewhere.
+ * {@link #addFobWarpVeto}, {@link #addKillAttributor} and {@link #MOD_ID} throws {@link IllegalStateException} elsewhere.
  * Positions are a dimension key plus {@link ChunkPos}/{@link BlockPos}. Nothing loads a chunk.
  * Ownership is not permission: siege state, zones and alliance override it; use {@link #mayPlace}/{@link #mayBreak}.
  */
@@ -387,6 +388,23 @@ public final class WarforgeAPI {
     /** Any thread. */
     public static void addFobWarpVeto(FobWarpVeto veto) {
         FOB_WARP_VETOES.add(veto);
+    }
+
+    private static final List<KillAttributor> KILL_ATTRIBUTORS = new CopyOnWriteArrayList<>();
+
+    /** Any thread. */
+    public static void addKillAttributor(KillAttributor attributor) {
+        KILL_ATTRIBUTORS.add(attributor);
+    }
+
+    /** First attributor's faction, or null. For the siege service. */
+    @Nullable
+    public static UUID attributedFaction(DamageSource source) {
+        for (KillAttributor attributor : KILL_ATTRIBUTORS) {
+            UUID faction = attributor.factionOf(source);
+            if (faction != null) return faction;
+        }
+        return null;
     }
 
     /** First veto reason, or null. For the FOB manager. */

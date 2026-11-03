@@ -171,38 +171,42 @@ public final class SiegeService {
 
     public void onPlayerDied(ServerPlayer victim, DamageSource source) {
         ServerPlayer killer = source.getEntity() instanceof ServerPlayer p ? p : null;
+        Faction killerFaction = killer != null ? hub.registry.getFactionOfPlayer(killer.getUUID())
+                : hub.registry.getFaction(WarforgeAPI.attributedFaction(source));
 
         if (!hub.sieges.isEmpty()) {
             for (var entry : hub.sieges.entries().entrySet()) {
-                onParticipantDeath(entry.getValue(), killer, victim);
+                onParticipantDeath(entry.getValue(), killer != null ? killer : victim, killerFaction, victim);
                 if (WarForgeConfig.SIEGE_END_ON_GOAL_REACHED && entry.getValue().isCompleted()) {
                     finished.add(entry.getKey());
                 }
             }
             processFinished();
         }
-        if (killer != null) {
-            recordKill(killer, victim);
+        if (killerFaction != null) {
+            recordKill(killer, killerFaction, victim);
         }
     }
 
-    private void recordKill(ServerPlayer killer, ServerPlayer victim) {
-        Faction killerFaction = hub.registry.getFactionOfPlayer(killer.getUUID());
-        if (killerFaction == null) {
-            return;
-        }
+    // killer null: faction-attributed kill (unmanned system); no player to message
+    private void recordKill(ServerPlayer killer, Faction killerFaction, ServerPlayer victim) {
         int timesKilled = killerFaction.recordKill(victim.getUUID());
         String victimName = victim.getName().getString();
         if (timesKilled > WarForgeConfig.NOTORIETY_KILL_CAP_PER_PLAYER) {
-            killer.sendSystemMessage(t("kill.capped", victimName, timesKilled));
+            if (killer != null) {
+                killer.sendSystemMessage(t("kill.capped", victimName, timesKilled));
+            }
         } else if (killerFaction != hub.registry.getFactionOfPlayer(victim.getUUID())) {
-            killer.sendSystemMessage(t("kill.notoriety", victimName, WarForgeConfig.NOTORIETY_PER_PLAYER_KILL));
+            if (killer != null) {
+                killer.sendSystemMessage(t("kill.notoriety", victimName, WarForgeConfig.NOTORIETY_PER_PLAYER_KILL));
+            }
             killerFaction.addNotoriety(WarForgeConfig.NOTORIETY_PER_PLAYER_KILL);
         }
     }
 
-    // PRECISE: only an opposing player's kill in zone counts. SIMPLE: any participant death in zone (killer may be null)
-    private void onParticipantDeath(Siege siege, ServerPlayer killer, ServerPlayer killed) {
+    // PRECISE: only an opposing faction's kill counts, killer in zone (faction-attributed: victim stands in for killer).
+    // SIMPLE: any participant death in zone
+    private void onParticipantDeath(Siege siege, ServerPlayer zoneWitness, Faction killerFaction, ServerPlayer killed) {
         Faction attackers = hub.registry.getFaction(siege.attackingFaction);
         Faction defenders = hub.registry.getFaction(siege.defendingFaction);
         Faction killedFaction = hub.registry.getFactionOfPlayer(killed.getUUID());
@@ -214,8 +218,7 @@ public final class SiegeService {
                 defenderDied = killedFaction == defenders;
                 attackerDied = killedFaction == attackers;
             }
-        } else if (killer != null && isInKillZone(siege, killer)) {
-            Faction killerFaction = hub.registry.getFactionOfPlayer(killer.getUUID());
+        } else if (killerFaction != null && isInKillZone(siege, zoneWitness)) {
             defenderDied = killerFaction == attackers && killedFaction == defenders;
             attackerDied = killerFaction == defenders && killedFaction == attackers;
         }
