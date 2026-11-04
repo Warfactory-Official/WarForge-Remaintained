@@ -93,6 +93,11 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "WarForge $version ($type), tag $tag, dry run=$dry"
 
+      - name: Install Golem Core
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/install-golem-core.sh "$(grep -m1 -oP 'golemcore-[a-z]+-[0-9.]+:\K[0-9.]+' stonecutter.properties.toml)"
+
       - name: Build every version
         run: bash ./gradlew buildAll --no-daemon --no-parallel --stacktrace
 

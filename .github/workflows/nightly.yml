@@ -31,6 +31,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Install Golem Core
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .github/scripts/install-golem-core.sh "$(grep -m1 -oP 'golemcore-[a-z]+-[0-9.]+:\K[0-9.]+' stonecutter.properties.toml)"
+
       - name: Build
         run: |
           chmod +x ./gradlew
