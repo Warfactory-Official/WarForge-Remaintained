@@ -3,6 +3,7 @@ package com.flansmod.warforge.common.network;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.world.level.Level;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -46,6 +47,12 @@ class WFNetworkCodecTest {
 
     @Test
     void claimMapDeltaRoundTrip() {
+        // 1.20.1 Forge / 26.x: Level.<clinit> needs Bootstrap (FML loader absent) => ResourceKey<Level> unobtainable here.
+        try {
+            Class.forName(Level.class.getName());
+        } catch (ClassNotFoundException | LinkageError e) {
+            Assumptions.abort("Level not initializable without Bootstrap: " + e);
+        }
         PacketClaimMapDelta out = new PacketClaimMapDelta();
         UUID a = UUID.randomUUID();
         UUID b = UUID.randomUUID();
