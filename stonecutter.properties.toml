@@ -45,7 +45,7 @@ deps.ftblibrary = "dev.ftb.mods:ftb-library-forge:2001.2.0"
 deps.journeymap_api_jarjar = "META-INF/jarjar/journeymap-api-forge-1.20.1-2.0.0.jar"
 
 [neoforge]
-publish_requires = "ldlib2"
+publish_requires = "ldlib"
 # MDG run type of the "data" run. NeoForge 1.21.4 split it into clientData (all providers) and serverData.
 data_run_type = "data"
 loader_version_range = "[1,)"
