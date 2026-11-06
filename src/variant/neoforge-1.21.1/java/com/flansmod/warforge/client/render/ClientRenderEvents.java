@@ -33,7 +33,7 @@ public final class ClientRenderEvents {
 
     public static void onHud(HudHandler handler) {
         Platform.gameBus().addListener((RenderGuiEvent.Post event) -> {
-            if (FlashbackReplay.active()) {
+            if (FlashbackReplay.hidesHud()) {
                 return;
             }
             handler.draw(Gui2D.of(event.getGuiGraphics()), event.getPartialTick().getGameTimeDeltaPartialTick(false));

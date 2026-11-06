@@ -6,6 +6,7 @@ import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.ClientSiegeState;
 import com.flansmod.warforge.client.SiegeUiDebugCommand;
 import com.flansmod.warforge.client.render.Gui2D;
+import com.flansmod.warforge.client.render.HudClock;
 import com.flansmod.warforge.client.util.ColorUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil.ScreenPos;
@@ -214,7 +215,7 @@ public final class SiegeHud {
         float top = trackTop - MARKER_OVERHANG;
         float height = TRACK_H + 2 * MARKER_OVERHANG;
 
-        float pulse = 0.5f + 0.5f * (float) Math.sin(System.currentTimeMillis() / (double) PULSE_PERIOD_MS);
+        float pulse = 0.5f + 0.5f * (float) Math.sin(HudClock.now() / (double) PULSE_PERIOD_MS);
         int leadRGB;
         if (info.progress > info.previousProgress) {
             leadRGB = attackRGB;
@@ -282,8 +283,16 @@ public final class SiegeHud {
         drawOutlinedString(graphics, font, TO_DEFEND.text, trackLeft, py + LABELS_Y, ColorUtil.opaque(defendRGB));
         drawOutlinedString(graphics, font, TO_WIN.text, trackRight - TO_WIN.width, py + LABELS_Y, ColorUtil.opaque(attackRGB));
 
-        if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER) {
-            long remain = info.endTimestamp - System.currentTimeMillis();
+        if (info.finished) {
+            // the result holds where the timer was for the finished panel's linger
+            String result = prog >= attackPts ? I18n.get("warforge.client.siege.result.captured", info.attackingName)
+                    : prog <= -defendPts ? I18n.get("warforge.client.siege.result.held", info.defendingName)
+                    : I18n.get("warforge.client.siege.result.ended");
+            int color = prog >= attackPts ? ColorUtil.opaque(ColorUtil.lighten(attackRGB, COUNTER_LIGHTEN))
+                    : prog <= -defendPts ? ColorUtil.opaque(ColorUtil.lighten(defendRGB, COUNTER_LIGHTEN)) : TEXT_NEUTRAL;
+            drawOutlinedString(graphics, font, result, (int) (px + panelW / 2f - font.width(result) / 2f), py + LABELS_Y, color);
+        } else if (WarForgeConfig.SIEGE_ENABLE_NEW_TIMER && info.endTimestamp != Long.MAX_VALUE) { // MAX = no end time sent
+            long remain = info.endTimestamp - HudClock.now();
             String timer = END_TIMER.get(remain);
             int width = END_TIMER.width(font);
             graphics.text(font, timer, (int) (px + panelW / 2f - width / 2f), py + LABELS_Y,

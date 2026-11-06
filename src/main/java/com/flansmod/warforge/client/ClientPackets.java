@@ -20,6 +20,7 @@ import com.flansmod.warforge.common.network.PacketFlagChunk;
 import com.flansmod.warforge.common.network.PacketFlagManifest;
 import com.flansmod.warforge.common.network.PacketJourneyMapVeins;
 import com.flansmod.warforge.common.network.PacketNamePlateChange;
+import com.flansmod.warforge.client.render.HudClock;
 import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.PacketSyncConfig;
 import com.flansmod.warforge.common.network.PacketTerrainColors;
@@ -194,7 +195,7 @@ final class ClientPackets {
             return;
         }
         if (packet.info.endTimestamp != Long.MAX_VALUE) {
-            packet.info.endTimestamp = System.currentTimeMillis() + (packet.info.endTimestamp - packet.msServerNow);
+            packet.info.endTimestamp = HudClock.rebase(packet.info.endTimestamp, packet.msServerNow);
         }
         ClientSiegeState.update(packet.info);
     }
@@ -220,7 +221,7 @@ final class ClientPackets {
     }
 
     private static void timeUpdates(PacketTimeUpdates packet, Player player) {
-        long clientNow = System.currentTimeMillis();
+        long clientNow = HudClock.now();
         TimersHud.setDeadlines(clientNow + packet.msUntilNextSiegeDay, clientNow + packet.msUntilNextYieldDay);
     }
 

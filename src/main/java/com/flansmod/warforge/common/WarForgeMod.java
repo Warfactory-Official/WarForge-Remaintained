@@ -87,6 +87,14 @@ public class WarForgeMod {
     public static Logger LOGGER;
     public static MinecraftServer MC_SERVER = null;
 
+    /**
+     * Flashback plays replays through its own integrated server. WarForge stays inert there: the recording already
+     * carries every packet the viewer should see, and live logic on stale or empty state would send it bogus HUD data.
+     */
+    public static boolean inReplayServer() {
+        return MC_SERVER != null && MC_SERVER.getClass().getName().startsWith("com.moulberry.flashback.");
+    }
+
     public static Random rand = new Random();
 
     public WarForgeMod(IEventBus modBus) {
@@ -284,6 +292,9 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void onChunkObserved(ChunkWatchEvent.Watch event) {
+        if (inReplayServer()) {
+            return;
+        }
         ServerPlayer player = event.getPlayer();
         ChunkPos chunkPos = event.getPos();
         ResourceKey<Level> dim = event.getLevel().dimension();
@@ -314,7 +325,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void playerJoinedGame(PlayerLoggedInEvent event) {
-        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide()) {
+        if (!(event.getEntity() instanceof ServerPlayer player) || player.level().isClientSide() || inReplayServer()) {
             return;
         }
 
@@ -367,7 +378,7 @@ public class WarForgeMod {
     @SubscribeEvent
     public void saveEvent(LevelEvent.Save event) {
         // Fires per dimension; state is global => one snapshot per save pass.
-        if (event.getLevel() instanceof ServerLevel level && level.dimension() == Level.OVERWORLD) {
+        if (event.getLevel() instanceof ServerLevel level && level.dimension() == Level.OVERWORLD && !inReplayServer()) {
             SaveManager.save("Level Save");
         }
     }
@@ -375,6 +386,11 @@ public class WarForgeMod {
     @SubscribeEvent
     public void serverStopped(ServerStoppedEvent event) {
         com.flansmod.warforge.compat.dynmap.DynmapBridge.stop();
+        if (inReplayServer()) {
+            CHUNK_LOADING_MANAGER.shutdown();
+            MC_SERVER = null;
+            return;
+        }
         SaveManager.saveAndStop("Server Stop");
         CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;

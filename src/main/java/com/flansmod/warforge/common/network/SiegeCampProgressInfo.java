@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public class SiegeCampProgressInfo {
     public static final int STALE_TICKS = 400;
-    public static final int FINISHED_LINGER_TICKS = 100;
+    public static final int FINISHED_LINGER_TICKS = 160;
 
     public DimBlockPos defendingPos;
     public DimBlockPos attackingPos;
@@ -31,6 +31,8 @@ public class SiegeCampProgressInfo {
     public int expiredTicks = 0;
     public boolean finished = false;
     public int staleTicks = 0;
+    /** Client only, not on the wire: HudClock time this info arrived. */
+    public long receivedAtMs = 0L;
 
     public void clientTick() {
         staleTicks++;

@@ -2,6 +2,7 @@ package com.flansmod.warforge.client.hud;
 
 import com.flansmod.warforge.client.ClientConfig;
 import com.flansmod.warforge.client.render.Gui2D;
+import com.flansmod.warforge.client.render.HudClock;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil.ScreenPos;
 import com.flansmod.warforge.common.WarForgeConfig;
@@ -31,14 +32,17 @@ public final class TimersHud {
     }
 
     public static void render(Minecraft mc, Gui2D graphics) {
-        long now = System.currentTimeMillis();
+        long now = HudClock.now();
         ScreenPos pos = ClientConfig.POS_TIMERS;
         int lineHeight = ScreenSpaceUtil.textHeight() + PADDING;
 
-        if (!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER || SiegeHud.isDebugEnabled()) {
+        // 0 = never synced (before the first time update, or a replay recorded without one): nothing to count down
+        if ((!WarForgeConfig.SIEGE_ENABLE_NEW_TIMER || SiegeHud.isDebugEnabled()) && nextSiegeDayMs != 0L) {
             drawLine(mc, graphics, pos, lineHeight, SIEGE, nextSiegeDayMs - now);
         }
-        drawLine(mc, graphics, pos, lineHeight, YIELD, nextYieldDayMs - now);
+        if (nextYieldDayMs != 0L) {
+            drawLine(mc, graphics, pos, lineHeight, YIELD, nextYieldDayMs - now);
+        }
     }
 
     private static void drawLine(Minecraft mc, Gui2D graphics, ScreenPos pos, int lineHeight,

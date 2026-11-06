@@ -170,7 +170,9 @@ public final class SiegeService {
     }
 
     public void onPlayerDied(ServerPlayer victim, DamageSource source) {
-        ServerPlayer killer = source.getEntity() instanceof ServerPlayer p ? p : null;
+        // Deaths without an attacking entity (a medical mod's bleed-out or give-up) fall back to vanilla kill credit.
+        ServerPlayer killer = source.getEntity() instanceof ServerPlayer p ? p
+                : victim.getKillCredit() instanceof ServerPlayer credited ? credited : null;
         Faction killerFaction = killer != null ? hub.registry.getFactionOfPlayer(killer.getUUID())
                 : hub.registry.getFaction(WarforgeAPI.attributedFaction(source));
 

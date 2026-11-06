@@ -6,6 +6,9 @@ import com.flansmod.warforge.common.network.SyncQueueHandler;
 
 public class ServerTickHandler {
     public void onTick() {
+        if (WarForgeMod.inReplayServer()) {
+            return;
+        }
         WarClock.tick();
         WarForgeMod.TELEPORTS.update();
         WarForgeMod.FOBS.getWarpQueue().update();

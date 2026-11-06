@@ -328,7 +328,8 @@ public class SiegeCampBlockEntity extends ClaimBlockEntity {
     protected void readData(CompoundTag nbt, HolderLookup.Provider registries) {
         super.readData(nbt, registries);
 
-        placer = Nbt.getUUID(nbt, "placer");
+        // absent from the sync tag, which Flashback's replay server loads through readData
+        placer = Nbt.hasUUID(nbt, "placer") ? Nbt.getUUID(nbt, "placer") : FactionIds.NONE;
         siegeStatus = SiegeStatus.VALUES[Mth.clamp(Nbt.getInt(nbt, "siegeStatus"), 0, SiegeStatus.VALUES.length - 1)];
         tickTimer = Nbt.getInt(nbt, "tickTimer");
         previousTimestamp = WarClock.currTickTimestamp;

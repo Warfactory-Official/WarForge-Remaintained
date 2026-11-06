@@ -258,6 +258,7 @@ public class CitadelBlockEntity extends YieldCollectorBlockEntity implements ICl
         super.readData(nbt, registries);
 
         bannerStack = Stacks.parse(registries, Nbt.getCompound(nbt, "banner"));
-        placer = Nbt.getUUID(nbt, "placer");
+        // absent from the sync tag, which Flashback's replay server loads through readData
+        placer = Nbt.hasUUID(nbt, "placer") ? Nbt.getUUID(nbt, "placer") : FactionIds.NONE;
     }
 }

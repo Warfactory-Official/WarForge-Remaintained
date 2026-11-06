@@ -7,6 +7,7 @@ import com.flansmod.warforge.client.ClientConfig;
 import com.flansmod.warforge.client.ChunkVeinCache;
 import com.flansmod.warforge.client.ClientProxy;
 import com.flansmod.warforge.client.render.Gui2D;
+import com.flansmod.warforge.client.render.HudClock;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil.ScreenPos;
 import com.flansmod.warforge.common.WarForgeConfig;
@@ -80,7 +81,8 @@ public final class VeinHud {
     }
 
     public static void render(Minecraft mc, Gui2D graphics) {
-        if (!visible || chunk == null || !WarForgeConfig.ENABLE_CHUNK_VEINS) {
+        // A replay camera is not standing anywhere, and its replay server (inert) never answers the vein probe.
+        if (!visible || chunk == null || !WarForgeConfig.ENABLE_CHUNK_VEINS || HudClock.replay()) {
             return;
         }
         ChunkVeinCache cache = ClientProxy.CHUNK_VEIN_CACHE;
