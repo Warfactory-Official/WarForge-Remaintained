@@ -12,6 +12,7 @@ import com.flansmod.warforge.client.render.Gui2D;
 import com.flansmod.warforge.client.render.WorldRenderContext;
 import com.flansmod.warforge.client.util.ScreenSpaceUtil;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.network.PacketClaimCacheState;
 import com.flansmod.warforge.compat.ClientCompat;
 import com.flansmod.warforge.compat.Chunks;
 import net.minecraft.client.Minecraft;
@@ -35,12 +36,16 @@ public class ClientTickHandler {
     public void onPlayerLogin(ClientPlayerNetworkEvent.LoggingIn event) {
         standingDim = null;
         ClientSession.reset();
+        for (PacketClaimCacheState state : PacketClaimCacheState.decoded()) {
+            ClientBorderCache.applyState(state);
+        }
     }
 
     @SubscribeEvent
     public void onPlayerLogout(ClientPlayerNetworkEvent.LoggingOut event) {
         standingDim = null;
         ClientSession.reset();
+        PacketClaimCacheState.clearDecoded();
     }
 
     @SubscribeEvent

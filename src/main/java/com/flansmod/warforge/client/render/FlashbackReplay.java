@@ -6,13 +6,13 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /** Flashback reports spectator mode to hide the vanilla HUD, which GUI-event mods do not consult. Optional: absent => not a replay. */
-final class FlashbackReplay {
+public final class FlashbackReplay {
     private static final Object[] NO_ARGS = {};
     private static final Method IN_REPLAY = resolve();
 
     private FlashbackReplay() {}
 
-    static boolean active() {
+    public static boolean active() {
         if (IN_REPLAY == null) {
             return false;
         }

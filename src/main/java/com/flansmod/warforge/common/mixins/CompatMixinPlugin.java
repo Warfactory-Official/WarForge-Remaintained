@@ -17,7 +17,8 @@ public class CompatMixinPlugin implements IMixinConfigPlugin {
             "AshVehicleExplosionClaimMixin", "ashvehicle",
             "XaeroWorldMapHighlighterMixin", "xaeroworldmap",
             "XaeroMinimapHighlighterMixin", "xaerominimap",
-            "CarryOnPlacementMixin", "carryon"
+            "CarryOnPlacementMixin", "carryon",
+            "FlashbackRecorderClaimMixin", "flashback"
     );
 
     private static final String PACKAGE = "com.flansmod.warforge.common.mixins.";

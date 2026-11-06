@@ -68,4 +68,27 @@ class WFNetworkCodecTest {
         assertEquals(out.sets, in.sets);
         assertEquals(out.removes, in.removes);
     }
+
+    @Test
+    void claimCacheStateRoundTrip() {
+        try {
+            Class.forName(Level.class.getName());
+        } catch (ClassNotFoundException | LinkageError e) {
+            Assumptions.abort("Level not initializable without Bootstrap: " + e);
+        }
+        PacketClaimCacheState out = new PacketClaimCacheState();
+        out.first = true;
+        out.dim = Level.NETHER;
+        out.entries.add(new PacketClaimCacheState.Entry(1, -2, UUID.randomUUID(), 0x112233, UUID.randomUUID(), 0x445566, ClaimChunkInfo.OUTLINE_CONQUERED));
+        FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());
+        out.encodeInto(buf);
+        PacketClaimCacheState in = new PacketClaimCacheState();
+        in.decodeInto(buf);
+        assertEquals(0, buf.readableBytes());
+        assertEquals(out.first, in.first);
+        assertEquals(out.dim, in.dim);
+        assertEquals(out.entries, in.entries);
+        assertEquals(List.of(in), PacketClaimCacheState.decoded());
+        PacketClaimCacheState.clearDecoded();
+    }
 }

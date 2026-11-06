@@ -87,6 +87,14 @@ public class WarForgeMod {
     public static Logger LOGGER;
     public static MinecraftServer MC_SERVER = null;
 
+    /**
+     * Flashback's replay server starts this mod with no factions. Recorded players are on its player list with no mod
+     * channels => any send throws and stops the replay; a reply to the viewer would overwrite recorded claims.
+     */
+    public static boolean isReplayServer() {
+        return MC_SERVER != null && MC_SERVER.getClass().getName().equals("com.moulberry.flashback.playback.ReplayServer");
+    }
+
     public static Random rand = new Random();
 
     public WarForgeMod(IEventBus modBus) {

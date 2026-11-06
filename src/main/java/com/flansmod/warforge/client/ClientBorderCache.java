@@ -1,8 +1,10 @@
 package com.flansmod.warforge.client;
 
+import com.flansmod.warforge.client.render.FlashbackReplay;
 import com.flansmod.warforge.common.ProtectionProfile;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
+import com.flansmod.warforge.common.network.PacketClaimCacheState;
 import com.flansmod.warforge.common.network.PacketClaimMapDelta;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -11,7 +13,9 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -96,6 +100,10 @@ public final class ClientBorderCache {
             info.factionId = set.owner();
             info.colour = set.colour();
             info.protection = ProtectionProfile.UNKNOWN;
+            // Live: next window sync supplies the outline. Replay: recorded windows cover only the recorded player's surroundings.
+            if (FlashbackReplay.active()) {
+                claimOutlineIfNone(info);
+            }
             map.put(key, info);
             touched.add(set.dim());
             notifyChange(set.dim(), set.x(), set.z(), set.colour());
@@ -111,6 +119,65 @@ public final class ClientBorderCache {
             SNAPSHOTS.put(dim, new Snapshot(BY_DIM.get(dim)));
         }
         changed = !touched.isEmpty() || changed;
+    }
+
+    public static void applyState(PacketClaimCacheState state) {
+        if (state.first) {
+            clear();
+        }
+        Long2ObjectOpenHashMap<ClaimChunkInfo> map = BY_DIM.computeIfAbsent(state.dim, d -> new Long2ObjectOpenHashMap<>());
+        for (PacketClaimCacheState.Entry entry : state.entries) {
+            ClaimChunkInfo info = new ClaimChunkInfo();
+            info.x = entry.x();
+            info.z = entry.z();
+            info.factionId = entry.owner();
+            info.colour = entry.colour();
+            info.outlineFactionId = entry.outlineOwner();
+            info.outlineColour = entry.outlineColour();
+            info.outlineStyle = entry.outlineStyle();
+            info.protection = ProtectionProfile.UNKNOWN;
+            claimOutlineIfNone(info);
+            map.put(key(info.x, info.z), info);
+            int colour = colourOf(info);
+            if (colour != NO_CLAIM) {
+                notifyChange(state.dim, info.x, info.z, colour);
+            }
+        }
+        SNAPSHOTS.put(state.dim, new Snapshot(map));
+        changed = true;
+    }
+
+    /** At least one packet: an empty first one still replaces a later state on a backward seek. */
+    public static List<PacketClaimCacheState> captureState() {
+        List<PacketClaimCacheState> out = new ArrayList<>();
+        PacketClaimCacheState batch = new PacketClaimCacheState();
+        batch.first = true;
+        for (Map.Entry<ResourceKey<Level>, Long2ObjectOpenHashMap<ClaimChunkInfo>> dim : BY_DIM.entrySet()) {
+            if (batch.dim != dim.getKey() && !batch.entries.isEmpty()) {
+                out.add(batch);
+                batch = new PacketClaimCacheState();
+            }
+            batch.dim = dim.getKey();
+            for (ClaimChunkInfo info : dim.getValue().values()) {
+                if (batch.entries.size() == PacketClaimCacheState.MAX_ENTRIES) {
+                    out.add(batch);
+                    batch = new PacketClaimCacheState();
+                    batch.dim = dim.getKey();
+                }
+                batch.entries.add(new PacketClaimCacheState.Entry(info.x, info.z, info.factionId, info.colour,
+                        info.outlineFactionId, info.outlineColour, info.outlineStyle));
+            }
+        }
+        out.add(batch);
+        return out;
+    }
+
+    private static void claimOutlineIfNone(ClaimChunkInfo info) {
+        if (!info.hasVisibleOutline() && FactionIds.isValid(info.factionId)) {
+            info.outlineFactionId = info.factionId;
+            info.outlineColour = info.colour;
+            info.outlineStyle = ClaimChunkInfo.OUTLINE_CLAIM;
+        }
     }
 
     public static void clear() {
