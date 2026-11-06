@@ -21,7 +21,9 @@ public final class BorderGpu {
         private final VertexBuffer buffer = new VertexBuffer(VertexBuffer.Usage.STATIC);
     }
 
+    /** Sodium-family renderers fire the stage after clearRenderState => depth test off. */
     public static void beginFrame() {
+        RenderSystem.enableDepthTest();
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         RenderSystem.disableCull();
@@ -33,6 +35,7 @@ public final class BorderGpu {
         RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
         RenderSystem.enableCull();
         RenderSystem.disableBlend();
+        RenderSystem.disableDepthTest();
     }
 
     private static BorderVertexSink sink(BufferBuilder builder) {
