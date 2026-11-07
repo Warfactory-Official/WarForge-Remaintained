@@ -9,6 +9,7 @@ import com.flansmod.warforge.common.network.ClientPacketRouter;
 import com.flansmod.warforge.client.ui.ClaimManagerScreen;
 import com.flansmod.warforge.common.network.PacketChunkPosVeinID;
 import com.flansmod.warforge.common.network.PacketClaimChunksData;
+import com.flansmod.warforge.common.network.PacketClaimCacheState;
 import com.flansmod.warforge.common.network.PacketClaimMapDelta;
 import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.network.PacketEffect;
@@ -68,6 +69,7 @@ final class ClientPackets {
         ClientPacketRouter.register(PacketChunkPosVeinID.class, ClientPackets::veinId);
         ClientPacketRouter.register(PacketClaimChunksData.class, ClientPackets::claimChunks);
         ClientPacketRouter.register(PacketClaimMapDelta.class, ClientPackets::claimMapDelta);
+        ClientPacketRouter.register(PacketClaimCacheState.class, (packet, player) -> ClientBorderCache.applyState(packet));
         ClientPacketRouter.register(PacketClientNotification.class, ClientPackets::notification);
         ClientPacketRouter.register(PacketEffect.class, ClientPackets::effect);
         ClientPacketRouter.register(PacketFlagChunk.class, ClientPackets::flagChunk);

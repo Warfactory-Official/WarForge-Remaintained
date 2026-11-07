@@ -88,9 +88,14 @@ public class WarForgeMod {
     public static MinecraftServer MC_SERVER = null;
 
     /**
-     * Flashback plays replays through its own integrated server. WarForge stays inert there: the recording already
-     * carries every packet the viewer should see, and live logic on stale or empty state would send it bogus HUD data.
+     * Flashback's replay server starts this mod with no factions. Recorded players are on its player list with no mod
+     * channels => any send throws and stops the replay; a reply to the viewer would overwrite recorded claims.
      */
+    public static boolean isReplayServer() {
+        return MC_SERVER != null && MC_SERVER.getClass().getName().equals("com.moulberry.flashback.playback.ReplayServer");
+    }
+
+    /** Any Flashback-hosted server (replay or editor preview): WarForge stays inert there. */
     public static boolean inReplayServer() {
         return MC_SERVER != null && MC_SERVER.getClass().getName().startsWith("com.moulberry.flashback.");
     }

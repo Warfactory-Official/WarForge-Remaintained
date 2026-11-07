@@ -65,6 +65,7 @@ public final class WFNetwork {
             c2s(PacketRequestClaimChunks.class, PacketRequestClaimChunks::new, Bucket.MAP, Exposure.inRange(PacketSecurity::claimMapRadius)),
             s2c(PacketClaimChunksData.class, PacketClaimChunksData::new),
             s2c(PacketClaimMapDelta.class, PacketClaimMapDelta::new),
+            s2c(PacketClaimCacheState.class, PacketClaimCacheState::new),
             c2s(PacketClaimChunkAction.class, PacketClaimChunkAction::new, Bucket.ACTION, Exposure.inRange(PacketSecurity::claimRange)),
             c2s(PacketFactionMemberManagerAction.class, PacketFactionMemberManagerAction::new, Bucket.ACTION, Exposure.OWN_FACTION),
             c2s(PacketRequestMemberData.class, PacketRequestMemberData::new, Bucket.QUERY, Exposure.SELF),

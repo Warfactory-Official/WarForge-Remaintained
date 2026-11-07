@@ -6,6 +6,7 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
+import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.platform.NetworkPlatform;
 import net.neoforged.neoforge.server.ServerLifecycleHooks;
 
@@ -13,17 +14,19 @@ public class PacketHandler
 {
     public void sendToAll(PacketBase packet)
     {
+        if (WarForgeMod.isReplayServer()) return;
         NetworkPlatform.sendToAll(packet);
     }
 
     public void sendTo(PacketBase packet, ServerPlayer player)
     {
-        if (player == null) return;
+        if (player == null || WarForgeMod.isReplayServer()) return;
         NetworkPlatform.sendTo(packet, player);
     }
 
     public void sendToDimension(PacketBase packet, ResourceKey<Level> dimension)
     {
+        if (WarForgeMod.isReplayServer()) return;
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
         ServerLevel level = server.getLevel(dimension);
@@ -32,6 +35,7 @@ public class PacketHandler
 
     public void sendToAllAround(PacketBase packet, double x, double y, double z, float range, ResourceKey<Level> dimension)
     {
+        if (WarForgeMod.isReplayServer()) return;
         MinecraftServer server = ServerLifecycleHooks.getCurrentServer();
         if (server == null) return;
         ServerLevel level = server.getLevel(dimension);
@@ -40,6 +44,7 @@ public class PacketHandler
 
     public void sendToServer(PacketBase packet)
     {
+        if (WarForgeMod.isReplayServer()) return;
         NetworkPlatform.sendToServer(packet);
     }
 

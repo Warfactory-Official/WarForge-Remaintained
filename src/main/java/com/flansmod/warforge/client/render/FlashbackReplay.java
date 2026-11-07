@@ -7,7 +7,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 /** Flashback reports spectator mode to hide the vanilla HUD, which GUI-event mods do not consult. Optional: absent => not a replay. */
-final class FlashbackReplay {
+public final class FlashbackReplay {
     private static final Object[] NO_ARGS = {};
     private static final Method IN_REPLAY = resolve("isInReplay");
     private static final Method VISUAL_MILLIS = resolve("getVisualMillis");
@@ -15,7 +15,7 @@ final class FlashbackReplay {
 
     private FlashbackReplay() {}
 
-    static boolean active() {
+    public static boolean active() {
         return IN_REPLAY != null && (Boolean) invoke(IN_REPLAY);
     }
 

@@ -6,7 +6,7 @@ import com.flansmod.warforge.common.network.SyncQueueHandler;
 
 public class ServerTickHandler {
     public void onTick() {
-        if (WarForgeMod.inReplayServer()) {
+        if (WarForgeMod.isReplayServer()) {
             return;
         }
         WarClock.tick();
