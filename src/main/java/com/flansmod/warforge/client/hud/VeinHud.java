@@ -81,8 +81,8 @@ public final class VeinHud {
     }
 
     public static void render(Minecraft mc, Gui2D graphics) {
-        // A replay camera is not standing anywhere, and its replay server (inert) never answers the vein probe.
-        if (!visible || chunk == null || !WarForgeConfig.ENABLE_CHUNK_VEINS || HudClock.replay()) {
+        // In a replay the camera's chunk is shown from the vein answers recorded with it; the inert replay server never answers a probe.
+        if (!visible || chunk == null || !WarForgeConfig.ENABLE_CHUNK_VEINS || (HudClock.replay() && !ClientConfig.SHOW_VEIN_HUD_IN_REPLAYS)) {
             return;
         }
         ChunkVeinCache cache = ClientProxy.CHUNK_VEIN_CACHE;
@@ -93,8 +93,8 @@ public final class VeinHud {
         }
 
         boolean recognized = received && (info == null || info.getLeft() != null);
-        long now = System.currentTimeMillis();
-        if (!recognized && (probedChunk != chunk || now >= nextProbeMs)) {
+        long now = HudClock.now();
+        if (!recognized && !HudClock.replay() && (probedChunk != chunk || now >= nextProbeMs)) {
             probedChunk = chunk;
             nextProbeMs = now + REPROBE_INTERVAL_MS;
             PacketChunkPosVeinID request = new PacketChunkPosVeinID();

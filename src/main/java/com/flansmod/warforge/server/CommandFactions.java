@@ -274,6 +274,7 @@ public class CommandFactions {
                                         .executes(CommandFactions::doDebugMsg)))));
 
         root.then(buildVeinTree());
+        root.then(buildFobTree());
 
         return root;
     }
@@ -797,6 +798,46 @@ public class CommandFactions {
                     hexToArgb(StringArgumentType.getString(ctx, "color")), FactionNotifier.DURATION_DEFAULT_MS, player.getUUID());
         }
         return ok();
+    }
+
+    /** Showcase filming helper: the FOB screen's two buttons as commands (a scripted player cannot click them). */
+    private static LiteralArgumentBuilder<CommandSourceStack> buildFobTree() {
+        return Commands.literal("fob")
+                .then(Commands.literal("establish").then(Commands.argument("name", StringArgumentType.string()).executes(ctx -> {
+                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                    net.minecraft.core.BlockPos base = player.blockPosition();
+                    for (net.minecraft.core.BlockPos pos : net.minecraft.core.BlockPos.betweenClosed(base.offset(-4, -2, -4), base.offset(4, 2, 4))) {
+                        if (player.level().getBlockEntity(pos) instanceof com.flansmod.warforge.common.blocks.FobBlockEntity te
+                                && te.ownerFaction.equals(FactionIds.NONE)) {
+                            Faction owner = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+                            Component denial = owner == null ? Component.literal("not in a faction")
+                                    : WarForgeMod.FOBS.checkPlacement(owner, new DimChunkPos(player.level().dimension(), pos));
+                            if (denial != null) {
+                                ctx.getSource().sendFailure(denial);
+                                return 0;
+                            }
+                            boolean made = WarForgeMod.FOBS.requestCreateFob(te, player, StringArgumentType.getString(ctx, "name"));
+                            if (!made) {
+                                ctx.getSource().sendFailure(Component.literal("FOB not established (officer role?)"));
+                                return 0;
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        }
+                    }
+                    ctx.getSource().sendFailure(Component.literal("No unestablished FOB block within 4 blocks"));
+                    return 0;
+                })))
+                .then(Commands.literal("warp").executes(ctx -> {
+                    ServerPlayer player = ctx.getSource().getPlayerOrException();
+                    Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
+                    List<com.flansmod.warforge.server.fob.Fob> fobs = faction == null ? List.of() : WarForgeMod.FOBS.fobsOf(faction);
+                    if (fobs.isEmpty()) {
+                        ctx.getSource().sendFailure(Component.literal("Your faction has no FOB"));
+                        return 0;
+                    }
+                    WarForgeMod.FOBS.requestFobWarp(player, fobs.get(0));
+                    return Command.SINGLE_SUCCESS;
+                }));
     }
 
     private static LiteralArgumentBuilder<CommandSourceStack> buildVeinTree() {
