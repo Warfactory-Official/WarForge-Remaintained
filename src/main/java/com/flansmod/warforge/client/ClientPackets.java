@@ -116,8 +116,8 @@ final class ClientPackets {
     }
 
     private static void toggleBorders(PacketToggleBorders packet, Player player) {
-        boolean shown = ClaimBorderRenderer.toggleVisible();
-        player.sendSystemMessage(Component.translatable(shown ? "warforge.client.borders.enabled" : "warforge.client.borders.disabled"));
+        ClaimBorderRenderer.Mode mode = ClaimBorderRenderer.cycleMode();
+        player.sendSystemMessage(Component.translatable("warforge.client.borders." + mode.key));
     }
 
     private static void veinId(PacketChunkPosVeinID packet, Player player) {

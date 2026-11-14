@@ -14,6 +14,10 @@ import java.util.Set;
 public class CompatMixinPlugin implements IMixinConfigPlugin {
     private static final Map<String, String> GATED_MIXINS = Map.of(
             "SbwExplosionClaimMixin", "superbwarfare",
+            "CbcDamageHooksClaimMixin", "createbigcannons",
+            "CbcExplosionClaimMixin", "createbigcannons",
+            "CbcEditBlockClaimMixin", "createbigcannons",
+            "CbcFluidFireClaimMixin", "createbigcannons",
             "AshVehicleExplosionClaimMixin", "ashvehicle",
             "XaeroWorldMapHighlighterMixin", "xaeroworldmap",
             "XaeroMinimapHighlighterMixin", "xaerominimap",

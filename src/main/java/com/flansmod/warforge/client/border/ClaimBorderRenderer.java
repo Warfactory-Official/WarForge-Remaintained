@@ -3,6 +3,7 @@ package com.flansmod.warforge.client.border;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.client.BorderSyncScheduler;
 import com.flansmod.warforge.client.ClientBorderCache;
+import com.flansmod.warforge.client.ClientClaimChunkCache;
 import com.flansmod.warforge.client.render.BorderGpu;
 import com.flansmod.warforge.common.network.ClaimChunkInfo;
 import com.flansmod.warforge.compat.ClientCompat;
@@ -40,7 +41,17 @@ public final class ClaimBorderRenderer {
     /** Same entries as BY_CHUNK, plain-texture chunks first, for index iteration without iterator allocation. */
     private static final ObjectArrayList<BorderRenderData> DRAW_ORDER = new ObjectArrayList<>();
 
-    private static boolean visible = true;
+    public enum Mode {
+        ALL("all"), NONE("none"), ENEMY("enemy"), FRIENDLY("friendly");
+
+        public final String key;
+
+        Mode(String key) {
+            this.key = key;
+        }
+    }
+
+    private static Mode mode = Mode.ALL;
     private static ResourceKey<Level> renderDim;
     private static int refreshTicks;
     private static int refreshCursor;
@@ -48,13 +59,10 @@ public final class ClaimBorderRenderer {
     private ClaimBorderRenderer() {
     }
 
-    public static boolean toggleVisible() {
-        visible = !visible;
-        return visible;
-    }
-
-    public static void setVisible(boolean show) {
-        visible = show;
+    public static Mode cycleMode() {
+        Mode[] all = Mode.values();
+        mode = all[(mode.ordinal() + 1) % all.length];
+        return mode;
     }
 
     public static void reset() {
@@ -96,7 +104,7 @@ public final class ClaimBorderRenderer {
     }
 
     public static void render(Minecraft mc, Level world, Matrix4f viewMatrix, double camX, double camY, double camZ) {
-        if (!visible) {
+        if (mode == Mode.NONE) {
             return;
         }
         ResourceKey<Level> dim = world.dimension();
@@ -110,6 +118,7 @@ public final class ClaimBorderRenderer {
         double maxDist = BorderSyncScheduler.renderDistanceChunks(mc) * (double) CHUNK_BLOCKS;
         double maxDistSq = maxDist * maxDist;
         int rebuildBudget = MAX_REBUILDS_PER_FRAME;
+        UUID own = ClientClaimChunkCache.playerFactionId();
 
         for (int i = 0; i < DRAW_ORDER.size(); i++) {
             BorderRenderData data = DRAW_ORDER.get(i);
@@ -117,6 +126,9 @@ public final class ClaimBorderRenderer {
             double dx = data.x * CHUNK_BLOCKS + CHUNK_CENTER - camX;
             double dz = data.z * CHUNK_BLOCKS + CHUNK_CENTER - camZ;
             if (dx * dx + dz * dz > maxDistSq) {
+                continue;
+            }
+            if (mode != Mode.ALL && data.factionId.equals(own) != (mode == Mode.FRIENDLY)) {
                 continue;
             }
 

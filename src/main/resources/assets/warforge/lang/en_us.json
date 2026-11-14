@@ -219,8 +219,10 @@
 	"warforge.ui.your_citadel_is_at_its_max_level": "Your citadel is at its max level!",
 	"warforge.ui.your_faction_is_not_involved_in_any_siege": "Your faction is not involved in any siege.",
 
-	"warforge.client.borders.enabled": "Borders enabled",
-	"warforge.client.borders.disabled": "Borders disabled",
+	"warforge.client.borders.all": "Borders: all",
+	"warforge.client.borders.none": "Borders: off",
+	"warforge.client.borders.enemy": "Borders: enemy only",
+	"warforge.client.borders.friendly": "Borders: friendly only",
 	"warforge.client.area.entering": "Entering %s",
 	"warforge.client.area.leaving": "Leaving %s",
 	"warforge.client.area.switching": "Leaving %s, Entering %s",

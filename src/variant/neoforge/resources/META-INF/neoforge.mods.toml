@@ -17,7 +17,7 @@ logoFile=""
 [[mixins]]
 config="mixins.${mod_id}.json"
 
-# Soft-dependency compat mixins (SBW / Ash Vehicles explosion claim fixes); CompatMixinPlugin only
+# Soft-dependency compat mixins (SBW / Ash Vehicles / Create Big Cannons claim fixes); CompatMixinPlugin only
 # registers each one when its mod is present at runtime.
 [[mixins]]
 config="mixins.${mod_id}.compat.json"

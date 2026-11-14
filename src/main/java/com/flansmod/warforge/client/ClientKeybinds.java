@@ -30,8 +30,8 @@ public final class ClientKeybinds {
             UiNavigation.openClaimManager(new DimChunkPos(dim, chunkX, chunkZ), WarForgeConfig.CLAIM_MANAGER_RADIUS, -1, -1);
         }
         if (TOGGLE_BORDERS.consumeClick()) {
-            boolean shown = ClaimBorderRenderer.toggleVisible();
-            player.sendSystemMessage(Component.translatable(shown ? "warforge.client.borders.enabled" : "warforge.client.borders.disabled"));
+            ClaimBorderRenderer.Mode mode = ClaimBorderRenderer.cycleMode();
+            player.sendSystemMessage(Component.translatable("warforge.client.borders." + mode.key));
         }
         if (TOGGLE_VEIN_OVERLAY.consumeClick()) {
             if (!WarForgeConfig.ENABLE_CHUNK_VEINS) {
