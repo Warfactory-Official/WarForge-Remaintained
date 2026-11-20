@@ -1,5 +1,6 @@
 package com.flansmod.warforge.platform;
 
+import java.nio.file.Path;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLPaths;
@@ -20,7 +21,7 @@ public final class Platform {
         return NeoForge.EVENT_BUS;
     }
 
-    public static java.nio.file.Path configDir() {
+    public static Path configDir() {
         return FMLPaths.CONFIGDIR.get();
     }
 }

@@ -11,6 +11,7 @@ import net.minecraft.nbt.CompoundTag;
 import com.flansmod.warforge.platform.WFBlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import com.flansmod.warforge.compat.Nbt;
+import java.util.List;
 
 public class LeaderboardBlockEntity extends WFBlockEntity
 {
@@ -27,7 +28,7 @@ public class LeaderboardBlockEntity extends WFBlockEntity
     {
         super.writeSyncData(tags, registries);
 
-        java.util.List<Faction> tempList = WarForgeMod.LEADERBOARD.getSortedList(((BlockLeaderboard)getBlockState().getBlock()).stat);
+        List<Faction> tempList = WarForgeMod.LEADERBOARD.getSortedList(((BlockLeaderboard)getBlockState().getBlock()).stat);
 
         for(int i = 0; i < NUM_ENTRIES; i++)
         {

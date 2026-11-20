@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common.ui;
 
+import com.flansmod.warforge.common.PlayerSyncService;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.CitadelBlockEntity;
 import com.flansmod.warforge.common.network.FactionMemberManagerGuiData;
@@ -12,12 +13,14 @@ import com.flansmod.warforge.common.network.PacketRequestInsurance;
 import com.flansmod.warforge.common.network.PacketRequestMemberData;
 import com.flansmod.warforge.common.network.PacketRequestUpgradeUI;
 import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.platform.WFUiBlock;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.fob.Fob;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
+import net.minecraft.world.entity.player.Player;
 
 /**
  * Server-side actions of the block UI buttons (citadel, claim, FOB, collector). Both UI libraries call these, so
@@ -104,10 +107,10 @@ public final class BlockUiActions {
         }
     }
 
-    public static void openClaimBlock(net.minecraft.world.entity.player.Player player, net.minecraft.core.BlockPos pos) {
-        if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
-            com.flansmod.warforge.common.PlayerSyncService.syncClaimToPlayer(player, pos);
-            com.flansmod.warforge.platform.WFUiBlock.openUi(serverPlayer, pos);
+    public static void openClaimBlock(Player player, BlockPos pos) {
+        if (player instanceof ServerPlayer serverPlayer) {
+            PlayerSyncService.syncClaimToPlayer(player, pos);
+            WFUiBlock.openUi(serverPlayer, pos);
         }
     }
 }

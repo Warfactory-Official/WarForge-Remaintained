@@ -6,6 +6,7 @@ import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarClock;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.blocks.FobBlockEntity;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.FactionDisplayInfo;
 import com.flansmod.warforge.common.network.LeaderboardInfo;
@@ -22,6 +23,7 @@ import com.flansmod.warforge.compat.Perms;
 import com.flansmod.warforge.compat.PlayerRef;
 import com.flansmod.warforge.compat.Profiles;
 import com.flansmod.warforge.server.Leaderboard.FactionStat;
+import com.flansmod.warforge.server.fob.Fob;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -49,6 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import net.minecraft.core.BlockPos;
 
 import static com.flansmod.warforge.server.ServerText.t;
 
@@ -805,9 +808,9 @@ public class CommandFactions {
         return Commands.literal("fob")
                 .then(Commands.literal("establish").then(Commands.argument("name", StringArgumentType.string()).executes(ctx -> {
                     ServerPlayer player = ctx.getSource().getPlayerOrException();
-                    net.minecraft.core.BlockPos base = player.blockPosition();
-                    for (net.minecraft.core.BlockPos pos : net.minecraft.core.BlockPos.betweenClosed(base.offset(-4, -2, -4), base.offset(4, 2, 4))) {
-                        if (player.level().getBlockEntity(pos) instanceof com.flansmod.warforge.common.blocks.FobBlockEntity te
+                    BlockPos base = player.blockPosition();
+                    for (BlockPos pos : BlockPos.betweenClosed(base.offset(-4, -2, -4), base.offset(4, 2, 4))) {
+                        if (player.level().getBlockEntity(pos) instanceof FobBlockEntity te
                                 && te.ownerFaction.equals(FactionIds.NONE)) {
                             Faction owner = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
                             Component denial = owner == null ? Component.literal("not in a faction")
@@ -830,7 +833,7 @@ public class CommandFactions {
                 .then(Commands.literal("warp").executes(ctx -> {
                     ServerPlayer player = ctx.getSource().getPlayerOrException();
                     Faction faction = WarForgeMod.FACTIONS.registry.getFactionOfPlayer(player.getUUID());
-                    List<com.flansmod.warforge.server.fob.Fob> fobs = faction == null ? List.of() : WarForgeMod.FOBS.fobsOf(faction);
+                    List<Fob> fobs = faction == null ? List.of() : WarForgeMod.FOBS.fobsOf(faction);
                     if (fobs.isEmpty()) {
                         ctx.getSource().sendFailure(Component.literal("Your faction has no FOB"));
                         return 0;

@@ -4,6 +4,7 @@ import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.faction.Role;
 import com.flansmod.warforge.compat.Perms;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
 
 import static com.flansmod.warforge.server.ServerText.t;
@@ -39,7 +40,7 @@ final class FactionAccess {
         return false;
     }
 
-    private static net.minecraft.network.chat.Component denial(Role role) {
+    private static Component denial(Role role) {
         return t(role == Role.LEADER ? "role.leader_required" : "role.officer_required");
     }
 }

@@ -14,6 +14,7 @@ import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.compat.Nbt;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.Siege;
+import com.flansmod.warforge.server.SiegeService;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -159,7 +160,7 @@ public class SiegeCampBlockEntity extends ClaimBlockEntity {
                 siege.setAttackProgress(siegeStatus.isFailed() ? -5 : siege.getAttackSuccessThreshold());
                 siege.forceOutcome(!siegeStatus.isFailed());
                 WarForgeMod.FACTIONS.siegeService.conclude(siegeTarget.toChunkPos(),
-                        siegeStatus.isFailed() ? com.flansmod.warforge.server.SiegeService.SiegeTermination.LOSE : com.flansmod.warforge.server.SiegeService.SiegeTermination.WIN, false);
+                        siegeStatus.isFailed() ? SiegeService.SiegeTermination.LOSE : SiegeService.SiegeTermination.WIN, false);
             } catch (RuntimeException e) {
                 WarForgeMod.LOGGER.warn("Failed to force end siege of target {} at {}", siegeTarget, getClaimPos(), e);
             }

@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ClientUpgradeTable;
 import com.flansmod.warforge.client.ui.model.DataRevision;
 import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.common.faction.FactionIds;
@@ -103,8 +104,8 @@ public final class FactionStatsScreen {
         body.addChild(blurb);
 
         int total = info.notoriety + info.wealth + info.legacy;
-        int claimLimit = com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(info.lvl);
-        int stashSlots = com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(info.lvl);
+        int claimLimit = ClientUpgradeTable.getClaimLimitForLevel(info.lvl);
+        int stashSlots = ClientUpgradeTable.getInsuranceSlotsForLevel(info.lvl);
 
         UIElement grid = box(rowWidth, 70);
         statRow(grid, 0, 0, tr("warforge.ui.notoriety"), String.valueOf(info.notoriety), "#" + info.notorietyRank);

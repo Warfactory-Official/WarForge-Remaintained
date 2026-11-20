@@ -1,5 +1,6 @@
 package com.flansmod.warforge.common.ui;
 
+import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
 import com.flansmod.warforge.compat.Nbt;
 import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -26,6 +27,7 @@ import com.lowdragmc.lowdraglib2.gui.ui.elements.inventory.InventorySlots;
 import com.lowdragmc.lowdraglib2.gui.texture.IGuiTexture;
 import com.lowdragmc.lowdraglib2.gui.ui.data.Horizontal;
 import dev.vfyjxf.taffy.style.FlexDirection;
+import dev.vfyjxf.taffy.style.FlexWrap;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -64,7 +66,7 @@ public final class BlockUis {
     }
 
     private static void closeButton(UIElement panel, int width, BlockUIMenuType.BlockUIHolder holder) {
-        Button close = com.flansmod.warforge.api.modularui.WarForgeUiTheme.closeButton(panel, width, isClient(holder));
+        Button close = WarForgeUiTheme.closeButton(panel, width, isClient(holder));
         close.setOnServerClick(event -> onServer(holder, BlockUiActions::close));
     }
 
@@ -99,7 +101,7 @@ public final class BlockUis {
             UIElement yieldSection = place(panel, box(100, 80, sectionBackdrop()), CONTENT_LEFT, CITADEL_STORAGE_Y, 100, 80);
             place(yieldSection, tooltip(boldText(tr("warforge.ui.yield_storage"), TEXT_PRIMARY), tr("warforge.ui.resources_collected_from_claimed_territory")), 5, 5, 90, 10);
             UIElement grid = place(yieldSection, new UIElement(), (100 - 3 * SLOT_SIZE) / 2f, 20, 3 * SLOT_SIZE, 3 * SLOT_SIZE);
-            grid.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(dev.vfyjxf.taffy.style.FlexWrap.WRAP));
+            grid.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(FlexWrap.WRAP));
             for (int i = 0; i < Nbt.getInt(state, BlockUiState.SLOTS); i++) {
                 grid.addChild(slot(new ItemSlot().bind(citadel, i)));
             }
@@ -200,7 +202,7 @@ public final class BlockUis {
             int slots = Nbt.getInt(state, BlockUiState.SLOTS);
             int rows = (slots + 2) / 3;
             UIElement grid = place(panel, new UIElement(), CONTENT_LEFT, CLAIM_GRID_Y, 3 * SLOT_SIZE, rows * SLOT_SIZE);
-            grid.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(dev.vfyjxf.taffy.style.FlexWrap.WRAP));
+            grid.layout(l -> l.flexDirection(FlexDirection.ROW).flexWrap(FlexWrap.WRAP));
             for (int i = 0; i < slots; i++) {
                 grid.addChild(slot(new ItemSlot().bind(claim, i)));
             }
@@ -217,7 +219,7 @@ public final class BlockUis {
             place(panel, moveCitadel, actionsX, CLAIM_GRID_Y + 50, 100, 20);
         }
 
-        com.flansmod.warforge.api.modularui.WarForgeUiTheme.closeButton(panel, CLAIM_WIDTH)
+        WarForgeUiTheme.closeButton(panel, CLAIM_WIDTH)
                 .setOnServerClick(event -> onServer(holder, BlockUiActions::close));
         place(panel, vanillaSlots(new InventorySlots()), (CLAIM_WIDTH - 162) / 2f, CLAIM_HEIGHT - 7 - 77);
         return ModularUI.of(UI.of(root), holder.player);

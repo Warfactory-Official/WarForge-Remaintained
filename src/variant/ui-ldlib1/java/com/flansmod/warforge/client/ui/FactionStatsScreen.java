@@ -7,6 +7,7 @@ import com.flansmod.warforge.common.faction.Role;
 
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
+import com.flansmod.warforge.client.ClientUpgradeTable;
 import com.flansmod.warforge.client.util.PlayerFaceElement;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
@@ -85,8 +86,8 @@ public final class FactionStatsScreen {
                 .clip(SECTION_WIDTH - 10).at(textX, BODY_Y + 5 + 9 + 4));
 
         int total = info.notoriety + info.wealth + info.legacy;
-        int claimLimit = com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(info.lvl);
-        int stashSlots = com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(info.lvl);
+        int claimLimit = ClientUpgradeTable.getClaimLimitForLevel(info.lvl);
+        int stashSlots = ClientUpgradeTable.getInsuranceSlotsForLevel(info.lvl);
 
         int gridX = textX;
         int gridY = BODY_Y + 5 + 9 + 4 + 9 + 6;

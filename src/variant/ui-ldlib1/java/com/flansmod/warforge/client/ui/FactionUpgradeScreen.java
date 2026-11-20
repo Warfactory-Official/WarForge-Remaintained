@@ -7,6 +7,7 @@ import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.api.modularui.Label;
 import com.flansmod.warforge.api.modularui.ScrollArea;
 import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
+import com.flansmod.warforge.client.ClientUpgradeTable;
 import com.flansmod.warforge.client.util.ItemStackElement;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.PacketRequestUpgrade;
@@ -56,7 +57,7 @@ public final class FactionUpgradeScreen {
             return;
         }
 
-        java.util.Map<ItemMatcher, Integer> requirements = com.flansmod.warforge.client.ClientUpgradeTable.getRequirementsFor(data.level + 1);
+        Map<ItemMatcher, Integer> requirements = ClientUpgradeTable.getRequirementsFor(data.level + 1);
         if (requirements == null || requirements.isEmpty()) {
             openMaxLevel();
             return;
@@ -157,12 +158,12 @@ public final class FactionUpgradeScreen {
         panel.addWidget(Label.bold(tr("warforge.ui.level_d_d", level, level + 1), WarForgeUiTheme.TEXT_WARNING).shadow().at(x, y + 10));
         int cardY = y + 10 + 9 + 2 + 2;
         int next = deltaCard(panel, x, cardY, tr("warforge.ui.claims"),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level)),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level + 1)),
+                String.valueOf(ClientUpgradeTable.getClaimLimitForLevel(level)),
+                String.valueOf(ClientUpgradeTable.getClaimLimitForLevel(level + 1)),
                 WarForgeUiTheme.TEXT_BAD, 0x55FF55);
         deltaCard(panel, next + 2, cardY, tr("warforge.ui.insurance"),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level)),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level + 1)),
+                String.valueOf(ClientUpgradeTable.getInsuranceSlotsForLevel(level)),
+                String.valueOf(ClientUpgradeTable.getInsuranceSlotsForLevel(level + 1)),
                 WarForgeUiTheme.UPGRADE_BEFORE, WarForgeUiTheme.UPGRADE_AFTER);
     }
 

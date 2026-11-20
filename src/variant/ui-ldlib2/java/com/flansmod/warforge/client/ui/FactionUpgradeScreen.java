@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.client.ClientUpgradeTable;
 import com.flansmod.warforge.client.ui.model.DataRevision;
 import static com.flansmod.warforge.common.ui.UiLang.tr;
 import com.flansmod.warforge.common.faction.FactionIds;
@@ -60,7 +61,7 @@ public final class FactionUpgradeScreen {
         }
 
         int color = data.color & 0xFFFFFF;
-        java.util.Map<ItemMatcher, Integer> requirements = com.flansmod.warforge.client.ClientUpgradeTable.getRequirementsFor(data.level + 1);
+        Map<ItemMatcher, Integer> requirements = ClientUpgradeTable.getRequirementsFor(data.level + 1);
         if (requirements == null) {
             openMaxLevel(mc, data, color);
             return;
@@ -181,13 +182,13 @@ public final class FactionUpgradeScreen {
         UIElement deltaRow = new UIElement();
         deltaRow.layout(l -> l.flexDirection(FlexDirection.ROW).alignItems(AlignItems.CENTER).height(20).marginTop(2));
         UIElement claims = deltaCard(tr("warforge.ui.claims"),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level)),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getClaimLimitForLevel(level + 1)),
+                String.valueOf(ClientUpgradeTable.getClaimLimitForLevel(level)),
+                String.valueOf(ClientUpgradeTable.getClaimLimitForLevel(level + 1)),
                 TEXT_BAD, 0x55FF55);
         claims.layout(l -> l.marginRight(1));
         UIElement insurance = deltaCard(tr("warforge.ui.insurance"),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level)),
-                String.valueOf(com.flansmod.warforge.client.ClientUpgradeTable.getInsuranceSlotsForLevel(level + 1)),
+                String.valueOf(ClientUpgradeTable.getInsuranceSlotsForLevel(level)),
+                String.valueOf(ClientUpgradeTable.getInsuranceSlotsForLevel(level + 1)),
                 UPGRADE_BEFORE, UPGRADE_AFTER);
         insurance.layout(l -> l.marginLeft(1));
         deltaRow.addChild(claims);

@@ -90,7 +90,7 @@ public class PacketSiegeCampInfo extends PacketBase {
     }
 
     /** Sends the siege camp UI data to the player. */
-    public static void sendTo(net.minecraft.world.entity.player.Player player, DimBlockPos siegeCampPos,
+    public static void sendTo(Player player, DimBlockPos siegeCampPos,
                               List<SiegeCampAttackInfo> possibleAttacks, byte momentum, int color) {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return;

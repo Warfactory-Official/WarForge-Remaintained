@@ -8,6 +8,7 @@ import com.flansmod.warforge.common.blocks.ClaimBlockEntity;
 import com.flansmod.warforge.common.blocks.FobBlockEntity;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.PacketHandler;
+import com.flansmod.warforge.common.network.PacketSecurity;
 import com.flansmod.warforge.common.ui.UiRegistration;
 import com.flansmod.warforge.compat.Chunks;
 import com.flansmod.warforge.compat.Profiles;
@@ -30,6 +31,9 @@ import com.flansmod.warforge.server.fob.FobManager;
 import com.flansmod.warforge.server.vein.VeinConfigHandler;
 import com.flansmod.warforge.server.vein.VeinUtils;
 import com.flansmod.warforge.common.util.FactionDisplay;
+import com.flansmod.warforge.compat.dynmap.DynmapBridge;
+import com.flansmod.warforge.compat.ftbteams.FtbTeamsLink;
+import com.flansmod.warforge.compat.golem.GolemProtection;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -136,8 +140,8 @@ public class WarForgeMod {
             IMultiBlockInit.registerMaps();
             WarForgeConfig.onRegistriesReady();
             loadUpgradeConfig();
-            if (ModList.get().isLoaded("golemcore")) com.flansmod.warforge.compat.golem.GolemProtection.register();
-            if (ModList.get().isLoaded("ftbteams")) com.flansmod.warforge.compat.ftbteams.FtbTeamsLink.register();
+            if (ModList.get().isLoaded("golemcore")) GolemProtection.register();
+            if (ModList.get().isLoaded("ftbteams")) FtbTeamsLink.register();
         });
     }
 
@@ -291,7 +295,7 @@ public class WarForgeMod {
         if (event.getEntity() instanceof ServerPlayer player && !player.level().isClientSide()) {
             FACTIONS.membership.onLoggedOut(player);
             JOURNEYMAP_VEIN_SYNC.onPlayerLogout(player);
-            com.flansmod.warforge.common.network.PacketSecurity.forget(player.getUUID());
+            PacketSecurity.forget(player.getUUID());
         }
     }
 
@@ -371,7 +375,7 @@ public class WarForgeMod {
         CHUNK_LOADING_MANAGER.refreshAllFactions(FACTIONS.registry.getAllFactions());
         FACTIONS.recalculateAllWealth();
         if (WarForgeConfig.DYNMAP_ENABLED && ModList.get().isLoaded("dynmap")) {
-            com.flansmod.warforge.compat.dynmap.DynmapBridge.start(FACTIONS);
+            DynmapBridge.start(FACTIONS);
         }
     }
 
@@ -390,7 +394,7 @@ public class WarForgeMod {
 
     @SubscribeEvent
     public void serverStopped(ServerStoppedEvent event) {
-        com.flansmod.warforge.compat.dynmap.DynmapBridge.stop();
+        DynmapBridge.stop();
         if (inReplayServer()) {
             CHUNK_LOADING_MANAGER.shutdown();
             MC_SERVER = null;

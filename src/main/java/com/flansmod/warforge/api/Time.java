@@ -1,5 +1,6 @@
 package com.flansmod.warforge.api;
 
+import java.util.Date;
 import lombok.Getter;
 
 public class Time {
@@ -138,7 +139,7 @@ public class Time {
             case END_TIME -> {
                 // Uses timestamp if set
                 if (endTimestamp != 0) {
-                    sb.append(new java.util.Date(endTimestamp));
+                    sb.append(new Date(endTimestamp));
                 } else {
                     sb.append("N/A");
                 }

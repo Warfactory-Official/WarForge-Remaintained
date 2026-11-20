@@ -3,16 +3,21 @@ package com.flansmod.warforge.common;
 import com.flansmod.warforge.common.network.PacketSyncConfig;
 import com.flansmod.warforge.server.ClaimMapView;
 import com.flansmod.warforge.api.vein.Vein;
+import com.flansmod.warforge.common.blocks.ClaimBlockEntity;
 import com.flansmod.warforge.common.network.PacketCitadelUpgradeRequirement;
 import com.flansmod.warforge.common.network.PacketVeinEntries;
 import com.flansmod.warforge.common.network.SyncQueueHandler;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.compat.Players;
+import com.flansmod.warforge.server.SiegeSync;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.entity.BlockEntity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Consumer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.player.Player;
 
 import static com.flansmod.warforge.common.WarForgeMod.NETWORK;
 
@@ -31,7 +36,7 @@ public final class PlayerSyncService {
         WarForgeMod.FACTIONS.mapSync.sendAll(player);
         ClaimMapView.send(player, new DimChunkPos(player.level().dimension(), player.blockPosition()), WarForgeConfig.CLAIM_MANAGER_RADIUS);
 
-        NETWORK.sendTo(com.flansmod.warforge.server.SiegeSync.clearSiegeData(), player);
+        NETWORK.sendTo(SiegeSync.clearSiegeData(), player);
         WarForgeMod.FACTIONS.siegeSync.sendAllInfoToNearby();
         syncConfigDependentData(player, task -> SyncQueueHandler.enqueue(player, () -> task.accept(player)));
     }
@@ -65,12 +70,12 @@ public final class PlayerSyncService {
         }
     }
 
-    public static void syncClaimToPlayer(net.minecraft.world.entity.player.Player player, net.minecraft.core.BlockPos pos) {
+    public static void syncClaimToPlayer(Player player, BlockPos pos) {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return;
         }
-        BlockEntity be = com.flansmod.warforge.compat.Players.serverLevel(serverPlayer).getBlockEntity(pos);
-        if (be instanceof com.flansmod.warforge.common.blocks.ClaimBlockEntity claim) {
+        BlockEntity be = Players.serverLevel(serverPlayer).getBlockEntity(pos);
+        if (be instanceof ClaimBlockEntity claim) {
             var packet = claim.getUpdatePacket();
             if (packet != null) {
                 serverPlayer.connection.send(packet);

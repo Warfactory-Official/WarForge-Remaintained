@@ -3,6 +3,7 @@ package com.flansmod.warforge.platform;
 import com.flansmod.warforge.Tags;
 import com.flansmod.warforge.compat.Ids;
 import it.unimi.dsi.fastutil.longs.LongSet;
+import java.util.LinkedHashMap;
 import net.minecraft.server.level.ServerLevel;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.world.chunk.RegisterTicketControllersEvent;
@@ -48,7 +49,7 @@ public final class ChunkTickets {
     }
 
     private static Map<UUID, OwnerTickets> wrap(TicketHelper helper) {
-        Map<UUID, OwnerTickets> out = new java.util.LinkedHashMap<>();
+        Map<UUID, OwnerTickets> out = new LinkedHashMap<>();
         for (Map.Entry<UUID, TicketSet> entry : helper.getEntityTickets().entrySet()) {
             TicketSet set = entry.getValue();
             out.put(entry.getKey(), new OwnerTickets() {

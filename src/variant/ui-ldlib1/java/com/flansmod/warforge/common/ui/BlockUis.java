@@ -15,6 +15,7 @@ import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.server.Faction;
 import com.lowdragmc.lowdraglib.gui.modular.ModularUI;
+import com.lowdragmc.lowdraglib.gui.texture.ColorRectTexture;
 import com.lowdragmc.lowdraglib.gui.util.ClickData;
 import com.lowdragmc.lowdraglib.gui.widget.ButtonWidget;
 import com.lowdragmc.lowdraglib.gui.widget.SlotWidget;
@@ -305,7 +306,7 @@ public final class BlockUis {
 
         panel.addWidget(WarForgeUiTheme.box(0, 0, width, WarForgeUiTheme.HEADER_HEIGHT, WarForgeUiTheme.solid(WarForgeUiTheme.HEADER_FILL)));
         panel.addWidget(WarForgeUiTheme.box(CONTENT_LEFT, bodyY, sectionWidth, sectionHeight,
-                new com.lowdragmc.lowdraglib.gui.texture.ColorRectTexture(WarForgeUiTheme.SECTION_FILL)));
+                new ColorRectTexture(WarForgeUiTheme.SECTION_FILL)));
         panel.addWidget(WarForgeUiTheme.stripe(BlockUiState.stripe(state, WarForgeUiTheme.STRIPE_DEFAULT), height));
         panel.addWidget(closeButton(width, player));
         panel.addWidget(WarForgeUiTheme.title(tr("warforge.ui.faction_yield_storage")));

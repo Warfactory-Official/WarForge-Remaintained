@@ -11,6 +11,7 @@ import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.blocks.structure.StructureStamper;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.server.ClaimPolicy;
 import net.minecraft.network.chat.Component;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.fob.Fob;
@@ -60,7 +61,7 @@ public class BlockFob extends WFUiBlock implements EntityBlock {
 
         if (!world.isClientSide()) {
             DimChunkPos chunk = new DimChunkPos(world.dimension(), pos);
-            if (!com.flansmod.warforge.server.ClaimPolicy.isDimWhitelisted(chunk.dim)) {
+            if (!ClaimPolicy.isDimWhitelisted(chunk.dim)) {
                 return null;
             }
             if (WarForgeMod.FACTIONS.sieges.isChunkContested(chunk)) {

@@ -14,6 +14,8 @@ import net.minecraftforge.network.PacketDistributor;
 import net.minecraftforge.network.simple.SimpleChannel;
 
 import java.util.function.Supplier;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.player.Player;
 
 public final class NetworkPlatform {
     private NetworkPlatform() {}
@@ -74,8 +76,8 @@ public final class NetworkPlatform {
     }
 
     private static final class ClientAccess {
-        static net.minecraft.world.entity.player.Player player() {
-            return net.minecraft.client.Minecraft.getInstance().player;
+        static Player player() {
+            return Minecraft.getInstance().player;
         }
     }
 }

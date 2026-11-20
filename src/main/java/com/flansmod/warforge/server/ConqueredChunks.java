@@ -8,6 +8,7 @@ import com.flansmod.warforge.common.util.DimChunkPos;
 import com.flansmod.warforge.compat.Ids;
 import com.flansmod.warforge.compat.Keys;
 import com.flansmod.warforge.compat.Nbt;
+import java.util.Collections;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -83,7 +84,7 @@ public final class ConqueredChunks {
     }
 
     public Map<DimChunkPos, ObjectIntPair<UUID>> entries() {
-        return java.util.Collections.unmodifiableMap(chunks);
+        return Collections.unmodifiableMap(chunks);
     }
 
     void readFromNBT(CompoundTag tags) {

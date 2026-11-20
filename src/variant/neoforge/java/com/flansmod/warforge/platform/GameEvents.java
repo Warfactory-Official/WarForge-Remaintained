@@ -4,6 +4,8 @@ import net.neoforged.neoforge.event.entity.living.LivingIncomingDamageEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.function.Consumer;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.entity.LivingEntity;
 
 public final class GameEvents {
     private GameEvents() {}
@@ -15,12 +17,12 @@ public final class GameEvents {
     public static void onLivingDamage(Consumer<LivingDamage> handler) {
         Platform.gameBus().addListener((LivingIncomingDamageEvent event) -> handler.accept(new LivingDamage() {
             @Override
-            public net.minecraft.world.entity.LivingEntity getEntity() {
+            public LivingEntity getEntity() {
                 return event.getEntity();
             }
 
             @Override
-            public net.minecraft.world.damagesource.DamageSource getSource() {
+            public DamageSource getSource() {
                 return event.getSource();
             }
 

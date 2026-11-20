@@ -8,6 +8,7 @@ import net.minecraftforge.common.util.ITeleporter;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.function.Function;
+import net.minecraft.server.level.ServerPlayer;
 
 public final class Teleports {
     private Teleports() {}
@@ -20,7 +21,7 @@ public final class Teleports {
             }
 
             @Override
-            public boolean playTeleportSound(net.minecraft.server.level.ServerPlayer player, ServerLevel sourceWorld, ServerLevel destWorld) {
+            public boolean playTeleportSound(ServerPlayer player, ServerLevel sourceWorld, ServerLevel destWorld) {
                 return false;
             }
         });

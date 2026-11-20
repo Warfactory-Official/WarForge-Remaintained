@@ -28,6 +28,8 @@ import java.util.*;
 
 import static com.flansmod.warforge.common.WarForgeMod.VEIN_HANDLER;
 import com.flansmod.warforge.compat.Ids;
+import java.util.Arrays;
+import java.util.Locale;
 
 public class WarForgeConfig {
     public static final String CATEGORY_CLAIMS = "Claims";
@@ -172,7 +174,7 @@ public class WarForgeConfig {
 
     public static int parseJourneyMapMode(String value) {
         if (value == null) return JM_MODE_DISABLED;
-        switch (value.trim().toUpperCase(java.util.Locale.ROOT)) {
+        switch (value.trim().toUpperCase(Locale.ROOT)) {
             case "AUTO": return JM_MODE_AUTO;
             case "PLAYER": return JM_MODE_PLAYER;
             default: return JM_MODE_DISABLED;
@@ -440,7 +442,7 @@ public class WarForgeConfig {
 
         cfg.push(CATEGORY_CLAIMS);
         CLAIM_DIM_WHITELIST_V = cfg.comment("In which dimensions should player be able to claim chunks")
-                .defineList("Claim Dimension Whitelist", java.util.Arrays.asList(CLAIM_DIM_WHITELIST), o -> o instanceof String);
+                .defineList("Claim Dimension Whitelist", Arrays.asList(CLAIM_DIM_WHITELIST), o -> o instanceof String);
         CLAIM_STRENGTH_CITADEL_V = cfg.comment("The strength of citadel claims").defineInRange("Citadel Claim Strength", CLAIM_STRENGTH_CITADEL, 1, 1024);
         CLAIM_STRENGTH_REINFORCED_V = cfg.comment("The strength of reinforced claims").defineInRange("Reinforced Claim Strength", CLAIM_STRENGTH_REINFORCED, 1, 1024);
         CLAIM_STRENGTH_BASIC_V = cfg.comment("The strength of basic claims").defineInRange("Basic Claim Strength", CLAIM_STRENGTH_BASIC, 1, 1024);

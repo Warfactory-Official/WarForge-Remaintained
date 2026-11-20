@@ -1,5 +1,6 @@
 package com.flansmod.warforge.client.ui;
 
+import com.flansmod.warforge.api.modularui.WarForgeUiTheme;
 import com.flansmod.warforge.client.ui.model.DataRevision;
 import com.flansmod.warforge.client.ui.model.MemberManagerModel;
 import static com.flansmod.warforge.common.ui.UiLang.tr;
@@ -264,7 +265,7 @@ public final class MemberManagerScreen {
     }
 
     private static Button tabButton(String label, boolean selected, FactionMemberManagerGuiData.Page page) {
-        return com.flansmod.warforge.api.modularui.WarForgeUiTheme.tabButton(label, 74, selected, () -> {
+        return WarForgeUiTheme.tabButton(label, 74, selected, () -> {
             PacketRequestMemberData request = new PacketRequestMemberData();
             request.page = page;
             WarForgeMod.NETWORK.sendToServer(request);

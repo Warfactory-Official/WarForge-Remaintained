@@ -44,10 +44,12 @@ import java.util.HashMap;
 import java.util.UUID;
 import com.flansmod.warforge.compat.Stacks;
 import com.flansmod.warforge.compat.carryon.CarryOnCompat;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ProtectionsModule {
     /** Ops who toggled /f protection; server only. */
-    private static final java.util.Set<UUID> OP_OVERRIDE = new java.util.HashSet<>();
+    private static final Set<UUID> OP_OVERRIDE = new HashSet<>();
     private static boolean inLoop = false;
 
     public ProtectionsModule() {
@@ -58,7 +60,7 @@ public class ProtectionsModule {
         return OP_OVERRIDE.add(opId) || !OP_OVERRIDE.remove(opId);
     }
 
-    public static boolean isOpOverride(net.minecraft.world.entity.Entity entity) {
+    public static boolean isOpOverride(Entity entity) {
         return entity instanceof Player player && OP_OVERRIDE.contains(player.getUUID()) && WarForgeMod.isOp(player);
     }
 
