@@ -115,6 +115,10 @@ class ModCommonPlugin : Plugin<Project> {
             name = "GolemLocal"
             content { includeGroup("dev.golem"); includeGroup("com.wf.wfchat") }
         }
+        maven("https://repo.warfactory.co/snapshots") { // WF Chat (compileOnly, compat/wfchat)
+            name = "WarfactorySnapshotsRead"
+            content { includeGroup("com.wf.wfchat") }
+        }
         mavenCentral()
     }
 
