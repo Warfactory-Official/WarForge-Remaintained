@@ -3,9 +3,11 @@ package com.flansmod.warforge.server;
 import com.flansmod.warforge.common.WarClock;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.network.SyncQueueHandler;
+import com.flansmod.warforge.common.util.MainThread;
 
 public class ServerTickHandler {
     public void onTick() {
+        MainThread.drain();
         if (WarForgeMod.isReplayServer()) {
             return;
         }

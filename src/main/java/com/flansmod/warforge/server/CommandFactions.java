@@ -40,6 +40,7 @@ import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.core.registries.Registries;
+import com.flansmod.warforge.compat.wfchat.WarForgeChat;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerPlayer;
@@ -764,7 +765,7 @@ public class CommandFactions {
         if (src.getEntity() instanceof Player player) {
             Faction faction = factions().registry.getFactionOfPlayer(player.getUUID());
             if (faction != null) {
-                faction.messageAll(Component.literal("§a[" + src.getTextName() + " > Faction]§f " + StringArgumentType.getString(ctx, "message")));
+                faction.messageAll(WarForgeChat.faction(Component.literal("§a[" + src.getTextName() + " > Faction]§f " + StringArgumentType.getString(ctx, "message"))));
             }
         }
         return ok();
@@ -778,8 +779,8 @@ public class CommandFactions {
                 src.sendFailure(t("not_in_faction"));
                 return ok();
             }
-            factions().alliances.messageAlliance(faction, Component.literal("§b[" + src.getTextName() + " (" + faction.getName()
-                    + ") > Ally]§f " + StringArgumentType.getString(ctx, "message")));
+            factions().alliances.messageAlliance(faction, WarForgeChat.ally(Component.literal("§b[" + src.getTextName() + " (" + faction.getName()
+                    + ") > Ally]§f " + StringArgumentType.getString(ctx, "message"))));
         }
         return ok();
     }

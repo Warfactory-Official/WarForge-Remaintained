@@ -113,7 +113,7 @@ class ModCommonPlugin : Plugin<Project> {
         }
         mavenLocal { // Golem Core (compileOnly, compat/golem)
             name = "GolemLocal"
-            content { includeGroup("dev.golem") }
+            content { includeGroup("dev.golem"); includeGroup("com.wf.wfchat") }
         }
         mavenCentral()
     }
@@ -125,6 +125,7 @@ class ModCommonPlugin : Plugin<Project> {
         dependencies.apply {
             add("compileOnly", "org.jetbrains:annotations:24.1.0")
             add("compileOnly", prop("deps.golem"))
+            add("compileOnly", prop("deps.wfchat"))
             add("compileOnly", "us.dynmap:DynmapCoreAPI:3.7-beta-6")
             add("compileOnly", "org.projectlombok:lombok:1.18.42")
             add("annotationProcessor", "org.projectlombok:lombok:1.18.42")

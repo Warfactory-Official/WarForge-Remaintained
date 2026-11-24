@@ -11,11 +11,11 @@ import net.minecraft.server.level.ServerPlayer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Active sieges keyed by defending chunk, and read-only queries over them. */
 public final class SiegeRegistry {
@@ -33,7 +33,8 @@ public final class SiegeRegistry {
         }
     }
 
-    private final HashMap<DimChunkPos, Siege> sieges = new HashMap<>();
+    // main-thread writers; region workers iterate weakly-consistent (protection checks)
+    private final ConcurrentHashMap<DimChunkPos, Siege> sieges = new ConcurrentHashMap<>();
     private final FactionRegistry factions;
     private final ClaimRegistry claims;
 

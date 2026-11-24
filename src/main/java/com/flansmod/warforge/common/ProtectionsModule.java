@@ -44,13 +44,14 @@ import java.util.HashMap;
 import java.util.UUID;
 import com.flansmod.warforge.compat.Stacks;
 import com.flansmod.warforge.compat.carryon.CarryOnCompat;
-import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
 
 public class ProtectionsModule {
-    /** Ops who toggled /f protection; server only. */
-    private static final Set<UUID> OP_OVERRIDE = new HashSet<>();
-    private static boolean inLoop = false;
+    /** Ops who toggled /f protection; written by command, read by block events on region workers. */
+    private static final Set<UUID> OP_OVERRIDE = ConcurrentHashMap.newKeySet();
+    /** Per thread: entity.move re-fires EnteringSection on the mover's own worker. */
+    private static final ThreadLocal<boolean[]> IN_LOOP = ThreadLocal.withInitial(() -> new boolean[1]);
 
     public ProtectionsModule() {
     }
@@ -462,20 +463,19 @@ public class ProtectionsModule {
             return;
         }
 
-        if (!inLoop) {
-            if (!(event.getEntity() instanceof Player)) {
-                Entity entity = event.getEntity();
-                ProtectionConfig config = getProtections(FactionIds.NONE, new DimBlockPos(entity.level().dimension(), entity.blockPosition()));
-                if (!config.ALLOW_MOB_ENTRY) {
-                    inLoop = true;
-                    boolean wasNoClip = entity.noPhysics;
-                    entity.noPhysics = true;
-                    SectionPos oldPos = event.getOldPos();
-                    SectionPos newPos = event.getNewPos();
-                    entity.move(MoverType.SELF, new Vec3((oldPos.x() - newPos.x()), 0d, (oldPos.z() - newPos.z())));
-                    entity.noPhysics = wasNoClip;
-                    inLoop = false;
-                }
+        if (!(event.getEntity() instanceof Player)) {
+            Entity entity = event.getEntity();
+            ProtectionConfig config = getProtections(FactionIds.NONE, new DimBlockPos(entity.level().dimension(), entity.blockPosition()));
+            boolean[] inLoop;
+            if (!config.ALLOW_MOB_ENTRY && !(inLoop = IN_LOOP.get())[0]) {
+                inLoop[0] = true;
+                boolean wasNoClip = entity.noPhysics;
+                entity.noPhysics = true;
+                SectionPos oldPos = event.getOldPos();
+                SectionPos newPos = event.getNewPos();
+                entity.move(MoverType.SELF, new Vec3((oldPos.x() - newPos.x()), 0d, (oldPos.z() - newPos.z())));
+                entity.noPhysics = wasNoClip;
+                inLoop[0] = false;
             }
         }
     }

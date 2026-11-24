@@ -10,6 +10,7 @@ import com.flansmod.warforge.common.network.PacketSiegeCampProgressUpdate;
 import com.flansmod.warforge.common.network.SiegeCampProgressInfo;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.common.util.TimeHelper;
 import com.flansmod.warforge.compat.Nbt;
 import com.flansmod.warforge.server.Faction;
@@ -187,6 +188,12 @@ public class SiegeCampBlockEntity extends ClaimBlockEntity {
 
     public void tick() {
         if (level.isClientSide()) return;
+        if (!MainThread.on()) {
+            MainThread.run(() -> {
+                if (!isRemoved()) tick();
+            });
+            return;
+        }
 
         if (!(level.getBlockState(worldPosition).getBlock() instanceof BlockSiegeCamp)) {
             destroy();

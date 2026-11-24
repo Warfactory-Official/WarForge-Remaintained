@@ -42,6 +42,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /** Faction state. Claim collections are mutated only by {@link ClaimRegistry}; the player index by {@link MembershipService}. */
@@ -82,18 +83,19 @@ public class Faction {
     @Getter
     private long momentumExpiryTimestamp = 0L;
 
-    private final HashMap<DimBlockPos, Integer> claims = new HashMap<>();
-    private final HashMap<DimBlockPos, ClaimType> claimTypes = new HashMap<>();
-    private final HashMap<DimChunkPos, DimBlockPos> claimByChunk = new HashMap<>();
+    // claims/claimTypes/claimByChunk/allies/truces: main-thread writers, lock-free reads from region workers (protection checks)
+    private final ConcurrentHashMap<DimBlockPos, Integer> claims = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DimBlockPos, ClaimType> claimTypes = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<DimChunkPos, DimBlockPos> claimByChunk = new ConcurrentHashMap<>();
     private final HashSet<DimChunkPos> forcedChunks = new HashSet<>();
     private final HashSet<DimBlockPos> islandCollectors = new HashSet<>();
     private final HashMap<UUID, PlayerData> members = new HashMap<>();
     private final HashSet<UUID> pendingInvites = new HashSet<>();
     private final HashMap<UUID, Integer> killCounter = new HashMap<>();
     private final ArrayList<ItemStack> insuranceStacks = new ArrayList<>();
-    private final HashSet<UUID> allies = new HashSet<>();
+    private final Set<UUID> allies = ConcurrentHashMap.newKeySet();
     private final HashSet<UUID> pendingAllianceRequests = new HashSet<>();
-    private final HashMap<UUID, Long> truces = new HashMap<>();
+    private final ConcurrentHashMap<UUID, Long> truces = new ConcurrentHashMap<>();
 
     Faction() {
     }
@@ -412,7 +414,7 @@ public class Faction {
             return false;
         }
         if (expiry <= WarClock.truceClock()) {
-            truces.remove(factionID);
+            truces.remove(factionID, expiry);
             return false;
         }
         return true;

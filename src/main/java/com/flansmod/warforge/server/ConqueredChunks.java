@@ -16,14 +16,14 @@ import net.minecraft.nbt.Tag;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.level.Level;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 
 /** Post-siege no-claim / no-siege grace entries: chunk -> (cosmetic faction, remaining ms). */
 public final class ConqueredChunks {
-    private final HashMap<DimChunkPos, ObjectIntPair<UUID>> chunks = new HashMap<>();
+    private final ConcurrentHashMap<DimChunkPos, ObjectIntPair<UUID>> chunks = new ConcurrentHashMap<>();
 
     public boolean isConquered(DimChunkPos chunk) {
         return chunks.containsKey(chunk);

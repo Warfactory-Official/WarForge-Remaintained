@@ -8,15 +8,16 @@ import net.minecraft.world.level.Level;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Factions, the zone pseudo-factions, the lowercase-name index and the player to faction index. */
 public final class FactionRegistry {
-    private final HashMap<UUID, Faction> factions = new HashMap<>();
-    private final HashMap<String, Faction> byLowerName = new HashMap<>();
-    private final HashMap<UUID, Faction> byPlayer = new HashMap<>();
+    // main-thread writers, lock-free reads from region workers
+    private final ConcurrentHashMap<UUID, Faction> factions = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Faction> byLowerName = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<UUID, Faction> byPlayer = new ConcurrentHashMap<>();
     @Getter
     private Faction safeZone;
     @Getter
@@ -46,7 +47,7 @@ public final class FactionRegistry {
     }
 
     public boolean contains(UUID factionId) {
-        return factions.containsKey(factionId);
+        return factionId != null && factions.containsKey(factionId);
     }
 
     /** @return null for null, {@link FactionIds#NONE} or unknown ids */
@@ -70,16 +71,16 @@ public final class FactionRegistry {
     }
 
     public Faction getFactionOfPlayer(UUID playerID) {
-        return byPlayer.get(playerID);
+        return playerID == null ? null : byPlayer.get(playerID);
     }
 
     public boolean isPlayerInFaction(UUID playerID, UUID factionID) {
-        Faction faction = byPlayer.get(playerID);
+        Faction faction = getFactionOfPlayer(playerID);
         return faction != null && faction.getUuid().equals(factionID);
     }
 
     public boolean isPlayerRoleInFaction(UUID playerID, UUID factionID, Role role) {
-        Faction faction = factions.get(factionID);
+        Faction faction = getFaction(factionID);
         return faction != null && faction.isPlayerRoleInFaction(playerID, role);
     }
 

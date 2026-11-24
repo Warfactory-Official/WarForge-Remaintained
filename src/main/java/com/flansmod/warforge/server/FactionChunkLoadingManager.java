@@ -5,6 +5,7 @@ import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.MainThread;
 import it.unimi.dsi.fastutil.longs.LongSet;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
@@ -62,6 +63,10 @@ public class FactionChunkLoadingManager {
     }
 
     public void releaseFaction(UUID factionId) {
+        if (!MainThread.on()) {
+            MainThread.run(() -> releaseFaction(factionId));
+            return;
+        }
         Map<ResourceKey<Level>, HashSet<DimChunkPos>> byDim = forcedByFaction.remove(factionId);
         if (byDim == null) {
             return;
@@ -85,8 +90,13 @@ public class FactionChunkLoadingManager {
         }
     }
 
+    /** Chunk tickets are server-thread only; worker callers are deferred. */
     public void refreshFactionChunks(Faction faction) {
         if (faction == null || false) {
+            return;
+        }
+        if (!MainThread.on()) {
+            MainThread.run(() -> refreshFactionChunks(faction));
             return;
         }
 

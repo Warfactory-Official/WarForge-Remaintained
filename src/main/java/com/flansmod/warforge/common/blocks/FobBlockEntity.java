@@ -5,6 +5,7 @@ import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.Content;
 import com.flansmod.warforge.common.WarForgeMod;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.server.Faction;
 import com.flansmod.warforge.server.fob.Fob;
 import com.flansmod.warforge.server.fob.FobPresence;
@@ -48,6 +49,12 @@ public class FobBlockEntity extends WFBlockEntity {
             return;
         }
         if (ownerFaction.equals(FactionIds.NONE)) {
+            return;
+        }
+        if (!MainThread.on()) {
+            MainThread.run(() -> {
+                if (!isRemoved()) tick();
+            });
             return;
         }
 

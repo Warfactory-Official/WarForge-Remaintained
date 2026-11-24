@@ -60,7 +60,7 @@ public class VeinUtils {
     public final double gradientFrequency;
     public final boolean gradientEnabled;
 
-    public boolean hasFinishedInit;
+    public volatile boolean hasFinishedInit;
 
     VeinUtils(short iterationId, short megachunkLength) {
         this(iterationId, megachunkLength, 0.0, 0.0, 0.0, 1.0);
@@ -154,7 +154,7 @@ public class VeinUtils {
         return ID_TO_VEINS.get(veinId);
     }
 
-    public Pair<Vein, Quality> getVein(ResourceKey<Level> dim, int chunkX, int chunkZ, long seed) {
+    public synchronized Pair<Vein, Quality> getVein(ResourceKey<Level> dim, int chunkX, int chunkZ, long seed) {
         long megachunkKey = produceMegachunkKey(chunkX, chunkZ);
         short offset = produceChunkOffset(chunkX, chunkZ);
 
@@ -171,7 +171,7 @@ public class VeinUtils {
         return veinInfo;
     }
 
-    public Pair<Vein, Quality> peekStoredVein(ResourceKey<Level> dim, int chunkX, int chunkZ) {
+    public synchronized Pair<Vein, Quality> peekStoredVein(ResourceKey<Level> dim, int chunkX, int chunkZ) {
         return pullVein(dim, produceMegachunkKey(chunkX, chunkZ), produceChunkOffset(chunkX, chunkZ));
     }
 
@@ -201,7 +201,7 @@ public class VeinUtils {
         dimMap.put(megachunkKey, pair);
     }
 
-    public void setVeinOverride(ResourceKey<Level> dim, int chunkX, int chunkZ, short veinId, int quality) {
+    public synchronized void setVeinOverride(ResourceKey<Level> dim, int chunkX, int chunkZ, short veinId, int quality) {
         long megachunkKey = produceMegachunkKey(chunkX, chunkZ);
         short offset = produceChunkOffset(chunkX, chunkZ);
         ensureMegachunkStorage(dim, megachunkKey);
@@ -226,11 +226,11 @@ public class VeinUtils {
         recomputeRemainingWeight(dim, megachunkKey);
     }
 
-    public void clearVeinAt(ResourceKey<Level> dim, int chunkX, int chunkZ) {
+    public synchronized void clearVeinAt(ResourceKey<Level> dim, int chunkX, int chunkZ) {
         setVeinOverride(dim, chunkX, chunkZ, NULL_VEIN_ID, 7);
     }
 
-    public Pair<Vein, Quality> rerollVeinAt(ResourceKey<Level> dim, int chunkX, int chunkZ, long seed) {
+    public synchronized Pair<Vein, Quality> rerollVeinAt(ResourceKey<Level> dim, int chunkX, int chunkZ, long seed) {
         long megachunkKey = produceMegachunkKey(chunkX, chunkZ);
         short offset = produceChunkOffset(chunkX, chunkZ);
         if (isMegachunkPopulated(dim, megachunkKey)) {
@@ -261,18 +261,18 @@ public class VeinUtils {
         occurrences.defaultReturnValue((short) Math.max(0, remaining));
     }
 
-    public boolean isMegachunkPopulated(ResourceKey<Level> dim, long megachunkKey) {
+    public synchronized boolean isMegachunkPopulated(ResourceKey<Level> dim, long megachunkKey) {
         return MEGA_CHUNK_OCCURRENCE_DATA.containsKey(dim) && MEGA_CHUNK_OCCURRENCE_DATA.get(dim).containsKey(megachunkKey);
     }
 
-    public void ensureMegachunkPopulated(ResourceKey<Level> dim, long megachunkKey) {
+    public synchronized void ensureMegachunkPopulated(ResourceKey<Level> dim, long megachunkKey) {
         if (!isMegachunkPopulated(dim, megachunkKey) && DIM_VEIN_WEIGHT_MAP.containsKey(dim)) {
             populateMegachunkInfo(dim, megachunkKey);
         }
     }
 
     // should only be called for dimensions which actually expect to see veins within them
-    public void populateMegachunkInfo(ResourceKey<Level> dim, long megachunkKey) {
+    public synchronized void populateMegachunkInfo(ResourceKey<Level> dim, long megachunkKey) {
         var currDimMegachunks = MEGA_CHUNK_OCCURRENCE_DATA.computeIfAbsent(dim, d -> new Long2ObjectOpenHashMap<>());
         currDimMegachunks.put(megachunkKey, Pair.of(
             new Short2ShortOpenHashMap(),
@@ -289,7 +289,7 @@ public class VeinUtils {
         currMegachunk.getRight().defaultReturnValue(NULL_VEIN_ID);
     }
 
-    public Pair<Vein, Quality> pullVein(ResourceKey<Level> dim, long megachunkKey, short offset) {
+    public synchronized Pair<Vein, Quality> pullVein(ResourceKey<Level> dim, long megachunkKey, short offset) {
         if (!isMegachunkPopulated(dim, megachunkKey)) { return null; }
 
         var offsetIds = MEGA_CHUNK_OCCURRENCE_DATA.get(dim).get(megachunkKey).getRight();
@@ -302,7 +302,7 @@ public class VeinUtils {
         return Pair.of(ID_TO_VEINS.get(unpackedData[0]), Quality.getQuality(unpackedData[1]));
     }
 
-    public Pair<Vein, Quality> generateVeinInfo(ResourceKey<Level> dim, long megachunkKey, int chunkX, int chunkZ, long seed) {
+    public synchronized Pair<Vein, Quality> generateVeinInfo(ResourceKey<Level> dim, long megachunkKey, int chunkX, int chunkZ, long seed) {
         if (!DIM_VEIN_WEIGHT_MAP.containsKey(dim)) { return null; }
         ensureMegachunkPopulated(dim, megachunkKey);
 
@@ -384,14 +384,14 @@ public class VeinUtils {
         return vein == null ? DIM_VEIN_WEIGHT_MAP.get(dim).getShort(VeinKey.NULL_KEY) : vein.getDimExpectedCount(dim);
     }
 
-    public void addVeinInfo(ResourceKey<Level> dim, int chunkX, int chunkZ, short veinId, int quality) {
+    public synchronized void addVeinInfo(ResourceKey<Level> dim, int chunkX, int chunkZ, short veinId, int quality) {
         long megachunkKey = produceMegachunkKey(chunkX, chunkZ);
         short offset = produceChunkOffset(chunkX, chunkZ);
 
         addVeinInfo(dim, megachunkKey, offset, veinId, quality);
     }
 
-    public void addVeinInfo(ResourceKey<Level> dim, long megachunkKey, short offset, short veinId, int quality) {
+    public synchronized void addVeinInfo(ResourceKey<Level> dim, long megachunkKey, short offset, short veinId, int quality) {
         ensureMegachunkPopulated(dim, megachunkKey);
         var currMegachunk = MEGA_CHUNK_OCCURRENCE_DATA.get(dim).get(megachunkKey);
 
@@ -531,7 +531,7 @@ public class VeinUtils {
     }
     private String getDimInfoID(ResourceKey<Level> dim) { return "dinfo_" + Keys.id(dim).toString(); }
 
-    public void readFromNBT(CompoundTag tags) {
+    public synchronized void readFromNBT(CompoundTag tags) {
         if (!tags.contains("vein_dims")) { return; }
         if (!tags.contains("vein_format") || Nbt.getInt(tags, "vein_format") != STORAGE_FORMAT) {
             LOGGER.info("Vein storage format changed; discarding stored vein data.");
@@ -594,7 +594,7 @@ public class VeinUtils {
         }
     }
 
-    public void writeToNBT(CompoundTag tags) {
+    public synchronized void writeToNBT(CompoundTag tags) {
         tags.putInt("vein_format", STORAGE_FORMAT);
         tags.putShort("vein_it_id", iterationId);
         tags.putShort("vein_megachunk_length", megachunkLength);

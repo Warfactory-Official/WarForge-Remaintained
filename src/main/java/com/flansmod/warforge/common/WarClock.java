@@ -11,11 +11,11 @@ public final class WarClock {
     public static long numberOfSiegeDaysTicked = 0L;
     public static long numberOfYieldDaysTicked = 0L;
     public static long timestampOfFirstDay = 0L;
-    public static long previousUpdateTimestamp = 0L;
-    public static long serverTick = 0L;
-    public static long currTickTimestamp = 0L;
+    public static volatile long previousUpdateTimestamp = 0L;
+    public static volatile long serverTick = 0L;
+    public static volatile long currTickTimestamp = 0L;
     public static long serverStopTimestamp = 0L;
-    public static long gameTimeMs = 0L;
+    public static volatile long gameTimeMs = 0L;
 
     public static final TimeHelper TIME = new TimeHelper();
 

@@ -11,6 +11,7 @@ import com.flansmod.warforge.common.blocks.structure.StructureStamper;
 import com.flansmod.warforge.common.faction.Role;
 import com.flansmod.warforge.common.util.DimBlockPos;
 import com.flansmod.warforge.common.util.DimChunkPos;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.compat.Nbt;
 import com.flansmod.warforge.server.ClaimPolicy;
 import com.flansmod.warforge.server.Faction;
@@ -32,6 +33,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static com.flansmod.warforge.server.ServerText.t;
 
@@ -41,7 +43,8 @@ public class FobManager {
     private static final long MIN_HOLD_TICKS = 20L;
 
     private final HashMap<UUID, ArrayList<Fob>> fobsByFaction = new HashMap<>();
-    private final HashMap<DimChunkPos, Fob> fobByChunk = new HashMap<>();
+    // main-thread writers; region workers read lock-free (FOB block hooks)
+    private final ConcurrentHashMap<DimChunkPos, Fob> fobByChunk = new ConcurrentHashMap<>();
     private final FobWarpQueue warpQueue = new FobWarpQueue();
     private final List<DimBlockPos> pendingCleanup = new ArrayList<>();
 
@@ -118,6 +121,10 @@ public class FobManager {
     }
 
     public void removeFob(Fob fob) {
+        if (!MainThread.on()) {
+            MainThread.run(() -> removeFob(fob));
+            return;
+        }
         ArrayList<Fob> fobs = fobsByFaction.get(fob.ownerFaction);
         if (fobs != null) {
             fobs.remove(fob);

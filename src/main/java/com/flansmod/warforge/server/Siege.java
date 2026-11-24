@@ -11,8 +11,8 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 
-import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.Set;
 import java.util.UUID;
 
@@ -25,7 +25,8 @@ public class Siege {
 
     public UUID attackingFaction;
     public UUID defendingFaction;
-    public final ArrayList<DimBlockPos> attackingCamps = new ArrayList<>(4);
+    /** COW: camps change at siege start/end on main; zone checks iterate from region workers. */
+    public final CopyOnWriteArrayList<DimBlockPos> attackingCamps = new CopyOnWriteArrayList<>();
     public DimBlockPos defendingClaim;
     /** Camp-less (map-declared) sieges anchor logically at attackingCamps[0]; presence is enforced by the siege loop. */
     public boolean campless = false;
@@ -45,7 +46,7 @@ public class Siege {
     private int battleRadius = WarForgeConfig.SIEGE_BATTLE_RADIUS;
     @Getter
     private int siegedRadius = WarForgeConfig.SIEGE_SIEGED_RADIUS;
-    private final HashSet<UUID> presentAttackers = new HashSet<>();
+    private final Set<UUID> presentAttackers = ConcurrentHashMap.newKeySet();
     private Boolean forcedAttackerVictory = null;
 
     // persisted so a restart does not reset them
@@ -58,8 +59,10 @@ public class Siege {
     @Getter
     private int largestSeenDefenderCount = 0;
 
-    private Set<DimChunkPos> islandCache;
-    private int islandCacheRevision = -1;
+    private record IslandCache(int revision, Set<DimChunkPos> island) {
+    }
+
+    private volatile IslandCache islandCache;
 
     public Siege() {
     }
@@ -201,11 +204,13 @@ public class Siege {
 
     /** Defender island cached per claim revision. */
     private Set<DimChunkPos> defenderIsland(ClaimRegistry claims) {
-        if (islandCache == null || islandCacheRevision != claims.getRevision()) {
-            islandCache = claims.collectIsland(defendingFaction, defendingClaim.toChunkPos());
-            islandCacheRevision = claims.getRevision();
+        IslandCache cache = islandCache;
+        int revision = claims.getRevision();
+        if (cache == null || cache.revision != revision) {
+            cache = new IslandCache(revision, claims.collectIsland(defendingFaction, defendingClaim.toChunkPos()));
+            islandCache = cache;
         }
-        return islandCache;
+        return cache.island;
     }
 
     private boolean isNearAnyCamp(DimChunkPos chunk, int radius) {

@@ -16,18 +16,19 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 // Sole mutator of chunk->owner index: claim/unclaim keep index, faction claims, wealth, force-loads, collectors consistent.
 public final class ClaimRegistry {
-    private final HashMap<DimChunkPos, UUID> owners = new HashMap<>();
+    // sole writer: main thread; region workers read lock-free (protection checks)
+    private final ConcurrentHashMap<DimChunkPos, UUID> owners = new ConcurrentHashMap<>();
     /** Bumped on every ownership change; keys caches derived from the index. */
     @Getter
-    private int revision;
+    private volatile int revision;
 
     public Map<DimChunkPos, UUID> getClaims() {
         return Collections.unmodifiableMap(owners);

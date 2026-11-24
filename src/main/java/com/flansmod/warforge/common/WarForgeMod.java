@@ -10,6 +10,7 @@ import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.PacketHandler;
 import com.flansmod.warforge.common.network.PacketSecurity;
 import com.flansmod.warforge.common.ui.UiRegistration;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.compat.Chunks;
 import com.flansmod.warforge.compat.Profiles;
 import com.flansmod.warforge.platform.BlockBreak;
@@ -34,10 +35,12 @@ import com.flansmod.warforge.common.util.FactionDisplay;
 import com.flansmod.warforge.compat.dynmap.DynmapBridge;
 import com.flansmod.warforge.compat.ftbteams.FtbTeamsLink;
 import com.flansmod.warforge.compat.golem.GolemProtection;
+import com.flansmod.warforge.compat.wfchat.WarForgeChat;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -142,6 +145,7 @@ public class WarForgeMod {
             loadUpgradeConfig();
             if (ModList.get().isLoaded("golemcore")) GolemProtection.register();
             if (ModList.get().isLoaded("ftbteams")) FtbTeamsLink.register();
+            if (ModList.get().isLoaded("wfchat")) WarForgeChat.register();
         });
     }
 
@@ -246,8 +250,11 @@ public class WarForgeMod {
         }
 
         if (event.getEntity() instanceof ServerPlayer player) {
-            FACTIONS.siegeService.onPlayerDied(player, event.getSource());
-            FACTIONS.sieges.removeAttackerPresence(player.getUUID());
+            DamageSource source = event.getSource();
+            MainThread.run(() -> {
+                FACTIONS.siegeService.onPlayerDied(player, source);
+                FACTIONS.sieges.removeAttackerPresence(player.getUUID());
+            });
         }
     }
 
@@ -400,6 +407,7 @@ public class WarForgeMod {
             MC_SERVER = null;
             return;
         }
+        MainThread.clear();
         SaveManager.saveAndStop("Server Stop");
         CHUNK_LOADING_MANAGER.shutdown();
         MC_SERVER = null;

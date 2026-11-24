@@ -14,6 +14,7 @@ import com.flansmod.warforge.common.NonPlayerProtection;
 import com.flansmod.warforge.common.ProtectionsModule;
 import com.flansmod.warforge.common.WarForgeConfig;
 import com.flansmod.warforge.common.WarForgeMod;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.common.faction.FactionIds;
 import com.flansmod.warforge.common.network.PacketClientNotification;
 import com.flansmod.warforge.common.util.DimBlockPos;
@@ -53,8 +54,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Predicate;
 
 /**
- * Addon entry point. Server-thread only: every method except {@link #setVeinWeightProvider},
- * {@link #addFobWarpVeto}, {@link #addKillAttributor} and {@link #MOD_ID} throws {@link IllegalStateException} elsewhere.
+ * Addon entry point. Queries over the claim/faction/siege registries (concurrent) and {@link #veinAt} (synchronized) are callable from any thread once the
+ * server is up; {@link #notifyFaction} defers to the server thread when called elsewhere; {@link #isMember},
+ * {@link #memberCount}, {@link #siegeDefenceAt}, {@link #loadedClaimedChunks}, {@link #anyLoadedClaimedTile},
+ * {@link #getReinforcementBonus}, {@link #veins} and {@link #findVein} throw {@link IllegalStateException} off the server thread.
  * Positions are a dimension key plus {@link ChunkPos}/{@link BlockPos}. Nothing loads a chunk.
  * Ownership is not permission: siege state, zones and alliance override it; use {@link #mayPlace}/{@link #mayBreak}.
  */
@@ -84,7 +87,20 @@ public final class WarforgeAPI {
         return server;
     }
 
+    private static MinecraftServer readable() {
+        MinecraftServer server = WarForgeMod.MC_SERVER;
+        if (server == null) {
+            throw new IllegalStateException("WarforgeAPI used before the server started");
+        }
+        return server;
+    }
+
     private static FactionStorage factions() {
+        readable();
+        return WarForgeMod.FACTIONS;
+    }
+
+    private static FactionStorage factionsMain() {
         server();
         return WarForgeMod.FACTIONS;
     }
@@ -92,6 +108,11 @@ public final class WarforgeAPI {
     @Nullable
     private static Faction faction(@Nullable UUID factionId) {
         return FactionIds.isValid(factionId) ? factions().registry.getFaction(factionId) : null;
+    }
+
+    @Nullable
+    private static Faction factionMain(@Nullable UUID factionId) {
+        return FactionIds.isValid(factionId) ? factionsMain().registry.getFaction(factionId) : null;
     }
 
     /** Faction of a player, or null. */
@@ -136,13 +157,13 @@ public final class WarforgeAPI {
     }
 
     public static boolean isMember(UUID factionId, UUID player) {
-        Faction faction = faction(factionId);
+        Faction faction = factionMain(factionId);
         return faction != null && faction.isPlayerInFaction(player);
     }
 
     /** 0 for an unknown faction. */
     public static int memberCount(UUID factionId) {
-        Faction faction = faction(factionId);
+        Faction faction = factionMain(factionId);
         return faction == null ? 0 : faction.getMemberCount();
     }
 
@@ -192,24 +213,24 @@ public final class WarforgeAPI {
     }
 
     public static boolean mayPlace(UUID playerId, ResourceKey<Level> dim, ChunkPos chunk, Block block) {
-        server();
+        readable();
         return !ProtectionsModule.placeDenied(ProtectionsModule.getProtections(playerId, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk))), block);
     }
 
     public static boolean mayBreak(UUID playerId, ResourceKey<Level> dim, ChunkPos chunk, Block block) {
-        server();
+        readable();
         return !ProtectionsModule.breakDenied(ProtectionsModule.getProtections(playerId, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk))), block);
     }
 
     /** Explosion protection at {@code pos} as if lit by {@code igniterPlayer} (null: no player). */
     public static boolean isExplosionProtected(Level level, BlockPos pos, @Nullable UUID igniterPlayer) {
-        server();
+        readable();
         return ExplosionProtection.isProtected(level, igniterPlayer, pos);
     }
 
     /** Removes protected positions; the igniter is a faction, no player is impersonated. null: no igniter. */
     public static void filterExplosionProtected(Level level, @Nullable UUID igniterFaction, Collection<BlockPos> positions) {
-        server();
+        readable();
         ExplosionProtection.filterByFaction(level, igniterFaction, positions);
     }
 
@@ -218,18 +239,22 @@ public final class WarforgeAPI {
      * {@code faction}; neither => outsider. Uniform per chunk. Flag mapping: docs/api.md.
      */
     public static boolean mayAlter(ResourceKey<Level> dim, ChunkPos chunk, @Nullable UUID player, @Nullable UUID faction, AlterKind kind) {
-        server();
+        readable();
         return NonPlayerProtection.mayAlter(new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)), player, faction, kind);
     }
 
     /** Whether an effect of {@code kind} caused by {@code player}/{@code faction} may harm {@code victim}. Non-players: true. */
     public static boolean mayHarm(Level level, Entity victim, @Nullable UUID player, @Nullable UUID faction, HarmKind kind) {
-        server();
+        readable();
         return NonPlayerProtection.mayHarm(level, victim, player, faction, kind);
     }
 
     /** Toast to every online member. Equal {@code dedupeToken}s replace each other on the client; null: no dedupe. */
     public static void notifyFaction(UUID factionId, @Nullable String dedupeToken, Component message, NotificationStyle style, long durationMs) {
+        if (!MainThread.on()) {
+            MainThread.run(() -> notifyFaction(factionId, dedupeToken, message, style, durationMs));
+            return;
+        }
         Faction faction = faction(factionId);
         if (faction == null) return;
         int colour = switch (style) {
@@ -245,7 +270,7 @@ public final class WarforgeAPI {
     @Nullable
     public static SiegeDefence siegeDefenceAt(ResourceKey<Level> dim, ChunkPos chunk) {
         UUID owner = ownerOf(dim, chunk);
-        Faction faction = faction(owner);
+        Faction faction = factionMain(owner);
         return faction == null ? null : SiegeDifficulty.breakdown(server(), faction, new DimChunkPos(dim, Chunks.x(chunk), Chunks.z(chunk)));
     }
 
@@ -374,7 +399,7 @@ public final class WarforgeAPI {
     /** The chunk's vein (rolled and stored on first query); null for no vein, veins not loaded or chunk veins disabled. */
     @Nullable
     public static VeinSample veinAt(ServerLevel level, int chunkX, int chunkZ) {
-        server();
+        readable();
         VeinUtils handler = WarForgeMod.VEIN_HANDLER;
         if (handler == null || !handler.hasFinishedInit) return null;
         var info = handler.getVein(level.dimension(), chunkX, chunkZ, level.getSeed());

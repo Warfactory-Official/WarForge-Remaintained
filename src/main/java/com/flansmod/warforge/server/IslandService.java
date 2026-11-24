@@ -6,6 +6,7 @@ import com.flansmod.warforge.common.blocks.CitadelBlockEntity;
 import com.flansmod.warforge.common.blocks.IslandCollectorBlockEntity;
 import com.flansmod.warforge.common.faction.Role;
 import com.flansmod.warforge.common.util.DimBlockPos;
+import com.flansmod.warforge.common.util.MainThread;
 import com.flansmod.warforge.common.util.DimChunkPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
@@ -61,6 +62,10 @@ public final class IslandService {
     }
 
     public void unregisterCollector(DimBlockPos collectorPos) {
+        if (!MainThread.on()) {
+            MainThread.run(() -> unregisterCollector(collectorPos));
+            return;
+        }
         for (Faction faction : hub.registry.getAllFactions()) {
             if (faction.removeIslandCollector(collectorPos)) {
                 WarForgeMod.CHUNK_LOADING_MANAGER.refreshFactionChunks(faction);
